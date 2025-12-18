@@ -32,6 +32,15 @@ target_include_directories(Platform
 )
 target_link_libraries(Platform PUBLIC Core SDL2::SDL2 blend2d::blend2d)
 
+# --- Parser Library ---
+add_library(Parser STATIC
+    src/parser/Tokenizer.cpp
+    src/parser/Parser.cpp
+)
+target_include_directories(Parser
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
 # --- App Executable ---
 # This is the main application that brings everything together.
@@ -41,7 +50,7 @@ add_executable(Hummingbird src/app/main.cpp)
 target_include_directories(Hummingbird PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(Hummingbird PRIVATE Platform)
+target_link_libraries(Hummingbird PRIVATE Platform Parser)
 
 # --- Unit Testing ---
 enable_testing()

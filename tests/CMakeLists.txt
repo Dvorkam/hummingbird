@@ -3,14 +3,16 @@ find_package(GTest REQUIRED)
 
 # Create the test executable
 add_executable(HummingbirdTests
-    main.cpp
     core/ArenaAllocator.test.cpp
+    parser/Tokenizer.test.cpp
+    parser/Parser.test.cpp
 )
 
-# Link the test executable against GTest and our Core library
+# Link the test executable against GTest and our libraries
 target_link_libraries(HummingbirdTests PRIVATE
     GTest::gtest_main
     Core
+    Parser
 )
 
 # Add the root src directory to the include path so tests can find headers
