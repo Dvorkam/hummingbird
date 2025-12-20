@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  # JOB 1: Code Formatting Check
+  # Fails if code doesn't match .clang-format rules
+  formatting:
+    name: Check Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run clang-format style check
+        uses: jidicula/clang-format-action@v4.11.0
+        with:
+          clang-format-version: '15'
+          check-path: 'src' # Only check your source folder
+          fallback-style: 'Google' # Fallback if .clang-format is missing
+
+  # JOB 2: Build & Test
+  build:
+    name: ${{ matrix.os }} Build
+    needs: formatting # Don't bother building if formatting fails
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # Setup C++ Compilers
+      - name: Setup GCC (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential ninja-build libx11-dev libxft-dev libxext-dev xvfb
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # Setup Vcpkg (Auto-handles Caching!)
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          # This points to your vcpkg.json file
+          vcpkgJsonGlob: 'vcpkg.json'
+
+      # Configure CMake
+      - name: CMake Configure
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: 'ninja-multi-vcpkg' # Uses vcpkg toolchain automatically
+          configurePresetAdditionalArgs: "['-DCMAKE_BUILD_TYPE=Release']"
+
+      # Build
+      - name: Build
+        run: cmake --build --preset ninja-multi-vcpkg --config Release
+
+      # Run Tests (Linux with xvfb for headless window support)
+      - name: Test (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run ctest --preset ninja-multi-vcpkg --output-on-failure -C Release
+
+      # Run Tests (Windows)
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        run: ctest --preset ninja-multi-vcpkg --output-on-failure -C Release
