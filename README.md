@@ -5,7 +5,7 @@ Hummingbird is an experimental, lightweight browser engine being built from scra
 ## Milestones
 
 -   [x] **Epic 0: The Engine Foundation** - A working "Hello Engine" application that can open a window and render a solid color. The basic build system and modular architecture are in place.
--   [ ] **Epic 1: The HTML Parser**
+-   [!] **Epic 1: The HTML Parser**
 -   [ ] **Epic 2: The CSS Parser**
 -   [ ] **Epic 3: The DOM & Layout Tree**
 -   [ ] **Epic 4: The Render Tree & Painting**
