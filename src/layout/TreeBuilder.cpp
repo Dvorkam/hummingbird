@@ -3,6 +3,8 @@
 #include "core/dom/Text.h"
 #include "layout/BlockBox.h"
 #include "layout/TextBox.h"
+#include "layout/RenderBreak.h"
+#include "layout/RenderRule.h"
 
 namespace Hummingbird::Layout {
 
@@ -20,7 +22,13 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         if (tag == "head" || tag == "style" || tag == "title" || tag == "script") {
             return nullptr;
         }
-        // For now, all non-inline elements are treated as block boxes.
+        if (tag == "br") {
+            return std::make_unique<RenderBreak>(element_node);
+        }
+        if (tag == "hr") {
+            return std::make_unique<RenderRule>(element_node);
+        }
+        // For now, all other elements are treated as block boxes.
         return std::make_unique<BlockBox>(element_node);
     } else if (auto text_node = dynamic_cast<const DOM::Text*>(node)) {
         // Don't create render objects for whitespace-only text nodes

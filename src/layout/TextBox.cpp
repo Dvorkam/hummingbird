@@ -56,9 +56,13 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
     // Assumptions for now: font and size are hardcoded
     auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
-    float font_size = 16.0f;
+    float font_size = style ? style->font_size : 16.0f;
+    bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
+    bool italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
+    bool monospace = style && style->font_monospace;
 
-    m_last_metrics = context.measure_text(m_rendered_text, font_path.string(), font_size);
+    // TODO: choose real monospace or bold fonts when available.
+    m_last_metrics = context.measure_text(m_rendered_text, font_path.string(), font_size, bold, italic, monospace);
     float content_width = m_last_metrics.width;
     if (style && style->width.has_value()) {
         content_width = *style->width;
@@ -84,12 +88,20 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
     if (m_rendered_text.empty()) return;
 
     Color text_color = style ? style->color : Color{0, 0, 0, 255};
+    bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
+    bool italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
+    bool monospace = style && style->font_monospace;
 
-    // Assumptions for now: font and size are hardcoded
+    if (style && style->background.has_value()) {
+        Hummingbird::Layout::Rect bg{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
+        context.fill_rect(bg, *style->background);
+    }
+
+    // Assumptions for now: font selection is basic; just adjust size.
     auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
-    float font_size = 16.0f;
+    float font_size = style ? style->font_size : 16.0f;
     
-    context.draw_text(m_rendered_text, absolute_x, absolute_y, font_path.string(), font_size, text_color);
+    context.draw_text(m_rendered_text, absolute_x, absolute_y, font_path.string(), font_size, text_color, bold, italic, monospace);
 
     if (style && style->underline && m_last_metrics.width > 0) {
         float underline_y = absolute_y + m_last_metrics.height - 2.0f;

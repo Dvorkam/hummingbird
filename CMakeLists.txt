@@ -64,6 +64,8 @@ add_library(Layout STATIC
     src/layout/TreeBuilder.cpp
     src/layout/BlockBox.cpp
     src/layout/TextBox.cpp
+    src/layout/RenderBreak.cpp
+    src/layout/RenderRule.cpp
 )
 target_include_directories(Layout
     PUBLIC

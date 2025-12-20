@@ -13,11 +13,11 @@ public:
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect&, const Color&) override {}
 
-    TextMetrics measure_text(const std::string& text, const std::string&, float) override {
+    TextMetrics measure_text(const std::string& text, const std::string&, float, bool, bool, bool) override {
         return { static_cast<float>(text.size()) * 8.0f, 16.0f };
     }
 
-    void draw_text(const std::string& text, float, float, const std::string&, float, const Color&) override {
+    void draw_text(const std::string& text, float, float, const std::string&, float, const Color&, bool, bool, bool) override {
         ++draw_calls;
         last_text = text;
     }

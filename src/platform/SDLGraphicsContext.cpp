@@ -35,13 +35,13 @@ void SDLGraphicsContext::fill_rect(const Hummingbird::Layout::Rect& rect, const 
     }
 }
 
-void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const std::string& font_path, float font_size, const Color& color) {
+void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const std::string& font_path, float font_size, const Color& color, bool bold, bool italic, bool /*monospace*/) {
     if (!m_renderer) {
         return;
     }
 
     // Reuse the layout metrics logic to avoid duplicating measurement behavior.
-    TextMetrics metrics = measure_text(text, font_path, font_size);
+    TextMetrics metrics = measure_text(text, font_path, font_size, bold, italic, false);
     int target_width = static_cast<int>(std::ceil(metrics.width));
     int target_height = static_cast<int>(std::ceil(metrics.height));
     if (target_width <= 0 || target_height <= 0) {
@@ -71,6 +71,9 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     ctx.setFillStyle(BLRgba32(color.r, color.g, color.b, color.a));
     double baseline_y = fm.ascent; // place baseline inside the image
     ctx.fillUtf8Text(BLPoint(0.0, baseline_y), font, text.c_str());
+    if (bold) {
+        ctx.fillUtf8Text(BLPoint(0.5, baseline_y), font, text.c_str());
+    }
     ctx.end();
 
     BLImageData imgData;
@@ -119,7 +122,7 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
 
     
 
-    TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const std::string& font_path, float font_size) {
+TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const std::string& font_path, float font_size, bool bold, bool italic, bool /*monospace*/) {
 
         if (text.empty()) {
 
@@ -170,6 +173,10 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
         } else if (bbox_width > width) {
             width = bbox_width;
         }
+
+        // Simple approximations for bold/italic when only a regular font is available.
+        if (bold) width += 1.0f;
+        if (italic) width += 1.0f;
 
         // Use font metrics for a consistent line height with a small fudge for descenders.
         BLFontMetrics fm = font.metrics();

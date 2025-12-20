@@ -22,6 +22,12 @@ struct ComputedStyle {
     bool font_monospace = false;
     enum class WhiteSpace { Normal, Preserve };
     WhiteSpace whitespace = WhiteSpace::Normal;
+    enum class FontWeight { Normal, Bold };
+    enum class FontStyle { Normal, Italic };
+    FontWeight weight = FontWeight::Normal;
+    FontStyle style = FontStyle::Normal;
+    float font_size = 16.0f; // px
+    std::optional<Color> background;
     // Future: background, font family, etc.
 };
 
