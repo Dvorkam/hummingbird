@@ -32,12 +32,7 @@ void SDLWindow::open() {
 }
 
 void SDLWindow::update() {
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        if (event.type == SDL_QUIT) {
-            m_is_open = false;
-        }
-    }
+    // Event polling is handled in the app main loop.
 }
 
 void SDLWindow::close() {

@@ -9,11 +9,25 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(SDL2 REQUIRED)
 find_package(blend2d REQUIRED)
+find_package(CURL REQUIRED)
+
+# --- Style Library ---
+add_library(Style STATIC
+    src/style/Tokenizer.cpp
+    src/style/Parser.cpp
+    src/style/SelectorMatcher.cpp
+    src/style/StyleEngine.cpp
+)
+target_include_directories(Style
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
 # --- Core Library ---
 # This library will contain the abstract interfaces and platform-independent logic.
 add_library(Core STATIC
     src/core/ArenaAllocator.cpp
+    src/core/AssetPath.cpp
 )
 target_include_directories(Core
     PUBLIC
@@ -25,19 +39,43 @@ target_include_directories(Core
 add_library(Platform STATIC
     src/platform/SDLWindow.cpp
     src/platform/SDLGraphicsContext.cpp
+    src/platform/CurlNetwork.cpp
+    src/platform/StubNetwork.cpp
 )
 target_include_directories(Platform
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(Platform PUBLIC Core SDL2::SDL2 blend2d::blend2d)
+target_link_libraries(Platform PUBLIC Core SDL2::SDL2 blend2d::blend2d CURL::libcurl)
 
-# --- Parser Library ---
-add_library(Parser STATIC
-    src/parser/Tokenizer.cpp
-    src/parser/Parser.cpp
+# --- HTML Parser Library ---
+add_library(Html STATIC
+    src/html/HtmlTokenizer.cpp
+    src/html/HtmlParser.cpp
 )
-target_include_directories(Parser
+target_include_directories(Html
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+# --- Layout Library ---
+add_library(Layout STATIC
+    src/layout/RenderObject.cpp
+    src/layout/TreeBuilder.cpp
+    src/layout/BlockBox.cpp
+    src/layout/TextBox.cpp
+)
+target_include_directories(Layout
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(Layout PUBLIC blend2d::blend2d Style)
+
+# --- Renderer Library ---
+add_library(Renderer STATIC
+    src/renderer/Painter.cpp
+)
+target_include_directories(Renderer
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
@@ -50,7 +88,8 @@ add_executable(Hummingbird src/app/main.cpp)
 target_include_directories(Hummingbird PRIVATE 
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(Hummingbird PRIVATE Platform Parser)
+target_link_libraries(Hummingbird PRIVATE Platform Html Layout Renderer Style SDL2::SDL2main)
+target_compile_definitions(Hummingbird PRIVATE HB_ENABLE_LOG)
 
 # --- Unit Testing ---
 enable_testing()

@@ -4,6 +4,7 @@
   "dependencies": [
     "sdl2",
     "blend2d",
-    "gtest"
+    "gtest",
+    "curl"
   ]
 }

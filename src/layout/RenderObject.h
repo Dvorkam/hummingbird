@@ -1,0 +1,51 @@
+#pragma once
+
+#include "core/dom/Node.h"
+#include "style/ComputedStyle.h"
+#include <memory>
+#include <vector>
+
+// Forward declare IGraphicsContext to break dependency cycle
+class IGraphicsContext;
+
+namespace Hummingbird::Layout {
+
+    struct Point {
+        float x = 0, y = 0;
+    };
+
+    struct Rect {
+        float x = 0, y = 0, width = 0, height = 0;
+    };
+
+    class RenderObject {
+    public:
+        RenderObject(const DOM::Node* dom_node) : m_dom_node(dom_node) {}
+        virtual ~RenderObject() = default;
+
+        const DOM::Node* get_dom_node() const { return m_dom_node; }
+        const Rect& get_rect() const { return m_rect; }
+        const Css::ComputedStyle* get_computed_style() const {
+            auto style = m_dom_node ? m_dom_node->get_computed_style() : nullptr;
+            return style ? style.get() : nullptr;
+        }
+
+        void append_child(std::unique_ptr<RenderObject> child) {
+            child->m_parent = this;
+            m_children.push_back(std::move(child));
+        }
+
+        const std::vector<std::unique_ptr<RenderObject>>& get_children() const { return m_children; }
+        RenderObject* get_parent() const { return m_parent; }
+
+        virtual void layout(IGraphicsContext& context, const Rect& bounds);
+        virtual void paint(IGraphicsContext& context, const Point& offset);
+
+    protected:
+        const DOM::Node* m_dom_node; // Non-owning pointer
+        RenderObject* m_parent = nullptr;
+        std::vector<std::unique_ptr<RenderObject>> m_children;
+        Rect m_rect;
+    };
+
+}

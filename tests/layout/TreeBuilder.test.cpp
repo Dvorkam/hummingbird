@@ -1,0 +1,41 @@
+#include <gtest/gtest.h>
+#include "layout/TreeBuilder.h"
+#include "core/dom/Element.h"
+#include "core/dom/Text.h"
+#include "core/ArenaAllocator.h"
+#include "layout/TextBox.h"
+
+using namespace Hummingbird::Layout;
+using namespace Hummingbird::DOM;
+
+TEST(TreeBuilderTest, SimpleTree) {
+    ArenaAllocator arena(1024);
+    auto dom_root = make_arena_ptr<Element>(arena, "html");
+    dom_root->append_child(make_arena_ptr<Element>(arena, "body"));
+    
+    TreeBuilder tree_builder;
+    auto render_root = tree_builder.build(dom_root.get());
+
+    ASSERT_NE(render_root, nullptr);
+    EXPECT_EQ(render_root->get_dom_node(), dom_root.get());
+    ASSERT_EQ(render_root->get_children().size(), 1);
+
+    const auto* body_render_object = render_root->get_children()[0].get();
+    EXPECT_EQ(body_render_object->get_dom_node(), dom_root->get_children()[0].get());
+    EXPECT_EQ(body_render_object->get_children().size(), 0);
+}
+
+TEST(TreeBuilderTest, CreatesTextBoxForTextNode) {
+    ArenaAllocator arena(1024);
+    auto dom_root = make_arena_ptr<Element>(arena, "p");
+    dom_root->append_child(make_arena_ptr<Text>(arena, "Hello"));
+
+    TreeBuilder tree_builder;
+    auto render_root = tree_builder.build(dom_root.get());
+
+    ASSERT_NE(render_root, nullptr);
+    ASSERT_EQ(render_root->get_children().size(), 1);
+
+    const auto* text_box = dynamic_cast<const TextBox*>(render_root->get_children()[0].get());
+    ASSERT_NE(text_box, nullptr);
+}
