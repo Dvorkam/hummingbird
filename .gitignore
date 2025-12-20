@@ -28,3 +28,7 @@ CMakeFiles/
 cmake_install.cmake
 CMakeUserPresets.json
 CTestTestfile.cmake
+Testing/Temporary/*
+.gemini/settings.json
+.gitignore
+debug.log
