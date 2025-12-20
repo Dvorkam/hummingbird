@@ -40,15 +40,22 @@ TEST(HtmlParserTest, HandlesVoidAndSelfClosingTagsWithoutStackingChildren) {
     auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(dom_tree->get_children()[0].get());
     ASSERT_NE(div_node, nullptr);
     const auto& children = div_node->get_children();
-    ASSERT_EQ(children.size(), 3u);
-    EXPECT_NE(dynamic_cast<Hummingbird::DOM::Text*>(children[0].get()), nullptr);
+    ASSERT_EQ(children.size(), 4u);
+    auto leading_text = dynamic_cast<Hummingbird::DOM::Text*>(children[0].get());
+    ASSERT_NE(leading_text, nullptr);
+    EXPECT_EQ(leading_text->get_text(), "Hello");
+
     auto br_node = dynamic_cast<Hummingbird::DOM::Element*>(children[1].get());
     ASSERT_NE(br_node, nullptr);
     EXPECT_EQ(br_node->get_tag_name(), "br");
-    // The text after the void/self-closing element should still be a sibling.
+
     auto trailing_text = dynamic_cast<Hummingbird::DOM::Text*>(children[2].get());
     ASSERT_NE(trailing_text, nullptr);
     EXPECT_EQ(trailing_text->get_text(), "World");
+
+    auto img_node = dynamic_cast<Hummingbird::DOM::Element*>(children[3].get());
+    ASSERT_NE(img_node, nullptr);
+    EXPECT_EQ(img_node->get_tag_name(), "img");
 }
 
 TEST(HtmlParserTest, TracksUnsupportedTags) {
