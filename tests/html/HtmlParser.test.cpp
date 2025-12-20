@@ -70,3 +70,34 @@ TEST(HtmlParserTest, TracksUnsupportedTags) {
     EXPECT_TRUE(unsupported.count("inner"));
     EXPECT_TRUE(unsupported.count("video"));
 }
+
+TEST(HtmlParserTest, PopsToMatchingAncestorOnMismatchedEndTag) {
+    // </div> closes both <p> and <span> scopes, then the trailing <p> should attach to root.
+    std::string_view html = "<div><span><p>inner</div><p>after</p>";
+    ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto dom_tree = parser.parse();
+    ASSERT_NE(dom_tree, nullptr);
+
+    ASSERT_EQ(dom_tree->get_children().size(), 2u);
+    auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(dom_tree->get_children()[0].get());
+    auto trailing_p = dynamic_cast<Hummingbird::DOM::Element*>(dom_tree->get_children()[1].get());
+    ASSERT_NE(div_node, nullptr);
+    ASSERT_NE(trailing_p, nullptr);
+    EXPECT_EQ(div_node->get_tag_name(), "div");
+    EXPECT_EQ(trailing_p->get_tag_name(), "p");
+
+    ASSERT_EQ(div_node->get_children().size(), 1u);
+    auto span_node = dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[0].get());
+    ASSERT_NE(span_node, nullptr);
+    EXPECT_EQ(span_node->get_tag_name(), "span");
+
+    ASSERT_EQ(span_node->get_children().size(), 1u);
+    auto inner_p = dynamic_cast<Hummingbird::DOM::Element*>(span_node->get_children()[0].get());
+    ASSERT_NE(inner_p, nullptr);
+    EXPECT_EQ(inner_p->get_tag_name(), "p");
+    ASSERT_EQ(inner_p->get_children().size(), 1u);
+    auto text = dynamic_cast<Hummingbird::DOM::Text*>(inner_p->get_children()[0].get());
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->get_text(), "inner");
+}
