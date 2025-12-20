@@ -17,7 +17,7 @@ public:
         return { static_cast<float>(text.size()) * 8.0f, 16.0f };
     }
 
-    void draw_text(const std::string& text, float, float, const std::string&, float) override {
+    void draw_text(const std::string& text, float, float, const std::string&, float, const Color&) override {
         ++draw_calls;
         last_text = text;
     }

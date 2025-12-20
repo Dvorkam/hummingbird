@@ -92,6 +92,22 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     apply_optional_length_if_present("width", style.width);
     apply_optional_length_if_present("height", style.height);
 
+    // Minimal UA defaults for basic HTML readability.
+    if (element) {
+        const auto& tag = element->get_tag_name();
+        if (tag == "ul") {
+            style.padding.left = 20.0f;
+        } else if (tag == "pre") {
+            if (style.whitespace == ComputedStyle::WhiteSpace::Normal) {
+                style.whitespace = ComputedStyle::WhiteSpace::Preserve;
+            }
+            style.font_monospace = true; // For future use by renderers that pick fonts.
+        } else if (tag == "a") {
+            style.color = {0, 0, 255, 255};
+            style.underline = true;
+        }
+    }
+
     return style;
 }
 

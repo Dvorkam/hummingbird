@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
     SDL_StartTextInput();
     HB_LOG_INFO("[ui] URL bar focused (default)");
 
-    const Color teal = {0, 128, 128, 255};
+    const Color teal = {255, 255, 255, 255};
     Color overlay_bg{220, 220, 220, 255};
     Color overlay_text{0, 0, 0, 255};
 
@@ -158,7 +158,7 @@ int main(int argc, char* argv[]) {
         Hummingbird::Layout::Rect bar_rect{0, 0, 1024, static_cast<float>(url_bar_height)};
         graphics->fill_rect(bar_rect, overlay_bg);
         auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
-        graphics->draw_text(current_url + (url_bar_active ? "|" : ""), 8.0f, 8.0f, font_path, 16.0f);
+        graphics->draw_text(current_url + (url_bar_active ? "|" : ""), 8.0f, 8.0f, font_path, 16.0f, overlay_text);
 
         // Paint the Render Tree
         if (render_tree) {

@@ -35,7 +35,7 @@ void SDLGraphicsContext::fill_rect(const Hummingbird::Layout::Rect& rect, const 
     }
 }
 
-void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const std::string& font_path, float font_size) {
+void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const std::string& font_path, float font_size, const Color& color) {
     if (!m_renderer) {
         return;
     }
@@ -68,7 +68,7 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     // Clear to transparent; text will be blended over the target.
     ctx.clearAll();
 
-    ctx.setFillStyle(BLRgba32(0xFF000000)); // Black text for now (TODO: parameterize color)
+    ctx.setFillStyle(BLRgba32(color.r, color.g, color.b, color.a));
     double baseline_y = fm.ascent; // place baseline inside the image
     ctx.fillUtf8Text(BLPoint(0.0, baseline_y), font, text.c_str());
     ctx.end();

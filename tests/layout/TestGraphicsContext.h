@@ -20,5 +20,5 @@ public:
         };
     }
 
-    void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const std::string& /*font_path*/, float /*font_size*/) override {}
+    void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const std::string& /*font_path*/, float /*font_size*/, const Color& /*color*/) override {}
 };

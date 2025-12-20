@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include "core/IGraphicsContext.h"
 
 namespace Hummingbird::Css {
 
@@ -16,7 +17,12 @@ struct ComputedStyle {
     EdgeSizes padding;
     std::optional<float> width;
     std::optional<float> height;
-    // Future: color, background, etc.
+    Color color{0, 0, 0, 255};
+    bool underline = false;
+    bool font_monospace = false;
+    enum class WhiteSpace { Normal, Preserve };
+    WhiteSpace whitespace = WhiteSpace::Normal;
+    // Future: background, font family, etc.
 };
 
 inline ComputedStyle default_computed_style() {

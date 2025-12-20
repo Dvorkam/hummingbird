@@ -22,5 +22,5 @@ public:
     virtual void present() = 0;
     virtual void fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color) = 0;
     virtual TextMetrics measure_text(const std::string& text, const std::string& font_path, float font_size) = 0;
-    virtual void draw_text(const std::string& text, float x, float y, const std::string& font_path, float font_size) = 0;
+    virtual void draw_text(const std::string& text, float x, float y, const std::string& font_path, float font_size, const Color& color) = 0;
 };

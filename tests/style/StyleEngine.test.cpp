@@ -35,3 +35,37 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
     auto style_child = root->get_children()[0]->get_computed_style();
     ASSERT_TRUE(style_child);
 }
+
+TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
+    ArenaAllocator arena(2048);
+    auto ul = make_arena_ptr<Element>(arena, "ul");
+    auto pre = make_arena_ptr<Element>(arena, "pre");
+    auto anchor = make_arena_ptr<Element>(arena, "a");
+
+    // Build a small DOM tree to traverse.
+    auto root = make_arena_ptr<Element>(arena, "div");
+    root->append_child(std::move(ul));
+    root->append_child(std::move(pre));
+    root->append_child(std::move(anchor));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, root.get());
+
+    auto ul_style = dynamic_cast<Element*>(root->get_children()[0].get())->get_computed_style();
+    auto pre_style = dynamic_cast<Element*>(root->get_children()[1].get())->get_computed_style();
+    auto a_style = dynamic_cast<Element*>(root->get_children()[2].get())->get_computed_style();
+
+    ASSERT_TRUE(ul_style);
+    ASSERT_TRUE(pre_style);
+    ASSERT_TRUE(a_style);
+
+    EXPECT_FLOAT_EQ(ul_style->padding.left, 20.0f);
+    EXPECT_EQ(pre_style->whitespace, ComputedStyle::WhiteSpace::Preserve);
+    EXPECT_TRUE(pre_style->font_monospace);
+
+    EXPECT_EQ(a_style->color.r, 0);
+    EXPECT_EQ(a_style->color.g, 0);
+    EXPECT_EQ(a_style->color.b, 255);
+    EXPECT_TRUE(a_style->underline);
+}
