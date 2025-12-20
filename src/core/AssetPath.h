@@ -10,4 +10,4 @@ namespace Hummingbird {
 // original relative path if none are found.
 std::filesystem::path resolve_asset_path(std::string_view relative_path);
 
-} // namespace Hummingbird
+}  // namespace Hummingbird

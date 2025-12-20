@@ -1,7 +1,8 @@
 #pragma once
 
-#include "core/INetwork.h"
 #include <string>
+
+#include "core/INetwork.h"
 
 // A simple network stub that returns canned HTML for known URLs.
 class StubNetwork : public INetwork {

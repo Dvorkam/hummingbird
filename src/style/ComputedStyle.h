@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+
 #include "core/IGraphicsContext.h"
 
 namespace Hummingbird::Css {
@@ -26,7 +27,7 @@ struct ComputedStyle {
     enum class FontStyle { Normal, Italic };
     FontWeight weight = FontWeight::Normal;
     FontStyle style = FontStyle::Normal;
-    float font_size = 16.0f; // px
+    float font_size = 16.0f;  // px
     std::optional<Color> background;
     // Future: background, font family, etc.
 };
@@ -35,4 +36,4 @@ inline ComputedStyle default_computed_style() {
     return ComputedStyle{};
 }
 
-} // namespace Hummingbird::Css
+}  // namespace Hummingbird::Css

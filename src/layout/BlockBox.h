@@ -4,12 +4,12 @@
 
 namespace Hummingbird::Layout {
 
-    class BlockBox : public RenderObject {
-    public:
-        using RenderObject::RenderObject; // Inherit constructor
+class BlockBox : public RenderObject {
+public:
+    using RenderObject::RenderObject;  // Inherit constructor
 
-        void layout(IGraphicsContext& context, const Rect& bounds) override;
-        void paint(IGraphicsContext& context, const Point& offset) override;
-    };
+    void layout(IGraphicsContext& context, const Rect& bounds) override;
+    void paint(IGraphicsContext& context, const Point& offset) override;
+};
 
-}
+}  // namespace Hummingbird::Layout

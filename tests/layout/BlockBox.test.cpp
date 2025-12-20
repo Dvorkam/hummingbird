@@ -1,9 +1,11 @@
-#include <gtest/gtest.h>
-#include "layout/TreeBuilder.h"
 #include "layout/BlockBox.h"
-#include "core/dom/Element.h"
-#include "core/ArenaAllocator.h"
+
+#include <gtest/gtest.h>
+
 #include "TestGraphicsContext.h"
+#include "core/ArenaAllocator.h"
+#include "core/dom/Element.h"
+#include "layout/TreeBuilder.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
@@ -42,7 +44,7 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
             }
         }
     };
-    
+
     // This is also a hack. We can't easily swap the type created by the TreeBuilder.
     // For now, we'll manually create the test objects.
     auto test_render_root = std::make_unique<TestBlockBox>(dom_root.get());
@@ -50,7 +52,6 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
     auto test_p2 = std::make_unique<TestBlockBox>(dom_root->get_children()[1].get());
     test_render_root->append_child(std::move(test_p1));
     test_render_root->append_child(std::move(test_p2));
-
 
     // Layout the tree
     Rect viewport = {0, 0, 800, 600};
@@ -69,7 +70,7 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
 
     const auto& rect2 = children[1]->get_rect();
     EXPECT_EQ(rect2.x, 0);
-    EXPECT_EQ(rect2.y, 10); // Should be stacked below the first one
+    EXPECT_EQ(rect2.y, 10);  // Should be stacked below the first one
     EXPECT_EQ(rect2.width, 800);
     EXPECT_EQ(rect2.height, 20);
 

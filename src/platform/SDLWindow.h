@@ -1,7 +1,8 @@
 #pragma once
 
-#include "core/IWindow.h"
 #include <memory>
+
+#include "core/IWindow.h"
 
 // Forward declarations
 struct SDL_Window;

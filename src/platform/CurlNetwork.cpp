@@ -1,5 +1,7 @@
 #include "platform/CurlNetwork.h"
+
 #include <curl/curl.h>
+
 #include <thread>
 
 namespace {
@@ -8,7 +10,7 @@ size_t write_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
     out->append(ptr, size * nmemb);
     return size * nmemb;
 }
-}
+}  // namespace
 
 CurlNetwork::CurlNetwork() {
     auto res = curl_global_init(CURL_GLOBAL_DEFAULT);

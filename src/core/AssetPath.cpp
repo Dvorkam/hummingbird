@@ -1,4 +1,5 @@
 #include "core/AssetPath.h"
+
 #include <filesystem>
 
 namespace Hummingbird {
@@ -10,7 +11,7 @@ std::filesystem::path resolve_asset_path(std::string_view relative_path) {
     }
 
     std::filesystem::path current = std::filesystem::current_path();
-    for (int i = 0; i < 6; ++i) { // Walk up to a few levels to find the repo root.
+    for (int i = 0; i < 6; ++i) {  // Walk up to a few levels to find the repo root.
         auto candidate = current / rel;
         if (std::filesystem::exists(candidate)) {
             return candidate.lexically_normal();
@@ -25,4 +26,4 @@ std::filesystem::path resolve_asset_path(std::string_view relative_path) {
     return rel;
 }
 
-} // namespace Hummingbird
+}  // namespace Hummingbird

@@ -29,7 +29,7 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         float child_x = padding_left + margin_left;
         float child_y = current_y + margin_top;
         float available_width = m_rect.width - padding_left - padding_right - margin_left - margin_right;
-        Rect child_bounds = {child_x, child_y, available_width, 0.0f}; // Height is determined by child
+        Rect child_bounds = {child_x, child_y, available_width, 0.0f};  // Height is determined by child
         child->layout(context, child_bounds);
 
         current_y = child_y + child->get_rect().height + margin_bottom;
@@ -44,4 +44,4 @@ void BlockBox::paint(IGraphicsContext& context, const Point& offset) {
     RenderObject::paint(context, offset);
 }
 
-}
+}  // namespace Hummingbird::Layout

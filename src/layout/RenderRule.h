@@ -11,4 +11,4 @@ public:
     void paint(IGraphicsContext& context, const Point& offset) override;
 };
 
-} // namespace Hummingbird::Layout
+}  // namespace Hummingbird::Layout

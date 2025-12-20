@@ -1,10 +1,11 @@
 #include "layout/TreeBuilder.h"
+
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "layout/BlockBox.h"
-#include "layout/TextBox.h"
 #include "layout/RenderBreak.h"
 #include "layout/RenderRule.h"
+#include "layout/TextBox.h"
 
 namespace Hummingbird::Layout {
 
@@ -64,4 +65,4 @@ std::unique_ptr<RenderObject> build_recursive(const DOM::Node* node) {
     return render_object;
 }
 
-}
+}  // namespace Hummingbird::Layout

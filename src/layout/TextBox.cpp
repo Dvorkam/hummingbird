@@ -1,8 +1,10 @@
 #include "layout/TextBox.h"
-#include "core/IGraphicsContext.h"
-#include "core/AssetPath.h"
-#include <iostream>
+
 #include <algorithm>
+#include <iostream>
+
+#include "core/AssetPath.h"
+#include "core/IGraphicsContext.h"
 
 namespace Hummingbird::Layout {
 
@@ -28,7 +30,7 @@ std::string collapse_whitespace(const std::string& text) {
     }
     return out;
 }
-}
+}  // namespace
 
 void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.x = bounds.x;
@@ -72,7 +74,8 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.height = m_last_metrics.height + padding_top + padding_bottom;
 
     if (m_last_metrics.width == 0 || m_last_metrics.height == 0) {
-        std::cerr << "[TextBox::layout] zero metrics for text '" << m_rendered_text << "' using font " << font_path << "\n";
+        std::cerr << "[TextBox::layout] zero metrics for text '" << m_rendered_text << "' using font " << font_path
+                  << "\n";
     }
 }
 
@@ -100,8 +103,9 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
     // Assumptions for now: font selection is basic; just adjust size.
     auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
     float font_size = style ? style->font_size : 16.0f;
-    
-    context.draw_text(m_rendered_text, absolute_x, absolute_y, font_path.string(), font_size, text_color, bold, italic, monospace);
+
+    context.draw_text(m_rendered_text, absolute_x, absolute_y, font_path.string(), font_size, text_color, bold, italic,
+                      monospace);
 
     if (style && style->underline && m_last_metrics.width > 0) {
         float underline_y = absolute_y + m_last_metrics.height - 2.0f;
@@ -112,4 +116,4 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
     // TextBoxes don't have children, so no need to call base class paint.
 }
 
-}
+}  // namespace Hummingbird::Layout

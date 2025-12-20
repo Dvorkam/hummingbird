@@ -1,14 +1,15 @@
 #pragma once
 
-#include "html/HtmlTokenizer.h"
-#include "core/dom/Node.h"
-#include "core/dom/Element.h"
-#include "core/dom/Text.h"
-#include "core/ArenaAllocator.h"
 #include <memory>
+#include <string>
 #include <string_view>
 #include <unordered_set>
-#include <string>
+
+#include "core/ArenaAllocator.h"
+#include "core/dom/Element.h"
+#include "core/dom/Node.h"
+#include "core/dom/Text.h"
+#include "html/HtmlTokenizer.h"
 
 namespace Hummingbird::Html {
 
@@ -24,4 +25,4 @@ private:
     std::unordered_set<std::string> m_unsupported_tags;
 };
 
-} // namespace Hummingbird::Html
+}  // namespace Hummingbird::Html

@@ -1,29 +1,31 @@
-#include "platform/SDLWindow.h"
+#include <SDL.h>
+
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
+
+#include "core/ArenaAllocator.h"
+#include "core/AssetPath.h"
 #include "core/IGraphicsContext.h"
+#include "core/Log.h"
 #include "html/HtmlParser.h"
 #include "layout/TreeBuilder.h"
+#include "platform/CurlNetwork.h"
+#include "platform/SDLWindow.h"
+#include "platform/StubNetwork.h"
 #include "renderer/Painter.h"
 #include "style/Parser.h"
 #include "style/StyleEngine.h"
-#include "platform/StubNetwork.h"
-#include "platform/CurlNetwork.h"
-#include "core/AssetPath.h"
-#include "core/Log.h"
-#include "core/ArenaAllocator.h"
-#include <SDL.h>
-#include <optional>
-#include <mutex>
-#include <string>
-#include <memory>
-#include <string_view>
-#include <iostream>
 
 int main(int argc, char* argv[]) {
     auto window = std::make_unique<SDLWindow>();
     window->open();
 
     if (!window->is_open()) {
-        return 1; // Exit if window creation failed
+        return 1;  // Exit if window creation failed
     }
 
     auto graphics = window->get_graphics_context();
@@ -73,7 +75,8 @@ int main(int argc, char* argv[]) {
 
     HB_LOG_INFO("[ui] Starting app. Press Ctrl+L to focus URL bar.");
 
-    std::function<size_t(const Hummingbird::DOM::Node*)> count_nodes = [&](const Hummingbird::DOM::Node* node) -> size_t {
+    std::function<size_t(const Hummingbird::DOM::Node*)> count_nodes =
+        [&](const Hummingbird::DOM::Node* node) -> size_t {
         if (!node) return 0;
         size_t total = 1;
         for (const auto& child : node->get_children()) {
@@ -145,7 +148,7 @@ int main(int argc, char* argv[]) {
                 Hummingbird::Html::Parser parser(dom_arena, *html_copy);
                 dom_tree = parser.parse();
                 HB_LOG_INFO("[pipeline] parsed DOM children: " << dom_tree->get_children().size()
-                          << " total nodes: " << count_nodes(dom_tree.get()));
+                                                               << " total nodes: " << count_nodes(dom_tree.get()));
                 std::string css = "body { padding: 8px; } p { margin: 4px; }";
                 Hummingbird::Css::Parser css_parser(css);
                 auto stylesheet = css_parser.parse();
@@ -153,7 +156,8 @@ int main(int argc, char* argv[]) {
                 HB_LOG_INFO("[pipeline] applied stylesheet rules: " << stylesheet.rules.size());
                 render_tree = tree_builder.build(dom_tree.get());
                 if (render_tree) {
-                    Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height), 1024, 768 - static_cast<float>(url_bar_height)};
+                    Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height), 1024,
+                                                          768 - static_cast<float>(url_bar_height)};
                     render_tree->layout(*graphics, viewport);
                     HB_LOG_INFO("[pipeline] render tree root children: " << render_tree->get_children().size());
                 }

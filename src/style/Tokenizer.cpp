@@ -1,4 +1,5 @@
 #include "style/Tokenizer.h"
+
 #include <cctype>
 
 namespace Hummingbird::Css {
@@ -62,12 +63,30 @@ std::vector<Token> Tokenizer::tokenize() {
         if (eof()) break;
         char c = peek();
         switch (c) {
-            case '{': tokens.push_back({TokenType::LBrace, "{"}); advance(); break;
-            case '}': tokens.push_back({TokenType::RBrace, "}"}); advance(); break;
-            case ':': tokens.push_back({TokenType::Colon, ":"}); advance(); break;
-            case ';': tokens.push_back({TokenType::Semicolon, ";"}); advance(); break;
-            case '.': tokens.push_back({TokenType::Dot, "."}); advance(); break;
-            case '#': tokens.push_back({TokenType::Hash, "#"}); advance(); break;
+            case '{':
+                tokens.push_back({TokenType::LBrace, "{"});
+                advance();
+                break;
+            case '}':
+                tokens.push_back({TokenType::RBrace, "}"});
+                advance();
+                break;
+            case ':':
+                tokens.push_back({TokenType::Colon, ":"});
+                advance();
+                break;
+            case ';':
+                tokens.push_back({TokenType::Semicolon, ";"});
+                advance();
+                break;
+            case '.':
+                tokens.push_back({TokenType::Dot, "."});
+                advance();
+                break;
+            case '#':
+                tokens.push_back({TokenType::Hash, "#"});
+                advance();
+                break;
             default:
                 if (std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '-') {
                     tokens.push_back(identifier());
@@ -84,4 +103,4 @@ std::vector<Token> Tokenizer::tokenize() {
     return tokens;
 }
 
-} // namespace Hummingbird::Css
+}  // namespace Hummingbird::Css

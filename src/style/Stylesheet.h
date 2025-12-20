@@ -13,9 +13,12 @@ struct Selector {
 
     int specificity() const {
         switch (type) {
-            case SelectorType::Id: return 100;
-            case SelectorType::Class: return 10;
-            case SelectorType::Tag: return 1;
+            case SelectorType::Id:
+                return 100;
+            case SelectorType::Class:
+                return 10;
+            case SelectorType::Tag:
+                return 1;
         }
         return 0;
     }
@@ -35,4 +38,4 @@ struct Stylesheet {
     std::vector<Rule> rules;
 };
 
-} // namespace Hummingbird::Css
+}  // namespace Hummingbird::Css

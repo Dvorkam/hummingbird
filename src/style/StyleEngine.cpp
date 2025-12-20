@@ -1,9 +1,11 @@
 #include "style/StyleEngine.h"
-#include "style/SelectorMatcher.h"
-#include "core/dom/Node.h"
-#include "core/dom/Element.h"
-#include <unordered_map>
+
 #include <algorithm>
+#include <unordered_map>
+
+#include "core/dom/Element.h"
+#include "core/dom/Node.h"
+#include "style/SelectorMatcher.h"
 
 namespace Hummingbird::Css {
 
@@ -47,7 +49,8 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
             int spec = rule.selector.specificity();
             for (const auto& decl : rule.declarations) {
                 auto it = properties.find(decl.property);
-                if (it == properties.end() || spec > it->second.specificity || (spec == it->second.specificity && order > it->second.order)) {
+                if (it == properties.end() || spec > it->second.specificity ||
+                    (spec == it->second.specificity && order > it->second.order)) {
                     properties[decl.property] = {spec, order, decl.value};
                 }
                 ++order;
@@ -148,7 +151,7 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     return style;
 }
 
-}
+}  // namespace
 
 void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const ComputedStyle* parent_style) {
     ComputedStyle base = parent_style ? *parent_style : default_computed_style();
@@ -186,4 +189,4 @@ void StyleEngine::apply(const Stylesheet& sheet, DOM::Node* root) {
     compute_node(sheet, root, nullptr);
 }
 
-} // namespace Hummingbird::Css
+}  // namespace Hummingbird::Css

@@ -1,9 +1,12 @@
 #include "platform/SDLGraphicsContext.h"
-#include "core/AssetPath.h"
+
 #include <SDL.h>
 #include <blend2d.h>
+
 #include <iostream>
 #include <span>
+
+#include "core/AssetPath.h"
 
 SDLGraphicsContext::SDLGraphicsContext(SDL_Renderer* renderer) : m_renderer(renderer) {
     if (m_renderer) {
@@ -11,8 +14,7 @@ SDLGraphicsContext::SDLGraphicsContext(SDL_Renderer* renderer) : m_renderer(rend
     }
 }
 
-SDLGraphicsContext::~SDLGraphicsContext() {
-}
+SDLGraphicsContext::~SDLGraphicsContext() {}
 
 void SDLGraphicsContext::clear(const Color& color) {
     if (m_renderer) {
@@ -30,12 +32,13 @@ void SDLGraphicsContext::present() {
 void SDLGraphicsContext::fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color) {
     if (m_renderer) {
         SDL_SetRenderDrawColor(m_renderer, color.r, color.g, color.b, color.a);
-        SDL_Rect sdl_rect = { (int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height };
+        SDL_Rect sdl_rect = {(int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height};
         SDL_RenderFillRect(m_renderer, &sdl_rect);
     }
 }
 
-void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const std::string& font_path, float font_size, const Color& color, bool bold, bool italic, bool /*monospace*/) {
+void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const std::string& font_path,
+                                   float font_size, const Color& color, bool bold, bool italic, bool /*monospace*/) {
     if (!m_renderer) {
         return;
     }
@@ -69,7 +72,7 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     ctx.clearAll();
 
     ctx.setFillStyle(BLRgba32(color.r, color.g, color.b, color.a));
-    double baseline_y = fm.ascent; // place baseline inside the image
+    double baseline_y = fm.ascent;  // place baseline inside the image
     ctx.fillUtf8Text(BLPoint(0.0, baseline_y), font, text.c_str());
     if (bold) {
         ctx.fillUtf8Text(BLPoint(0.5, baseline_y), font, text.c_str());
@@ -78,18 +81,11 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
 
     BLImageData imgData;
     img.getData(&imgData);
-    std::span<const uint8_t> pixels{
-        static_cast<const uint8_t*>(imgData.pixelData),
-        static_cast<size_t>(imgData.stride) * static_cast<size_t>(target_height)
-    };
+    std::span<const uint8_t> pixels{static_cast<const uint8_t*>(imgData.pixelData),
+                                    static_cast<size_t>(imgData.stride) * static_cast<size_t>(target_height)};
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(
-        const_cast<uint8_t*>(pixels.data()),
-        target_width,
-        target_height,
-        32,
-        imgData.stride,
-        SDL_PIXELFORMAT_BGRA32);
+        const_cast<uint8_t*>(pixels.data()), target_width, target_height, 32, imgData.stride, SDL_PIXELFORMAT_BGRA32);
     if (!surface) {
         std::cerr << "Failed to create SDL_Surface from BLImage" << std::endl;
         return;
@@ -103,96 +99,76 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
         return;
     }
 
-        SDL_Rect dest_rect = { (int)x, (int)y, target_width, target_height };
+    SDL_Rect dest_rect = {(int)x, (int)y, target_width, target_height};
 
-        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
 
-        static bool logged = false;
-        if (!logged) {
-            std::cerr << "[draw_text] text='" << text << "' at (" << x << ", " << y << ") size=(" << target_width << ", " << target_height
-                      << ") font=" << resolved_font << "\n";
-            logged = true;
-        }
-
-        SDL_RenderCopy(m_renderer, texture, NULL, &dest_rect);
-
-        SDL_DestroyTexture(texture);
-
+    static bool logged = false;
+    if (!logged) {
+        std::cerr << "[draw_text] text='" << text << "' at (" << x << ", " << y << ") size=(" << target_width << ", "
+                  << target_height << ") font=" << resolved_font << "\n";
+        logged = true;
     }
 
-    
+    SDL_RenderCopy(m_renderer, texture, NULL, &dest_rect);
 
-TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const std::string& font_path, float font_size, bool bold, bool italic, bool /*monospace*/) {
+    SDL_DestroyTexture(texture);
+}
 
-        if (text.empty()) {
-
-            return { 0, 0 };
-
-        }
-
-    
-
-        auto resolved_font = Hummingbird::resolve_asset_path(font_path);
-
-        BLFontFace face;
-
-        BLResult err = face.createFromFile(resolved_font.string().c_str());
-
-        if (err != BL_SUCCESS) {
-
-            std::cerr << "Failed to load font: " << resolved_font << " (err=" << err << ")" << std::endl;
-
-            return {0, 0};
-
-        }
-
-    
-
-        BLFont font;
-
-        font.createFromFace(face, font_size);
-
-    
-
-        BLGlyphBuffer glyphBuffer;
-
-        glyphBuffer.setUtf8Text(text.c_str());
-
-        font.shape(glyphBuffer);
-
-    
-
-        BLTextMetrics tm;
-        font.getTextMetrics(glyphBuffer, tm);
-
-        // Prefer advance width but guard with bounding box to avoid clipping.
-        float width = static_cast<float>(tm.advance.x);
-        float bbox_width = static_cast<float>(tm.boundingBox.x1 - tm.boundingBox.x0);
-        if (width <= 0 && bbox_width > 0) {
-            width = bbox_width;
-        } else if (bbox_width > width) {
-            width = bbox_width;
-        }
-
-        // Simple approximations for bold/italic when only a regular font is available.
-        if (bold) width += 1.0f;
-        if (italic) width += 1.0f;
-
-        // Use font metrics for a consistent line height with a small fudge for descenders.
-        BLFontMetrics fm = font.metrics();
-        float height = fm.ascent + fm.descent + 1.0f; // small pad to prevent clipping
-
-    
-
-        static bool logged = false;
-        if (!logged) {
-            std::cerr << "[measure_text] path=" << resolved_font << " text='" << text << "' size=" << font_size
-                      << " -> (" << width << ", " << height << ")\n";
-            logged = true;
-        }
-
-        return {width, height};
-
+TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const std::string& font_path, float font_size,
+                                             bool bold, bool italic, bool /*monospace*/) {
+    if (text.empty()) {
+        return {0, 0};
     }
 
-    
+    auto resolved_font = Hummingbird::resolve_asset_path(font_path);
+
+    BLFontFace face;
+
+    BLResult err = face.createFromFile(resolved_font.string().c_str());
+
+    if (err != BL_SUCCESS) {
+        std::cerr << "Failed to load font: " << resolved_font << " (err=" << err << ")" << std::endl;
+
+        return {0, 0};
+    }
+
+    BLFont font;
+
+    font.createFromFace(face, font_size);
+
+    BLGlyphBuffer glyphBuffer;
+
+    glyphBuffer.setUtf8Text(text.c_str());
+
+    font.shape(glyphBuffer);
+
+    BLTextMetrics tm;
+    font.getTextMetrics(glyphBuffer, tm);
+
+    // Prefer advance width but guard with bounding box to avoid clipping.
+    float width = static_cast<float>(tm.advance.x);
+    float bbox_width = static_cast<float>(tm.boundingBox.x1 - tm.boundingBox.x0);
+    if (width <= 0 && bbox_width > 0) {
+        width = bbox_width;
+    } else if (bbox_width > width) {
+        width = bbox_width;
+    }
+
+    // Simple approximations for bold/italic when only a regular font is available.
+    if (bold) width += 1.0f;
+    if (italic) width += 1.0f;
+
+    // Use font metrics for a consistent line height with a small fudge for descenders.
+    BLFontMetrics fm = font.metrics();
+    float height = fm.ascent + fm.descent + 1.0f;  // small pad to prevent clipping
+
+    static bool logged = false;
+    if (!logged) {
+        std::cerr << "[measure_text] path=" << resolved_font << " text='" << text << "' size=" << font_size << " -> ("
+                  << width << ", " << height << ")\n";
+        logged = true;
+    }
+
+    return {width, height};
+}

@@ -1,6 +1,7 @@
 #include "renderer/Painter.h"
-#include "layout/RenderObject.h"
+
 #include "core/IGraphicsContext.h"
+#include "layout/RenderObject.h"
 
 namespace Hummingbird::Renderer {
 
@@ -9,4 +10,4 @@ void Painter::paint(Layout::RenderObject& root, IGraphicsContext& context) {
     root.paint(context, {0, 0});
 }
 
-} // namespace Hummingbird::Renderer
+}  // namespace Hummingbird::Renderer

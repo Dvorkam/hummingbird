@@ -1,4 +1,5 @@
 #include "layout/RenderRule.h"
+
 #include "core/IGraphicsContext.h"
 
 namespace Hummingbird::Layout {
@@ -19,4 +20,4 @@ void RenderRule::paint(IGraphicsContext& context, const Point& offset) {
     context.fill_rect(rect, c);
 }
 
-} // namespace Hummingbird::Layout
+}  // namespace Hummingbird::Layout

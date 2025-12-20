@@ -1,7 +1,8 @@
 #pragma once
 
-#include "core/INetwork.h"
 #include <atomic>
+
+#include "core/INetwork.h"
 
 class CurlNetwork : public INetwork {
 public:

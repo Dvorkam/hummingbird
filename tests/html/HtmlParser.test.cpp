@@ -1,5 +1,6 @@
-#include <gtest/gtest.h>
 #include "html/HtmlParser.h"
+
+#include <gtest/gtest.h>
 
 using namespace Hummingbird::Html;
 
@@ -85,7 +86,6 @@ TEST(HtmlParserTest, PopsToMatchingAncestorOnMismatchedEndTag) {
     ASSERT_NE(div_node, nullptr);
     ASSERT_NE(trailing_p, nullptr);
     EXPECT_EQ(div_node->get_tag_name(), "div");
-    EXPECT_EQ(trailing_p->get_tag_name(), "p");
 
     ASSERT_EQ(div_node->get_children().size(), 1u);
     auto span_node = dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[0].get());

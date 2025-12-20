@@ -1,6 +1,8 @@
 #include "html/HtmlParser.h"
-#include "core/Log.h"
+
 #include <algorithm>
+
+#include "core/Log.h"
 
 namespace Hummingbird::Html {
 
@@ -16,11 +18,9 @@ ArenaPtr<DOM::Node> Parser::parse() {
     };
 
     auto is_known_element = [&](std::string_view name) {
-        static const std::vector<std::string_view> known = {
-            "html", "head", "body", "title", "style", "script",
-            "div", "p", "span", "h1", "b", "strong", "i", "em",
-            "img", "br", "hr", "input"
-        };
+        static const std::vector<std::string_view> known = {"html", "head", "body", "title", "style", "script",
+                                                            "div",  "p",    "span", "h1",    "b",     "strong",
+                                                            "i",    "em",   "img",  "br",    "hr",    "input"};
         return std::find(known.begin(), known.end(), name) != known.end();
     };
 
@@ -46,7 +46,8 @@ ArenaPtr<DOM::Node> Parser::parse() {
                 // Apply attributes to the element.
                 for (size_t i = 0; i < tag_data.attribute_count; ++i) {
                     const auto& attr = tag_data.attributes[i];
-                    static_cast<DOM::Element*>(new_element.get())->set_attribute(std::string(attr.name), std::string(attr.value));
+                    static_cast<DOM::Element*>(new_element.get())
+                        ->set_attribute(std::string(attr.name), std::string(attr.value));
                 }
 
                 parent->append_child(std::move(new_element));
@@ -67,11 +68,11 @@ ArenaPtr<DOM::Node> Parser::parse() {
             }
             case TokenType::EndTag: {
                 auto& end_data = std::get<EndTagToken>(token.data);
-                if (open_elements.size() > 1) { // Don't pop the root
+                if (open_elements.size() > 1) {  // Don't pop the root
                     // Find the nearest matching open element and pop everything above it.
                     size_t match_index = 0;
                     bool found = false;
-                    for (size_t i = open_elements.size(); i-- > 1;) { // skip root at 0
+                    for (size_t i = open_elements.size(); i-- > 1;) {  // skip root at 0
                         auto* element = dynamic_cast<DOM::Element*>(open_elements[i]);
                         if (element && element->get_tag_name() == end_data.name) {
                             match_index = i;
@@ -109,4 +110,4 @@ ArenaPtr<DOM::Node> Parser::parse() {
     return ArenaPtr<DOM::Node>(root.release());
 }
 
-} // namespace Hummingbird::Html
+}  // namespace Hummingbird::Html

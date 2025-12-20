@@ -1,4 +1,5 @@
 #include "html/HtmlTokenizer.h"
+
 #include <cctype>
 
 namespace Hummingbird::Html {
@@ -33,7 +34,8 @@ Token Tokenizer::emit_error(std::string_view message) {
 
 void Tokenizer::parse_tag_name(std::string_view& out_name) {
     size_t start = m_pos;
-    while (!eof() && (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == ':' || peek_char() == '-')) {
+    while (!eof() &&
+           (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == ':' || peek_char() == '-')) {
         consume_char();
     }
     out_name = m_input.substr(start, m_pos - start);
@@ -47,10 +49,11 @@ size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
             break;
         }
         if (count >= attrs.size()) {
-            break; // ignore extras
+            break;  // ignore extras
         }
         size_t name_start = m_pos;
-        while (!eof() && (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == '-' || peek_char() == '_')) {
+        while (!eof() &&
+               (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == '-' || peek_char() == '_')) {
             consume_char();
         }
         std::string_view name = m_input.substr(name_start, m_pos - name_start);
@@ -64,7 +67,9 @@ size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
                 quote = consume_char();
             }
             size_t val_start = m_pos;
-            while (!eof() && ((quote && peek_char() != quote) || (!quote && !std::isspace(static_cast<unsigned char>(peek_char())) && peek_char() != '>'))) {
+            while (!eof() &&
+                   ((quote && peek_char() != quote) ||
+                    (!quote && !std::isspace(static_cast<unsigned char>(peek_char())) && peek_char() != '>'))) {
                 consume_char();
             }
             value = m_input.substr(val_start, m_pos - val_start);
@@ -75,7 +80,8 @@ size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
     return count;
 }
 
-Token Tokenizer::emit_tag(bool is_end_tag, bool self_closing, std::string_view tag_name, const std::array<Attribute, 8>& attrs, size_t attr_count) {
+Token Tokenizer::emit_tag(bool is_end_tag, bool self_closing, std::string_view tag_name,
+                          const std::array<Attribute, 8>& attrs, size_t attr_count) {
     if (is_end_tag) {
         return Token{TokenType::EndTag, EndTagToken{tag_name}};
     }
@@ -114,12 +120,14 @@ Token Tokenizer::next_token() {
             case State::TagOpen: {
                 if (peek_char() == '!') {
                     // Skip directives/doctype/comments.
-                    while (!eof() && consume_char() != '>') {}
+                    while (!eof() && consume_char() != '>') {
+                    }
                     m_state = State::Data;
                     break;
                 }
                 if (peek_char() == '?') {
-                    while (!eof() && consume_char() != '>') {}
+                    while (!eof() && consume_char() != '>') {
+                    }
                     m_state = State::Data;
                     break;
                 }
@@ -153,4 +161,4 @@ Token Tokenizer::next_token() {
     return Token{TokenType::EndOfFile, EndOfFileToken{}};
 }
 
-} // namespace Hummingbird::Html
+}  // namespace Hummingbird::Html

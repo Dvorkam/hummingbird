@@ -1,7 +1,10 @@
 #include "platform/SDLWindow.h"
-#include "platform/SDLGraphicsContext.h"
+
 #include <SDL.h>
+
 #include <iostream>
+
+#include "platform/SDLGraphicsContext.h"
 
 SDLWindow::SDLWindow() {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
