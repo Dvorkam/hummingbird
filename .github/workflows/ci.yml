@@ -25,19 +25,31 @@ jobs:
   # JOB 2: Build & Test
   build:
     name: ${{ matrix.os }} Build
-    needs: formatting # Don't bother building if formatting fails
+    needs: formatting
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
 
+    # Global Env Vars for Vcpkg Caching
+    env:
+      # Tells vcpkg to use GitHub Actions Cache service directly
+      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
 
-      # Setup C++ Compilers
+      # --- 1. Setup Compiler Cache (ccache/sccache) ---
+      # This prevents rebuilding YOUR code if it hasn't changed.
+      - name: Setup Cache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.os }}-ccache
+
+      # --- 2. Setup System Dependencies ---
       - name: Setup GCC (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -48,30 +60,33 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      # Setup Vcpkg (Auto-handles Caching!)
+      # --- 3. Setup Vcpkg with Caching ---
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          # This points to your vcpkg.json file
           vcpkgJsonGlob: 'vcpkg.json'
+          # CRITICAL: Pin the vcpkg tool version. 
+          # If this changes (and it does daily), vcpkg rebuilds everything.
+          # Use the commit hash from your builtin-baseline in vcpkg.json
+          vcpkgGitCommitId: '00807e89724847a866033a2f042c38fafae3c534'
 
-      # Configure CMake
+      # --- 4. Configure CMake ---
       - name: CMake Configure
         uses: lukka/run-cmake@v10
         with:
-          configurePreset: 'ninja-multi-vcpkg' # Uses vcpkg toolchain automatically
-          configurePresetAdditionalArgs: "['-DCMAKE_BUILD_TYPE=Release']"
+          configurePreset: 'ninja-multi-vcpkg'
+          # Inject the cache launcher (ccache/sccache) into CMake
+          configurePresetAdditionalArgs: "['-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
 
-      # Build
+      # --- 5. Build ---
       - name: Build
         run: cmake --build --preset ninja-multi-vcpkg --config Release
 
-      # Run Tests (Linux with xvfb for headless window support)
+      # --- 6. Test ---
       - name: Test (Linux)
         if: runner.os == 'Linux'
         run: xvfb-run ctest --preset ninja-multi-vcpkg --output-on-failure -C Release
 
-      # Run Tests (Windows)
       - name: Test (Windows)
         if: runner.os == 'Windows'
         run: ctest --preset ninja-multi-vcpkg --output-on-failure -C Release
