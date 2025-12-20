@@ -82,6 +82,7 @@ Token Tokenizer::emit_tag(bool is_end_tag, bool self_closing, std::string_view t
     StartTagToken start;
     start.name = tag_name;
     start.attribute_count = attr_count;
+    start.self_closing = self_closing;
     for (size_t i = 0; i < attr_count; ++i) start.attributes[i] = attrs[i];
     return Token{TokenType::StartTag, start};
 }
@@ -149,7 +150,7 @@ Token Tokenizer::next_token() {
                 break;
         }
     }
-    return Token{TokenType::EndOfFile, ErrorToken{""}};
+    return Token{TokenType::EndOfFile, EndOfFileToken{}};
 }
 
 } // namespace Hummingbird::Html

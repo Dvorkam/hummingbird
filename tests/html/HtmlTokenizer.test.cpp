@@ -27,9 +27,19 @@ TEST(HtmlTokenizerTest, ParsesAttributes) {
     ASSERT_EQ(t1.type, TokenType::StartTag);
     auto start = std::get<StartTagToken>(t1.data);
     EXPECT_EQ(start.name, "div");
+    EXPECT_FALSE(start.self_closing);
     ASSERT_EQ(start.attribute_count, 2u);
     EXPECT_EQ(start.attributes[0].name, "id");
     EXPECT_EQ(start.attributes[0].value, "main");
     EXPECT_EQ(start.attributes[1].name, "class");
     EXPECT_EQ(start.attributes[1].value, "hero");
+}
+
+TEST(HtmlTokenizerTest, DetectsSelfClosingTag) {
+    Tokenizer tokenizer("<br/>");
+    auto t1 = tokenizer.next_token();
+    ASSERT_EQ(t1.type, TokenType::StartTag);
+    auto start = std::get<StartTagToken>(t1.data);
+    EXPECT_EQ(start.name, "br");
+    EXPECT_TRUE(start.self_closing);
 }

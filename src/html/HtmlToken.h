@@ -23,14 +23,16 @@ struct StartTagToken {
     std::string_view name;
     std::array<Attribute, 8> attributes{};
     size_t attribute_count{0};
+    bool self_closing{false};
 };
 struct EndTagToken { std::string_view name; };
 struct CharacterDataToken { std::string_view data; };
 struct ErrorToken { std::string_view message; };
+struct EndOfFileToken {};
 
 struct Token {
     TokenType type;
-    std::variant<StartTagToken, EndTagToken, CharacterDataToken, ErrorToken> data;
+    std::variant<StartTagToken, EndTagToken, CharacterDataToken, ErrorToken, EndOfFileToken> data;
 };
 
 } // namespace Hummingbird::Html

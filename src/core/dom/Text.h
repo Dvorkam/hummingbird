@@ -10,6 +10,7 @@ namespace Hummingbird::DOM {
         Text(const std::string& text) : m_text(text) {}
 
         const std::string& get_text() const { return m_text; }
+        void append(const std::string& extra) { m_text += extra; }
 
     private:
         std::string m_text;

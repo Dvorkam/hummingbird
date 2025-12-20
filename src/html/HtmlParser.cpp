@@ -1,4 +1,6 @@
 #include "html/HtmlParser.h"
+#include "core/Log.h"
+#include <algorithm>
 
 namespace Hummingbird::Html {
 
@@ -10,7 +12,16 @@ ArenaPtr<DOM::Node> Parser::parse() {
     open_elements.push_back(root.get());
 
     auto is_void_element = [](std::string_view name) {
-        return name == "meta" || name == "link" || name == "br" || name == "img" || name == "input";
+        return name == "meta" || name == "link" || name == "br" || name == "img" || name == "input" || name == "hr";
+    };
+
+    auto is_known_element = [&](std::string_view name) {
+        static const std::vector<std::string_view> known = {
+            "html", "head", "body", "title", "style", "script",
+            "div", "p", "span", "h1", "b", "strong", "i", "em",
+            "img", "br", "hr", "input"
+        };
+        return std::find(known.begin(), known.end(), name) != known.end();
     };
 
     while (true) {
@@ -41,22 +52,52 @@ ArenaPtr<DOM::Node> Parser::parse() {
                 parent->append_child(std::move(new_element));
 
                 DOM::Node* appended = parent->get_children().back().get();
-                if (!is_void_element(tag_data.name)) {
+                if (!is_known_element(tag_data.name)) {
+                    std::string tag_name(tag_data.name);
+                    if (m_unsupported_tags.insert(tag_name).second) {
+                        HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << tag_name << ">");
+                    }
+                }
+
+                bool should_push = !is_void_element(tag_data.name) && !tag_data.self_closing;
+                if (should_push) {
                     open_elements.push_back(appended);
                 }
                 break;
             }
             case TokenType::EndTag: {
+                auto& end_data = std::get<EndTagToken>(token.data);
                 if (open_elements.size() > 1) { // Don't pop the root
-                    open_elements.pop_back();
+                    // Find the nearest matching open element and pop everything above it.
+                    size_t match_index = 0;
+                    bool found = false;
+                    for (size_t i = open_elements.size(); i-- > 1;) { // skip root at 0
+                        auto* element = dynamic_cast<DOM::Element*>(open_elements[i]);
+                        if (element && element->get_tag_name() == end_data.name) {
+                            match_index = i;
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        open_elements.resize(match_index);
+                    }
                 }
                 break;
             }
             case TokenType::CharacterData: {
                 auto& char_data = std::get<CharacterDataToken>(token.data);
                 if (!char_data.data.empty()) {
+                    DOM::Node* parent = open_elements.back();
+                    auto& children = parent->get_children();
+                    if (!children.empty()) {
+                        if (auto* last_text = dynamic_cast<DOM::Text*>(children.back().get())) {
+                            last_text->append(std::string(char_data.data));
+                            break;
+                        }
+                    }
                     auto new_text = make_arena_ptr<DOM::Text>(m_arena, std::string(char_data.data));
-                    open_elements.back()->append_child(std::move(new_text));
+                    parent->append_child(std::move(new_text));
                 }
                 break;
             }
