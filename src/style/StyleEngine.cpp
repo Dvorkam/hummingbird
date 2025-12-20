@@ -123,11 +123,13 @@ void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const C
     base.width = own.width;
     base.height = own.height;
 
-    // Inheritable text properties: let element defaults override parent.
-    base.color = own.color;
-    base.underline = own.underline;
-    base.whitespace = own.whitespace;
-    base.font_monospace = own.font_monospace;
+    // Inheritable text properties: only elements introduce overrides; text nodes inherit.
+    if (dynamic_cast<DOM::Element*>(node)) {
+        base.color = own.color;
+        base.underline = own.underline;
+        base.whitespace = own.whitespace;
+        base.font_monospace = own.font_monospace;
+    }
 
     ComputedStyle style = base;
 

@@ -27,6 +27,9 @@ int main(int argc, char* argv[]) {
     }
 
     auto graphics = window->get_graphics_context();
+    if (!graphics) {
+        return 1;
+    }
     CurlNetwork network;
     StubNetwork stub;
     Hummingbird::Css::StyleEngine style_engine;
