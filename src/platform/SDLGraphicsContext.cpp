@@ -160,22 +160,20 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     
 
         BLTextMetrics tm;
-
         font.getTextMetrics(glyphBuffer, tm);
 
-    
+        // Prefer advance width but guard with bounding box to avoid clipping.
+        float width = static_cast<float>(tm.advance.x);
+        float bbox_width = static_cast<float>(tm.boundingBox.x1 - tm.boundingBox.x0);
+        if (width <= 0 && bbox_width > 0) {
+            width = bbox_width;
+        } else if (bbox_width > width) {
+            width = bbox_width;
+        }
 
-        // Using bounding box for width is correct for layout.
-
-        float width = (float)(tm.boundingBox.x1 - tm.boundingBox.x0);
-
-    
-
-        // Use font metrics for a consistent line height.
-
+        // Use font metrics for a consistent line height with a small fudge for descenders.
         BLFontMetrics fm = font.metrics();
-
-        float height = fm.ascent + fm.descent; // lineGap is often too much for web layout
+        float height = fm.ascent + fm.descent + 1.0f; // small pad to prevent clipping
 
     
 

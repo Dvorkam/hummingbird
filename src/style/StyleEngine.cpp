@@ -114,8 +114,23 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
 }
 
 void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const ComputedStyle* parent_style) {
-    ComputedStyle style = build_style_for(sheet, node);
-    // Inherit nothing for now; hook for future inherited properties via parent_style.
+    ComputedStyle base = parent_style ? *parent_style : default_computed_style();
+    ComputedStyle own = build_style_for(sheet, node);
+
+    // Non-inheritable box properties come from the computed (own) style.
+    base.margin = own.margin;
+    base.padding = own.padding;
+    base.width = own.width;
+    base.height = own.height;
+
+    // Inheritable text properties: let element defaults override parent.
+    base.color = own.color;
+    base.underline = own.underline;
+    base.whitespace = own.whitespace;
+    base.font_monospace = own.font_monospace;
+
+    ComputedStyle style = base;
+
     node->set_computed_style(std::make_shared<ComputedStyle>(style));
 
     for (const auto& child : node->get_children()) {

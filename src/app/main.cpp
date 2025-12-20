@@ -85,6 +85,7 @@ int main(int argc, char* argv[]) {
         while (SDL_PollEvent(&event)) {
             if (event.type == SDL_QUIT) {
                 window->close();
+                break;
             } else if (event.type == SDL_TEXTINPUT) {
                 if (url_bar_active) {
                     current_url += event.text.text;
@@ -116,6 +117,10 @@ int main(int argc, char* argv[]) {
                     SDL_StopTextInput();
                 }
             }
+        }
+
+        if (!window->is_open()) {
+            break;
         }
 
         // Consume pending HTML and rebuild on the main thread.
