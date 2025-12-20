@@ -18,75 +18,102 @@ jobs:
       - name: Run clang-format style check
         uses: jidicula/clang-format-action@v4.11.0
         with:
-          clang-format-version: '15'
-          check-path: 'src' # Only check your source folder
-          fallback-style: 'Google' # Fallback if .clang-format is missing
+          clang-format-version: "15"
+          check-path: "src"           # Only check your source folder
+          fallback-style: "Google"    # Fallback if .clang-format is missing
 
   # JOB 2: Build & Test
   build:
     name: ${{ matrix.os }} Build
     needs: formatting
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      actions: write   # needed so actions/cache can save caches on pushes / same-repo PRs
+
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
 
-    # Global Env Vars for Vcpkg Caching
+    # vcpkg binary caching using a local folder + actions/cache
     env:
-      # Tells vcpkg to use GitHub Actions Cache service directly
-      VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg/bincache
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg/bincache,readwrite
 
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
 
-      # --- 1. Setup Compiler Cache (ccache/sccache) ---
-      # This prevents rebuilding YOUR code if it hasn't changed.
-      - name: Setup Cache
-        uses: hendrikmuhs/ccache-action@v1.2
+      # Cache vcpkg downloads + built package binaries
+      # This is the key fix: it avoids rebuilding all ports on every run.
+      - name: Cache vcpkg (downloads + binary cache)
+        uses: actions/cache@v4
         with:
-          key: ${{ matrix.os }}-ccache
+          path: |
+            .vcpkg/bincache
+            vcpkg/downloads
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
 
-      # --- 2. Setup System Dependencies ---
+      # Linux build deps (xvfb for headless tests, + common autotools deps that some ports pull in)
       - name: Setup GCC (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential ninja-build libx11-dev libxft-dev libxext-dev xvfb autoconf autoconf-archive automake libtool libltdl-dev
+          sudo apt-get install -y \
+            build-essential ninja-build \
+            libx11-dev libxft-dev libxext-dev \
+            xvfb \
+            autoconf autoconf-archive automake libtool libltdl-dev
 
       - name: Setup MSVC (Windows)
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
-      # --- 3. Setup Vcpkg with Caching ---
+      # Optional: ccache for faster rebuilds of *your* code (not vcpkg ports)
+      - name: Setup ccache (Linux)
+        if: runner.os == 'Linux'
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-${{ runner.os }}-${{ github.ref }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      # Setup vcpkg (manifests)
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgJsonGlob: 'vcpkg.json'
-          # CRITICAL: Pin the vcpkg tool version. 
-          # If this changes (and it does daily), vcpkg rebuilds everything.
-          # Use the commit hash from your builtin-baseline in vcpkg.json
-          vcpkgGitCommitId: '00807e89724847a866033a2f042c38fafae3c534'
+          vcpkgJsonGlob: "vcpkg.json"
 
-      # --- 4. Configure CMake ---
-      - name: CMake Configure
+      # Configure (Linux: enable ccache launcher)
+      - name: CMake Configure (Linux)
+        if: runner.os == 'Linux'
         uses: lukka/run-cmake@v10
         with:
-          configurePreset: 'ninja-multi-vcpkg'
-          # Inject the cache launcher (ccache/sccache) into CMake
+          configurePreset: "ninja-multi-vcpkg"
           configurePresetAdditionalArgs: "['-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
 
-      # --- 5. Build ---
+      # Configure (Windows)
+      - name: CMake Configure (Windows)
+        if: runner.os == 'Windows'
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: "ninja-multi-vcpkg"
+          configurePresetAdditionalArgs: "['-DCMAKE_BUILD_TYPE=Release']"
+
+      # Build
       - name: Build
         run: cmake --build --preset ninja-multi-vcpkg --config Release
 
-      # --- 6. Test ---
+      # Run Tests (Linux with xvfb for headless window support)
       - name: Test (Linux)
         if: runner.os == 'Linux'
         run: xvfb-run ctest --preset ninja-multi-vcpkg --output-on-failure -C Release
 
+      # Run Tests (Windows)
       - name: Test (Windows)
         if: runner.os == 'Windows'
         run: ctest --preset ninja-multi-vcpkg --output-on-failure -C Release
