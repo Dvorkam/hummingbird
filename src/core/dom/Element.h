@@ -1,25 +1,24 @@
 #pragma once
 
-#include "core/dom/Node.h"
 #include <string>
 #include <unordered_map>
 
+#include "core/dom/Node.h"
+
 namespace Hummingbird::DOM {
 
-    class Element : public Node {
-    public:
-        Element(const std::string& tag_name) : m_tag_name(tag_name) {}
+class Element : public Node {
+public:
+    Element(const std::string& tag_name) : m_tag_name(tag_name) {}
 
-        const std::string& get_tag_name() const { return m_tag_name; }
-        const std::unordered_map<std::string, std::string>& get_attributes() const { return m_attributes; }
+    const std::string& get_tag_name() const { return m_tag_name; }
+    const std::unordered_map<std::string, std::string>& get_attributes() const { return m_attributes; }
 
-        void set_attribute(const std::string& key, const std::string& value) {
-            m_attributes[key] = value;
-        }
+    void set_attribute(const std::string& key, const std::string& value) { m_attributes[key] = value; }
 
-    private:
-        std::string m_tag_name;
-        std::unordered_map<std::string, std::string> m_attributes;
-    };
+private:
+    std::string m_tag_name;
+    std::unordered_map<std::string, std::string> m_attributes;
+};
 
-}
+}  // namespace Hummingbird::DOM
