@@ -120,7 +120,23 @@ Token Tokenizer::next_token() {
             case State::TagOpen: {
                 if (peek_char() == '!') {
                     // Skip directives/doctype/comments.
-                    while (!eof() && consume_char() != '>') {
+                    if (peek_char(1) == '-' && peek_char(2) == '-') {
+                        // Comment: consume until '-->'
+                        consume_char();  // '!'
+                        consume_char();  // '-'
+                        consume_char();  // '-'
+                        while (!eof()) {
+                            if (peek_char() == '-' && peek_char(1) == '-' && peek_char(2) == '>') {
+                                consume_char();
+                                consume_char();
+                                consume_char();
+                                break;
+                            }
+                            consume_char();
+                        }
+                    } else {
+                        while (!eof() && consume_char() != '>') {
+                        }
                     }
                     m_state = State::Data;
                     break;

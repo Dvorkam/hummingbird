@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
     Hummingbird::Layout::TreeBuilder tree_builder;
     Hummingbird::Renderer::Painter painter;
 
-    std::string current_url = "http://www.reddit.com/domain/old.reddit.com/";
+    std::string current_url = "www.acme.com";
     ArenaPtr<Hummingbird::DOM::Node> dom_tree;
     std::unique_ptr<Hummingbird::Layout::RenderObject> render_tree;
 
@@ -199,8 +199,7 @@ int main(int argc, char* argv[]) {
 
         // Paint the Render Tree
         if (render_tree) {
-            Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height),
-                                                  static_cast<float>(win_w),
+            Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height), static_cast<float>(win_w),
                                                   static_cast<float>(win_h - url_bar_height)};
             graphics->set_viewport(viewport);
             Hummingbird::Renderer::PaintOptions opts;
@@ -211,6 +210,7 @@ int main(int argc, char* argv[]) {
         }
 
         graphics->present();
+        SDL_Delay(5);  // throttle to avoid busy-spin when idle
     }
 
     SDL_StopTextInput();
