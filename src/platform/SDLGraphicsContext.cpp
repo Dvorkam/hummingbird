@@ -18,6 +18,14 @@ SDLGraphicsContext::~SDLGraphicsContext() {}
 
 void SDLGraphicsContext::set_viewport(const Hummingbird::Layout::Rect& viewport) {
     m_viewport = viewport;
+    if (!m_renderer) return;
+    if (viewport.width <= 0 || viewport.height <= 0) {
+        SDL_RenderSetClipRect(m_renderer, nullptr);
+    } else {
+        SDL_Rect clip{static_cast<int>(viewport.x), static_cast<int>(viewport.y),
+                      static_cast<int>(viewport.width), static_cast<int>(viewport.height)};
+        SDL_RenderSetClipRect(m_renderer, &clip);
+    }
 }
 
 void SDLGraphicsContext::clear(const Color& color) {
