@@ -18,9 +18,10 @@ ArenaPtr<DOM::Node> Parser::parse() {
     };
 
     auto is_known_element = [&](std::string_view name) {
-        static const std::vector<std::string_view> known = {"html", "head", "body", "title", "style", "script",
-                                                            "div",  "p",    "span", "h1",    "b",     "strong",
-                                                            "i",    "em",   "img",  "br",    "hr",    "input"};
+        static const std::vector<std::string_view> known = {
+            "html", "head", "body", "title", "style", "script", "div",  "p",   "span", "h1", "h2", "h3",
+            "h4",   "h5",   "h6",   "b",     "strong","i",      "em",   "img", "br",   "hr", "input", "ul",
+            "ol",   "li",   "pre",  "code",  "a",     "blockquote"};
         return std::find(known.begin(), known.end(), name) != known.end();
     };
 

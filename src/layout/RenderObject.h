@@ -24,6 +24,7 @@ public:
     RenderObject(const DOM::Node* dom_node) : m_dom_node(dom_node) {}
     virtual ~RenderObject() = default;
 
+    virtual bool is_inline() const { return false; }
     const DOM::Node* get_dom_node() const { return m_dom_node; }
     const Rect& get_rect() const { return m_rect; }
     const Css::ComputedStyle* get_computed_style() const {

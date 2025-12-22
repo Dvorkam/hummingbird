@@ -3,6 +3,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "layout/BlockBox.h"
+#include "layout/InlineBox.h"
 #include "layout/RenderBreak.h"
 #include "layout/RenderRule.h"
 #include "layout/TextBox.h"
@@ -22,6 +23,10 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         const auto& tag = element_node->get_tag_name();
         if (tag == "head" || tag == "style" || tag == "title" || tag == "script") {
             return nullptr;
+        }
+        if (tag == "a" || tag == "span" || tag == "strong" || tag == "em" || tag == "b" || tag == "i" ||
+            tag == "code") {
+            return std::make_unique<InlineBox>(element_node);
         }
         if (tag == "br") {
             return std::make_unique<RenderBreak>(element_node);

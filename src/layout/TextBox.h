@@ -10,6 +10,7 @@ class TextBox : public RenderObject {
 public:
     TextBox(const DOM::Text* dom_node);
 
+    bool is_inline() const override { return true; }
     void layout(IGraphicsContext& context, const Rect& bounds) override;
     void paint(IGraphicsContext& context, const Point& offset) override;
     const std::string& rendered_text() const { return m_rendered_text; }

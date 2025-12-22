@@ -105,7 +105,7 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
             style.margin.top = style.margin.bottom = m;
         };
 
-        if (tag == "ul") {
+        if (tag == "ul" || tag == "ol") {
             style.padding.left = 20.0f;
         } else if (tag == "pre") {
             if (style.whitespace == ComputedStyle::WhiteSpace::Normal) {
