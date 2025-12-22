@@ -19,6 +19,7 @@ public:
     bool is_open() const override;
 
     std::unique_ptr<IGraphicsContext> get_graphics_context() override;
+    std::pair<int, int> get_size() const override;
 
     SDL_Window* get_native_window() const { return m_window; }
 

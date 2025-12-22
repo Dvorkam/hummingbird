@@ -14,4 +14,5 @@ public:
     virtual bool is_open() const = 0;
 
     virtual std::unique_ptr<IGraphicsContext> get_graphics_context() = 0;
+    virtual std::pair<int, int> get_size() const = 0;
 };

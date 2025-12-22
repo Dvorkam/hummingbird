@@ -9,9 +9,10 @@ using Hummingbird::Layout::RenderObject;
 // Graphics context that records draw_text calls and provides deterministic metrics.
 class RecordingGraphicsContext : public IGraphicsContext {
 public:
+    void set_viewport(const Hummingbird::Layout::Rect& viewport) override { viewport_ = viewport; }
     void clear(const Color&) override {}
     void present() override {}
-    void fill_rect(const Hummingbird::Layout::Rect&, const Color&) override {}
+    void fill_rect(const Hummingbird::Layout::Rect& rect, const Color&) override { fill_calls.push_back(rect); }
 
     TextMetrics measure_text(const std::string& text, const TextStyle&) override {
         return { static_cast<float>(text.size()) * 8.0f, 16.0f };
@@ -24,6 +25,8 @@ public:
 
     int draw_calls = 0;
     std::string last_text;
+    std::vector<Hummingbird::Layout::Rect> fill_calls;
+    Hummingbird::Layout::Rect viewport_{0, 0, 0, 0};
 };
 
 TEST(PainterIntegrationTest, PaintsTextNodesFromParserOutput) {
@@ -44,9 +47,34 @@ TEST(PainterIntegrationTest, PaintsTextNodesFromParserOutput) {
     render_tree->layout(context, viewport);
 
     Hummingbird::Renderer::Painter painter;
-    painter.paint(*render_tree, context);
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
 
     // Expect one draw call per non-whitespace text node.
     EXPECT_EQ(context.draw_calls, 2);
     EXPECT_EQ(context.last_text, "Second line");
+}
+
+TEST(PainterDebugTest, DrawsOutlinesWhenDebugEnabled) {
+    // DOM: <html><body><p>Text</p></body></html>
+    std::string_view html = "<html><body><p>Text</p></body></html>";
+    ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto dom = parser.parse();
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    opts.debug_outlines = true;
+    painter.paint(*render_tree, context, opts);
+
+    // Expect at least one fill_rect call for debug outlines.
+    EXPECT_FALSE(context.fill_calls.empty());
 }

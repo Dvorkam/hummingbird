@@ -57,3 +57,11 @@ bool SDLWindow::is_open() const {
 std::unique_ptr<IGraphicsContext> SDLWindow::get_graphics_context() {
     return std::make_unique<SDLGraphicsContext>(m_renderer);
 }
+
+std::pair<int, int> SDLWindow::get_size() const {
+    int w = 0, h = 0;
+    if (m_window) {
+        SDL_GetWindowSize(m_window, &w, &h);
+    }
+    return {w, h};
+}

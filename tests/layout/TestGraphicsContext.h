@@ -6,6 +6,7 @@
 // except text measurement, which uses a simple heuristic to return stable values.
 class TestGraphicsContext : public IGraphicsContext {
 public:
+    void set_viewport(const Hummingbird::Layout::Rect& /*viewport*/) override {}
     void clear(const Color& /*color*/) override {}
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& /*rect*/, const Color& /*color*/) override {}

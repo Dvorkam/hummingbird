@@ -1,5 +1,6 @@
 #include <SDL.h>
 
+#include <algorithm>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -47,6 +48,9 @@ int main(int argc, char* argv[]) {
     ArenaAllocator dom_arena(2 * 1024 * 1024);
 
     bool url_bar_active = true;
+    bool debug_outlines = false;
+    float scroll_y = 0.0f;
+    float content_height = 0.0f;
 
     auto load_url = [&](const std::string& url) {
         network.get(url, [&, url](std::string body) {
@@ -106,6 +110,9 @@ int main(int argc, char* argv[]) {
                 } else if (event.key.keysym.sym == SDLK_ESCAPE) {
                     url_bar_active = false;
                     SDL_StopTextInput();
+                } else if (event.key.keysym.sym == SDLK_F1) {
+                    debug_outlines = !debug_outlines;
+                    HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines ? "ON" : "OFF"));
                 } else if (event.key.keysym.sym == SDLK_l && (event.key.keysym.mod & KMOD_CTRL)) {
                     url_bar_active = true;
                     SDL_StartTextInput();
@@ -122,6 +129,14 @@ int main(int argc, char* argv[]) {
                     url_bar_active = false;
                     SDL_StopTextInput();
                 }
+            } else if (event.type == SDL_MOUSEWHEEL) {
+                float delta = static_cast<float>(event.wheel.y) * 32.0f;
+                scroll_y -= delta;
+                if (scroll_y < 0.0f) scroll_y = 0.0f;
+                auto [win_w, win_h] = window->get_size();
+                float viewport_height = static_cast<float>(win_h - url_bar_height);
+                float max_scroll = std::max(0.0f, content_height - viewport_height);
+                if (scroll_y > max_scroll) scroll_y = max_scroll;
             }
         }
 
@@ -156,9 +171,12 @@ int main(int argc, char* argv[]) {
                 HB_LOG_INFO("[pipeline] applied stylesheet rules: " << stylesheet.rules.size());
                 render_tree = tree_builder.build(dom_tree.get());
                 if (render_tree) {
-                    Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height), 1024,
-                                                          768 - static_cast<float>(url_bar_height)};
+                    auto [win_w, win_h] = window->get_size();
+                    Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height),
+                                                          static_cast<float>(win_w),
+                                                          static_cast<float>(win_h - url_bar_height)};
                     render_tree->layout(*graphics, viewport);
+                    content_height = render_tree->get_rect().height;
                     HB_LOG_INFO("[pipeline] render tree root children: " << render_tree->get_children().size());
                 }
             }
@@ -167,7 +185,8 @@ int main(int argc, char* argv[]) {
         graphics->clear(teal);
 
         // Draw URL bar overlay.
-        Hummingbird::Layout::Rect bar_rect{0, 0, 1024, static_cast<float>(url_bar_height)};
+        auto [win_w, win_h] = window->get_size();
+        Hummingbird::Layout::Rect bar_rect{0, 0, static_cast<float>(win_w), static_cast<float>(url_bar_height)};
         graphics->fill_rect(bar_rect, overlay_bg);
         auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
         TextStyle url_style;
@@ -178,7 +197,14 @@ int main(int argc, char* argv[]) {
 
         // Paint the Render Tree
         if (render_tree) {
-            painter.paint(*render_tree, *graphics);
+            Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height), static_cast<float>(win_w),
+                                                  static_cast<float>(win_h - url_bar_height)};
+            graphics->set_viewport(viewport);
+            Hummingbird::Renderer::PaintOptions opts;
+            opts.debug_outlines = debug_outlines;
+            opts.scroll_y = scroll_y;
+            opts.viewport = viewport;
+            painter.paint(*render_tree, *graphics, opts);
         }
 
         graphics->present();

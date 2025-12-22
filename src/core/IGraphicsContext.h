@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 
 // Forward declare Rect to break dependency cycle
 namespace Hummingbird::Layout {
@@ -29,6 +30,7 @@ class IGraphicsContext {
 public:
     virtual ~IGraphicsContext() = default;
 
+    virtual void set_viewport(const Hummingbird::Layout::Rect& viewport) = 0;
     virtual void clear(const Color& color) = 0;
     virtual void present() = 0;
     virtual void fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color) = 0;

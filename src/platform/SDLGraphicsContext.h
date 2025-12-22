@@ -13,6 +13,7 @@ public:
     SDLGraphicsContext(SDL_Renderer* renderer);
     ~SDLGraphicsContext() override;
 
+    void set_viewport(const Hummingbird::Layout::Rect& viewport) override;
     void clear(const Color& color) override;
     void present() override;
     void fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color) override;
@@ -21,4 +22,5 @@ public:
 
 private:
     SDL_Renderer* m_renderer = nullptr;
+    Hummingbird::Layout::Rect m_viewport{0, 0, 0, 0};
 };

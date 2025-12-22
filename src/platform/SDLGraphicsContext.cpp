@@ -16,6 +16,10 @@ SDLGraphicsContext::SDLGraphicsContext(SDL_Renderer* renderer) : m_renderer(rend
 
 SDLGraphicsContext::~SDLGraphicsContext() {}
 
+void SDLGraphicsContext::set_viewport(const Hummingbird::Layout::Rect& viewport) {
+    m_viewport = viewport;
+}
+
 void SDLGraphicsContext::clear(const Color& color) {
     if (m_renderer) {
         SDL_SetRenderDrawColor(m_renderer, color.r, color.g, color.b, color.a);
@@ -31,6 +35,15 @@ void SDLGraphicsContext::present() {
 
 void SDLGraphicsContext::fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color) {
     if (m_renderer) {
+        // Simple viewport cull
+        if (m_viewport.width > 0 && m_viewport.height > 0) {
+            if (rect.y + rect.height < m_viewport.y || rect.y > m_viewport.y + m_viewport.height) {
+                return;
+            }
+            if (rect.x + rect.width < m_viewport.x || rect.x > m_viewport.x + m_viewport.width) {
+                return;
+            }
+        }
         SDL_SetRenderDrawColor(m_renderer, color.r, color.g, color.b, color.a);
         SDL_Rect sdl_rect = {(int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height};
         SDL_RenderFillRect(m_renderer, &sdl_rect);
@@ -49,6 +62,14 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     if (target_width <= 0 || target_height <= 0) {
         std::cerr << "[draw_text] measured zero size for '" << text << "'\n";
         return;
+    }
+    if (m_viewport.width > 0 && m_viewport.height > 0) {
+        if (y + target_height < m_viewport.y || y > m_viewport.y + m_viewport.height) {
+            return;
+        }
+        if (x + target_width < m_viewport.x || x > m_viewport.x + m_viewport.width) {
+            return;
+        }
     }
 
     auto resolved_font = Hummingbird::resolve_asset_path(style.font_path);
