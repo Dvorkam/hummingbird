@@ -30,8 +30,8 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         // For now, all other elements are treated as block boxes.
         return std::make_unique<BlockBox>(element_node);
     } else if (auto text_node = dynamic_cast<const DOM::Text*>(node)) {
-        // Don't create render objects for whitespace-only text nodes
-        if (text_node->get_text().find_first_not_of(" \t\n\r") != std::string::npos) {
+        // Preserve whitespace-only text nodes; TextBox will collapse appropriately.
+        if (!text_node->get_text().empty()) {
             return std::make_unique<TextBox>(text_node);
         }
     }

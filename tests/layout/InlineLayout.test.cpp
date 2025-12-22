@@ -108,3 +108,38 @@ TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
     EXPECT_LE(text_rect.width, viewport.width);
     EXPECT_GE(text_rect.height, 32.0f);
 }
+
+TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
+    ArenaAllocator arena(4096);
+    auto body = make_arena_ptr<Element>(arena, "body");
+    auto p = make_arena_ptr<Element>(arena, "p");
+    p->append_child(make_arena_ptr<Text>(arena, "Hello "));
+    auto a = make_arena_ptr<Element>(arena, "a");
+    a->append_child(make_arena_ptr<Text>(arena, "link"));
+    p->append_child(std::move(a));
+    p->append_child(make_arena_ptr<Text>(arena, " world"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 3u);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+
+    const auto& first = para->get_children()[0]->get_rect();
+    const auto& link = para->get_children()[1]->get_rect();
+    const auto& last = para->get_children()[2]->get_rect();
+
+    // Expect the link to start after the first text width (includes trailing space)
+    EXPECT_GT(link.x, first.x + 0.1f);
+    // Expect trailing text to start after link width
+    EXPECT_GT(last.x, link.x + link.width - 0.1f);
+}

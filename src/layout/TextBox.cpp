@@ -28,6 +28,13 @@ std::string collapse_whitespace(const std::string& text) {
             in_space = false;
         }
     }
+    // Trim leading/trailing spaces
+    while (!out.empty() && out.front() == ' ') {
+        out.erase(out.begin());
+    }
+    while (!out.empty() && out.back() == ' ') {
+        out.pop_back();
+    }
     return out;
 }
 }  // namespace
