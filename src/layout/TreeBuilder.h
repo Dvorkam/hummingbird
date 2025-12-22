@@ -16,7 +16,6 @@ public:
 
 private:
     std::unique_ptr<RenderObject> build_impl(const DOM::Node* dom_root);
-    std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node);
 };
 
 }  // namespace Hummingbird::Layout
