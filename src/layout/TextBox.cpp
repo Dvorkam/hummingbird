@@ -65,13 +65,66 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
     // TODO: choose real monospace or bold fonts when available.
     m_last_metrics = context.measure_text(m_rendered_text, font_path.string(), font_size, bold, italic, monospace);
-    float content_width = m_last_metrics.width;
+    float line_height = m_last_metrics.height;
+
+    float content_width = 0.0f;
+    float available_width = bounds.width - padding_left - padding_right;
+    if (available_width <= 0.0f) available_width = 0.0f;
+
     if (style && style->width.has_value()) {
-        content_width = *style->width;
+        available_width = *style->width - padding_left - padding_right;
+        if (available_width < 0.0f) available_width = 0.0f;
+    }
+
+    if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
+        content_width = m_last_metrics.width;
+    } else {
+        std::vector<std::string> words;
+        std::string current;
+        for (char c : m_rendered_text) {
+            if (c == ' ') {
+                if (!current.empty()) {
+                    words.push_back(current);
+                    current.clear();
+                }
+            } else {
+                current.push_back(c);
+            }
+        }
+        if (!current.empty()) {
+            words.push_back(current);
+        }
+
+        auto measure_word = [&](const std::string& w) {
+            return context.measure_text(w, font_path.string(), font_size, bold, italic, monospace).width;
+        };
+        float space_width = context.measure_text(" ", font_path.string(), font_size, bold, italic, monospace).width;
+
+        float line_width = 0.0f;
+        size_t lines = 1;
+        for (const auto& w : words) {
+            float w_width = measure_word(w);
+            float sep = line_width > 0.0f ? space_width : 0.0f;
+            if (line_width > 0.0f && (line_width + sep + w_width) > available_width && available_width > 0.0f) {
+                content_width = std::max(content_width, line_width);
+                line_width = w_width;
+                ++lines;
+            } else {
+                line_width += sep + w_width;
+            }
+        }
+        content_width = std::max(content_width, line_width);
+        m_rect.height = lines * line_height + padding_top + padding_bottom;
+    }
+
+    if (content_width == 0.0f) {
+        content_width = m_last_metrics.width;
     }
 
     m_rect.width = content_width + padding_left + padding_right;
-    m_rect.height = m_last_metrics.height + padding_top + padding_bottom;
+    if (m_rect.height == 0.0f) {
+        m_rect.height = line_height + padding_top + padding_bottom;
+    }
 
     if (m_last_metrics.width == 0 || m_last_metrics.height == 0) {
         std::cerr << "[TextBox::layout] zero metrics for text '" << m_rendered_text << "' using font " << font_path

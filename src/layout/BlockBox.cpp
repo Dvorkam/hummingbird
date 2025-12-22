@@ -61,6 +61,19 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         Rect child_bounds = {child_x, child_y, available_width, 0.0f};
         child->layout(context, child_bounds);
 
+        // Greedy wrap: if this inline item overflows and we have content on the line, move to next line and relayout.
+        float projected_right = child_x + child->get_rect().width + margin_right;
+        float line_right = padding_left + content_width;
+        if (projected_right > line_right && cursor_x > padding_left) {
+            flush_line();
+            child_x = cursor_x + margin_left;
+            child_y = cursor_y + margin_top;
+            available_width = content_width - (child_x - padding_left) - margin_right;
+            child_bounds = {child_x, child_y, available_width, 0.0f};
+            child->layout(context, child_bounds);
+            projected_right = child_x + child->get_rect().width + margin_right;
+        }
+
         float child_height = child->get_rect().height + margin_top + margin_bottom;
         line_height = std::max(line_height, child_height);
         cursor_x = child_x + child->get_rect().width + margin_right;

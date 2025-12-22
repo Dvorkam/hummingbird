@@ -79,3 +79,32 @@ TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
     ASSERT_EQ(ol_box->get_children().size(), 1u);
     EXPECT_FLOAT_EQ(ol_box->get_children()[0]->get_rect().x, 20.0f);
 }
+
+TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
+    ArenaAllocator arena(4096);
+    auto body = make_arena_ptr<Element>(arena, "body");
+    auto p = make_arena_ptr<Element>(arena, "p");
+    // "HelloHello" (10 chars) at 8px each = 80px > 60px available forces wrap.
+    p->append_child(make_arena_ptr<Text>(arena, "Hello Hello"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 60, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+
+    // Wrapped: width should not exceed available width and height should include two lines (2 * 16px).
+    EXPECT_LE(text_rect.width, viewport.width);
+    EXPECT_GE(text_rect.height, 32.0f);
+}
