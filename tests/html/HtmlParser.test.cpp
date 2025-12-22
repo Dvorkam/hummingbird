@@ -101,3 +101,20 @@ TEST(HtmlParserTest, PopsToMatchingAncestorOnMismatchedEndTag) {
     ASSERT_NE(text, nullptr);
     EXPECT_EQ(text->get_text(), "inner");
 }
+
+TEST(HtmlParserTest, IsCaseInsensitiveForTags) {
+    std::string_view html = "<DIV><A HREF='#'>Link</A></DIV>";
+    ArenaAllocator arena(2048);
+    Parser parser(arena, html);
+    auto dom_tree = parser.parse();
+    ASSERT_NE(dom_tree, nullptr);
+    auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(dom_tree->get_children()[0].get());
+    ASSERT_NE(div_node, nullptr);
+    EXPECT_EQ(div_node->get_tag_name(), "div");
+    auto a_node = dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[0].get());
+    ASSERT_NE(a_node, nullptr);
+    EXPECT_EQ(a_node->get_tag_name(), "a");
+    auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(a_node->get_children()[0].get());
+    ASSERT_NE(text_node, nullptr);
+    EXPECT_EQ(text_node->get_text(), "Link");
+}
