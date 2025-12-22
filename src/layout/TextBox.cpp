@@ -49,7 +49,10 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         m_rendered_text = collapse_whitespace(text);
     }
 
+    m_lines.clear();
+
     if (m_rendered_text.empty()) {
+        m_lines.push_back("");
         m_last_metrics = {};
         m_rect.width = padding_left + padding_right;
         m_rect.height = padding_top + padding_bottom;
@@ -76,9 +79,25 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         if (available_width < 0.0f) available_width = 0.0f;
     }
 
+    auto append_line = [&](std::string line_text, float measured_width) {
+        m_lines.push_back(std::move(line_text));
+        content_width = std::max(content_width, measured_width);
+    };
+
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
-        content_width = m_last_metrics.width;
+        // Preserve newlines; no wrapping.
+        size_t start = 0;
+        while (start < m_rendered_text.size()) {
+            size_t nl = m_rendered_text.find('\n', start);
+            std::string line = nl == std::string::npos ? m_rendered_text.substr(start)
+                                                       : m_rendered_text.substr(start, nl - start);
+            float w = context.measure_text(line, font_path.string(), font_size, bold, italic, monospace).width;
+            append_line(std::move(line), w);
+            if (nl == std::string::npos) break;
+            start = nl + 1;
+        }
     } else {
+        // Greedy wrap by words.
         std::vector<std::string> words;
         std::string current;
         for (char c : m_rendered_text) {
@@ -100,22 +119,30 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         };
         float space_width = context.measure_text(" ", font_path.string(), font_size, bold, italic, monospace).width;
 
+        std::string line_text;
         float line_width = 0.0f;
-        size_t lines = 1;
-        for (const auto& w : words) {
+        for (size_t i = 0; i < words.size(); ++i) {
+            const auto& w = words[i];
             float w_width = measure_word(w);
             float sep = line_width > 0.0f ? space_width : 0.0f;
-            if (line_width > 0.0f && (line_width + sep + w_width) > available_width && available_width > 0.0f) {
-                content_width = std::max(content_width, line_width);
+            float projected = line_width + sep + w_width;
+            if (line_width > 0.0f && projected > available_width && available_width > 0.0f) {
+                append_line(line_text, line_width);
+                line_text = w;
                 line_width = w_width;
-                ++lines;
             } else {
-                line_width += sep + w_width;
+                if (sep > 0.0f) {
+                    line_text.push_back(' ');
+                    line_width += sep;
+                }
+                line_text += w;
+                line_width += w_width;
             }
         }
-        content_width = std::max(content_width, line_width);
-        m_rect.height = lines * line_height + padding_top + padding_bottom;
+        append_line(line_text, line_width);
     }
+
+    m_rect.height = static_cast<float>(m_lines.size()) * line_height + padding_top + padding_bottom;
 
     if (content_width == 0.0f) {
         content_width = m_last_metrics.width;
@@ -141,7 +168,7 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
     float absolute_x = offset.x + m_rect.x + padding_left;
     float absolute_y = offset.y + m_rect.y + padding_top;
 
-    if (m_rendered_text.empty()) return;
+    if (m_lines.empty()) return;
 
     Color text_color = style ? style->color : Color{0, 0, 0, 255};
     bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
@@ -157,12 +184,20 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
     auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
     float font_size = style ? style->font_size : 16.0f;
 
-    context.draw_text(m_rendered_text, absolute_x, absolute_y, font_path.string(), font_size, text_color, bold, italic,
-                      monospace);
+    float line_height = m_last_metrics.height;
+    float underline_width = 0.0f;
+    for (size_t i = 0; i < m_lines.size(); ++i) {
+        float y = absolute_y + static_cast<float>(i) * line_height;
+        context.draw_text(m_lines[i], absolute_x, y, font_path.string(), font_size, text_color, bold, italic,
+                          monospace);
+        underline_width = std::max(underline_width, context.measure_text(m_lines[i], font_path.string(), font_size, bold,
+                                                                         italic, monospace)
+                                                       .width);
+    }
 
-    if (style && style->underline && m_last_metrics.width > 0) {
-        float underline_y = absolute_y + m_last_metrics.height - 2.0f;
-        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, m_last_metrics.width, 1.0f};
+    if (style && style->underline && underline_width > 0) {
+        float underline_y = absolute_y + static_cast<float>(m_lines.size()) * line_height - 2.0f;
+        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, underline_width, 1.0f};
         context.fill_rect(line_rect, text_color);
     }
 

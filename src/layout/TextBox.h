@@ -19,6 +19,7 @@ public:
 
 private:
     std::string m_rendered_text;
+    std::vector<std::string> m_lines;
     TextMetrics m_last_metrics{};
 };
 
