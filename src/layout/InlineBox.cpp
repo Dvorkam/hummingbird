@@ -29,11 +29,10 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
         float child_x = cursor_x + margin_left;
         float child_y = cursor_y + margin_top;
-        Rect child_bounds{child_x, child_y, bounds.width - child_x, 0.0f};
-
+        Rect child_bounds{child_x, child_y, bounds.width - (child_x - bounds.x), 0.0f};
         child->layout(context, child_bounds);
-        float child_height = child->get_rect().height + margin_top + margin_bottom;
 
+        float child_height = child->get_rect().height + margin_top + margin_bottom;
         line_height = std::max(line_height, child_height);
         cursor_x = child_x + child->get_rect().width + margin_right;
     }

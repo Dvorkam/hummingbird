@@ -1,6 +1,7 @@
 #include <SDL.h>
 
 #include <algorithm>
+#include <atomic>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -39,7 +40,8 @@ int main(int argc, char* argv[]) {
     Hummingbird::Layout::TreeBuilder tree_builder;
     Hummingbird::Renderer::Painter painter;
 
-    std::string current_url = "www.acme.com";
+    std::string url_bar_text = "www.acme.com";
+    std::string requested_url = url_bar_text;
     ArenaPtr<Hummingbird::DOM::Node> dom_tree;
     std::unique_ptr<Hummingbird::Layout::RenderObject> render_tree;
 
@@ -51,12 +53,29 @@ int main(int argc, char* argv[]) {
     bool debug_outlines = false;
     float scroll_y = 0.0f;
     float content_height = 0.0f;
+    std::atomic<uint64_t> nav_counter{0};
+    std::atomic<uint64_t> active_nav{0};
+    int url_bar_height = 32;
+
+    bool needs_repaint = true;
+
+    auto clamp_scroll = [&](float viewport_height) {
+        float max_scroll = std::max(0.0f, content_height - viewport_height);
+        if (scroll_y < 0.0f) scroll_y = 0.0f;
+        if (scroll_y > max_scroll) scroll_y = max_scroll;
+    };
 
     auto load_url = [&](const std::string& url) {
-        network.get(url, [&, url](std::string body) {
+        uint64_t id = ++nav_counter;
+        active_nav.store(id, std::memory_order_relaxed);
+
+        requested_url = url;
+        network.get(url, [&, id, url](std::string body) {
+            if (id != active_nav.load(std::memory_order_relaxed)) return;
             if (body.empty()) {
                 HB_LOG_WARN("[network] curl returned empty for " << url << ", using stub");
-                stub.get(url, [&, url](std::string fallback) {
+                stub.get(url, [&, id, url](std::string fallback) {
+                    if (id != active_nav.load(std::memory_order_relaxed)) return;
                     std::lock_guard<std::mutex> lg(pending_mutex);
                     pending_html = std::move(fallback);
                 });
@@ -68,8 +87,91 @@ int main(int argc, char* argv[]) {
         });
     };
 
-    int url_bar_height = 32;
-    load_url(current_url);
+    auto handle_event = [&](const SDL_Event& event) {
+        switch (event.type) {
+            case SDL_QUIT: {
+                window->close();
+                break;
+            }
+
+            case SDL_TEXTINPUT: {
+                if (url_bar_active) {
+                    url_bar_text += event.text.text;
+                    needs_repaint = true;
+                }
+                break;
+            }
+
+            case SDL_KEYDOWN: {
+                if (event.key.keysym.sym == SDLK_BACKSPACE && url_bar_active && !url_bar_text.empty()) {
+                    url_bar_text.pop_back();
+                    needs_repaint = true;
+                } else if (event.key.keysym.sym == SDLK_RETURN) {
+                    url_bar_active = false;
+                    SDL_StopTextInput();
+                    load_url(url_bar_text);
+                } else if (event.key.keysym.sym == SDLK_ESCAPE) {
+                    url_bar_active = false;
+                    SDL_StopTextInput();
+                    needs_repaint = true;
+                } else if (event.key.keysym.sym == SDLK_F1) {
+                    debug_outlines = !debug_outlines;
+                    HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines ? "ON" : "OFF"));
+                    needs_repaint = true;
+                } else if (event.key.keysym.sym == SDLK_l && (event.key.keysym.mod & KMOD_CTRL)) {
+                    url_bar_active = true;
+                    SDL_StartTextInput();
+                    HB_LOG_INFO("[ui] URL bar focused");
+                    needs_repaint = true;
+                }
+                break;
+            }
+            case SDL_MOUSEBUTTONDOWN: {
+                int y = event.button.y;
+                if (y < url_bar_height) {
+                    url_bar_active = true;
+                    SDL_StartTextInput();
+                    HB_LOG_INFO("[ui] URL bar focused (mouse)");
+                } else {
+                    url_bar_active = false;
+                    SDL_StopTextInput();
+                }
+                needs_repaint = true;
+                break;
+            }
+            case SDL_MOUSEWHEEL: {
+                float delta = static_cast<float>(event.wheel.y) * 32.0f;
+                scroll_y -= delta;
+                auto [win_w, win_h] = window->get_size();
+                float viewport_height = static_cast<float>(win_h - url_bar_height);
+                clamp_scroll(viewport_height);
+                needs_repaint = true;
+                break;
+            }
+
+            case SDL_WINDOWEVENT: {
+                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
+                    event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                    if (render_tree) {
+                        auto [win_w, win_h] = window->get_size();
+                        Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height),
+                                                              static_cast<float>(win_w),
+                                                              static_cast<float>(win_h - url_bar_height)};
+                        render_tree->layout(*graphics, viewport);
+                        content_height = render_tree->get_rect().height;
+                        clamp_scroll(viewport.height);
+                        needs_repaint = true;
+                    }
+                }
+                break;
+            }
+
+            default:
+                break;
+        }
+    };
+
+    load_url(url_bar_text);
     SDL_StartTextInput();
     HB_LOG_INFO("[ui] URL bar focused (default)");
 
@@ -91,53 +193,15 @@ int main(int argc, char* argv[]) {
 
     while (window->is_open()) {
         window->update();
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_QUIT) {
-                window->close();
-                break;
-            } else if (event.type == SDL_TEXTINPUT) {
-                if (url_bar_active) {
-                    current_url += event.text.text;
-                }
-            } else if (event.type == SDL_KEYDOWN) {
-                if (event.key.keysym.sym == SDLK_BACKSPACE && url_bar_active && !current_url.empty()) {
-                    current_url.pop_back();
-                } else if (event.key.keysym.sym == SDLK_RETURN) {
-                    url_bar_active = false;
-                    SDL_StopTextInput();
-                    load_url(current_url);
-                } else if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    url_bar_active = false;
-                    SDL_StopTextInput();
-                } else if (event.key.keysym.sym == SDLK_F1) {
-                    debug_outlines = !debug_outlines;
-                    HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines ? "ON" : "OFF"));
-                } else if (event.key.keysym.sym == SDLK_l && (event.key.keysym.mod & KMOD_CTRL)) {
-                    url_bar_active = true;
-                    SDL_StartTextInput();
-                    HB_LOG_INFO("[ui] URL bar focused");
-                }
-            } else if (event.type == SDL_MOUSEBUTTONDOWN) {
-                // Focus URL bar on click inside the bar area.
-                int y = event.button.y;
-                if (y < url_bar_height) {
-                    url_bar_active = true;
-                    SDL_StartTextInput();
-                    HB_LOG_INFO("[ui] URL bar focused (mouse)");
-                } else {
-                    url_bar_active = false;
-                    SDL_StopTextInput();
-                }
-            } else if (event.type == SDL_MOUSEWHEEL) {
-                float delta = static_cast<float>(event.wheel.y) * 32.0f;
-                scroll_y -= delta;
-                if (scroll_y < 0.0f) scroll_y = 0.0f;
-                auto [win_w, win_h] = window->get_size();
-                float viewport_height = static_cast<float>(win_h - url_bar_height);
-                float max_scroll = std::max(0.0f, content_height - viewport_height);
-                if (scroll_y > max_scroll) scroll_y = max_scroll;
-            }
+        SDL_Event e;
+        if (SDL_WaitEventTimeout(&e, 16)) {
+            handle_event(e);
+        }
+
+        // Drain the rest without blocking
+        int processed = 0;
+        while (processed++ < 200 && SDL_PollEvent(&e)) {
+            handle_event(e);
         }
 
         if (!window->is_open()) {
@@ -178,39 +242,43 @@ int main(int argc, char* argv[]) {
                     render_tree->layout(*graphics, viewport);
                     content_height = render_tree->get_rect().height;
                     HB_LOG_INFO("[pipeline] render tree root children: " << render_tree->get_children().size());
+                    needs_repaint = true;
+                    clamp_scroll(viewport.height);
                 }
             }
         }
 
-        auto [win_w, win_h] = window->get_size();
-        Hummingbird::Layout::Rect full_viewport{0, 0, static_cast<float>(win_w), static_cast<float>(win_h)};
-        graphics->set_viewport(full_viewport);
-        graphics->clear(teal);
+        if (needs_repaint) {
+            auto [win_w, win_h] = window->get_size();
+            Hummingbird::Layout::Rect full_viewport{0, 0, static_cast<float>(win_w), static_cast<float>(win_h)};
+            graphics->set_viewport(full_viewport);
+            graphics->clear(teal);
 
-        // Draw URL bar overlay.
-        Hummingbird::Layout::Rect bar_rect{0, 0, static_cast<float>(win_w), static_cast<float>(url_bar_height)};
-        graphics->fill_rect(bar_rect, overlay_bg);
-        auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
-        TextStyle url_style;
-        url_style.font_path = font_path;
-        url_style.font_size = 16.0f;
-        url_style.color = overlay_text;
-        graphics->draw_text(current_url + (url_bar_active ? "|" : ""), 8.0f, 8.0f, url_style);
+            // Draw URL bar overlay.
+            Hummingbird::Layout::Rect bar_rect{0, 0, static_cast<float>(win_w), static_cast<float>(url_bar_height)};
+            graphics->fill_rect(bar_rect, overlay_bg);
+            auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
+            TextStyle url_style;
+            url_style.font_path = font_path;
+            url_style.font_size = 16.0f;
+            url_style.color = overlay_text;
+            graphics->draw_text(url_bar_text + (url_bar_active ? "|" : ""), 8.0f, 8.0f, url_style);
 
-        // Paint the Render Tree
-        if (render_tree) {
-            Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height), static_cast<float>(win_w),
-                                                  static_cast<float>(win_h - url_bar_height)};
-            graphics->set_viewport(viewport);
-            Hummingbird::Renderer::PaintOptions opts;
-            opts.debug_outlines = debug_outlines;
-            opts.scroll_y = scroll_y;
-            opts.viewport = viewport;
-            painter.paint(*render_tree, *graphics, opts);
+            // Paint the Render Tree
+            if (render_tree) {
+                Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height), static_cast<float>(win_w),
+                                                      static_cast<float>(win_h - url_bar_height)};
+                graphics->set_viewport(viewport);
+                Hummingbird::Renderer::PaintOptions opts;
+                opts.debug_outlines = debug_outlines;
+                opts.scroll_y = scroll_y;
+                opts.viewport = viewport;
+                painter.paint(*render_tree, *graphics, opts);
+            }
+
+            graphics->present();
+            needs_repaint = false;
         }
-
-        graphics->present();
-        SDL_Delay(5);  // throttle to avoid busy-spin when idle
     }
 
     SDL_StopTextInput();
