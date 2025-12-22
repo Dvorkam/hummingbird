@@ -182,10 +182,12 @@ int main(int argc, char* argv[]) {
             }
         }
 
+        auto [win_w, win_h] = window->get_size();
+        Hummingbird::Layout::Rect full_viewport{0, 0, static_cast<float>(win_w), static_cast<float>(win_h)};
+        graphics->set_viewport(full_viewport);
         graphics->clear(teal);
 
         // Draw URL bar overlay.
-        auto [win_w, win_h] = window->get_size();
         Hummingbird::Layout::Rect bar_rect{0, 0, static_cast<float>(win_w), static_cast<float>(url_bar_height)};
         graphics->fill_rect(bar_rect, overlay_bg);
         auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
@@ -197,7 +199,8 @@ int main(int argc, char* argv[]) {
 
         // Paint the Render Tree
         if (render_tree) {
-            Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height), static_cast<float>(win_w),
+            Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height),
+                                                  static_cast<float>(win_w),
                                                   static_cast<float>(win_h - url_bar_height)};
             graphics->set_viewport(viewport);
             Hummingbird::Renderer::PaintOptions opts;

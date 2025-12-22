@@ -36,7 +36,7 @@ void debug_outline_tree(Layout::RenderObject& node, IGraphicsContext& context, c
 void Painter::paint(Layout::RenderObject& root, IGraphicsContext& context, const PaintOptions& options) {
     context.set_viewport(options.viewport);
     // Start the recursive paint process from the root with scroll offset applied.
-    Layout::Point offset{0, -options.scroll_y};
+    Layout::Point offset{0, options.viewport.y - options.scroll_y};
     root.paint(context, offset);
     if (options.debug_outlines) {
         Color outline{255, 0, 0, 100};
