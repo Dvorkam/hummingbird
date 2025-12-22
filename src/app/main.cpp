@@ -170,7 +170,11 @@ int main(int argc, char* argv[]) {
         Hummingbird::Layout::Rect bar_rect{0, 0, 1024, static_cast<float>(url_bar_height)};
         graphics->fill_rect(bar_rect, overlay_bg);
         auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
-        graphics->draw_text(current_url + (url_bar_active ? "|" : ""), 8.0f, 8.0f, font_path, 16.0f, overlay_text);
+        TextStyle url_style;
+        url_style.font_path = font_path;
+        url_style.font_size = 16.0f;
+        url_style.color = overlay_text;
+        graphics->draw_text(current_url + (url_bar_active ? "|" : ""), 8.0f, 8.0f, url_style);
 
         // Paint the Render Tree
         if (render_tree) {

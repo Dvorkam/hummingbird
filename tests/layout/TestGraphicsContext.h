@@ -10,7 +10,7 @@ public:
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& /*rect*/, const Color& /*color*/) override {}
 
-    TextMetrics measure_text(const std::string& text, const std::string& /*font_path*/, float /*font_size*/, bool /*bold*/, bool /*italic*/, bool /*monospace*/) override {
+    TextMetrics measure_text(const std::string& text, const TextStyle& /*style*/) override {
         // Approximate metrics based on character count to keep tests deterministic.
         constexpr float kAverageCharWidth = 8.0f;
         constexpr float kLineHeight = 16.0f;
@@ -20,5 +20,5 @@ public:
         };
     }
 
-    void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const std::string& /*font_path*/, float /*font_size*/, const Color& /*color*/, bool /*bold*/, bool /*italic*/, bool /*monospace*/) override {}
+    void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const TextStyle& /*style*/) override {}
 };

@@ -62,12 +62,16 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     // Assumptions for now: font and size are hardcoded
     auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
     float font_size = style ? style->font_size : 16.0f;
-    bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
-    bool italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
-    bool monospace = style && style->font_monospace;
+    TextStyle text_style;
+    text_style.font_path = font_path.string();
+    text_style.font_size = font_size;
+    text_style.bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
+    text_style.italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
+    text_style.monospace = style && style->font_monospace;
+    text_style.color = style ? style->color : Color{0, 0, 0, 255};
 
     // TODO: choose real monospace or bold fonts when available.
-    m_last_metrics = context.measure_text(m_rendered_text, font_path.string(), font_size, bold, italic, monospace);
+    m_last_metrics = context.measure_text(m_rendered_text, text_style);
     float line_height = m_last_metrics.height;
 
     float content_width = 0.0f;
@@ -91,7 +95,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
             size_t nl = m_rendered_text.find('\n', start);
             std::string line = nl == std::string::npos ? m_rendered_text.substr(start)
                                                        : m_rendered_text.substr(start, nl - start);
-            float w = context.measure_text(line, font_path.string(), font_size, bold, italic, monospace).width;
+            float w = context.measure_text(line, text_style).width;
             append_line(std::move(line), w);
             if (nl == std::string::npos) break;
             start = nl + 1;
@@ -118,10 +122,8 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
             tokens.emplace_back(" ");
         }
 
-        auto measure_word = [&](const std::string& w) {
-            return context.measure_text(w, font_path.string(), font_size, bold, italic, monospace).width;
-        };
-        float space_width = context.measure_text(" ", font_path.string(), font_size, bold, italic, monospace).width;
+        auto measure_word = [&](const std::string& w) { return context.measure_text(w, text_style).width; };
+        float space_width = context.measure_text(" ", text_style).width;
 
         std::string line_text;
         float line_width = 0.0f;
@@ -171,30 +173,27 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
 
     if (m_lines.empty()) return;
 
-    Color text_color = style ? style->color : Color{0, 0, 0, 255};
-    bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
-    bool italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
-    bool monospace = style && style->font_monospace;
+    TextStyle text_style;
+    auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
+    text_style.font_path = font_path.string();
+    text_style.font_size = style ? style->font_size : 16.0f;
+    text_style.bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
+    text_style.italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
+    text_style.monospace = style && style->font_monospace;
+    text_style.color = style ? style->color : Color{0, 0, 0, 255};
 
     if (style && style->background.has_value()) {
         Hummingbird::Layout::Rect bg{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
         context.fill_rect(bg, *style->background);
     }
 
-    // Assumptions for now: font selection is basic; just adjust size.
-    auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
-    float font_size = style ? style->font_size : 16.0f;
-
     float line_height = m_last_metrics.height;
     float underline_width = 0.0f;
     for (size_t i = 0; i < m_lines.size(); ++i) {
         float y = absolute_y + static_cast<float>(i) * line_height;
         if (!m_lines[i].empty()) {
-            context.draw_text(m_lines[i], absolute_x, y, font_path.string(), font_size, text_color, bold, italic,
-                              monospace);
-            underline_width = std::max(
-                underline_width,
-                context.measure_text(m_lines[i], font_path.string(), font_size, bold, italic, monospace).width);
+            context.draw_text(m_lines[i], absolute_x, y, text_style);
+            underline_width = std::max(underline_width, context.measure_text(m_lines[i], text_style).width);
         } else {
             // Empty line: still advance height, but no draw/measure.
             underline_width = std::max(underline_width, 0.0f);
@@ -204,7 +203,7 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
     if (style && style->underline && underline_width > 0) {
         float underline_y = absolute_y + static_cast<float>(m_lines.size()) * line_height - 2.0f;
         Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, underline_width, 1.0f};
-        context.fill_rect(line_rect, text_color);
+        context.fill_rect(line_rect, text_style.color);
     }
 
     // TextBoxes don't have children, so no need to call base class paint.

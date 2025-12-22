@@ -37,14 +37,13 @@ void SDLGraphicsContext::fill_rect(const Hummingbird::Layout::Rect& rect, const 
     }
 }
 
-void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const std::string& font_path,
-                                   float font_size, const Color& color, bool bold, bool italic, bool /*monospace*/) {
+void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const TextStyle& style) {
     if (!m_renderer) {
         return;
     }
 
     // Reuse the layout metrics logic to avoid duplicating measurement behavior.
-    TextMetrics metrics = measure_text(text, font_path, font_size, bold, italic, false);
+    TextMetrics metrics = measure_text(text, style);
     int target_width = static_cast<int>(std::ceil(metrics.width));
     int target_height = static_cast<int>(std::ceil(metrics.height));
     if (target_width <= 0 || target_height <= 0) {
@@ -52,7 +51,7 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
         return;
     }
 
-    auto resolved_font = Hummingbird::resolve_asset_path(font_path);
+    auto resolved_font = Hummingbird::resolve_asset_path(style.font_path);
 
     BLFontFace face;
     if (face.createFromFile(resolved_font.string().c_str()) != BL_SUCCESS) {
@@ -61,7 +60,7 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     }
 
     BLFont font;
-    font.createFromFace(face, font_size);
+    font.createFromFace(face, style.font_size);
 
     BLFontMetrics fm = font.metrics();
 
@@ -71,10 +70,10 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     // Clear to transparent; text will be blended over the target.
     ctx.clearAll();
 
-    ctx.setFillStyle(BLRgba32(color.r, color.g, color.b, color.a));
+    ctx.setFillStyle(BLRgba32(style.color.r, style.color.g, style.color.b, style.color.a));
     double baseline_y = fm.ascent;  // place baseline inside the image
     ctx.fillUtf8Text(BLPoint(0.0, baseline_y), font, text.c_str());
-    if (bold) {
+    if (style.bold) {
         ctx.fillUtf8Text(BLPoint(0.5, baseline_y), font, text.c_str());
     }
     ctx.end();
@@ -115,13 +114,12 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     SDL_DestroyTexture(texture);
 }
 
-TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const std::string& font_path, float font_size,
-                                             bool bold, bool italic, bool /*monospace*/) {
+TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const TextStyle& style) {
     if (text.empty()) {
         return {0, 0};
     }
 
-    auto resolved_font = Hummingbird::resolve_asset_path(font_path);
+    auto resolved_font = Hummingbird::resolve_asset_path(style.font_path);
 
     BLFontFace face;
 
@@ -135,7 +133,7 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const std:
 
     BLFont font;
 
-    font.createFromFace(face, font_size);
+    font.createFromFace(face, style.font_size);
 
     BLGlyphBuffer glyphBuffer;
 
@@ -156,8 +154,8 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const std:
     }
 
     // Simple approximations for bold/italic when only a regular font is available.
-    if (bold) width += 1.0f;
-    if (italic) width += 1.0f;
+    if (style.bold) width += 1.0f;
+    if (style.italic) width += 1.0f;
 
     // Use font metrics for a consistent line height with a small fudge for descenders.
     BLFontMetrics fm = font.metrics();
@@ -165,7 +163,7 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const std:
 
     static bool logged = false;
     if (!logged) {
-        std::cerr << "[measure_text] path=" << resolved_font << " text='" << text << "' size=" << font_size << " -> ("
+        std::cerr << "[measure_text] path=" << resolved_font << " text='" << text << "' size=" << style.font_size << " -> ("
                   << width << ", " << height << ")\n";
         logged = true;
     }

@@ -16,6 +16,15 @@ struct TextMetrics {
     float height;
 };
 
+struct TextStyle {
+    std::string font_path;
+    float font_size = 16.0f;
+    bool bold = false;
+    bool italic = false;
+    bool monospace = false;
+    Color color{0, 0, 0, 255};
+};
+
 class IGraphicsContext {
 public:
     virtual ~IGraphicsContext() = default;
@@ -23,8 +32,6 @@ public:
     virtual void clear(const Color& color) = 0;
     virtual void present() = 0;
     virtual void fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color) = 0;
-    virtual TextMetrics measure_text(const std::string& text, const std::string& font_path, float font_size,
-                                     bool bold = false, bool italic = false, bool monospace = false) = 0;
-    virtual void draw_text(const std::string& text, float x, float y, const std::string& font_path, float font_size,
-                           const Color& color, bool bold = false, bool italic = false, bool monospace = false) = 0;
+    virtual TextMetrics measure_text(const std::string& text, const TextStyle& style) = 0;
+    virtual void draw_text(const std::string& text, float x, float y, const TextStyle& style) = 0;
 };
