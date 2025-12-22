@@ -28,13 +28,6 @@ std::string collapse_whitespace(const std::string& text) {
             in_space = false;
         }
     }
-    // Trim leading/trailing spaces
-    while (!out.empty() && out.front() == ' ') {
-        out.erase(out.begin());
-    }
-    while (!out.empty() && out.back() == ' ') {
-        out.pop_back();
-    }
     return out;
 }
 }  // namespace
@@ -104,21 +97,25 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
             start = nl + 1;
         }
     } else {
-        // Greedy wrap by words.
-        std::vector<std::string> words;
+        // Greedy wrap by tokens (words and explicit spaces) to preserve spacing around inline elements.
+        std::vector<std::string> tokens;
         std::string current;
         for (char c : m_rendered_text) {
             if (c == ' ') {
                 if (!current.empty()) {
-                    words.push_back(current);
+                    tokens.push_back(current);
                     current.clear();
                 }
+                tokens.emplace_back(" ");
             } else {
                 current.push_back(c);
             }
         }
         if (!current.empty()) {
-            words.push_back(current);
+            tokens.push_back(current);
+        }
+        if (tokens.empty()) {
+            tokens.emplace_back(" ");
         }
 
         auto measure_word = [&](const std::string& w) {
@@ -128,23 +125,20 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
         std::string line_text;
         float line_width = 0.0f;
-        for (size_t i = 0; i < words.size(); ++i) {
-            const auto& w = words[i];
-            float w_width = measure_word(w);
-            float sep = line_width > 0.0f ? space_width : 0.0f;
-            float projected = line_width + sep + w_width;
-            if (line_width > 0.0f && projected > available_width && available_width > 0.0f) {
+        for (const auto& tok : tokens) {
+            bool is_space = tok == " ";
+            float tok_width = is_space ? space_width : measure_word(tok);
+            bool would_overflow = (available_width > 0.0f && line_width > 0.0f && (line_width + tok_width) > available_width);
+            if (would_overflow) {
                 append_line(line_text, line_width);
-                line_text = w;
-                line_width = w_width;
-            } else {
-                if (sep > 0.0f) {
-                    line_text.push_back(' ');
-                    line_width += sep;
+                line_text.clear();
+                line_width = 0.0f;
+                if (is_space) {
+                    continue;  // drop leading space on new line
                 }
-                line_text += w;
-                line_width += w_width;
             }
+            line_text += tok;
+            line_width += tok_width;
         }
         append_line(line_text, line_width);
     }
@@ -195,11 +189,16 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
     float underline_width = 0.0f;
     for (size_t i = 0; i < m_lines.size(); ++i) {
         float y = absolute_y + static_cast<float>(i) * line_height;
-        context.draw_text(m_lines[i], absolute_x, y, font_path.string(), font_size, text_color, bold, italic,
-                          monospace);
-        underline_width = std::max(underline_width, context.measure_text(m_lines[i], font_path.string(), font_size, bold,
-                                                                         italic, monospace)
-                                                       .width);
+        if (!m_lines[i].empty()) {
+            context.draw_text(m_lines[i], absolute_x, y, font_path.string(), font_size, text_color, bold, italic,
+                              monospace);
+            underline_width = std::max(
+                underline_width,
+                context.measure_text(m_lines[i], font_path.string(), font_size, bold, italic, monospace).width);
+        } else {
+            // Empty line: still advance height, but no draw/measure.
+            underline_width = std::max(underline_width, 0.0f);
+        }
     }
 
     if (style && style->underline && underline_width > 0) {

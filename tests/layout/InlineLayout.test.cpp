@@ -140,6 +140,6 @@ TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
 
     // Expect the link to start after the first text width (includes trailing space)
     EXPECT_GT(link.x, first.x + 0.1f);
-    // Expect trailing text to start after link width
+    // Expect trailing text to start after link width (space preserved)
     EXPECT_GT(last.x, link.x + link.width - 0.1f);
 }
