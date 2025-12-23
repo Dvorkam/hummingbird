@@ -65,3 +65,41 @@ TEST(LayoutStyleIntegrationTest, AppliesMarginPaddingAndWidth) {
 
     EXPECT_FLOAT_EQ(render_root->get_rect().height, 62); // padding top 5 + margins/paddings + children
 }
+
+TEST(LayoutStyleIntegrationTest, IncludesBorderInInlineBoxSizing) {
+    // DOM: <body><p><span>Hi</span></p></body>
+    ArenaAllocator arena(4096);
+    auto dom_root = make_arena_ptr<Element>(arena, "body");
+    auto p = make_arena_ptr<Element>(arena, "p");
+    auto span = make_arena_ptr<Element>(arena, "span");
+    span->append_child(make_arena_ptr<Text>(arena, "Hi"));
+    p->append_child(std::move(span));
+    dom_root->append_child(std::move(p));
+
+    std::string css = R"(
+        span { border-width: 2px; border-style: solid; padding: 3px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& body_children = render_root->get_children();
+    ASSERT_EQ(body_children.size(), 1u);
+    const auto& p_children = body_children[0]->get_children();
+    ASSERT_EQ(p_children.size(), 1u);
+    const auto& span_render = p_children[0];
+
+    const auto& rect = span_render->get_rect();
+    // Text "Hi" is 2 chars -> 16px width; padding 3px each side, border 2px each side.
+    EXPECT_FLOAT_EQ(rect.width, 16.0f + 2.0f * (3.0f + 2.0f));
+    EXPECT_FLOAT_EQ(rect.height, 16.0f + 2.0f * (3.0f + 2.0f));
+}

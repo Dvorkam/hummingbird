@@ -15,9 +15,21 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
     float padding_right = style ? style->padding.right : 0.0f;
     float padding_top = style ? style->padding.top : 0.0f;
     float padding_bottom = style ? style->padding.bottom : 0.0f;
+    float border_left = style ? style->border_width.left : 0.0f;
+    float border_right = style ? style->border_width.right : 0.0f;
+    float border_top = style ? style->border_width.top : 0.0f;
+    float border_bottom = style ? style->border_width.bottom : 0.0f;
 
-    float cursor_x = padding_left;
-    float cursor_y = padding_top;
+    float inset_left = padding_left + border_left;
+    float inset_right = padding_right + border_right;
+    float inset_top = padding_top + border_top;
+    float inset_bottom = padding_bottom + border_bottom;
+
+    float content_width = bounds.width - inset_left - inset_right;
+    if (content_width < 0.0f) content_width = 0.0f;
+
+    float cursor_x = inset_left;
+    float cursor_y = inset_top;
     float line_height = 0.0f;
 
     for (auto& child : m_children) {
@@ -29,7 +41,8 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
         float child_x = cursor_x + margin_left;
         float child_y = cursor_y + margin_top;
-        Rect child_bounds{child_x, child_y, bounds.width - (child_x - bounds.x), 0.0f};
+        float available_width = content_width - (child_x - inset_left);
+        Rect child_bounds{child_x, child_y, available_width, 0.0f};
         child->layout(context, child_bounds);
 
         float child_height = child->get_rect().height + margin_top + margin_bottom;
@@ -37,8 +50,8 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
         cursor_x = child_x + child->get_rect().width + margin_right;
     }
 
-    m_rect.width = cursor_x + padding_right;
-    m_rect.height = cursor_y + line_height + padding_bottom;
+    m_rect.width = cursor_x + inset_right;
+    m_rect.height = cursor_y + line_height + inset_bottom;
 }
 
 void InlineBox::paint(IGraphicsContext& context, const Point& offset) {

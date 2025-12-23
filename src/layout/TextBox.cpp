@@ -41,6 +41,15 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     float padding_right = style ? style->padding.right : 0.0f;
     float padding_top = style ? style->padding.top : 0.0f;
     float padding_bottom = style ? style->padding.bottom : 0.0f;
+    float border_left = style ? style->border_width.left : 0.0f;
+    float border_right = style ? style->border_width.right : 0.0f;
+    float border_top = style ? style->border_width.top : 0.0f;
+    float border_bottom = style ? style->border_width.bottom : 0.0f;
+
+    float inset_left = padding_left + border_left;
+    float inset_right = padding_right + border_right;
+    float inset_top = padding_top + border_top;
+    float inset_bottom = padding_bottom + border_bottom;
 
     const std::string& text = get_dom_node()->get_text();
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
@@ -54,8 +63,8 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     if (m_rendered_text.empty()) {
         m_lines.push_back("");
         m_last_metrics = {};
-        m_rect.width = padding_left + padding_right;
-        m_rect.height = padding_top + padding_bottom;
+        m_rect.width = inset_left + inset_right;
+        m_rect.height = inset_top + inset_bottom;
         return;
     }
 
@@ -75,11 +84,11 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     float line_height = m_last_metrics.height;
 
     float content_width = 0.0f;
-    float available_width = bounds.width - padding_left - padding_right;
+    float available_width = bounds.width - inset_left - inset_right;
     if (available_width <= 0.0f) available_width = 0.0f;
 
     if (style && style->width.has_value()) {
-        available_width = *style->width - padding_left - padding_right;
+        available_width = *style->width - inset_left - inset_right;
         if (available_width < 0.0f) available_width = 0.0f;
     }
 
@@ -146,15 +155,15 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         append_line(line_text, line_width);
     }
 
-    m_rect.height = static_cast<float>(m_lines.size()) * line_height + padding_top + padding_bottom;
+    m_rect.height = static_cast<float>(m_lines.size()) * line_height + inset_top + inset_bottom;
 
     if (content_width == 0.0f) {
         content_width = m_last_metrics.width;
     }
 
-    m_rect.width = content_width + padding_left + padding_right;
+    m_rect.width = content_width + inset_left + inset_right;
     if (m_rect.height == 0.0f) {
-        m_rect.height = line_height + padding_top + padding_bottom;
+        m_rect.height = line_height + inset_top + inset_bottom;
     }
 
     if (m_last_metrics.width == 0 || m_last_metrics.height == 0) {
@@ -168,9 +177,14 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
     const auto* style = get_computed_style();
     float padding_left = style ? style->padding.left : 0.0f;
     float padding_top = style ? style->padding.top : 0.0f;
+    float border_left = style ? style->border_width.left : 0.0f;
+    float border_top = style ? style->border_width.top : 0.0f;
 
-    float absolute_x = offset.x + m_rect.x + padding_left;
-    float absolute_y = offset.y + m_rect.y + padding_top;
+    float inset_left = padding_left + border_left;
+    float inset_top = padding_top + border_top;
+
+    float absolute_x = offset.x + m_rect.x + inset_left;
+    float absolute_y = offset.y + m_rect.y + inset_top;
 
     if (m_lines.empty()) return;
 

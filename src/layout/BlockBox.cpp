@@ -10,6 +10,15 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     float padding_right = style ? style->padding.right : 0.0f;
     float padding_top = style ? style->padding.top : 0.0f;
     float padding_bottom = style ? style->padding.bottom : 0.0f;
+    float border_left = style ? style->border_width.left : 0.0f;
+    float border_right = style ? style->border_width.right : 0.0f;
+    float border_top = style ? style->border_width.top : 0.0f;
+    float border_bottom = style ? style->border_width.bottom : 0.0f;
+
+    float inset_left = padding_left + border_left;
+    float inset_right = padding_right + border_right;
+    float inset_top = padding_top + border_top;
+    float inset_bottom = padding_bottom + border_bottom;
 
     float target_width = bounds.width;
     if (style && style->width.has_value()) {
@@ -18,16 +27,20 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
-    m_rect.width = target_width;
+    if (style && style->width.has_value()) {
+        m_rect.width = target_width + inset_left + inset_right;
+    } else {
+        m_rect.width = bounds.width;
+    }
 
-    float content_width = m_rect.width - padding_left - padding_right;
-    float cursor_x = padding_left;
-    float cursor_y = padding_top;
+    float content_width = m_rect.width - inset_left - inset_right;
+    float cursor_x = inset_left;
+    float cursor_y = inset_top;
     float line_height = 0.0f;
 
     auto flush_line = [&]() {
         cursor_y += line_height;
-        cursor_x = padding_left;
+        cursor_x = inset_left;
         line_height = 0.0f;
     };
 
@@ -46,7 +59,7 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
                 cursor_y += margin_top;
             }
             flush_line();
-            float child_x = padding_left + margin_left;
+            float child_x = inset_left + margin_left;
             float child_y = cursor_y;
             float available_width = content_width - margin_left - margin_right;
             Rect child_bounds = {child_x, child_y, available_width, 0.0f};  // Height determined by child
@@ -57,18 +70,18 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
         float child_x = cursor_x + margin_left;
         float child_y = cursor_y + margin_top;
-        float available_width = content_width - (child_x - padding_left) - margin_right;
+        float available_width = content_width - (child_x - inset_left) - margin_right;
         Rect child_bounds = {child_x, child_y, available_width, 0.0f};
         child->layout(context, child_bounds);
 
         // Greedy wrap: if this inline item overflows the available width, move to the next line and re-layout.
         float projected_right = child_x + child->get_rect().width + margin_right;
-        float line_right = padding_left + content_width;
+        float line_right = inset_left + content_width;
         if (projected_right > line_right && content_width > 0.0f) {
             flush_line();
             child_x = cursor_x + margin_left;
             child_y = cursor_y + margin_top;
-            available_width = content_width - (child_x - padding_left) - margin_right;
+            available_width = content_width - (child_x - inset_left) - margin_right;
             child_bounds = {child_x, child_y, available_width, 0.0f};
             child->layout(context, child_bounds);
             projected_right = child_x + child->get_rect().width + margin_right;
@@ -80,7 +93,7 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     }
 
     flush_line();
-    m_rect.height = cursor_y + padding_bottom;
+    m_rect.height = cursor_y + inset_bottom;
 }
 
 void BlockBox::paint(IGraphicsContext& context, const Point& offset) {
