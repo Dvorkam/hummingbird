@@ -65,6 +65,7 @@ add_library(Layout STATIC
     src/layout/InlineBox.cpp
     src/layout/TextBox.cpp
     src/layout/InlineLineBuilder.cpp
+    src/layout/RenderListItem.cpp
     src/layout/RenderBreak.cpp
     src/layout/RenderRule.cpp
 )

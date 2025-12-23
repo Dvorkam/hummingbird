@@ -140,6 +140,8 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
             style.display = ComputedStyle::Display::Inline;
         } else if (display_it->second.value.ident == "inline-block") {
             style.display = ComputedStyle::Display::InlineBlock;
+        } else if (display_it->second.value.ident == "list-item") {
+            style.display = ComputedStyle::Display::ListItem;
         } else if (display_it->second.value.ident == "block") {
             style.display = ComputedStyle::Display::Block;
         }
@@ -165,6 +167,8 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
             if (tag == "a" || tag == "span" || tag == "strong" || tag == "em" || tag == "b" || tag == "i" ||
                 tag == "code") {
                 style.display = ComputedStyle::Display::Inline;
+            } else if (tag == "li") {
+                style.display = ComputedStyle::Display::ListItem;
             }
         }
 

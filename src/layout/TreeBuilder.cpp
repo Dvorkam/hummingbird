@@ -4,6 +4,7 @@
 #include "core/dom/Text.h"
 #include "layout/BlockBox.h"
 #include "layout/InlineBox.h"
+#include "layout/RenderListItem.h"
 #include "layout/RenderBreak.h"
 #include "layout/RenderRule.h"
 #include "layout/TextBox.h"
@@ -31,6 +32,8 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
                     return std::make_unique<InlineBox>(element_node);
                 case Css::ComputedStyle::Display::InlineBlock:
                     return std::make_unique<InlineBlockBox>(element_node);
+                case Css::ComputedStyle::Display::ListItem:
+                    return std::make_unique<RenderListItem>(element_node);
                 case Css::ComputedStyle::Display::None:
                     return nullptr;
                 case Css::ComputedStyle::Display::Block:

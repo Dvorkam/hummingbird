@@ -12,6 +12,7 @@ add_executable(HummingbirdTests
     layout/TextBox.test.cpp
     layout/InlineLayout.test.cpp
     layout/InlineLineBuilder.test.cpp
+    layout/ListItemLayout.test.cpp
     renderer/Painter.test.cpp
     style/CSSParser.test.cpp
     style/SelectorMatcher.test.cpp

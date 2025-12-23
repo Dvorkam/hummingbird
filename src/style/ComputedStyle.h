@@ -14,7 +14,7 @@ struct EdgeSizes {
 };
 
 struct ComputedStyle {
-    enum class Display { Block, Inline, InlineBlock, None };
+    enum class Display { Block, Inline, InlineBlock, ListItem, None };
     Display display = Display::Block;
     enum class BorderStyle { None, Solid };
     BorderStyle border_style = BorderStyle::None;
