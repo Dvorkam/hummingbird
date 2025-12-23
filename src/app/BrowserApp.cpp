@@ -182,8 +182,9 @@ void BrowserApp::clamp_scroll(float viewport_height) {
 void BrowserApp::relayout_for_window(int win_w, int win_h) {
     if (!render_tree_ || !graphics_) return;
 
+    const int content_h = std::max(0, win_h - url_bar_height_);
     Hummingbird::Layout::Rect viewport{0.0f, static_cast<float>(url_bar_height_), static_cast<float>(win_w),
-                                       static_cast<float>(win_h - url_bar_height_)};
+                                       static_cast<float>(content_h)};
 
     render_tree_->layout(*graphics_, viewport);
     content_height_ = render_tree_->get_rect().height;
