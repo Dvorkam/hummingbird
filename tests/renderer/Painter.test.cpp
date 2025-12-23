@@ -53,9 +53,9 @@ TEST(PainterIntegrationTest, PaintsTextNodesFromParserOutput) {
     Hummingbird::Renderer::PaintOptions opts;
     painter.paint(*render_tree, context, opts);
 
-    // Expect one draw call per non-whitespace text node.
-    EXPECT_EQ(context.draw_calls, 2);
-    EXPECT_EQ(context.last_text, "Second line");
+    // Expect one draw call per tokenized run.
+    EXPECT_EQ(context.draw_calls, 6);
+    EXPECT_EQ(context.last_text, "line");
 }
 
 TEST(PainterDebugTest, DrawsOutlinesWhenDebugEnabled) {

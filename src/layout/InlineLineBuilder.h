@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #include "layout/RenderObject.h"
@@ -8,6 +9,9 @@
 namespace Hummingbird::Layout {
 
 struct InlineRun {
+    RenderObject* owner = nullptr;
+    size_t local_index = 0;
+    std::string text;
     float width = 0.0f;
     float height = 0.0f;
 };
@@ -22,7 +26,7 @@ class InlineLineBuilder {
 public:
     void reset();
     void add_run(const InlineRun& run);
-    std::vector<InlineFragment> layout(float max_width);
+    std::vector<InlineFragment> layout(float max_width, float start_x = 0.0f);
     const std::vector<float>& line_heights() const { return m_line_heights; }
 
 private:

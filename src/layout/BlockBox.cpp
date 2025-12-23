@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "layout/InlineLineBuilder.h"
+
 namespace Hummingbird::Layout {
 
 void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
@@ -44,7 +46,9 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         line_height = 0.0f;
     };
 
-    for (auto& child : m_children) {
+    size_t i = 0;
+    while (i < m_children.size()) {
+        auto& child = m_children[i];
         const auto* child_style = child->get_computed_style();
         float margin_left = child_style ? child_style->margin.left : 0.0f;
         float margin_right = child_style ? child_style->margin.right : 0.0f;
@@ -65,43 +69,63 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
             Rect child_bounds = {child_x, child_y, available_width, 0.0f};  // Height determined by child
             child->layout(context, child_bounds);
             cursor_y = child_y + child->get_rect().height + margin_bottom;
+            ++i;
             continue;
         }
 
-        float child_x = cursor_x + margin_left;
-        float child_y = cursor_y + margin_top;
-        float available_width = content_width - (child_x - inset_left) - margin_right;
-        Rect child_bounds = {child_x, child_y, available_width, 0.0f};
-        child->layout(context, child_bounds);
+        InlineLineBuilder builder;
+        builder.reset();
+        std::vector<InlineRun> runs;
+        size_t group_start = i;
 
-        LineMetrics metrics{};
-        bool has_metrics = child->get_line_metrics(metrics);
-        float child_line_width = has_metrics ? metrics.last_line_width : child->get_rect().width;
-
-        // Greedy wrap: if this inline item overflows the available width, move to the next line and re-layout.
-        float projected_right = child_x + child_line_width + margin_right;
-        float line_right = inset_left + content_width;
-        if (projected_right > line_right && content_width > 0.0f) {
-            flush_line();
-            child_x = cursor_x + margin_left;
-            child_y = cursor_y + margin_top;
-            available_width = content_width - (child_x - inset_left) - margin_right;
-            child_bounds = {child_x, child_y, available_width, 0.0f};
-            child->layout(context, child_bounds);
-            has_metrics = child->get_line_metrics(metrics);
-            child_line_width = has_metrics ? metrics.last_line_width : child->get_rect().width;
-            projected_right = child_x + child_line_width + margin_right;
+        while (i < m_children.size() && m_children[i]->is_inline()) {
+            auto& inline_child = m_children[i];
+            inline_child->reset_inline_layout();
+            inline_child->collect_inline_runs(context, runs);
+            ++i;
         }
 
-        float child_line_height = has_metrics ? metrics.line_height : child->get_rect().height;
-        line_height = std::max(line_height, child_line_height + margin_top + margin_bottom);
+        if (runs.empty()) {
+            continue;
+        }
 
-        if (has_metrics && metrics.line_count > 1) {
-            cursor_y += (static_cast<float>(metrics.line_count) - 1.0f) * metrics.line_height;
-            cursor_x = inset_left + margin_left + child_line_width + margin_right;
-            line_height = std::max(line_height, child_line_height + margin_top + margin_bottom);
-        } else {
-            cursor_x = child_x + child_line_width + margin_right;
+        for (const auto& run : runs) {
+            builder.add_run(run);
+        }
+
+        float start_x = cursor_x - inset_left;
+        auto fragments = builder.layout(content_width, start_x);
+        float base_x = inset_left;
+        float base_y = cursor_y;
+
+        for (auto& fragment : fragments) {
+            fragment.rect.x += base_x;
+            fragment.rect.y += base_y;
+            auto& run = runs[fragment.run_index];
+            if (run.owner) {
+                run.owner->apply_inline_fragment(run.local_index, fragment, run);
+            }
+        }
+
+        for (size_t j = group_start; j < i; ++j) {
+            m_children[j]->finalize_inline_layout();
+        }
+
+        const auto& heights = builder.line_heights();
+        if (!heights.empty()) {
+            float total_height = 0.0f;
+            for (float h : heights) total_height += h;
+            float last_height = heights.back();
+            size_t last_line = heights.size() - 1;
+            float last_line_width = 0.0f;
+            for (const auto& fragment : fragments) {
+                if (fragment.line_index == last_line) {
+                    last_line_width = std::max(last_line_width, fragment.rect.x + fragment.rect.width - base_x);
+                }
+            }
+            cursor_y = base_y + (total_height - last_height);
+            cursor_x = inset_left + last_line_width;
+            line_height = std::max(line_height, last_height);
         }
     }
 
@@ -113,6 +137,37 @@ void BlockBox::paint(IGraphicsContext& context, const Point& offset) {
     // A basic block box doesn't draw anything itself, it just contains other boxes.
     // The default implementation correctly paints the children.
     RenderObject::paint(context, offset);
+}
+
+void InlineBlockBox::reset_inline_layout() {
+    m_inline_atomic = false;
+}
+
+void InlineBlockBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) {
+    m_inline_atomic = true;
+    layout(context, {0.0f, 0.0f, 100000.0f, 0.0f});
+    InlineRun run;
+    run.owner = this;
+    run.local_index = 0;
+    run.width = m_rect.width;
+    run.height = m_rect.height;
+    runs.push_back(std::move(run));
+}
+
+void InlineBlockBox::apply_inline_fragment(size_t index, const InlineFragment& fragment, const InlineRun& run) {
+    if (!m_inline_atomic || index != 0) {
+        return;
+    }
+    m_rect.x = fragment.rect.x;
+    m_rect.y = fragment.rect.y;
+    m_rect.width = run.width;
+    m_rect.height = run.height;
+}
+
+void InlineBlockBox::finalize_inline_layout() {
+    if (!m_inline_atomic) {
+        m_rect = {};
+    }
 }
 
 void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {

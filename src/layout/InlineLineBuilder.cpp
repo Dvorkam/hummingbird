@@ -13,12 +13,12 @@ void InlineLineBuilder::add_run(const InlineRun& run) {
     m_runs.push_back(run);
 }
 
-std::vector<InlineFragment> InlineLineBuilder::layout(float max_width) {
+std::vector<InlineFragment> InlineLineBuilder::layout(float max_width, float start_x) {
     std::vector<InlineFragment> fragments;
     fragments.reserve(m_runs.size());
     m_line_heights.clear();
 
-    float cursor_x = 0.0f;
+    float cursor_x = start_x;
     float cursor_y = 0.0f;
     float line_height = 0.0f;
     size_t line_index = 0;

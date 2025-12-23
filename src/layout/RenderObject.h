@@ -19,11 +19,8 @@ struct Rect {
     float x = 0, y = 0, width = 0, height = 0;
 };
 
-struct LineMetrics {
-    size_t line_count = 0;
-    float line_height = 0.0f;
-    float last_line_width = 0.0f;
-};
+struct InlineRun;
+struct InlineFragment;
 
 class RenderObject {
 public:
@@ -31,7 +28,14 @@ public:
     virtual ~RenderObject() = default;
 
     virtual bool is_inline() const { return false; }
-    virtual bool get_line_metrics(LineMetrics& /*metrics*/) const { return false; }
+    virtual void reset_inline_layout() {}
+    virtual void collect_inline_runs(IGraphicsContext& /*context*/, std::vector<InlineRun>& /*runs*/) {}
+    virtual void apply_inline_fragment(size_t /*index*/, const InlineFragment& /*fragment*/, const InlineRun& /*run*/) {}
+    virtual void finalize_inline_layout() {}
+    virtual void offset_inline_layout(float dx, float dy) {
+        m_rect.x += dx;
+        m_rect.y += dy;
+    }
     const DOM::Node* get_dom_node() const { return m_dom_node; }
     const Rect& get_rect() const { return m_rect; }
     const Css::ComputedStyle* get_computed_style() const {
