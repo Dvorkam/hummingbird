@@ -143,3 +143,35 @@ TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
     // Expect trailing text to start after link width (space preserved)
     EXPECT_GT(last.x, link.x + link.width - 0.1f);
 }
+
+TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
+    ArenaAllocator arena(4096);
+    auto body = make_arena_ptr<Element>(arena, "body");
+    auto p = make_arena_ptr<Element>(arena, "p");
+    p->append_child(make_arena_ptr<Text>(arena, "Hello Hello "));
+    auto code = make_arena_ptr<Element>(arena, "code");
+    code->append_child(make_arena_ptr<Text>(arena, "code"));
+    p->append_child(std::move(code));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 80, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 2u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+    const auto& code_rect = para->get_children()[1]->get_rect();
+
+    // Text wraps to two lines (16px line height). Code should continue on the second line.
+    EXPECT_FLOAT_EQ(code_rect.y, text_rect.y + 16.0f);
+    EXPECT_GT(code_rect.x, 0.0f);
+}

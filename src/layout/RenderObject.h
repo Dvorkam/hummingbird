@@ -19,12 +19,19 @@ struct Rect {
     float x = 0, y = 0, width = 0, height = 0;
 };
 
+struct LineMetrics {
+    size_t line_count = 0;
+    float line_height = 0.0f;
+    float last_line_width = 0.0f;
+};
+
 class RenderObject {
 public:
     RenderObject(const DOM::Node* dom_node) : m_dom_node(dom_node) {}
     virtual ~RenderObject() = default;
 
     virtual bool is_inline() const { return false; }
+    virtual bool get_line_metrics(LineMetrics& /*metrics*/) const { return false; }
     const DOM::Node* get_dom_node() const { return m_dom_node; }
     const Rect& get_rect() const { return m_rect; }
     const Css::ComputedStyle* get_computed_style() const {

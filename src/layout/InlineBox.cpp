@@ -54,6 +54,37 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.height = cursor_y + line_height + inset_bottom;
 }
 
+bool InlineBox::get_line_metrics(LineMetrics& metrics) const {
+    if (m_children.size() != 1) {
+        return false;
+    }
+
+    LineMetrics child_metrics{};
+    if (!m_children[0]->get_line_metrics(child_metrics)) {
+        return false;
+    }
+
+    const auto* style = get_computed_style();
+    float padding_left = style ? style->padding.left : 0.0f;
+    float padding_right = style ? style->padding.right : 0.0f;
+    float padding_top = style ? style->padding.top : 0.0f;
+    float padding_bottom = style ? style->padding.bottom : 0.0f;
+    float border_left = style ? style->border_width.left : 0.0f;
+    float border_right = style ? style->border_width.right : 0.0f;
+    float border_top = style ? style->border_width.top : 0.0f;
+    float border_bottom = style ? style->border_width.bottom : 0.0f;
+
+    float inset_left = padding_left + border_left;
+    float inset_right = padding_right + border_right;
+    float inset_top = padding_top + border_top;
+    float inset_bottom = padding_bottom + border_bottom;
+
+    metrics.line_count = child_metrics.line_count;
+    metrics.line_height = child_metrics.line_height + inset_top + inset_bottom;
+    metrics.last_line_width = child_metrics.last_line_width + inset_left + inset_right;
+    return true;
+}
+
 void InlineBox::paint(IGraphicsContext& context, const Point& offset) {
     RenderObject::paint(context, offset);
 }

@@ -73,10 +73,12 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     }
 
     m_lines.clear();
+    m_last_line_width = 0.0f;
 
     if (m_rendered_text.empty()) {
         m_lines.push_back("");
         m_last_metrics = {};
+        m_last_line_width = 0.0f;
         m_rect.width = inset_left + inset_right;
         m_rect.height = inset_top + inset_bottom;
         return;
@@ -109,6 +111,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     auto append_line = [&](std::string line_text, float measured_width) {
         m_lines.push_back(std::move(line_text));
         content_width = std::max(content_width, measured_width);
+        m_last_line_width = measured_width;
     };
 
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
@@ -184,6 +187,16 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         std::cerr << "[TextBox::layout] zero metrics for text '" << m_rendered_text << "' using font " << font_path
                   << "\n";
     }
+}
+
+bool TextBox::get_line_metrics(LineMetrics& metrics) const {
+    if (m_lines.empty()) {
+        return false;
+    }
+    metrics.line_count = m_lines.size();
+    metrics.line_height = m_last_metrics.height;
+    metrics.last_line_width = m_last_line_width;
+    return true;
 }
 
 void TextBox::paint(IGraphicsContext& context, const Point& offset) {

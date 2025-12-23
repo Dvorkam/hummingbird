@@ -11,6 +11,7 @@ public:
     TextBox(const DOM::Text* dom_node);
 
     bool is_inline() const override { return true; }
+    bool get_line_metrics(LineMetrics& metrics) const override;
     void layout(IGraphicsContext& context, const Rect& bounds) override;
     void paint(IGraphicsContext& context, const Point& offset) override;
     const std::string& rendered_text() const { return m_rendered_text; }
@@ -21,6 +22,7 @@ private:
     std::string m_rendered_text;
     std::vector<std::string> m_lines;
     TextMetrics m_last_metrics{};
+    float m_last_line_width = 0.0f;
 };
 
 }  // namespace Hummingbird::Layout

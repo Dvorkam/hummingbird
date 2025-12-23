@@ -74,8 +74,12 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         Rect child_bounds = {child_x, child_y, available_width, 0.0f};
         child->layout(context, child_bounds);
 
+        LineMetrics metrics{};
+        bool has_metrics = child->get_line_metrics(metrics);
+        float child_line_width = has_metrics ? metrics.last_line_width : child->get_rect().width;
+
         // Greedy wrap: if this inline item overflows the available width, move to the next line and re-layout.
-        float projected_right = child_x + child->get_rect().width + margin_right;
+        float projected_right = child_x + child_line_width + margin_right;
         float line_right = inset_left + content_width;
         if (projected_right > line_right && content_width > 0.0f) {
             flush_line();
@@ -84,12 +88,21 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
             available_width = content_width - (child_x - inset_left) - margin_right;
             child_bounds = {child_x, child_y, available_width, 0.0f};
             child->layout(context, child_bounds);
-            projected_right = child_x + child->get_rect().width + margin_right;
+            has_metrics = child->get_line_metrics(metrics);
+            child_line_width = has_metrics ? metrics.last_line_width : child->get_rect().width;
+            projected_right = child_x + child_line_width + margin_right;
         }
 
-        float child_height = child->get_rect().height + margin_top + margin_bottom;
-        line_height = std::max(line_height, child_height);
-        cursor_x = child_x + child->get_rect().width + margin_right;
+        float child_line_height = has_metrics ? metrics.line_height : child->get_rect().height;
+        line_height = std::max(line_height, child_line_height + margin_top + margin_bottom);
+
+        if (has_metrics && metrics.line_count > 1) {
+            cursor_y += (static_cast<float>(metrics.line_count) - 1.0f) * metrics.line_height;
+            cursor_x = inset_left + margin_left + child_line_width + margin_right;
+            line_height = std::max(line_height, child_line_height + margin_top + margin_bottom);
+        } else {
+            cursor_x = child_x + child_line_width + margin_right;
+        }
     }
 
     flush_line();
