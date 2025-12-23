@@ -105,6 +105,9 @@ Property Parser::parse_property() {
     if (peek().type != TokenType::Identifier) return Property::Unknown;
     std::string_view name = advance().lexeme;
     if (name == "display") return Property::Display;
+    if (name == "border-width") return Property::BorderWidth;
+    if (name == "border-color") return Property::BorderColor;
+    if (name == "border-style") return Property::BorderStyle;
     if (name == "margin") return Property::Margin;
     if (name == "margin-top") return Property::MarginTop;
     if (name == "margin-right") return Property::MarginRight;

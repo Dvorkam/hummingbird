@@ -12,6 +12,9 @@ enum class SelectorType { Tag, Class, Id };
 enum class Property {
     Unknown,
     Display,
+    BorderWidth,
+    BorderColor,
+    BorderStyle,
     Margin,
     MarginTop,
     MarginRight,

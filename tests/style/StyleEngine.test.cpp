@@ -142,3 +142,25 @@ TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
     ASSERT_TRUE(style);
     EXPECT_FLOAT_EQ(style->margin.top, 9.0f);
 }
+
+TEST(StyleEngineTest, AppliesBorderProperties) {
+    ArenaAllocator arena(2048);
+    auto root = make_arena_ptr<Element>(arena, "div");
+
+    std::string css = R"(
+        div { border-width: 2px; border-style: solid; border-color: #cc0000; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->border_style, ComputedStyle::BorderStyle::Solid);
+    EXPECT_FLOAT_EQ(style->border_width.top, 2.0f);
+    EXPECT_EQ(style->border_color.r, 0xcc);
+    EXPECT_EQ(style->border_color.g, 0x00);
+    EXPECT_EQ(style->border_color.b, 0x00);
+}

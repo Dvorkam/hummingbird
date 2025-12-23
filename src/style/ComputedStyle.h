@@ -16,6 +16,10 @@ struct EdgeSizes {
 struct ComputedStyle {
     enum class Display { Block, Inline, None };
     Display display = Display::Block;
+    enum class BorderStyle { None, Solid };
+    BorderStyle border_style = BorderStyle::None;
+    EdgeSizes border_width;
+    Color border_color{0, 0, 0, 255};
     EdgeSizes margin;
     EdgeSizes padding;
     std::optional<float> width;

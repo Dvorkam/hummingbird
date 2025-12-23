@@ -70,6 +70,13 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
         }
     };
 
+    auto apply_border_style = [&](const Value& value) {
+        if (value.type != Value::Type::Identifier) return;
+        if (value.ident == "solid") {
+            style.border_style = ComputedStyle::BorderStyle::Solid;
+        }
+    };
+
     // margin / padding shorthand and individual edges
     auto margin_it = properties.find(Property::Margin);
     if (margin_it != properties.end()) {
@@ -89,6 +96,19 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     apply_length_if_present(Property::PaddingRight, style.padding.right);
     apply_length_if_present(Property::PaddingBottom, style.padding.bottom);
     apply_length_if_present(Property::PaddingLeft, style.padding.left);
+
+    auto border_width_it = properties.find(Property::BorderWidth);
+    if (border_width_it != properties.end()) {
+        apply_edge(style.border_width, value_to_length(border_width_it->second.value, 0.0f));
+    }
+    auto border_color_it = properties.find(Property::BorderColor);
+    if (border_color_it != properties.end() && border_color_it->second.value.type == Value::Type::Color) {
+        style.border_color = border_color_it->second.value.color;
+    }
+    auto border_style_it = properties.find(Property::BorderStyle);
+    if (border_style_it != properties.end()) {
+        apply_border_style(border_style_it->second.value);
+    }
 
     apply_optional_length_if_present(Property::Width, style.width);
     apply_optional_length_if_present(Property::Height, style.height);
@@ -173,6 +193,9 @@ void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const C
     base.width = own.width;
     base.height = own.height;
     base.display = own.display;
+    base.border_width = own.border_width;
+    base.border_color = own.border_color;
+    base.border_style = own.border_style;
 
     // Inheritable text properties: only elements introduce overrides; text nodes inherit.
     if (dynamic_cast<DOM::Element*>(node)) {
