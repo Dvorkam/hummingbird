@@ -93,6 +93,13 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     apply_optional_length_if_present(Property::Width, style.width);
     apply_optional_length_if_present(Property::Height, style.height);
 
+    auto display_it = properties.find(Property::Display);
+    if (display_it != properties.end() && display_it->second.value.type == Value::Type::Identifier) {
+        if (display_it->second.value.ident == "none") {
+            style.display = ComputedStyle::Display::None;
+        }
+    }
+
     auto color_it = properties.find(Property::Color);
     if (color_it != properties.end() && color_it->second.value.type == Value::Type::Color) {
         style.color = color_it->second.value.color;
@@ -165,6 +172,7 @@ void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const C
     base.padding = own.padding;
     base.width = own.width;
     base.height = own.height;
+    base.display = own.display;
 
     // Inheritable text properties: only elements introduce overrides; text nodes inherit.
     if (dynamic_cast<DOM::Element*>(node)) {

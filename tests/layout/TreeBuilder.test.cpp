@@ -4,9 +4,12 @@
 #include "core/dom/Text.h"
 #include "core/ArenaAllocator.h"
 #include "layout/TextBox.h"
+#include "style/Parser.h"
+#include "style/StyleEngine.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
+using namespace Hummingbird::Css;
 
 TEST(TreeBuilderTest, SimpleTree) {
     ArenaAllocator arena(1024);
@@ -58,4 +61,27 @@ TEST(TreeBuilderTest, SkipsNonVisualNodesButKeepsRootContainer) {
     const auto* body_render = render_root->get_children()[0].get();
     ASSERT_NE(body_render, nullptr);
     EXPECT_EQ(body_render->get_children().size(), 1u);  // contains div
+}
+
+TEST(TreeBuilderTest, SkipsDisplayNoneElements) {
+    ArenaAllocator arena(2048);
+    auto dom_root = make_arena_ptr<Element>(arena, "body");
+    auto visible = make_arena_ptr<Element>(arena, "div");
+    auto hidden = make_arena_ptr<Element>(arena, "div");
+    hidden->set_attribute("class", "hidden");
+    dom_root->append_child(std::move(visible));
+    dom_root->append_child(std::move(hidden));
+
+    std::string css = ".hidden { display: none; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder tree_builder;
+    auto render_root = tree_builder.build(dom_root.get());
+
+    ASSERT_NE(render_root, nullptr);
+    ASSERT_EQ(render_root->get_children().size(), 1u);
+    EXPECT_EQ(render_root->get_children()[0]->get_dom_node(), dom_root->get_children()[0].get());
 }

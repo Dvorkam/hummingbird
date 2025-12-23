@@ -7,6 +7,7 @@
 #include "layout/RenderBreak.h"
 #include "layout/RenderRule.h"
 #include "layout/TextBox.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 
@@ -38,8 +39,18 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
     return nullptr;
 }
 
+bool is_display_none(const DOM::Node* node) {
+    if (!node) return false;
+    auto style = node->get_computed_style();
+    return style && style->display == Css::ComputedStyle::Display::None;
+}
+
 std::unique_ptr<RenderObject> build_recursive(const DOM::Node* node) {
     if (!node) {
+        return nullptr;
+    }
+
+    if (is_display_none(node)) {
         return nullptr;
     }
 
@@ -71,6 +82,9 @@ std::unique_ptr<RenderObject> TreeBuilder::build_impl(const DOM::Node* dom_root)
     }
 
     for (const auto& child_dom : dom_root->get_children()) {
+        if (is_display_none(child_dom.get())) {
+            continue;
+        }
         auto child_render_object = build_recursive(child_dom.get());
         if (child_render_object) {
             render_root->append_child(std::move(child_render_object));

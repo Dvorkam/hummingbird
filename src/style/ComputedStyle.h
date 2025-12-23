@@ -14,6 +14,8 @@ struct EdgeSizes {
 };
 
 struct ComputedStyle {
+    enum class Display { Block, Inline, None };
+    Display display = Display::Block;
     EdgeSizes margin;
     EdgeSizes padding;
     std::optional<float> width;

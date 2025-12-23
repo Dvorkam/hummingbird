@@ -104,6 +104,7 @@ static std::optional<Color> parse_hex_color(std::string_view hex) {
 Property Parser::parse_property() {
     if (peek().type != TokenType::Identifier) return Property::Unknown;
     std::string_view name = advance().lexeme;
+    if (name == "display") return Property::Display;
     if (name == "margin") return Property::Margin;
     if (name == "margin-top") return Property::MarginTop;
     if (name == "margin-right") return Property::MarginRight;
