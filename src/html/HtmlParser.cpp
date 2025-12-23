@@ -11,7 +11,8 @@ Parser::Parser(ArenaAllocator& arena, std::string_view html) : m_tokenizer(html)
 namespace {
 std::string to_lower(const std::string_view& view) {
     std::string out(view);
-    std::transform(out.begin(), out.end(), out.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return out;
 }
 }  // namespace
@@ -27,9 +28,9 @@ ArenaPtr<DOM::Node> Parser::parse() {
 
     auto is_known_element = [&](std::string_view name) {
         static const std::vector<std::string_view> known = {
-            "html", "head", "body", "title", "style", "script", "div",  "p",   "span", "h1", "h2", "h3",
-            "h4",   "h5",   "h6",   "b",     "strong","i",      "em",   "img", "br",   "hr", "input", "ul",
-            "ol",   "li",   "pre",  "code",  "a",     "blockquote"};
+            "html", "head", "body",  "title", "style", "script", "div",    "p",    "span", "h1",
+            "h2",   "h3",   "h4",    "h5",    "h6",    "b",      "strong", "i",    "em",   "img",
+            "br",   "hr",   "input", "ul",    "ol",    "li",     "pre",    "code", "a",    "blockquote"};
         return std::find(known.begin(), known.end(), name) != known.end();
     };
 

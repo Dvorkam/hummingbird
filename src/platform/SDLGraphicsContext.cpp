@@ -22,8 +22,8 @@ void SDLGraphicsContext::set_viewport(const Hummingbird::Layout::Rect& viewport)
     if (viewport.width <= 0 || viewport.height <= 0) {
         SDL_RenderSetClipRect(m_renderer, nullptr);
     } else {
-        SDL_Rect clip{static_cast<int>(viewport.x), static_cast<int>(viewport.y),
-                      static_cast<int>(viewport.width), static_cast<int>(viewport.height)};
+        SDL_Rect clip{static_cast<int>(viewport.x), static_cast<int>(viewport.y), static_cast<int>(viewport.width),
+                      static_cast<int>(viewport.height)};
         SDL_RenderSetClipRect(m_renderer, &clip);
     }
 }
@@ -192,8 +192,8 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
 
     static bool logged = false;
     if (!logged) {
-        std::cerr << "[measure_text] path=" << resolved_font << " text='" << text << "' size=" << style.font_size << " -> ("
-                  << width << ", " << height << ")\n";
+        std::cerr << "[measure_text] path=" << resolved_font << " text='" << text << "' size=" << style.font_size
+                  << " -> (" << width << ", " << height << ")\n";
         logged = true;
     }
 

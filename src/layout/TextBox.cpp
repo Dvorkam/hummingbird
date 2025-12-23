@@ -93,8 +93,8 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         size_t start = 0;
         while (start < m_rendered_text.size()) {
             size_t nl = m_rendered_text.find('\n', start);
-            std::string line = nl == std::string::npos ? m_rendered_text.substr(start)
-                                                       : m_rendered_text.substr(start, nl - start);
+            std::string line =
+                nl == std::string::npos ? m_rendered_text.substr(start) : m_rendered_text.substr(start, nl - start);
             float w = context.measure_text(line, text_style).width;
             append_line(std::move(line), w);
             if (nl == std::string::npos) break;
@@ -130,7 +130,8 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         for (const auto& tok : tokens) {
             bool is_space = tok == " ";
             float tok_width = is_space ? space_width : measure_word(tok);
-            bool would_overflow = (available_width > 0.0f && line_width > 0.0f && (line_width + tok_width) > available_width);
+            bool would_overflow =
+                (available_width > 0.0f && line_width > 0.0f && (line_width + tok_width) > available_width);
             if (would_overflow) {
                 append_line(line_text, line_width);
                 line_text.clear();
