@@ -75,6 +75,29 @@
 * **I want** to completely skip generating `RenderObject`s for nodes with `display: none`.
 * **Acceptance:** Elements hidden via CSS do not take up any space in the layout.
 
+* **Story 2.3.4: Inline Line Builder**
+* **As a** layout engine,
+* **I want** inline content to be flattened into shared line boxes at the paragraph level instead of wrapping per inline node.
+* **Acceptance:** Inline text and inline elements wrap as a single flow; line breaks are determined across sibling inline runs.
+
+
+* **Story 2.3.5: Inline Run Measurement**
+* **As a** layout engine,
+* **I want** inline elements to contribute styled runs (text + metrics) to the line builder rather than owning their own wrapping.
+* **Acceptance:** `<a>`, `<em>`, `<code>` runs are measured in the same line context and share a consistent baseline/line height.
+
+
+* **Story 2.3.6: Inline Layout & Paint Integration**
+* **As a** renderer,
+* **I want** inline line boxes to drive final positions for text and inline boxes so rendering matches the shared line layout.
+* **Acceptance:** Inline boxes paint at their line-builder positions without resetting x/y to their own origin.
+
+
+* **Story 2.3.7: Inline Wrapping Regression Tests**
+* **As a** developer,
+* **I want** tests that cover inline wrapping across style boundaries so regressions are caught early.
+* **Acceptance:** A paragraph with mixed `<a>`, `<em>`, `<code>` wraps without restarting at the inline element's origin.
+
 
 
 #### **Epic 2.4: The "Real" List Item (Fixing the M1 Cheat)**
