@@ -148,7 +148,7 @@ TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
     ArenaAllocator arena(4096);
     auto body = make_arena_ptr<Element>(arena, "body");
     auto p = make_arena_ptr<Element>(arena, "p");
-    p->append_child(make_arena_ptr<Text>(arena, "Hello Hello "));
+    p->append_child(make_arena_ptr<Text>(arena, "Hello Hello Hello "));
     auto code = make_arena_ptr<Element>(arena, "code");
     code->append_child(make_arena_ptr<Text>(arena, "code"));
     p->append_child(std::move(code));
@@ -163,7 +163,7 @@ TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
     ASSERT_NE(render_root, nullptr);
 
     TestGraphicsContext context;
-    Rect viewport{0, 0, 80, 200};
+    Rect viewport{0, 0, 120, 200};
     render_root->layout(context, viewport);
 
     const auto& para = render_root->get_children()[0];
