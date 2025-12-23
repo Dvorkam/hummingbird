@@ -97,3 +97,48 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     EXPECT_GT(h1_style->font_size, 16.0f);
     EXPECT_EQ(h1_style->weight, ComputedStyle::FontWeight::Bold);
 }
+
+TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
+    ArenaAllocator arena(2048);
+    auto root = make_arena_ptr<Element>(arena, "p");
+    root->set_attribute("class", "text");
+    root->set_attribute("id", "main");
+
+    std::string css = R"(
+        p { color: blue; margin: 1px; }
+        .text { color: red; margin: 2px; }
+        #main { color: black; margin: 3px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 0);
+    EXPECT_FLOAT_EQ(style->margin.top, 3.0f);
+}
+
+TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
+    ArenaAllocator arena(2048);
+    auto root = make_arena_ptr<Element>(arena, "div");
+    root->set_attribute("class", "box");
+
+    std::string css = R"(
+        .box { margin: 4px; }
+        .box { margin: 9px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->margin.top, 9.0f);
+}
