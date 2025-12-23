@@ -1,8 +1,29 @@
 #include <gtest/gtest.h>
+
+#include <string>
 #include "layout/TextBox.h"
 #include "core/dom/Text.h"
 #include "style/ComputedStyle.h"
 #include "TestGraphicsContext.h"
+
+class FontCaptureContext : public IGraphicsContext {
+public:
+    void set_viewport(const Hummingbird::Layout::Rect& /*viewport*/) override {}
+    void clear(const Color& /*color*/) override {}
+    void present() override {}
+    void fill_rect(const Hummingbird::Layout::Rect& /*rect*/, const Color& /*color*/) override {}
+
+    TextMetrics measure_text(const std::string& text, const TextStyle& style) override {
+        last_font_path = style.font_path;
+        constexpr float kAverageCharWidth = 8.0f;
+        constexpr float kLineHeight = 16.0f;
+        return TextMetrics{static_cast<float>(text.size()) * kAverageCharWidth, kLineHeight};
+    }
+
+    void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const TextStyle& /*style*/) override {}
+
+    std::string last_font_path;
+};
 
 // NOTE: This test requires the font file 'assets/fonts/Roboto-Regular.ttf' to be present.
 TEST(TextBoxLayoutTest, SimpleTextMeasurement) {
@@ -49,4 +70,36 @@ TEST(TextBoxLayoutTest, PreservesWhitespaceInPreMode) {
 
     text_box.layout(context, bounds);
     EXPECT_EQ(text_box.rendered_text(), "Line1\n  Line2");
+}
+
+TEST(TextBoxLayoutTest, SelectsFontByBoldItalicCombination) {
+    auto run_case = [](Hummingbird::Css::ComputedStyle style, std::string_view expected_suffix) {
+        Hummingbird::DOM::Text dom_text("Hello");
+        dom_text.set_computed_style(std::make_shared<Hummingbird::Css::ComputedStyle>(style));
+
+        Hummingbird::Layout::TextBox text_box(&dom_text);
+        Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
+        FontCaptureContext context;
+
+        text_box.layout(context, bounds);
+
+        ASSERT_NE(context.last_font_path.find(expected_suffix), std::string::npos);
+    };
+
+    auto base = Hummingbird::Css::default_computed_style();
+
+    run_case(base, "Roboto-Regular.ttf");
+
+    auto bold = base;
+    bold.weight = Hummingbird::Css::ComputedStyle::FontWeight::Bold;
+    run_case(bold, "Roboto-Bold.ttf");
+
+    auto italic = base;
+    italic.style = Hummingbird::Css::ComputedStyle::FontStyle::Italic;
+    run_case(italic, "Roboto-Italic.ttf");
+
+    auto bold_italic = base;
+    bold_italic.weight = Hummingbird::Css::ComputedStyle::FontWeight::Bold;
+    bold_italic.style = Hummingbird::Css::ComputedStyle::FontStyle::Italic;
+    run_case(bold_italic, "Roboto-BoldItalic.ttf");
 }

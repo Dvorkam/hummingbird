@@ -30,6 +30,20 @@ std::string collapse_whitespace(const std::string& text) {
     }
     return out;
 }
+
+std::string resolve_text_font_path(const Css::ComputedStyle* style) {
+    bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
+    bool italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
+    const char* font_path = "assets/fonts/Roboto-Regular.ttf";
+    if (bold && italic) {
+        font_path = "assets/fonts/Roboto-BoldItalic.ttf";
+    } else if (bold) {
+        font_path = "assets/fonts/Roboto-Bold.ttf";
+    } else if (italic) {
+        font_path = "assets/fonts/Roboto-Italic.ttf";
+    }
+    return Hummingbird::resolve_asset_path(font_path).string();
+}
 }  // namespace
 
 void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
@@ -68,18 +82,18 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         return;
     }
 
-    // Assumptions for now: font and size are hardcoded
-    auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
+    // Assumptions for now: monospace font selection is still hardcoded.
+    std::string font_path = resolve_text_font_path(style);
     float font_size = style ? style->font_size : 16.0f;
     TextStyle text_style;
-    text_style.font_path = font_path.string();
+    text_style.font_path = font_path;
     text_style.font_size = font_size;
-    text_style.bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
-    text_style.italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
+    text_style.bold = false;
+    text_style.italic = false;
     text_style.monospace = style && style->font_monospace;
     text_style.color = style ? style->color : Color{0, 0, 0, 255};
 
-    // TODO: choose real monospace or bold fonts when available.
+    // TODO: choose real monospace fonts when available.
     m_last_metrics = context.measure_text(m_rendered_text, text_style);
     float line_height = m_last_metrics.height;
 
@@ -189,11 +203,11 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
     if (m_lines.empty()) return;
 
     TextStyle text_style;
-    auto font_path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
-    text_style.font_path = font_path.string();
+    std::string font_path = resolve_text_font_path(style);
+    text_style.font_path = font_path;
     text_style.font_size = style ? style->font_size : 16.0f;
-    text_style.bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
-    text_style.italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
+    text_style.bold = false;
+    text_style.italic = false;
     text_style.monospace = style && style->font_monospace;
     text_style.color = style ? style->color : Color{0, 0, 0, 255};
 
