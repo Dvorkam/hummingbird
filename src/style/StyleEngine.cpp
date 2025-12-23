@@ -27,13 +27,30 @@ struct MatchedProperty {
     Value value;
 };
 
+struct StyleOverrides {
+    bool color = false;
+    bool underline = false;
+    bool whitespace = false;
+    bool font_monospace = false;
+    bool weight = false;
+    bool style = false;
+    bool font_size = false;
+    bool background = false;
+};
+
+struct StyleResult {
+    ComputedStyle style;
+    StyleOverrides overrides;
+};
+
 struct PropertyHash {
     size_t operator()(Property property) const { return static_cast<size_t>(property); }
 };
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).
-ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
-    ComputedStyle style = default_computed_style();
+StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
+    StyleResult result{default_computed_style(), {}};
+    ComputedStyle& style = result.style;
     std::unordered_map<Property, MatchedProperty, PropertyHash> properties;
     size_t order = 0;
 
@@ -131,6 +148,7 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     auto color_it = properties.find(Property::Color);
     if (color_it != properties.end() && color_it->second.value.type == Value::Type::Color) {
         style.color = color_it->second.value.color;
+        result.overrides.color = true;
     }
 
     // Minimal UA defaults for basic HTML readability.
@@ -157,14 +175,20 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
                 style.whitespace = ComputedStyle::WhiteSpace::Preserve;
             }
             style.font_monospace = true;
+            result.overrides.whitespace = true;
+            result.overrides.font_monospace = true;
         } else if (tag == "a") {
             style.color = {0, 0, 255, 255};
             style.underline = true;
+            result.overrides.color = true;
+            result.overrides.underline = true;
         } else if (tag == "code") {
             style.font_monospace = true;
             style.background = Color{230, 230, 230, 255};
             style.padding.left = style.padding.right = 2.0f;
             style.padding.top = style.padding.bottom = 1.0f;
+            result.overrides.font_monospace = true;
+            result.overrides.background = true;
         } else if (tag == "blockquote") {
             style.margin.left = 40.0f;
             style.margin.right = 40.0f;
@@ -176,52 +200,66 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
             style.background = Color{50, 50, 50, 255};
         } else if (tag == "strong") {
             style.weight = ComputedStyle::FontWeight::Bold;
+            result.overrides.weight = true;
         } else if (tag == "em") {
             style.style = ComputedStyle::FontStyle::Italic;
+            result.overrides.style = true;
         } else if (tag == "h1") {
             set_heading(2.0f, 0.67f);
+            result.overrides.font_size = true;
+            result.overrides.weight = true;
         } else if (tag == "h2") {
             set_heading(1.5f, 0.83f);
+            result.overrides.font_size = true;
+            result.overrides.weight = true;
         } else if (tag == "h3") {
             set_heading(1.17f, 1.0f);
+            result.overrides.font_size = true;
+            result.overrides.weight = true;
         } else if (tag == "h4") {
             set_heading(1.0f, 1.33f);
+            result.overrides.font_size = true;
+            result.overrides.weight = true;
         } else if (tag == "h5") {
             set_heading(0.83f, 1.67f);
+            result.overrides.font_size = true;
+            result.overrides.weight = true;
         } else if (tag == "h6") {
             set_heading(0.67f, 2.33f);
+            result.overrides.font_size = true;
+            result.overrides.weight = true;
         }
     }
 
-    return style;
+    return result;
 }
 
 }  // namespace
 
 void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const ComputedStyle* parent_style) {
     ComputedStyle base = parent_style ? *parent_style : default_computed_style();
-    ComputedStyle own = build_style_for(sheet, node);
+    StyleResult own = build_style_for(sheet, node);
 
     // Non-inheritable box properties come from the computed (own) style.
-    base.margin = own.margin;
-    base.padding = own.padding;
-    base.width = own.width;
-    base.height = own.height;
-    base.display = own.display;
-    base.border_width = own.border_width;
-    base.border_color = own.border_color;
-    base.border_style = own.border_style;
+    base.margin = own.style.margin;
+    base.padding = own.style.padding;
+    base.width = own.style.width;
+    base.height = own.style.height;
+    base.display = own.style.display;
+    base.border_width = own.style.border_width;
+    base.border_color = own.style.border_color;
+    base.border_style = own.style.border_style;
 
     // Inheritable text properties: only elements introduce overrides; text nodes inherit.
     if (dynamic_cast<DOM::Element*>(node)) {
-        base.color = own.color;
-        base.underline = own.underline;
-        base.whitespace = own.whitespace;
-        base.font_monospace = own.font_monospace;
-        base.weight = own.weight;
-        base.style = own.style;
-        base.font_size = own.font_size;
-        base.background = own.background;
+        if (own.overrides.color) base.color = own.style.color;
+        if (own.overrides.underline) base.underline = own.style.underline;
+        if (own.overrides.whitespace) base.whitespace = own.style.whitespace;
+        if (own.overrides.font_monospace) base.font_monospace = own.style.font_monospace;
+        if (own.overrides.weight) base.weight = own.style.weight;
+        if (own.overrides.style) base.style = own.style.style;
+        if (own.overrides.font_size) base.font_size = own.style.font_size;
+        if (own.overrides.background) base.background = own.style.background;
     }
 
     ComputedStyle style = base;

@@ -180,3 +180,26 @@ TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
     ASSERT_TRUE(style);
     EXPECT_EQ(style->display, ComputedStyle::Display::InlineBlock);
 }
+
+TEST(StyleEngineTest, EmInheritsHeadingTypography) {
+    ArenaAllocator arena(2048);
+    auto h1 = make_arena_ptr<Element>(arena, "h1");
+    auto em = make_arena_ptr<Element>(arena, "em");
+    em->append_child(make_arena_ptr<Text>(arena, "Emphasized"));
+    h1->append_child(std::move(em));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, h1.get());
+
+    auto h1_style = h1->get_computed_style();
+    ASSERT_TRUE(h1_style);
+    auto em_style = h1->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(em_style);
+
+    EXPECT_GT(h1_style->font_size, 16.0f);
+    EXPECT_EQ(h1_style->weight, ComputedStyle::FontWeight::Bold);
+    EXPECT_FLOAT_EQ(em_style->font_size, h1_style->font_size);
+    EXPECT_EQ(em_style->weight, h1_style->weight);
+    EXPECT_EQ(em_style->style, ComputedStyle::FontStyle::Italic);
+}
