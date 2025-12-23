@@ -53,7 +53,6 @@ jobs:
         with:
           path: |
             .vcpkg/bincache
-            vcpkg/downloads
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
           restore-keys: |
             vcpkg-${{ runner.os }}-
