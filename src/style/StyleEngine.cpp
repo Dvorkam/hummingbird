@@ -11,18 +11,10 @@ namespace Hummingbird::Css {
 
 namespace {
 
-float parse_length(const std::string& value, float fallback = 0.0f) {
-    if (value.empty()) return fallback;
-    std::string trimmed = value;
-    // Drop trailing px if present
-    if (trimmed.size() > 2 && trimmed.substr(trimmed.size() - 2) == "px") {
-        trimmed = trimmed.substr(0, trimmed.size() - 2);
-    }
-    try {
-        return std::stof(trimmed);
-    } catch (...) {
-        return fallback;
-    }
+float value_to_length(const Value& value, float fallback = 0.0f) {
+    if (value.type != Value::Type::Length) return fallback;
+    if (value.length.unit != Unit::Px) return fallback;
+    return value.length.value;
 }
 
 void apply_edge(EdgeSizes& edges, float value) {
@@ -32,13 +24,17 @@ void apply_edge(EdgeSizes& edges, float value) {
 struct MatchedProperty {
     int specificity;
     size_t order;
-    std::string value;
+    Value value;
+};
+
+struct PropertyHash {
+    size_t operator()(Property property) const { return static_cast<size_t>(property); }
 };
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).
 ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     ComputedStyle style = default_computed_style();
-    std::unordered_map<std::string, MatchedProperty> properties;
+    std::unordered_map<Property, MatchedProperty, PropertyHash> properties;
     size_t order = 0;
 
     // Only elements participate in selector matching.
@@ -60,42 +56,47 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
         }
     }
 
-    auto apply_length_if_present = [&](const std::string& name, float& target) {
-        auto it = properties.find(name);
+    auto apply_length_if_present = [&](Property property, float& target) {
+        auto it = properties.find(property);
         if (it != properties.end()) {
-            target = parse_length(it->second.value, target);
+            target = value_to_length(it->second.value, target);
         }
     };
 
-    auto apply_optional_length_if_present = [&](const std::string& name, std::optional<float>& target) {
-        auto it = properties.find(name);
+    auto apply_optional_length_if_present = [&](Property property, std::optional<float>& target) {
+        auto it = properties.find(property);
         if (it != properties.end()) {
-            target = parse_length(it->second.value, target.value_or(0.0f));
+            target = value_to_length(it->second.value, target.value_or(0.0f));
         }
     };
 
     // margin / padding shorthand and individual edges
-    auto margin_it = properties.find("margin");
+    auto margin_it = properties.find(Property::Margin);
     if (margin_it != properties.end()) {
-        apply_edge(style.margin, parse_length(margin_it->second.value, 0.0f));
+        apply_edge(style.margin, value_to_length(margin_it->second.value, 0.0f));
     }
-    auto padding_it = properties.find("padding");
+    auto padding_it = properties.find(Property::Padding);
     if (padding_it != properties.end()) {
-        apply_edge(style.padding, parse_length(padding_it->second.value, 0.0f));
+        apply_edge(style.padding, value_to_length(padding_it->second.value, 0.0f));
     }
 
-    apply_length_if_present("margin-top", style.margin.top);
-    apply_length_if_present("margin-right", style.margin.right);
-    apply_length_if_present("margin-bottom", style.margin.bottom);
-    apply_length_if_present("margin-left", style.margin.left);
+    apply_length_if_present(Property::MarginTop, style.margin.top);
+    apply_length_if_present(Property::MarginRight, style.margin.right);
+    apply_length_if_present(Property::MarginBottom, style.margin.bottom);
+    apply_length_if_present(Property::MarginLeft, style.margin.left);
 
-    apply_length_if_present("padding-top", style.padding.top);
-    apply_length_if_present("padding-right", style.padding.right);
-    apply_length_if_present("padding-bottom", style.padding.bottom);
-    apply_length_if_present("padding-left", style.padding.left);
+    apply_length_if_present(Property::PaddingTop, style.padding.top);
+    apply_length_if_present(Property::PaddingRight, style.padding.right);
+    apply_length_if_present(Property::PaddingBottom, style.padding.bottom);
+    apply_length_if_present(Property::PaddingLeft, style.padding.left);
 
-    apply_optional_length_if_present("width", style.width);
-    apply_optional_length_if_present("height", style.height);
+    apply_optional_length_if_present(Property::Width, style.width);
+    apply_optional_length_if_present(Property::Height, style.height);
+
+    auto color_it = properties.find(Property::Color);
+    if (color_it != properties.end() && color_it->second.value.type == Value::Type::Color) {
+        style.color = color_it->second.value.color;
+    }
 
     // Minimal UA defaults for basic HTML readability.
     if (element) {

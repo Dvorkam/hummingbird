@@ -22,6 +22,8 @@ private:
 
     Selector parse_selector();
     std::vector<Selector> parse_selectors();
+    Property parse_property();
+    Value parse_value();
     std::vector<Declaration> parse_declarations();
 
     std::string m_buffer;
