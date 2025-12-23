@@ -17,6 +17,7 @@ public:
     using BlockBox::BlockBox;
 
     bool is_inline() const override { return true; }
+    void layout(IGraphicsContext& context, const Rect& bounds) override;
 };
 
 }  // namespace Hummingbird::Layout

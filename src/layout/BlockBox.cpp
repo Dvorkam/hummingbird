@@ -102,4 +102,35 @@ void BlockBox::paint(IGraphicsContext& context, const Point& offset) {
     RenderObject::paint(context, offset);
 }
 
+void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
+    BlockBox::layout(context, bounds);
+
+    const auto* style = get_computed_style();
+    if (style && style->width.has_value()) {
+        return;
+    }
+
+    float padding_left = style ? style->padding.left : 0.0f;
+    float padding_right = style ? style->padding.right : 0.0f;
+    float border_left = style ? style->border_width.left : 0.0f;
+    float border_right = style ? style->border_width.right : 0.0f;
+    float inset_left = padding_left + border_left;
+    float inset_right = padding_right + border_right;
+
+    float content_right = inset_left;
+    for (const auto& child : m_children) {
+        const auto* child_style = child->get_computed_style();
+        float margin_right = child_style ? child_style->margin.right : 0.0f;
+        float right = child->get_rect().x + child->get_rect().width + margin_right;
+        content_right = std::max(content_right, right);
+    }
+
+    float required_width = content_right + inset_right;
+    if (required_width < inset_left + inset_right) {
+        required_width = inset_left + inset_right;
+    }
+
+    m_rect.width = std::min(m_rect.width, required_width);
+}
+
 }  // namespace Hummingbird::Layout

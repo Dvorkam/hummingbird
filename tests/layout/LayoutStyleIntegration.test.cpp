@@ -140,4 +140,6 @@ TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
 
     EXPECT_FLOAT_EQ(first.y, second.y);
     EXPECT_GT(second.x, first.x + first.width - 0.1f);
+    EXPECT_FLOAT_EQ(first.width, 8.0f + 2.0f * (2.0f + 1.0f));
+    EXPECT_FLOAT_EQ(second.width, 8.0f + 2.0f * (2.0f + 1.0f));
 }
