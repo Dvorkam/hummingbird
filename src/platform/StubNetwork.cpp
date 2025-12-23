@@ -50,6 +50,7 @@ void StubNetwork::get(const std::string& url, std::function<void(std::string)> c
     <p id="lead"><strong>Typed CSS demo.</strong> This page exercises selector lists, ids, and colors.</p>
     <h2>Elements</h2>
     <p>Inline <em>emphasis</em> and <code>code</code> samples.</p>
+    <p class="hidden">You should not see this paragraph.</p>
     <ul>
       <li>List item one</li>
       <li>List item two</li>
