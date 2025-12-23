@@ -11,6 +11,7 @@ enum class TokenType {
     Number,
     LBrace,
     RBrace,
+    Comma,
     Colon,
     Semicolon,
     Dot,

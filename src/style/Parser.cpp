@@ -30,6 +30,10 @@ bool Parser::eof() const {
     return peek().type == TokenType::End;
 }
 
+static bool is_selector_start(TokenType type) {
+    return type == TokenType::Identifier || type == TokenType::Dot || type == TokenType::Hash;
+}
+
 Selector Parser::parse_selector() {
     SelectorType type = SelectorType::Tag;
     if (match(TokenType::Dot)) {
@@ -44,6 +48,21 @@ Selector Parser::parse_selector() {
     return Selector{type, value};
 }
 
+std::vector<Selector> Parser::parse_selectors() {
+    std::vector<Selector> selectors;
+    if (!is_selector_start(peek().type)) {
+        return selectors;
+    }
+    selectors.push_back(parse_selector());
+    while (match(TokenType::Comma)) {
+        if (!is_selector_start(peek().type)) {
+            break;
+        }
+        selectors.push_back(parse_selector());
+    }
+    return selectors;
+}
+
 std::vector<Declaration> Parser::parse_declarations() {
     std::vector<Declaration> decls;
     while (!eof() && peek().type != TokenType::RBrace) {
@@ -56,12 +75,17 @@ std::vector<Declaration> Parser::parse_declarations() {
             continue;
         }
         std::ostringstream value_stream;
+        TokenType prev_type = TokenType::End;
         // Collect tokens until semicolon or closing brace.
         while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
-            value_stream << peek().lexeme;
-            if (peek().type == TokenType::Identifier || peek().type == TokenType::Number) {
+            const auto& token = peek();
+            bool is_value_token = token.type == TokenType::Identifier || token.type == TokenType::Number;
+            bool prev_is_value = prev_type == TokenType::Identifier || prev_type == TokenType::Number;
+            if (is_value_token && prev_is_value && !(prev_type == TokenType::Number && token.type == TokenType::Identifier)) {
                 value_stream << ' ';
             }
+            value_stream << token.lexeme;
+            prev_type = token.type;
             advance();
         }
         std::string value = value_stream.str();
@@ -76,15 +100,15 @@ Stylesheet Parser::parse() {
     Stylesheet sheet;
     while (!eof()) {
         // Selector
-        Selector selector = parse_selector();
+        auto selectors = parse_selectors();
         if (!match(TokenType::LBrace)) {
             advance();
             continue;
         }
         auto declarations = parse_declarations();
         match(TokenType::RBrace);
-        if (!selector.value.empty()) {
-            sheet.rules.push_back({selector, declarations});
+        if (!selectors.empty()) {
+            sheet.rules.push_back({selectors, declarations});
         }
     }
     return sheet;

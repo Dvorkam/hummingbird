@@ -71,6 +71,10 @@ std::vector<Token> Tokenizer::tokenize() {
                 tokens.push_back({TokenType::RBrace, "}"});
                 advance();
                 break;
+            case ',':
+                tokens.push_back({TokenType::Comma, ","});
+                advance();
+                break;
             case ':':
                 tokens.push_back({TokenType::Colon, ":"});
                 advance();

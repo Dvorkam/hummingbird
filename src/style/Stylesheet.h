@@ -30,7 +30,7 @@ struct Declaration {
 };
 
 struct Rule {
-    Selector selector;
+    std::vector<Selector> selectors;
     std::vector<Declaration> declarations;
 };
 

@@ -45,15 +45,17 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     const auto* element = dynamic_cast<const DOM::Element*>(node);
     if (element) {
         for (const auto& rule : sheet.rules) {
-            if (!matches_selector(node, rule.selector)) continue;
-            int spec = rule.selector.specificity();
-            for (const auto& decl : rule.declarations) {
-                auto it = properties.find(decl.property);
-                if (it == properties.end() || spec > it->second.specificity ||
-                    (spec == it->second.specificity && order > it->second.order)) {
-                    properties[decl.property] = {spec, order, decl.value};
+            for (const auto& selector : rule.selectors) {
+                if (!matches_selector(node, selector)) continue;
+                int spec = selector.specificity();
+                for (const auto& decl : rule.declarations) {
+                    auto it = properties.find(decl.property);
+                    if (it == properties.end() || spec > it->second.specificity ||
+                        (spec == it->second.specificity && order > it->second.order)) {
+                        properties[decl.property] = {spec, order, decl.value};
+                    }
+                    ++order;
                 }
-                ++order;
             }
         }
     }

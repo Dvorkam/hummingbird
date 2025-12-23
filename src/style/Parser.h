@@ -21,6 +21,7 @@ private:
     bool eof() const;
 
     Selector parse_selector();
+    std::vector<Selector> parse_selectors();
     std::vector<Declaration> parse_declarations();
 
     std::string m_buffer;
