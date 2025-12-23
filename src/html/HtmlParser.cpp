@@ -46,6 +46,16 @@ ArenaPtr<DOM::Node> Parser::parse() {
             case TokenType::StartTag: {
                 auto& tag_data = std::get<StartTagToken>(token.data);
                 std::string lowered_name = to_lower(tag_data.name);
+                if (lowered_name == "li") {
+                    if (!open_elements.empty()) {
+                        if (auto* top_el = dynamic_cast<DOM::Element*>(open_elements.back())) {
+                            if (top_el->get_tag_name() == "li") {
+                                open_elements.pop_back();
+                            }
+                        }
+                    }
+                }
+
                 auto new_element = make_arena_ptr<DOM::Element>(m_arena, lowered_name);
 
                 DOM::Node* parent = open_elements.back();

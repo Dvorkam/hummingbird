@@ -130,3 +130,17 @@ TEST(HtmlParserTest, ExtractsStyleBlocks) {
     EXPECT_NE(styles[0].find("body"), std::string::npos);
     EXPECT_NE(styles[0].find("color"), std::string::npos);
 }
+
+TEST(HtmlParserTest, AutoClosesListItems) {
+    std::string_view html = "<ul><li>One<li>Two</ul>";
+    ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto dom = parser.parse();
+
+    ASSERT_NE(dom, nullptr);
+    ASSERT_EQ(dom->get_children().size(), 1u);
+    auto* ul = dynamic_cast<Hummingbird::DOM::Element*>(dom->get_children()[0].get());
+    ASSERT_NE(ul, nullptr);
+    EXPECT_EQ(ul->get_tag_name(), "ul");
+    EXPECT_EQ(ul->get_children().size(), 2u);
+}
