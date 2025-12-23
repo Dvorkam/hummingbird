@@ -18,6 +18,8 @@ public:
 
     void shutdown();
 
+    static constexpr const char* accept_encoding() { return kAcceptEncoding; }
+
     bool ok() const { return m_initialized.load(std::memory_order_relaxed); }
 
 private:
@@ -33,4 +35,6 @@ private:
     // libcurl global lifetime management (process-wide)
     static std::atomic<int> s_instances;
     static std::mutex s_global_mutex;
+
+    static constexpr const char* kAcceptEncoding = "";
 };

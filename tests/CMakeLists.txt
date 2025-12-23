@@ -17,6 +17,7 @@ add_executable(HummingbirdTests
     style/StyleEngine.test.cpp
     layout/LayoutStyleIntegration.test.cpp
     network/StubNetwork.test.cpp
+    network/CurlNetwork.test.cpp
 )
 
 # Link the test executable against GTest and our libraries
