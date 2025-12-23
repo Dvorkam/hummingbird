@@ -244,7 +244,11 @@ void BrowserApp::consume_pending_html_and_rebuild() {
                                                    << " total nodes: " << count_nodes_recursive(dom_tree_.get()));
 
     // Temporary CSS (later: fetch/parse real CSS)
-    const std::string css = "body { padding: 8px; } p { margin: 4px; }";
+    std::string css = "body { padding: 8px; } p { margin: 4px; }";
+    for (const auto& block : parser.style_blocks()) {
+        css.append("\n");
+        css.append(block);
+    }
     Hummingbird::Css::Parser css_parser(css);
     auto stylesheet = css_parser.parse();
 

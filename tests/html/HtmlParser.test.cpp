@@ -118,3 +118,15 @@ TEST(HtmlParserTest, IsCaseInsensitiveForTags) {
     ASSERT_NE(text_node, nullptr);
     EXPECT_EQ(text_node->get_text(), "Link");
 }
+
+TEST(HtmlParserTest, ExtractsStyleBlocks) {
+    std::string_view html = "<style>body { color: red; }</style><p>Hi</p>";
+    ArenaAllocator arena(2048);
+    Parser parser(arena, html);
+    auto dom_tree = parser.parse();
+    ASSERT_NE(dom_tree, nullptr);
+    const auto& styles = parser.style_blocks();
+    ASSERT_EQ(styles.size(), 1u);
+    EXPECT_NE(styles[0].find("body"), std::string::npos);
+    EXPECT_NE(styles[0].find("color"), std::string::npos);
+}

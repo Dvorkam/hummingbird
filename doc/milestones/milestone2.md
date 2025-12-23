@@ -24,6 +24,11 @@
 * **I want** to map string values (`"red"`, `"12px"`) to strongly typed enums/unions (`Color::Red`, `Length(12, Px)`).
 * **Acceptance:** `margin: 10px` is stored as `{ Property::Margin, Value(10, Unit::Px) }`.
 
+* **Story 2.1.4: Inline `<style>` Extraction**
+* **As a** style engine,
+* **I want** to extract CSS text from `<style>` tags in HTML and feed it into the CSS parser.
+* **Acceptance:** A document containing `<style>body { color: red; }</style>` yields a stylesheet that can apply to DOM nodes.
+
 
 
 #### **Epic 2.2: The Style Resolver (The "Cascade")**

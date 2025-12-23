@@ -21,6 +21,7 @@ ArenaPtr<DOM::Node> Parser::parse() {
     auto root = make_arena_ptr<DOM::Element>(m_arena, "root");
     std::vector<DOM::Node*> open_elements;
     open_elements.push_back(root.get());
+    bool in_style = false;
 
     auto is_void_element = [](std::string_view name) {
         return name == "meta" || name == "link" || name == "br" || name == "img" || name == "input" || name == "hr";
@@ -75,11 +76,18 @@ ArenaPtr<DOM::Node> Parser::parse() {
                 if (should_push) {
                     open_elements.push_back(appended);
                 }
+                if (lowered_name == "style" && should_push) {
+                    m_style_blocks.emplace_back();
+                    in_style = true;
+                }
                 break;
             }
             case TokenType::EndTag: {
                 auto& end_data = std::get<EndTagToken>(token.data);
                 std::string lowered_end = to_lower(end_data.name);
+                if (lowered_end == "style") {
+                    in_style = false;
+                }
                 if (open_elements.size() > 1) {  // Don't pop the root
                     // Find the nearest matching open element and pop everything above it.
                     size_t match_index = 0;
@@ -101,6 +109,9 @@ ArenaPtr<DOM::Node> Parser::parse() {
             case TokenType::CharacterData: {
                 auto& char_data = std::get<CharacterDataToken>(token.data);
                 if (!char_data.data.empty()) {
+                    if (in_style && !m_style_blocks.empty()) {
+                        m_style_blocks.back().append(char_data.data);
+                    }
                     DOM::Node* parent = open_elements.back();
                     auto& children = parent->get_children();
                     if (!children.empty()) {

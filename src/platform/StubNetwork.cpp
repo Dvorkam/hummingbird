@@ -31,7 +31,7 @@ void StubNetwork::get(const std::string& url, std::function<void(std::string)> c
         }
 
         std::string body;
-        if (url == "http://example.com" || url == "https://example.com") {
+        if (url == "http://example.dev" || url == "https://example.dev") {
             body = R"HTML(
 <!doctype html>
 <html>
