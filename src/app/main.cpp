@@ -1,4 +1,3 @@
-#include <SDL.h>
 
 #include <algorithm>
 #include <atomic>
@@ -12,18 +11,20 @@
 #include "core/ArenaAllocator.h"
 #include "core/AssetPath.h"
 #include "core/IGraphicsContext.h"
+#include "core/IWindow.h"
+#include "core/InputEvent.h"
 #include "core/Log.h"
+#include "core/WindowFactory.h"
 #include "html/HtmlParser.h"
 #include "layout/TreeBuilder.h"
 #include "platform/CurlNetwork.h"
-#include "platform/SDLWindow.h"
 #include "platform/StubNetwork.h"
 #include "renderer/Painter.h"
 #include "style/Parser.h"
 #include "style/StyleEngine.h"
 
 int main(int argc, char* argv[]) {
-    auto window = std::make_unique<SDLWindow>();
+    auto window = create_window();
     window->open();
 
     if (!window->is_open()) {
@@ -87,14 +88,14 @@ int main(int argc, char* argv[]) {
         });
     };
 
-    auto handle_event = [&](const SDL_Event& event) {
+    auto handle_event = [&](const InputEvent& event) {
         switch (event.type) {
-            case SDL_QUIT: {
+            case EventType::Quit: {
                 window->close();
                 break;
             }
 
-            case SDL_TEXTINPUT: {
+            case EventType::TextInput: {
                 if (url_bar_active) {
                     url_bar_text += event.text.text;
                     needs_repaint = true;
@@ -102,45 +103,42 @@ int main(int argc, char* argv[]) {
                 break;
             }
 
-            case SDL_KEYDOWN: {
-                if (event.key.keysym.sym == SDLK_BACKSPACE && url_bar_active && !url_bar_text.empty()) {
+            case EventType::KeyDown: {
+                if (event.key.key == Key::Backspace && url_bar_active && !url_bar_text.empty()) {
                     url_bar_text.pop_back();
-                    needs_repaint = true;
-                } else if (event.key.keysym.sym == SDLK_RETURN) {
+                } else if (event.key.key == Key::Enter) {
                     url_bar_active = false;
-                    SDL_StopTextInput();
+                    window->stop_text_input();
                     load_url(url_bar_text);
-                } else if (event.key.keysym.sym == SDLK_ESCAPE) {
+                } else if (event.key.key == Key::Escape) {
                     url_bar_active = false;
-                    SDL_StopTextInput();
-                    needs_repaint = true;
-                } else if (event.key.keysym.sym == SDLK_F1) {
+                    window->stop_text_input();
+                } else if (event.key.key == Key::F1) {
                     debug_outlines = !debug_outlines;
                     HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines ? "ON" : "OFF"));
-                    needs_repaint = true;
-                } else if (event.key.keysym.sym == SDLK_l && (event.key.keysym.mod & KMOD_CTRL)) {
+                } else if (event.key.key == Key::L && (event.mods.ctrl)) {
                     url_bar_active = true;
-                    SDL_StartTextInput();
+                    window->start_text_input();
                     HB_LOG_INFO("[ui] URL bar focused");
-                    needs_repaint = true;
-                }
-                break;
-            }
-            case SDL_MOUSEBUTTONDOWN: {
-                int y = event.button.y;
-                if (y < url_bar_height) {
-                    url_bar_active = true;
-                    SDL_StartTextInput();
-                    HB_LOG_INFO("[ui] URL bar focused (mouse)");
-                } else {
-                    url_bar_active = false;
-                    SDL_StopTextInput();
                 }
                 needs_repaint = true;
                 break;
             }
-            case SDL_MOUSEWHEEL: {
-                float delta = static_cast<float>(event.wheel.y) * 32.0f;
+            case EventType::MouseDown: {
+                int y = event.mouse_button.y;
+                if (y < url_bar_height) {
+                    url_bar_active = true;
+                    window->start_text_input();
+                    HB_LOG_INFO("[ui] URL bar focused (mouse)");
+                } else {
+                    url_bar_active = false;
+                    window->stop_text_input();
+                }
+                needs_repaint = true;
+                break;
+            }
+            case EventType::MouseWheel: {
+                float delta = static_cast<float>(event.wheel.dy) * 32.0f;
                 scroll_y -= delta;
                 auto [win_w, win_h] = window->get_size();
                 float viewport_height = static_cast<float>(win_h - url_bar_height);
@@ -149,20 +147,19 @@ int main(int argc, char* argv[]) {
                 break;
             }
 
-            case SDL_WINDOWEVENT: {
-                if (event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
-                    event.window.event == SDL_WINDOWEVENT_RESIZED) {
-                    if (render_tree) {
-                        auto [win_w, win_h] = window->get_size();
-                        Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height),
-                                                              static_cast<float>(win_w),
-                                                              static_cast<float>(win_h - url_bar_height)};
-                        render_tree->layout(*graphics, viewport);
-                        content_height = render_tree->get_rect().height;
-                        clamp_scroll(viewport.height);
-                        needs_repaint = true;
-                    }
+            case EventType::Resize: {
+                if (render_tree) {
+                    const int win_w = event.resize.width;
+                    const int win_h = event.resize.height;
+                    Hummingbird::Layout::Rect viewport = {0, static_cast<float>(url_bar_height),
+                                                          static_cast<float>(win_w),
+                                                          static_cast<float>(win_h - url_bar_height)};
+                    render_tree->layout(*graphics, viewport);
+                    content_height = render_tree->get_rect().height;
+                    clamp_scroll(viewport.height);
                 }
+                needs_repaint = true;
+
                 break;
             }
 
@@ -172,7 +169,7 @@ int main(int argc, char* argv[]) {
     };
 
     load_url(url_bar_text);
-    SDL_StartTextInput();
+    window->start_text_input();
     HB_LOG_INFO("[ui] URL bar focused (default)");
 
     const Color teal = {255, 255, 255, 255};
@@ -193,14 +190,14 @@ int main(int argc, char* argv[]) {
 
     while (window->is_open()) {
         window->update();
-        SDL_Event e;
-        if (SDL_WaitEventTimeout(&e, 16)) {
+        InputEvent e;
+        if (window->wait_event(e, 16)) {
             handle_event(e);
         }
 
         // Drain the rest without blocking
         int processed = 0;
-        while (processed++ < 200 && SDL_PollEvent(&e)) {
+        while (processed++ < 200 && window->poll_event(e)) {
             handle_event(e);
         }
 
@@ -281,7 +278,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    SDL_StopTextInput();
+    window->stop_text_input();
     window->close();
 
     return 0;

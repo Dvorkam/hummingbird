@@ -18,6 +18,12 @@ public:
     void close() override;
     bool is_open() const override;
 
+    // Events raleted overrides
+    bool wait_event(InputEvent& out, int timeout_ms) override;
+    bool poll_event(InputEvent& out) override;
+    void start_text_input() override;
+    void stop_text_input() override;
+
     std::unique_ptr<IGraphicsContext> get_graphics_context() override;
     std::pair<int, int> get_size() const override;
 

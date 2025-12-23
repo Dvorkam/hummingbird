@@ -39,6 +39,7 @@ add_library(Platform STATIC
     src/platform/SDLGraphicsContext.cpp
     src/platform/CurlNetwork.cpp
     src/platform/StubNetwork.cpp
+    src/platform/SDLWindowFactory.cpp
 )
 target_include_directories(Platform
     PUBLIC
