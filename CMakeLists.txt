@@ -84,7 +84,11 @@ target_include_directories(Renderer
 
 # --- App Executable ---
 # This is the main application that brings everything together.
-add_executable(Hummingbird src/app/main.cpp)
+add_executable(Hummingbird
+    src/main.cpp
+    src/app/BrowserApp.cpp
+    src/app/BrowserApp.h
+)
 
 # The App needs to know about the Core interfaces and the Platform implementation.
 target_include_directories(Hummingbird PRIVATE
