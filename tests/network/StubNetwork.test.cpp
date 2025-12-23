@@ -12,5 +12,6 @@ TEST(StubNetworkTest, ReturnsExampleBody) {
     EXPECT_NE(body.find("<style>"), std::string::npos);
     EXPECT_NE(body.find("h1, h2, .title"), std::string::npos);
     EXPECT_NE(body.find("#lead"), std::string::npos);
+    EXPECT_NE(body.find(".hidden { display: none; }"), std::string::npos);
     EXPECT_NE(body.find("class=\"hidden\""), std::string::npos);
 }

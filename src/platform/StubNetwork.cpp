@@ -43,6 +43,7 @@ void StubNetwork::get(const std::string& url, std::function<void(std::string)> c
       h1, h2, .title { margin: 10px; }
       #lead { font-size: 18px; }
       p { margin: 6px; }
+      .hidden { display: none; }
     </style>
   </head>
   <body>
