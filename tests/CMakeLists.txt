@@ -10,6 +10,7 @@ add_executable(HummingbirdTests
     layout/TreeBuilder.test.cpp
     layout/BlockBox.test.cpp
     layout/TextBox.test.cpp
+    layout/InlineLayout.test.cpp
     renderer/Painter.test.cpp
     style/CSSParser.test.cpp
     style/SelectorMatcher.test.cpp

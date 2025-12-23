@@ -4,11 +4,11 @@ Hummingbird is an experimental, lightweight browser engine being built from scra
 
 ## Milestones
 
--   [x] **Epic 0: The Engine Foundation** - A working "Hello Engine" application that can open a window and render a solid color. The basic build system and modular architecture are in place.
--   [ ] **Epic 1: The HTML Parser**
--   [ ] **Epic 2: The CSS Parser**
--   [ ] **Epic 3: The DOM & Layout Tree**
--   [ ] **Epic 4: The Render Tree & Painting**
+-   [x] **Epic 0: The Engine Foundation** — windowing, graphics context, arena allocator, and stubbed networking in place.
+-   [!] **Epic 1: HTML → DOM → Render (in progress)** — tokenizer, DOM builder, UA defaults for lists/links/headings/code, block + inline layout, render tree + painter. Next up: render-tree construction refinements and inline text flow improvements (Epic 1.4+).
+-   [ ] **Epic 2: CSS Parser / Cascade** — real stylesheet inputs and broader selector support.
+-   [ ] **Epic 3: DOM & Layout Tree** — richer layout behaviors and block/inline refinements.
+-   [ ] **Epic 4: Render Tree & Painting** — full paint traversal and debugging overlays.
 
 ## Getting Started
 
@@ -45,3 +45,15 @@ This project uses a `vcpkg.json` manifest to declare its dependencies. They will
     ```bash
     ./build/Debug/Hummingbird
     ```
+
+## Architecture
+
+The project follows Ports & Adapters. Core logic stays decoupled from platform implementations.
+
+-   `src/app`: application wiring (event loop, pipeline orchestration).
+-   `src/core`: foundational types (arena allocator, asset paths) and interfaces (`IWindow`, `IGraphicsContext`, `INetwork`).
+-   `src/html`: HTML tokenizer and DOM builder.
+-   `src/style`: CSS tokenizer/parser, selector matching, and computed style production.
+-   `src/layout`: render objects, tree builder, block + inline layout.
+-   `src/renderer`: painter that walks the render tree.
+-   `src/platform`: SDL window/graphics and Curl networking adapters.

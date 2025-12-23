@@ -1,4 +1,5 @@
 #include "core/ArenaAllocator.h"
+
 #include <stdexcept>
 
 ArenaAllocator::ArenaAllocator(size_t bytes) : m_offset(0) {

@@ -5,8 +5,6 @@ project(Hummingbird)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-
-
 find_package(SDL2 REQUIRED)
 find_package(blend2d REQUIRED)
 find_package(CURL REQUIRED)
@@ -20,7 +18,7 @@ add_library(Style STATIC
 )
 target_include_directories(Style
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 # --- Core Library ---
@@ -31,7 +29,7 @@ add_library(Core STATIC
 )
 target_include_directories(Core
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 # --- Platform Library ---
@@ -41,10 +39,11 @@ add_library(Platform STATIC
     src/platform/SDLGraphicsContext.cpp
     src/platform/CurlNetwork.cpp
     src/platform/StubNetwork.cpp
+    src/platform/SDLWindowFactory.cpp
 )
 target_include_directories(Platform
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(Platform PUBLIC Core SDL2::SDL2 blend2d::blend2d CURL::libcurl)
 
@@ -55,7 +54,7 @@ add_library(Html STATIC
 )
 target_include_directories(Html
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 # --- Layout Library ---
@@ -63,11 +62,14 @@ add_library(Layout STATIC
     src/layout/RenderObject.cpp
     src/layout/TreeBuilder.cpp
     src/layout/BlockBox.cpp
+    src/layout/InlineBox.cpp
     src/layout/TextBox.cpp
+    src/layout/RenderBreak.cpp
+    src/layout/RenderRule.cpp
 )
 target_include_directories(Layout
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(Layout PUBLIC blend2d::blend2d Style)
 
@@ -77,15 +79,19 @@ add_library(Renderer STATIC
 )
 target_include_directories(Renderer
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
 # --- App Executable ---
 # This is the main application that brings everything together.
-add_executable(Hummingbird src/app/main.cpp)
+add_executable(Hummingbird
+    src/main.cpp
+    src/app/BrowserApp.cpp
+    src/app/BrowserApp.h
+)
 
 # The App needs to know about the Core interfaces and the Platform implementation.
-target_include_directories(Hummingbird PRIVATE 
+target_include_directories(Hummingbird PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(Hummingbird PRIVATE Platform Html Layout Renderer Style SDL2::SDL2main)

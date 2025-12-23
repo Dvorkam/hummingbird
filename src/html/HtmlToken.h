@@ -1,18 +1,12 @@
 #pragma once
 
+#include <array>
 #include <string_view>
 #include <variant>
-#include <array>
 
 namespace Hummingbird::Html {
 
-enum class TokenType {
-    StartTag,
-    EndTag,
-    CharacterData,
-    EndOfFile,
-    Error
-};
+enum class TokenType { StartTag, EndTag, CharacterData, EndOfFile, Error };
 
 struct Attribute {
     std::string_view name;
@@ -23,14 +17,22 @@ struct StartTagToken {
     std::string_view name;
     std::array<Attribute, 8> attributes{};
     size_t attribute_count{0};
+    bool self_closing{false};
 };
-struct EndTagToken { std::string_view name; };
-struct CharacterDataToken { std::string_view data; };
-struct ErrorToken { std::string_view message; };
+struct EndTagToken {
+    std::string_view name;
+};
+struct CharacterDataToken {
+    std::string_view data;
+};
+struct ErrorToken {
+    std::string_view message;
+};
+struct EndOfFileToken {};
 
 struct Token {
     TokenType type;
-    std::variant<StartTagToken, EndTagToken, CharacterDataToken, ErrorToken> data;
+    std::variant<StartTagToken, EndTagToken, CharacterDataToken, ErrorToken, EndOfFileToken> data;
 };
 
-} // namespace Hummingbird::Html
+}  // namespace Hummingbird::Html

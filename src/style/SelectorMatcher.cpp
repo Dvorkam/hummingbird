@@ -1,6 +1,8 @@
 #include "style/SelectorMatcher.h"
-#include "core/dom/Element.h"
+
 #include <sstream>
+
+#include "core/dom/Element.h"
 
 namespace Hummingbird::Css {
 
@@ -33,4 +35,4 @@ bool matches_selector(const DOM::Node* node, const Selector& selector) {
     return false;
 }
 
-} // namespace Hummingbird::Css
+}  // namespace Hummingbird::Css

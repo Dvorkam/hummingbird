@@ -1,10 +1,28 @@
 #pragma once
 
-#include "core/INetwork.h"
+#include <atomic>
+#include <functional>
+#include <mutex>
 #include <string>
+#include <thread>
+#include <vector>
 
-// A simple network stub that returns canned HTML for known URLs.
+#include "core/INetwork.h"
+
 class StubNetwork : public INetwork {
 public:
+    StubNetwork() = default;
+    ~StubNetwork() override { shutdown(); }
+
     void get(const std::string& url, std::function<void(std::string)> callback) override;
+
+    void shutdown();
+
+private:
+    void join_all();
+
+private:
+    std::atomic<bool> m_stopping{false};
+    std::mutex m_threads_mutex;
+    std::vector<std::thread> m_threads;
 };

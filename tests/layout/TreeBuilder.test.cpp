@@ -39,3 +39,23 @@ TEST(TreeBuilderTest, CreatesTextBoxForTextNode) {
     const auto* text_box = dynamic_cast<const TextBox*>(render_root->get_children()[0].get());
     ASSERT_NE(text_box, nullptr);
 }
+
+TEST(TreeBuilderTest, SkipsNonVisualNodesButKeepsRootContainer) {
+    ArenaAllocator arena(2048);
+    auto dom_root = make_arena_ptr<Element>(arena, "html");
+    auto head = make_arena_ptr<Element>(arena, "head");
+    head->append_child(make_arena_ptr<Element>(arena, "style"));
+    auto body = make_arena_ptr<Element>(arena, "body");
+    body->append_child(make_arena_ptr<Element>(arena, "div"));
+    dom_root->append_child(std::move(head));
+    dom_root->append_child(std::move(body));
+
+    TreeBuilder tree_builder;
+    auto render_root = tree_builder.build(dom_root.get());
+
+    ASSERT_NE(render_root, nullptr);
+    ASSERT_EQ(render_root->get_children().size(), 1u);  // head/style filtered out
+    const auto* body_render = render_root->get_children()[0].get();
+    ASSERT_NE(body_render, nullptr);
+    EXPECT_EQ(body_render->get_children().size(), 1u);  // contains div
+}

@@ -1,14 +1,19 @@
 #pragma once
 
-// Forward declarations
-namespace Hummingbird::Layout { class RenderObject; }
-class IGraphicsContext;
+#include "core/IGraphicsContext.h"
+#include "layout/RenderObject.h"
 
 namespace Hummingbird::Renderer {
 
-class Painter {
-public:
-    void paint(Layout::RenderObject& root, IGraphicsContext& context);
+struct PaintOptions {
+    bool debug_outlines = false;
+    float scroll_y = 0.0f;
+    Layout::Rect viewport{0, 0, 0, 0};
 };
 
-} // namespace Hummingbird::Renderer
+class Painter {
+public:
+    void paint(Layout::RenderObject& root, IGraphicsContext& context, const PaintOptions& options = PaintOptions{});
+};
+
+}  // namespace Hummingbird::Renderer

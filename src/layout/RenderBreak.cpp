@@ -1,0 +1,20 @@
+#include "layout/RenderBreak.h"
+
+#include "core/IGraphicsContext.h"
+
+namespace Hummingbird::Layout {
+
+void RenderBreak::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
+    const auto* style = get_computed_style();
+    float line_height = style ? style->font_size : 16.0f;
+    m_rect.x = bounds.x;
+    m_rect.y = bounds.y;
+    m_rect.width = 0.0f;
+    m_rect.height = line_height;
+}
+
+void RenderBreak::paint(IGraphicsContext& /*context*/, const Point& /*offset*/) {
+    // No-op; this is a control object for layout only.
+}
+
+}  // namespace Hummingbird::Layout

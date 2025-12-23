@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  # JOB 1: Code Formatting Check
+  # Fails if code doesn't match .clang-format rules
+  formatting:
+    name: Check Formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run clang-format style check
+        uses: jidicula/clang-format-action@v4.11.0
+        with:
+          clang-format-version: "15"
+          check-path: "src"           # Only check your source folder
+          fallback-style: "Google"    # Fallback if .clang-format is missing
+
+  # JOB 2: Build & Test
+  build:
+    name: ${{ matrix.os }} Build
+    needs: formatting
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      actions: write   # needed so actions/cache can save caches on pushes / same-repo PRs
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    # vcpkg binary caching using a local folder + actions/cache
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg/bincache
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg/bincache,readwrite
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      # Cache vcpkg downloads + built package binaries
+      # This is the key fix: it avoids rebuilding all ports on every run.
+      - name: Cache vcpkg (downloads + binary cache)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .vcpkg/bincache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-
+
+      # Linux build deps (xvfb for headless tests, + common autotools deps that some ports pull in)
+      - name: Setup GCC (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential ninja-build \
+            libx11-dev libxft-dev libxext-dev \
+            xvfb \
+            autoconf autoconf-archive automake libtool libltdl-dev
+
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # Optional: ccache for faster rebuilds of *your* code (not vcpkg ports)
+      - name: Setup ccache (Linux)
+        if: runner.os == 'Linux'
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ccache-${{ runner.os }}-${{ github.ref }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      # Setup vcpkg (manifests)
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
+
+      # Configure (Linux: enable ccache launcher)
+      - name: CMake Configure (Linux)
+        if: runner.os == 'Linux'
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: "ninja-multi-vcpkg"
+          configurePresetAdditionalArgs: "['-DCMAKE_BUILD_TYPE=Release', '-DCMAKE_C_COMPILER_LAUNCHER=ccache', '-DCMAKE_CXX_COMPILER_LAUNCHER=ccache']"
+
+      # Configure (Windows)
+      - name: CMake Configure (Windows)
+        if: runner.os == 'Windows'
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: "ninja-multi-vcpkg"
+          configurePresetAdditionalArgs: "['-DCMAKE_BUILD_TYPE=Release']"
+
+      # Build
+      - name: Build
+        run: cmake --build --preset ninja-multi-vcpkg --config Release
+
+      # Run Tests (Linux with xvfb for headless window support)
+      - name: Test (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run ctest --preset ninja-multi-vcpkg --output-on-failure -C Release
+
+      # Run Tests (Windows)
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        run: ctest --preset ninja-multi-vcpkg --output-on-failure -C Release

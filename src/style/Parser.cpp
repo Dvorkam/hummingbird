@@ -1,4 +1,5 @@
 #include "style/Parser.h"
+
 #include <sstream>
 
 namespace Hummingbird::Css {
@@ -65,7 +66,7 @@ std::vector<Declaration> Parser::parse_declarations() {
         }
         std::string value = value_stream.str();
         if (!value.empty() && value.back() == ' ') value.pop_back();
-        match(TokenType::Semicolon); // consume if present
+        match(TokenType::Semicolon);  // consume if present
         decls.push_back({property, value});
     }
     return decls;
@@ -89,4 +90,4 @@ Stylesheet Parser::parse() {
     return sheet;
 }
 
-} // namespace Hummingbird::Css
+}  // namespace Hummingbird::Css

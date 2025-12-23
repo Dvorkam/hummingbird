@@ -1,5 +1,7 @@
 #include "layout/BlockBox.h"
 
+#include <algorithm>
+
 namespace Hummingbird::Layout {
 
 void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
@@ -18,7 +20,17 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.y = bounds.y;
     m_rect.width = target_width;
 
-    float current_y = padding_top;
+    float content_width = m_rect.width - padding_left - padding_right;
+    float cursor_x = padding_left;
+    float cursor_y = padding_top;
+    float line_height = 0.0f;
+
+    auto flush_line = [&]() {
+        cursor_y += line_height;
+        cursor_x = padding_left;
+        line_height = 0.0f;
+    };
+
     for (auto& child : m_children) {
         const auto* child_style = child->get_computed_style();
         float margin_left = child_style ? child_style->margin.left : 0.0f;
@@ -26,16 +38,49 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         float margin_top = child_style ? child_style->margin.top : 0.0f;
         float margin_bottom = child_style ? child_style->margin.bottom : 0.0f;
 
-        float child_x = padding_left + margin_left;
-        float child_y = current_y + margin_top;
-        float available_width = m_rect.width - padding_left - padding_right - margin_left - margin_right;
-        Rect child_bounds = {child_x, child_y, available_width, 0.0f}; // Height is determined by child
+        bool is_inline = child->is_inline();
+
+        if (!is_inline) {
+            // Control objects like <br> need to break the line before stacking blocks.
+            if (child_style && margin_top > 0.0f) {
+                cursor_y += margin_top;
+            }
+            flush_line();
+            float child_x = padding_left + margin_left;
+            float child_y = cursor_y;
+            float available_width = content_width - margin_left - margin_right;
+            Rect child_bounds = {child_x, child_y, available_width, 0.0f};  // Height determined by child
+            child->layout(context, child_bounds);
+            cursor_y = child_y + child->get_rect().height + margin_bottom;
+            continue;
+        }
+
+        float child_x = cursor_x + margin_left;
+        float child_y = cursor_y + margin_top;
+        float available_width = content_width - (child_x - padding_left) - margin_right;
+        Rect child_bounds = {child_x, child_y, available_width, 0.0f};
         child->layout(context, child_bounds);
 
-        current_y = child_y + child->get_rect().height + margin_bottom;
+        // Greedy wrap: if this inline item overflows the available width, move to the next line and re-layout.
+        float projected_right = child_x + child->get_rect().width + margin_right;
+        float line_right = padding_left + content_width;
+        if (projected_right > line_right && content_width > 0.0f) {
+            flush_line();
+            child_x = cursor_x + margin_left;
+            child_y = cursor_y + margin_top;
+            available_width = content_width - (child_x - padding_left) - margin_right;
+            child_bounds = {child_x, child_y, available_width, 0.0f};
+            child->layout(context, child_bounds);
+            projected_right = child_x + child->get_rect().width + margin_right;
+        }
+
+        float child_height = child->get_rect().height + margin_top + margin_bottom;
+        line_height = std::max(line_height, child_height);
+        cursor_x = child_x + child->get_rect().width + margin_right;
     }
 
-    m_rect.height = current_y + padding_bottom;
+    flush_line();
+    m_rect.height = cursor_y + padding_bottom;
 }
 
 void BlockBox::paint(IGraphicsContext& context, const Point& offset) {
@@ -44,4 +89,4 @@ void BlockBox::paint(IGraphicsContext& context, const Point& offset) {
     RenderObject::paint(context, offset);
 }
 
-}
+}  // namespace Hummingbird::Layout
