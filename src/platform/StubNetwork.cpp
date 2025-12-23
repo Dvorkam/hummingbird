@@ -32,9 +32,34 @@ void StubNetwork::get(const std::string& url, std::function<void(std::string)> c
 
         std::string body;
         if (url == "http://example.com" || url == "https://example.com") {
-            body =
-                "<html><body><p>Example Domain</p><p>This domain is for use in illustrative "
-                "examples.</p></body></html>";
+            body = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird CSS Demo</title>
+    <style>
+      body { margin: 20px; padding: 10px; color: #444; }
+      h1, h2, .title { margin: 10px; }
+      #lead { font-size: 18px; }
+      p { margin: 6px; }
+    </style>
+  </head>
+  <body>
+    <h1 class="title">Example Domain</h1>
+    <p id="lead"><strong>Typed CSS demo.</strong> This page exercises selector lists, ids, and colors.</p>
+    <h2>Elements</h2>
+    <p>Inline <em>emphasis</em> and <code>code</code> samples.</p>
+    <ul>
+      <li>List item one</li>
+      <li>List item two</li>
+    </ul>
+    <blockquote>Simple blockquote to show default styling.</blockquote>
+    <hr>
+    <p>This domain is for use in illustrative examples.</p>
+  </body>
+</html>
+)HTML";
         } else {
             body = "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
         }
