@@ -77,6 +77,8 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
         }
     };
 
+    bool display_set = properties.find(Property::Display) != properties.end();
+
     // margin / padding shorthand and individual edges
     auto margin_it = properties.find(Property::Margin);
     if (margin_it != properties.end()) {
@@ -117,6 +119,12 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     if (display_it != properties.end() && display_it->second.value.type == Value::Type::Identifier) {
         if (display_it->second.value.ident == "none") {
             style.display = ComputedStyle::Display::None;
+        } else if (display_it->second.value.ident == "inline") {
+            style.display = ComputedStyle::Display::Inline;
+        } else if (display_it->second.value.ident == "inline-block") {
+            style.display = ComputedStyle::Display::InlineBlock;
+        } else if (display_it->second.value.ident == "block") {
+            style.display = ComputedStyle::Display::Block;
         }
     }
 
@@ -134,6 +142,13 @@ ComputedStyle build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
             float m = style.font_size * margin_em;
             style.margin.top = style.margin.bottom = m;
         };
+
+        if (!display_set) {
+            if (tag == "a" || tag == "span" || tag == "strong" || tag == "em" || tag == "b" || tag == "i" ||
+                tag == "code") {
+                style.display = ComputedStyle::Display::Inline;
+            }
+        }
 
         if (tag == "ul" || tag == "ol") {
             style.padding.left = 20.0f;

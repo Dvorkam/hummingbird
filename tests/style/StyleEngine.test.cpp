@@ -164,3 +164,19 @@ TEST(StyleEngineTest, AppliesBorderProperties) {
     EXPECT_EQ(style->border_color.g, 0x00);
     EXPECT_EQ(style->border_color.b, 0x00);
 }
+
+TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
+    ArenaAllocator arena(2048);
+    auto root = make_arena_ptr<Element>(arena, "div");
+
+    std::string css = "div { display: inline-block; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->display, ComputedStyle::Display::InlineBlock);
+}

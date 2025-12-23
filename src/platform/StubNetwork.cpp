@@ -44,7 +44,8 @@ void StubNetwork::get(const std::string& url, std::function<void(std::string)> c
       #lead { font-size: 18px; }
       p { margin: 6px; }
       .hidden { display: none; }
-      .boxed { border-width: 2px; border-style: solid; border-color: #cc0000; padding: 4px; }
+      .boxed { border-width: 20px; border-style: solid; border-color: #cc0000; padding: 4px; }
+      .inline-block { display: inline-block; border-width: 1px; border-style: solid; border-color: #008000; padding: 2px; }
     </style>
   </head>
   <body>
@@ -53,6 +54,7 @@ void StubNetwork::get(const std::string& url, std::function<void(std::string)> c
     <h2>Elements</h2>
     <p>Inline <em>emphasis</em> and <code>code</code> samples.</p>
     <p class="boxed">Bordered example paragraph.</p>
+    <p><span class="inline-block">Inline</span> <span class="inline-block">Block</span></p>
     <p class="hidden">You should not see this paragraph.</p>
     <ul>
       <li>List item one</li>

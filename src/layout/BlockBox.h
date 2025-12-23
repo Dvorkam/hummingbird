@@ -12,4 +12,11 @@ public:
     void paint(IGraphicsContext& context, const Point& offset) override;
 };
 
+class InlineBlockBox : public BlockBox {
+public:
+    using BlockBox::BlockBox;
+
+    bool is_inline() const override { return true; }
+};
+
 }  // namespace Hummingbird::Layout

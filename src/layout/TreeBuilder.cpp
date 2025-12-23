@@ -18,17 +18,26 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         if (tag == "head" || tag == "style" || tag == "title" || tag == "script") {
             return nullptr;
         }
-        if (tag == "a" || tag == "span" || tag == "strong" || tag == "em" || tag == "b" || tag == "i" ||
-            tag == "code") {
-            return std::make_unique<InlineBox>(element_node);
-        }
         if (tag == "br") {
             return std::make_unique<RenderBreak>(element_node);
         }
         if (tag == "hr") {
             return std::make_unique<RenderRule>(element_node);
         }
-        // For now, all other elements are treated as block boxes.
+        auto style = element_node->get_computed_style();
+        if (style) {
+            switch (style->display) {
+                case Css::ComputedStyle::Display::Inline:
+                    return std::make_unique<InlineBox>(element_node);
+                case Css::ComputedStyle::Display::InlineBlock:
+                    return std::make_unique<InlineBlockBox>(element_node);
+                case Css::ComputedStyle::Display::None:
+                    return nullptr;
+                case Css::ComputedStyle::Display::Block:
+                default:
+                    break;
+            }
+        }
         return std::make_unique<BlockBox>(element_node);
     } else if (auto text_node = dynamic_cast<const DOM::Text*>(node)) {
         // Preserve whitespace-only text nodes; TextBox will collapse appropriately.

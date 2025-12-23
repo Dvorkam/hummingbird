@@ -103,3 +103,41 @@ TEST(LayoutStyleIntegrationTest, IncludesBorderInInlineBoxSizing) {
     EXPECT_FLOAT_EQ(rect.width, 16.0f + 2.0f * (3.0f + 2.0f));
     EXPECT_FLOAT_EQ(rect.height, 16.0f + 2.0f * (3.0f + 2.0f));
 }
+
+TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
+    // DOM: <body><p><span>A</span><span>B</span></p></body>
+    ArenaAllocator arena(4096);
+    auto dom_root = make_arena_ptr<Element>(arena, "body");
+    auto p = make_arena_ptr<Element>(arena, "p");
+    auto span1 = make_arena_ptr<Element>(arena, "span");
+    span1->append_child(make_arena_ptr<Text>(arena, "A"));
+    auto span2 = make_arena_ptr<Element>(arena, "span");
+    span2->append_child(make_arena_ptr<Text>(arena, "B"));
+    p->append_child(std::move(span1));
+    p->append_child(std::move(span2));
+    dom_root->append_child(std::move(p));
+
+    std::string css = R"(
+        span { display: inline-block; border-width: 1px; border-style: solid; padding: 2px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 2u);
+    const auto& first = para->get_children()[0]->get_rect();
+    const auto& second = para->get_children()[1]->get_rect();
+
+    EXPECT_FLOAT_EQ(first.y, second.y);
+    EXPECT_GT(second.x, first.x + first.width - 0.1f);
+}
