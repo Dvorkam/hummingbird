@@ -6,7 +6,6 @@ namespace Hummingbird::Layout {
 
 void InlineLineBuilder::reset() {
     m_runs.clear();
-    m_line_heights.clear();
 }
 
 void InlineLineBuilder::add_run(const InlineRun& run) {
@@ -18,7 +17,6 @@ bool InlineLineBuilder::should_wrap(float max_width, const LayoutCursor& cursor,
 }
 
 void InlineLineBuilder::advance_line(LayoutCursor& cursor) {
-    m_line_heights.push_back(cursor.line_height);
     cursor.y += cursor.line_height;
     cursor.x = 0.0f;
     cursor.line_height = 0.0f;
@@ -34,37 +32,42 @@ InlineFragment InlineLineBuilder::build_fragment(size_t run_index, const LayoutC
     return fragment;
 }
 
-void InlineLineBuilder::push_line_height(LayoutCursor& cursor, bool has_line) {
-    if (has_line || !m_runs.empty()) {
-        m_line_heights.push_back(cursor.line_height);
-    }
-}
-
-std::vector<InlineFragment> InlineLineBuilder::layout(float max_width, float start_x) {
-    std::vector<InlineFragment> fragments;
-    fragments.reserve(m_runs.size());
-    m_line_heights.clear();
+std::vector<InlineLine> InlineLineBuilder::layout(float max_width, float start_x) {
+    std::vector<InlineLine> lines;
+    lines.reserve(m_runs.size());
 
     LayoutCursor cursor{start_x, 0.0f, 0.0f, 0};
     bool has_line = false;
+    InlineLine current_line;
 
     for (size_t i = 0; i < m_runs.size(); ++i) {
         const auto& run = m_runs[i];
         if (should_wrap(max_width, cursor, run.width)) {
-            advance_line(cursor);
-            has_line = false;
+            if (has_line) {
+                current_line.height = cursor.line_height;
+                lines.push_back(std::move(current_line));
+                current_line = InlineLine{};
+                advance_line(cursor);
+                has_line = false;
+            }
         }
 
-        fragments.push_back(build_fragment(i, cursor, run));
+        if (!has_line) {
+            current_line = InlineLine{};
+            has_line = true;
+        }
+        current_line.fragments.push_back(build_fragment(i, cursor, run));
 
         cursor.line_height = std::max(cursor.line_height, run.height);
         cursor.x += run.width;
-        has_line = true;
     }
 
-    push_line_height(cursor, has_line);
+    if (has_line || !m_runs.empty()) {
+        current_line.height = cursor.line_height;
+        lines.push_back(std::move(current_line));
+    }
 
-    return fragments;
+    return lines;
 }
 
 }  // namespace Hummingbird::Layout

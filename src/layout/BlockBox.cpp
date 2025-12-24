@@ -110,9 +110,24 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
     }
 
     float start_x = cursor.x - metrics.inset_left;
-    auto fragments = builder.layout(metrics.content_width, start_x);
+    auto lines = builder.layout(metrics.content_width, start_x);
     float base_x = metrics.inset_left;
     float base_y = cursor.y;
+
+    if (lines.empty()) {
+        return;
+    }
+
+    std::vector<InlineFragment> fragments;
+    fragments.reserve(runs.size());
+    std::vector<float> heights;
+    heights.reserve(lines.size());
+    for (const auto& line : lines) {
+        heights.push_back(line.height);
+        for (const auto& fragment : line.fragments) {
+            fragments.push_back(fragment);
+        }
+    }
 
     for (auto& fragment : fragments) {
         fragment.rect.x += base_x;
@@ -125,11 +140,6 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
 
     for (size_t j = group_start; j < i; ++j) {
         children[j]->finalize_inline_layout();
-    }
-
-    const auto& heights = builder.line_heights();
-    if (heights.empty()) {
-        return;
     }
 
     float total_height = 0.0f;

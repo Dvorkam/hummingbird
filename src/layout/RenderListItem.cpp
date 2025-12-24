@@ -116,9 +116,24 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         }
 
         float start_x = cursor_x - (inset_left + marker_offset);
-        auto fragments = builder.layout(content_width, start_x);
+        auto lines = builder.layout(content_width, start_x);
         float base_x = inset_left + marker_offset;
         float base_y = cursor_y;
+
+        if (lines.empty()) {
+            continue;
+        }
+
+        std::vector<InlineFragment> fragments;
+        fragments.reserve(runs.size());
+        std::vector<float> heights;
+        heights.reserve(lines.size());
+        for (const auto& line : lines) {
+            heights.push_back(line.height);
+            for (const auto& fragment : line.fragments) {
+                fragments.push_back(fragment);
+            }
+        }
 
         for (auto& fragment : fragments) {
             fragment.rect.x += base_x;
@@ -133,26 +148,23 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
             m_children[j]->finalize_inline_layout();
         }
 
-        const auto& heights = builder.line_heights();
-        if (!heights.empty()) {
-            float total_height = 0.0f;
-            for (float h : heights) total_height += h;
-            float last_height = heights.back();
-            size_t last_line = heights.size() - 1;
-            float last_line_width = 0.0f;
-            for (const auto& fragment : fragments) {
-                if (fragment.line_index == last_line) {
-                    last_line_width = std::max(last_line_width, fragment.rect.x + fragment.rect.width - base_x);
-                }
+        float total_height = 0.0f;
+        for (float h : heights) total_height += h;
+        float last_height = heights.back();
+        size_t last_line = heights.size() - 1;
+        float last_line_width = 0.0f;
+        for (const auto& fragment : fragments) {
+            if (fragment.line_index == last_line) {
+                last_line_width = std::max(last_line_width, fragment.rect.x + fragment.rect.width - base_x);
             }
-            if (!marker_y_set) {
-                marker_y = inset_top + std::max(0.0f, (heights[0] - kMarkerSize) * 0.5f);
-                marker_y_set = true;
-            }
-            cursor_y = base_y + (total_height - last_height);
-            cursor_x = inset_left + marker_offset + last_line_width;
-            line_height = std::max(line_height, last_height);
         }
+        if (!marker_y_set) {
+            marker_y = inset_top + std::max(0.0f, (heights[0] - kMarkerSize) * 0.5f);
+            marker_y_set = true;
+        }
+        cursor_y = base_y + (total_height - last_height);
+        cursor_x = inset_left + marker_offset + last_line_width;
+        line_height = std::max(line_height, last_height);
     }
 
     flush_line();
