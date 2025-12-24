@@ -21,13 +21,45 @@ bool is_whitespace_only(const std::string& text) {
     }
     return true;
 }
+
+bool is_non_visual_tag(std::string_view tag) {
+    return tag == "head" || tag == "style" || tag == "title" || tag == "script";
+}
+
+std::unique_ptr<RenderObject> render_for_display(const DOM::Element* element, Css::ComputedStyle::Display display) {
+    switch (display) {
+        case Css::ComputedStyle::Display::Inline:
+            return std::make_unique<InlineBox>(element);
+        case Css::ComputedStyle::Display::InlineBlock:
+            return std::make_unique<InlineBlockBox>(element);
+        case Css::ComputedStyle::Display::ListItem:
+            return std::make_unique<RenderListItem>(element);
+        case Css::ComputedStyle::Display::None:
+            return nullptr;
+        case Css::ComputedStyle::Display::Block:
+        default:
+            return std::make_unique<BlockBox>(element);
+    }
+}
+
+bool should_skip_text_node(const DOM::Text* text_node) {
+    if (!text_node || text_node->get_text().empty()) {
+        return true;
+    }
+    const auto& text = text_node->get_text();
+    if (!is_whitespace_only(text)) {
+        return false;
+    }
+    auto style = text_node->get_computed_style();
+    return !style || style->whitespace != Css::ComputedStyle::WhiteSpace::Preserve;
+}
 }  // namespace
 
 std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
     if (auto element_node = dynamic_cast<const DOM::Element*>(node)) {
         // Skip non-visual elements for now.
         const auto& tag = element_node->get_tag_name();
-        if (tag == "head" || tag == "style" || tag == "title" || tag == "script") {
+        if (is_non_visual_tag(tag)) {
             return nullptr;
         }
         if (tag == "br") {
@@ -38,30 +70,11 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         }
         auto style = element_node->get_computed_style();
         if (style) {
-            switch (style->display) {
-                case Css::ComputedStyle::Display::Inline:
-                    return std::make_unique<InlineBox>(element_node);
-                case Css::ComputedStyle::Display::InlineBlock:
-                    return std::make_unique<InlineBlockBox>(element_node);
-                case Css::ComputedStyle::Display::ListItem:
-                    return std::make_unique<RenderListItem>(element_node);
-                case Css::ComputedStyle::Display::None:
-                    return nullptr;
-                case Css::ComputedStyle::Display::Block:
-                default:
-                    break;
-            }
+            return render_for_display(element_node, style->display);
         }
         return std::make_unique<BlockBox>(element_node);
     } else if (auto text_node = dynamic_cast<const DOM::Text*>(node)) {
-        if (!text_node->get_text().empty()) {
-            const auto& text = text_node->get_text();
-            if (is_whitespace_only(text)) {
-                auto style = text_node->get_computed_style();
-                if (!style || style->whitespace != Css::ComputedStyle::WhiteSpace::Preserve) {
-                    return nullptr;
-                }
-            }
+        if (!should_skip_text_node(text_node)) {
             return std::make_unique<TextBox>(text_node);
         }
     }

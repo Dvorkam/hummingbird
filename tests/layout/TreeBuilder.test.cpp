@@ -5,6 +5,8 @@
 #include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "layout/RenderBreak.h"
+#include "layout/RenderRule.h"
 #include "layout/TextBox.h"
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
@@ -43,6 +45,21 @@ TEST(TreeBuilderTest, CreatesTextBoxForTextNode) {
 
     const auto* text_box = dynamic_cast<const TextBox*>(render_root->get_children()[0].get());
     ASSERT_NE(text_box, nullptr);
+}
+
+TEST(TreeBuilderTest, CreatesBreakAndRuleForControlTags) {
+    ArenaAllocator arena(1024);
+    auto dom_root = make_arena_ptr<Element>(arena, "body");
+    dom_root->append_child(make_arena_ptr<Element>(arena, "br"));
+    dom_root->append_child(make_arena_ptr<Element>(arena, "hr"));
+
+    TreeBuilder tree_builder;
+    auto render_root = tree_builder.build(dom_root.get());
+
+    ASSERT_NE(render_root, nullptr);
+    ASSERT_EQ(render_root->get_children().size(), 2u);
+    EXPECT_NE(dynamic_cast<const RenderBreak*>(render_root->get_children()[0].get()), nullptr);
+    EXPECT_NE(dynamic_cast<const RenderRule*>(render_root->get_children()[1].get()), nullptr);
 }
 
 TEST(TreeBuilderTest, SkipsNonVisualNodesButKeepsRootContainer) {
