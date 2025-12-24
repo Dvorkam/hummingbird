@@ -57,3 +57,16 @@ TEST(HtmlTokenizerTest, SkipsExtraAttributesWithoutEmittingText) {
     auto character = std::get<CharacterDataToken>(token.data);
     EXPECT_EQ(character.data, "Hello");
 }
+
+TEST(HtmlTokenizerTest, HandlesColonInAttributeNames) {
+    std::string_view html = "<div data:foo=\"bar\">Hi</div>";
+    Tokenizer tokenizer(html);
+
+    auto token = tokenizer.next_token();
+    ASSERT_EQ(token.type, TokenType::StartTag);
+
+    token = tokenizer.next_token();
+    ASSERT_EQ(token.type, TokenType::CharacterData);
+    auto character = std::get<CharacterDataToken>(token.data);
+    EXPECT_EQ(character.data, "Hi");
+}

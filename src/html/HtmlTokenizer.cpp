@@ -49,11 +49,15 @@ size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
             break;
         }
         size_t name_start = m_pos;
-        while (!eof() &&
-               (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == '-' || peek_char() == '_')) {
+        while (!eof() && (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == '-' ||
+                          peek_char() == '_' || peek_char() == ':')) {
             consume_char();
         }
         std::string_view name = m_input.substr(name_start, m_pos - name_start);
+        if (name.empty()) {
+            consume_char();
+            continue;
+        }
         skip_whitespace();
         std::string_view value;
         if (peek_char() == '=') {
