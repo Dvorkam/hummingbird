@@ -175,3 +175,25 @@ TEST(PainterTest, PaintsListMarkersWithCulling) {
 
     EXPECT_FALSE(context.fill_calls.empty());
 }
+
+TEST(PainterTest, PaintsHorizontalRuleWithCulling) {
+    std::string_view html = "<html><body><hr></body></html>";
+    ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto dom = parser.parse();
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    opts.viewport = viewport;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_FALSE(context.fill_calls.empty());
+}
