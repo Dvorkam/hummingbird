@@ -183,6 +183,19 @@ TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
     EXPECT_EQ(style->display, ComputedStyle::Display::InlineBlock);
 }
 
+TEST(StyleEngineTest, DefaultsListItemDisplay) {
+    ArenaAllocator arena(2048);
+    auto root = make_arena_ptr<Element>(arena, "li");
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->display, ComputedStyle::Display::ListItem);
+}
+
 TEST(StyleEngineTest, EmInheritsHeadingTypography) {
     ArenaAllocator arena(2048);
     auto h1 = make_arena_ptr<Element>(arena, "h1");
