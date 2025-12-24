@@ -18,7 +18,7 @@ public:
     void apply_inline_fragment(size_t index, const InlineFragment& fragment, const InlineRun& run) override;
     void finalize_inline_layout() override;
     void layout(IGraphicsContext& context, const Rect& bounds) override;
-    void paint(IGraphicsContext& context, const Point& offset) override;
+    void paint_self(IGraphicsContext& context, const Point& offset) override;
     const std::string& rendered_text() const { return m_rendered_text; }
 
     const DOM::Text* get_dom_node() const { return static_cast<const DOM::Text*>(m_dom_node); }

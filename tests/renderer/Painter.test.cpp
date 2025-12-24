@@ -108,3 +108,26 @@ TEST(PainterTest, PaintsBordersFromComputedStyle) {
 
     EXPECT_GE(context.fill_calls.size(), 4u);
 }
+
+TEST(PainterTest, SkipsPaintForOffscreenNodes) {
+    std::string_view html = "<html><body><p>First</p><p>Second</p></body></html>";
+    ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto dom = parser.parse();
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 15};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    opts.viewport = viewport;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_EQ(context.draw_calls, 1);
+    EXPECT_EQ(context.last_text, "First");
+}

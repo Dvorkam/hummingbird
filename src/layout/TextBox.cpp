@@ -279,7 +279,7 @@ void TextBox::finalize_inline_layout() {
 }
 
 
-void TextBox::paint(IGraphicsContext& context, const Point& offset) {
+void TextBox::paint_self(IGraphicsContext& context, const Point& offset) {
     // The absolute position to draw the text is the parent's offset plus our own relative position.
     const auto* style = get_computed_style();
     float padding_left = style ? style->padding.left : 0.0f;
@@ -346,7 +346,6 @@ void TextBox::paint(IGraphicsContext& context, const Point& offset) {
         context.fill_rect(line_rect, text_style.color);
     }
 
-    // TextBoxes don't have children, so no need to call base class paint.
 }
 
 }  // namespace Hummingbird::Layout

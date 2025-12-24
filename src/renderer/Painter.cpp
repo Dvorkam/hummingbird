@@ -31,13 +31,39 @@ void debug_outline_tree(Layout::RenderObject& node, IGraphicsContext& context, c
     }
 }
 
+bool intersects(const Layout::Rect& a, const Layout::Rect& b) {
+    if (a.width <= 0.0f || a.height <= 0.0f) return false;
+    if (b.width <= 0.0f || b.height <= 0.0f) return false;
+    return !(a.x + a.width <= b.x || a.x >= b.x + b.width || a.y + a.height <= b.y || a.y >= b.y + b.height);
+}
+
+void paint_tree_culled(Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
+                       const Layout::Rect& viewport) {
+    const auto& rect = node.get_rect();
+    Layout::Rect absolute{offset.x + rect.x, offset.y + rect.y, rect.width, rect.height};
+    if (!intersects(absolute, viewport)) {
+        return;
+    }
+
+    node.paint_self(context, offset);
+
+    for (const auto& child : node.get_children()) {
+        Layout::Point child_offset{absolute.x, absolute.y};
+        paint_tree_culled(*child, context, child_offset, viewport);
+    }
+}
+
 }  // namespace
 
 void Painter::paint(Layout::RenderObject& root, IGraphicsContext& context, const PaintOptions& options) {
     context.set_viewport(options.viewport);
     // Start the recursive paint process from the root with scroll offset applied.
     Layout::Point offset{0, -options.scroll_y};
-    root.paint(context, offset);
+    if (options.viewport.width <= 0.0f || options.viewport.height <= 0.0f) {
+        root.paint(context, offset);
+    } else {
+        paint_tree_culled(root, context, offset, options.viewport);
+    }
     if (options.debug_outlines) {
         Color outline{255, 0, 0, 100};
         debug_outline_tree(root, context, offset, outline);

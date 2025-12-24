@@ -53,6 +53,7 @@ public:
 
     virtual void layout(IGraphicsContext& context, const Rect& bounds);
     virtual void paint(IGraphicsContext& context, const Point& offset);
+    virtual void paint_self(IGraphicsContext& context, const Point& offset);
 
 protected:
     const DOM::Node* m_dom_node;  // Non-owning pointer
