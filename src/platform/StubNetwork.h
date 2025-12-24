@@ -16,7 +16,7 @@ public:
 
     void get(const std::string& url, std::function<void(std::string)> callback) override;
 
-    void shutdown();
+    void shutdown() override;
 
 private:
     void join_all();

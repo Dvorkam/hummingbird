@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "core/platform_api/NetworkFactory.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
@@ -31,6 +32,11 @@ size_t count_nodes_recursive(const Hummingbird::DOM::Node* node) {
 
 BrowserApp::BrowserApp(std::unique_ptr<IWindow> window) : window_(std::move(window)) {
     graphics_ = window_ ? window_->get_graphics_context() : nullptr;
+    network_ = create_network(NetworkBackend::Curl);
+    fallback_network_ = create_network(NetworkBackend::Stub);
+    if (!network_ || !fallback_network_) {
+        HB_LOG_ERROR("[network] failed to create network backend(s)");
+    }
 }
 
 BrowserApp::~BrowserApp() {
@@ -48,9 +54,8 @@ void BrowserApp::shutdown() {
     active_nav_.store(UINT64_MAX, std::memory_order_relaxed);
 
     // stop/join async work BEFORE pending_mutex_ etc can die
-    // (depends on your CurlNetwork implementation)
-    network_.shutdown();
-    stub_.shutdown();
+    if (network_) network_->shutdown();
+    if (fallback_network_) fallback_network_->shutdown();
 
     // optional: clear pending html
     {
@@ -202,13 +207,26 @@ void BrowserApp::load_url(const std::string& url) {
 
     requested_url_ = url;
 
-    network_.get(url, [this, id, url](std::string body) {
+    if (!network_) {
+        HB_LOG_ERROR("[network] no backend available for " << url);
+        if (fallback_network_) {
+            fallback_network_->get(url, [this, id](std::string body) {
+                if (id != active_nav_.load(std::memory_order_relaxed)) return;
+                std::lock_guard<std::mutex> lg(pending_mutex_);
+                pending_html_ = std::move(body);
+            });
+        }
+        return;
+    }
+
+    network_->get(url, [this, id, url](std::string body) {
         if (id != active_nav_.load(std::memory_order_relaxed)) return;
 
         if (body.empty()) {
             HB_LOG_WARN("[network] curl returned empty for " << url << ", using stub");
 
-            stub_.get(url, [this, id](std::string fallback) {
+            if (!fallback_network_) return;
+            fallback_network_->get(url, [this, id](std::string fallback) {
                 if (id != active_nav_.load(std::memory_order_relaxed)) return;
                 std::lock_guard<std::mutex> lg(pending_mutex_);
                 pending_html_ = std::move(fallback);

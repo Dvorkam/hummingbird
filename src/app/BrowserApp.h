@@ -12,8 +12,7 @@
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 #include "layout/TreeBuilder.h"
-#include "platform/CurlNetwork.h"
-#include "platform/StubNetwork.h"
+#include "core/platform_api/INetwork.h"
 #include "renderer/Painter.h"
 #include "style/StyleEngine.h"
 
@@ -66,8 +65,8 @@ private:
     std::optional<std::string> pending_html_;
 
     // Deps / subsystems
-    CurlNetwork network_;
-    StubNetwork stub_;
+    std::unique_ptr<INetwork> network_;
+    std::unique_ptr<INetwork> fallback_network_;
     Hummingbird::Css::StyleEngine style_engine_;
     Hummingbird::Layout::TreeBuilder tree_builder_;
     Hummingbird::Renderer::Painter painter_;

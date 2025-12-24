@@ -16,7 +16,7 @@ public:
 
     void get(const std::string& url, std::function<void(std::string)> callback) override;
 
-    void shutdown();
+    void shutdown() override;
 
     static constexpr const char* accept_encoding() { return kAcceptEncoding; }
 
