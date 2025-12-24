@@ -2,8 +2,8 @@
 
 #include <memory>
 
-#include "core/IGraphicsContext.h"
-#include "core/InputEvent.h"
+#include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/InputEvent.h"
 
 class IWindow {
 public:

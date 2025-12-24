@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "core/IGraphicsContext.h"
+#include "core/platform_api/IGraphicsContext.h"
 #include "layout/InlineLineBuilder.h"
 
 namespace Hummingbird::Layout {

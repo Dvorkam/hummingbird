@@ -1,6 +1,6 @@
 #include "renderer/Painter.h"
 
-#include "core/IGraphicsContext.h"
+#include "core/platform_api/IGraphicsContext.h"
 #include "layout/RenderObject.h"
 
 namespace Hummingbird::Renderer {

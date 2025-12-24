@@ -1,10 +1,13 @@
-#include <functional>
-#include <gtest/gtest.h>
 #include "renderer/Painter.h"
+
+#include <gtest/gtest.h>
+
+#include <functional>
+
+#include "core/platform_api/IGraphicsContext.h"
+#include "html/HtmlParser.h"
 #include "layout/RenderListItem.h"
 #include "layout/TreeBuilder.h"
-#include "html/HtmlParser.h"
-#include "core/IGraphicsContext.h"
 #include "style/Parser.h"
 #include "style/StyleEngine.h"
 
@@ -20,7 +23,7 @@ public:
     void fill_rect(const Hummingbird::Layout::Rect& rect, const Color&) override { fill_calls.push_back(rect); }
 
     TextMetrics measure_text(const std::string& text, const TextStyle&) override {
-        return { static_cast<float>(text.size()) * 8.0f, 16.0f };
+        return {static_cast<float>(text.size()) * 8.0f, 16.0f};
     }
 
     void draw_text(const std::string& text, float, float, const TextStyle&) override {

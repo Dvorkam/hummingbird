@@ -2,8 +2,8 @@
 
 #include <string>
 
-#include "core/IGraphicsContext.h"
 #include "core/dom/Text.h"
+#include "core/platform_api/IGraphicsContext.h"
 #include "layout/RenderObject.h"
 
 namespace Hummingbird::Layout {

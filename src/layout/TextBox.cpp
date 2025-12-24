@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <iostream>
 
-#include "core/IGraphicsContext.h"
+#include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/AssetPath.h"
 #include "layout/InlineLineBuilder.h"
 

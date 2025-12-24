@@ -8,9 +8,9 @@
 #include <string>
 
 #include "core/ArenaAllocator.h"
-#include "core/IGraphicsContext.h"
-#include "core/IWindow.h"
-#include "core/InputEvent.h"
+#include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/IWindow.h"
+#include "core/platform_api/InputEvent.h"
 #include "layout/TreeBuilder.h"
 #include "platform/CurlNetwork.h"
 #include "platform/StubNetwork.h"

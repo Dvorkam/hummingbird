@@ -7,7 +7,7 @@
 #include <thread>
 #include <vector>
 
-#include "core/INetwork.h"
+#include "core/platform_api/INetwork.h"
 
 class StubNetwork : public INetwork {
 public:

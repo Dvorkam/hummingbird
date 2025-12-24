@@ -1,6 +1,6 @@
 #include "layout/RenderBreak.h"
 
-#include "core/IGraphicsContext.h"
+#include "core/platform_api/IGraphicsContext.h"
 
 namespace Hummingbird::Layout {
 

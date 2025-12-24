@@ -1,8 +1,8 @@
 #include <memory>
 
 #include "app/BrowserApp.h"
-#include "core/IWindow.h"
 #include "core/WindowFactory.h"
+#include "core/platform_api/IWindow.h"
 
 int main(int /*argc*/, char* /*argv*/[]) {
     auto window = create_window();
