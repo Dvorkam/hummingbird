@@ -1,10 +1,12 @@
 #include "layout/BlockBox.h"
+#include "layout/TextBox.h"
 
 #include <gtest/gtest.h>
 
 #include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
+#include "core/dom/Text.h"
 #include "layout/TreeBuilder.h"
 
 using namespace Hummingbird::Layout;
@@ -76,4 +78,22 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
 
     // The root's height should be the sum of the children's heights
     EXPECT_EQ(test_render_root->get_rect().height, 30);
+}
+
+TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
+    ArenaAllocator arena(2048);
+    auto span = make_arena_ptr<Element>(arena, "span");
+    auto text = make_arena_ptr<Text>(arena, "Hello");
+    span->append_child(std::move(text));
+
+    auto inline_block = std::make_unique<InlineBlockBox>(span.get());
+    inline_block->append_child(std::make_unique<TextBox>(
+        dynamic_cast<Text*>(span->get_children()[0].get())));
+
+    TestGraphicsContext context;
+    Rect bounds{0, 0, 300, 0};
+    inline_block->layout(context, bounds);
+
+    EXPECT_LT(inline_block->get_rect().width, bounds.width);
+    EXPECT_GT(inline_block->get_rect().width, 0.0f);
 }

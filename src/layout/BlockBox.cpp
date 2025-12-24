@@ -6,8 +6,29 @@
 
 namespace Hummingbird::Layout {
 
-void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
-    const auto* style = get_computed_style();
+namespace {
+struct LayoutMetrics {
+    float inset_left;
+    float inset_right;
+    float inset_top;
+    float inset_bottom;
+    float content_width;
+};
+
+struct LineCursor {
+    float x;
+    float y;
+    float line_height;
+};
+
+struct ChildMargins {
+    float left;
+    float right;
+    float top;
+    float bottom;
+};
+
+LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect) {
     float padding_left = style ? style->padding.left : 0.0f;
     float padding_right = style ? style->padding.right : 0.0f;
     float padding_top = style ? style->padding.top : 0.0f;
@@ -27,110 +48,130 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         target_width = std::min(bounds.width, *style->width);
     }
 
-    m_rect.x = bounds.x;
-    m_rect.y = bounds.y;
+    rect.x = bounds.x;
+    rect.y = bounds.y;
     if (style && style->width.has_value()) {
-        m_rect.width = target_width + inset_left + inset_right;
+        rect.width = target_width + inset_left + inset_right;
     } else {
-        m_rect.width = bounds.width;
+        rect.width = bounds.width;
     }
 
-    float content_width = m_rect.width - inset_left - inset_right;
-    float cursor_x = inset_left;
-    float cursor_y = inset_top;
-    float line_height = 0.0f;
+    float content_width = rect.width - inset_left - inset_right;
+    return {inset_left, inset_right, inset_top, inset_bottom, content_width};
+}
 
-    auto flush_line = [&]() {
-        cursor_y += line_height;
-        cursor_x = inset_left;
-        line_height = 0.0f;
-    };
+ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
+    return {style ? style->margin.left : 0.0f,
+            style ? style->margin.right : 0.0f,
+            style ? style->margin.top : 0.0f,
+            style ? style->margin.bottom : 0.0f};
+}
+
+void flush_line(LineCursor& cursor, float inset_left) {
+    cursor.y += cursor.line_height;
+    cursor.x = inset_left;
+    cursor.line_height = 0.0f;
+}
+
+void layout_block_child(IGraphicsContext& context, RenderObject& child, const ChildMargins& margins,
+                        const LayoutMetrics& metrics, LineCursor& cursor) {
+    if (margins.top > 0.0f) {
+        cursor.y += margins.top;
+    }
+    flush_line(cursor, metrics.inset_left);
+    float child_x = metrics.inset_left + margins.left;
+    float child_y = cursor.y;
+    float available_width = metrics.content_width - margins.left - margins.right;
+    Rect child_bounds = {child_x, child_y, available_width, 0.0f};
+    child.layout(context, child_bounds);
+    cursor.y = child_y + child.get_rect().height + margins.bottom;
+}
+
+void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
+                         const LayoutMetrics& metrics, LineCursor& cursor) {
+    InlineLineBuilder builder;
+    builder.reset();
+    std::vector<InlineRun> runs;
+    size_t group_start = i;
+
+    while (i < children.size() && children[i]->is_inline()) {
+        auto& inline_child = children[i];
+        inline_child->reset_inline_layout();
+        inline_child->collect_inline_runs(context, runs);
+        ++i;
+    }
+
+    if (runs.empty()) {
+        return;
+    }
+
+    for (const auto& run : runs) {
+        builder.add_run(run);
+    }
+
+    float start_x = cursor.x - metrics.inset_left;
+    auto fragments = builder.layout(metrics.content_width, start_x);
+    float base_x = metrics.inset_left;
+    float base_y = cursor.y;
+
+    for (auto& fragment : fragments) {
+        fragment.rect.x += base_x;
+        fragment.rect.y += base_y;
+        auto& run = runs[fragment.run_index];
+        if (run.owner) {
+            run.owner->apply_inline_fragment(run.local_index, fragment, run);
+        }
+    }
+
+    for (size_t j = group_start; j < i; ++j) {
+        children[j]->finalize_inline_layout();
+    }
+
+    const auto& heights = builder.line_heights();
+    if (heights.empty()) {
+        return;
+    }
+
+    float total_height = 0.0f;
+    for (float h : heights) total_height += h;
+    float last_height = heights.back();
+    size_t last_line = heights.size() - 1;
+    float last_line_width = 0.0f;
+    for (const auto& fragment : fragments) {
+        if (fragment.line_index == last_line) {
+            last_line_width = std::max(last_line_width, fragment.rect.x + fragment.rect.width - base_x);
+        }
+    }
+    cursor.y = base_y + (total_height - last_height);
+    cursor.x = metrics.inset_left + last_line_width;
+    cursor.line_height = std::max(cursor.line_height, last_height);
+}
+}  // namespace
+
+void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
+    const auto* style = get_computed_style();
+    LayoutMetrics metrics = compute_metrics(style, bounds, m_rect);
+    LineCursor cursor{metrics.inset_left, metrics.inset_top, 0.0f};
 
     size_t i = 0;
     while (i < m_children.size()) {
         auto& child = m_children[i];
         const auto* child_style = child->get_computed_style();
-        float margin_left = child_style ? child_style->margin.left : 0.0f;
-        float margin_right = child_style ? child_style->margin.right : 0.0f;
-        float margin_top = child_style ? child_style->margin.top : 0.0f;
-        float margin_bottom = child_style ? child_style->margin.bottom : 0.0f;
+        ChildMargins margins = compute_child_margins(child_style);
 
         bool is_inline = child->is_inline();
 
         if (!is_inline) {
             // Control objects like <br> need to break the line before stacking blocks.
-            if (child_style && margin_top > 0.0f) {
-                cursor_y += margin_top;
-            }
-            flush_line();
-            float child_x = inset_left + margin_left;
-            float child_y = cursor_y;
-            float available_width = content_width - margin_left - margin_right;
-            Rect child_bounds = {child_x, child_y, available_width, 0.0f};  // Height determined by child
-            child->layout(context, child_bounds);
-            cursor_y = child_y + child->get_rect().height + margin_bottom;
+            layout_block_child(context, *child, margins, metrics, cursor);
             ++i;
             continue;
         }
-
-        InlineLineBuilder builder;
-        builder.reset();
-        std::vector<InlineRun> runs;
-        size_t group_start = i;
-
-        while (i < m_children.size() && m_children[i]->is_inline()) {
-            auto& inline_child = m_children[i];
-            inline_child->reset_inline_layout();
-            inline_child->collect_inline_runs(context, runs);
-            ++i;
-        }
-
-        if (runs.empty()) {
-            continue;
-        }
-
-        for (const auto& run : runs) {
-            builder.add_run(run);
-        }
-
-        float start_x = cursor_x - inset_left;
-        auto fragments = builder.layout(content_width, start_x);
-        float base_x = inset_left;
-        float base_y = cursor_y;
-
-        for (auto& fragment : fragments) {
-            fragment.rect.x += base_x;
-            fragment.rect.y += base_y;
-            auto& run = runs[fragment.run_index];
-            if (run.owner) {
-                run.owner->apply_inline_fragment(run.local_index, fragment, run);
-            }
-        }
-
-        for (size_t j = group_start; j < i; ++j) {
-            m_children[j]->finalize_inline_layout();
-        }
-
-        const auto& heights = builder.line_heights();
-        if (!heights.empty()) {
-            float total_height = 0.0f;
-            for (float h : heights) total_height += h;
-            float last_height = heights.back();
-            size_t last_line = heights.size() - 1;
-            float last_line_width = 0.0f;
-            for (const auto& fragment : fragments) {
-                if (fragment.line_index == last_line) {
-                    last_line_width = std::max(last_line_width, fragment.rect.x + fragment.rect.width - base_x);
-                }
-            }
-            cursor_y = base_y + (total_height - last_height);
-            cursor_x = inset_left + last_line_width;
-            line_height = std::max(line_height, last_height);
-        }
+        layout_inline_group(context, m_children, i, metrics, cursor);
     }
 
-    flush_line();
-    m_rect.height = cursor_y + inset_bottom;
+    flush_line(cursor, metrics.inset_left);
+    m_rect.height = cursor.y + metrics.inset_bottom;
 }
 
 void InlineBlockBox::reset_inline_layout() {
