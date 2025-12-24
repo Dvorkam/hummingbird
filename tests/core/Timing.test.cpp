@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
+#include "core/utils/Timing.h"
 
-#include "core/Timing.h"
+#include <gtest/gtest.h>
 
 TEST(TimingTest, DurationMsComputesExpectedValue) {
     using Hummingbird::Core::Clock;

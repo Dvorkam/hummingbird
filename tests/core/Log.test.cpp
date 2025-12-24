@@ -1,5 +1,7 @@
+#include "core/utils/Log.h"
+
 #include <gtest/gtest.h>
-#include "core/Log.h"
+
 #include <sstream>
 
 TEST(LogTest, EmitsWhenEnabled) {

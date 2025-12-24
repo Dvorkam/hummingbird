@@ -3,8 +3,8 @@
 #include <algorithm>
 #include <iostream>
 
-#include "core/AssetPath.h"
 #include "core/IGraphicsContext.h"
+#include "core/utils/AssetPath.h"
 #include "layout/InlineLineBuilder.h"
 
 namespace Hummingbird::Layout {
@@ -278,7 +278,6 @@ void TextBox::finalize_inline_layout() {
     }
 }
 
-
 void TextBox::paint_self(IGraphicsContext& context, const Point& offset) {
     // The absolute position to draw the text is the parent's offset plus our own relative position.
     const auto* style = get_computed_style();
@@ -345,7 +344,6 @@ void TextBox::paint_self(IGraphicsContext& context, const Point& offset) {
         Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, underline_width, 1.0f};
         context.fill_rect(line_rect, text_style.color);
     }
-
 }
 
 }  // namespace Hummingbird::Layout

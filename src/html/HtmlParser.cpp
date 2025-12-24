@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "core/Log.h"
+#include "core/utils/Log.h"
 
 namespace Hummingbird::Html {
 

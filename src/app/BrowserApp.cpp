@@ -3,9 +3,9 @@
 #include <algorithm>
 #include <utility>
 
-#include "core/AssetPath.h"
-#include "core/Log.h"
-#include "core/Timing.h"
+#include "core/utils/AssetPath.h"
+#include "core/utils/Log.h"
+#include "core/utils/Timing.h"
 #include "html/HtmlParser.h"
 #include "style/Parser.h"
 

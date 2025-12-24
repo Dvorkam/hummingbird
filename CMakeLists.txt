@@ -25,7 +25,7 @@ target_include_directories(Style
 # This library will contain the abstract interfaces and platform-independent logic.
 add_library(Core STATIC
     src/core/ArenaAllocator.cpp
-    src/core/AssetPath.cpp
+    src/core/utils/AssetPath.cpp
 )
 target_include_directories(Core
     PUBLIC
@@ -87,7 +87,7 @@ target_include_directories(Renderer
 # --- App Executable ---
 # This is the main application that brings everything together.
 add_executable(Hummingbird
-    src/main.cpp
+    src/app/main.cpp
     src/app/BrowserApp.cpp
     src/app/BrowserApp.h
 )
@@ -98,6 +98,7 @@ target_include_directories(Hummingbird PRIVATE
 )
 target_link_libraries(Hummingbird PRIVATE Platform Html Layout Renderer Style SDL2::SDL2main)
 target_compile_definitions(Hummingbird PRIVATE HB_ENABLE_LOG)
+target_compile_definitions(Hummingbird PRIVATE HB_ENABLE_DEBUG_LOG)
 
 # --- Unit Testing ---
 enable_testing()

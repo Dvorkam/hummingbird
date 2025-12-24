@@ -6,7 +6,7 @@
 #include <iostream>
 #include <span>
 
-#include "core/AssetPath.h"
+#include "core/utils/AssetPath.h"
 
 SDLGraphicsContext::SDLGraphicsContext(SDL_Renderer* renderer) : m_renderer(renderer) {
     if (m_renderer) {

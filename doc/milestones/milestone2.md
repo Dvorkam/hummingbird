@@ -112,21 +112,102 @@
 
 
 
-#### **Epic 2.5: Milestone Refactoring**
+### **Epic 2.5: Architecture Hardening & Tech Debt Paydown**
 
-**Goal:** Code hygiene.
+**Goal:** Ensure the codebase adheres to "Ports & Adapters," has zero "spaghetti dependencies," and is self-documenting before Milestone 2 begins.
 
-* **Story 2.5.1: The CSS/Layout Wall**
-* **As a** architect,
-* **I want** to ensure `src/layout` never calls the CSS Parser directly. It should only read the `ComputedStyle`.
-* **Acceptance:** Strict header separation.
+#### **Story 2.5.1: The Architectural Firewall (Dependency Audit)**
+
+* **As a** Lead Architect,
+* **I want** to physically prevent the `Core` and `Layout` modules from seeing `Platform` headers.
+* **The Problem:** It's too easy to accidentally `#include <SDL.h>` in `RenderObject.cpp` to quickly check a key press. This breaks portability.
+* **Action:**
+* Review all `#include` directives in `src/core`, `src/html`, `src/style`, and `src/layout`.
+* If a platform header is found, create an abstract interface in `src/core/platform_api` (e.g., `ITimeSource`, `ILogger`) and move the implementation to `src/platform`.
 
 
-* **Story 2.5.2: Arena Optimization for Styles**
-* **As a** memory optimizer,
-* **I want** CSS Rules and Declarations to live in the `Arena`.
-* **Acceptance:** No `new` calls in `CssParser.cpp`.
+* **Acceptance:**
+* Grepping for "SDL" or "curl" in `src/core` returns 0 results.
+* The build system (CMake) explicitly forbids linking `Core` against `SDL2`.
 
+
+
+#### **Story 2.5.2: The "Big Method" Split (Cyclomatic Complexity)**
+
+* **As a** Maintainer,
+* **I want** to break down massive "god functions" into small, single-purpose, named private methods.
+* **The Candidates:**
+* `HtmlParser::parse()`: Likely a giant loop. Split into `parseStartTag()`, `parseEndTag()`, `handleCharacterData()`.
+* `TreeBuilder::createRenderObject()`: Likely a massive `if/else` chain for every tag.
+
+
+* **Action:**
+* Apply the **"Extract Method"** refactoring pattern.
+* Ensure no function exceeds ~30-50 lines of code.
+
+
+* **Acceptance:** `TreeBuilder.cpp` reads like a high-level table of contents, not a wall of logic.
+
+#### **Story 2.5.3: Magic String & Magic Number Purge**
+
+* **As a** Developer,
+* **I want** to replace raw strings (`"div"`, `"margin"`) and numbers (`0xFF0000`) with named Constants and Enums.
+* **The Problem:** Typing `"backgroud-color"` (typo) in three different places causes silent bugs.
+* **Action:**
+* Create `HtmlTagNames.h` (using `static constexpr std::string_view`).
+* Create `CssPropertyNames.h`.
+* Replace hardcoded pixel values in Layout with named constants like `kDefaultLineHeight`.
+
+
+* **Acceptance:** The string `"div"` appears in exactly one place in the entire codebase (the constant definition).
+
+#### **Story 2.5.4: The Factory Pattern (Centralized Object Creation)**
+
+* **As a** Memory Safe Architect,
+* **I want** to forbid direct calls to `new BlockBox()` or `new Element()` scattered throughout the code.
+* **Action:**
+* Make constructors for `Node`, `Element`, `RenderObject` **protected/private**.
+* Force all creation through specific "Factory" methods (e.g., `DomFactory::createElement(tag, arena)`) or `friend` classes (like `TreeBuilder`).
+* This ensures the `ArenaAllocator` is *always* used and we never accidentally create a node on the standard heap.
+
+
+* **Acceptance:** Calling `new Element(...)` in `main.cpp` creates a compiler error.
+
+#### **Story 2.5.5: Const Correctness & View Safety**
+
+* **As a** Safety Engineer,
+* **I want** to ensure we aren't modifying data that should be read-only, and that our `string_views` are safe.
+* **Action:**
+* Audit all getters: `getStyle()` should return `const ComputedStyle&`, not a mutable reference/copy.
+* **Lifetime Audit:** Verify that the `std::string` holding the HTML source code *strictly outlives* every `std::string_view` in the DOM.
+
+
+* **Acceptance:**
+* Compiler errors if logic tries to modify a `Node` during the `Painting` phase (which should be read-only).
+
+
+
+#### **Story 2.5.6: Unified Logging & Error Facade**
+
+* **As a** Developer,
+* **I want** a standardized way to scream for help when things break.
+* **Action:**
+* Replace raw `std::cerr` or `printf` with the macros defined in `core/utils/Log.h` (`LOG_INFO`, `LOG_WARN`).
+* Ensure every "TODO" or "Hack" has a `LOG_WARN("Not implemented: ...")` so the console output serves as a roadmap.
+
+
+* **Acceptance:** Running the browser produces a clean, categorized log stream (e.g., `[RENDER] [WARN] Tag <video> not supported`).
+
+---
+
+### **Refactoring Checklist (The "Definition of Done" for Epic 2.5)**
+
+Before you write a single line of CSS parsing code, the codebase must pass this "Health Check":
+
+1. **No Warnings:** The project compiles with `-Wall -Wextra` (or MSVC level 4) with zero warnings.
+2. **Zero Leaks:** Running the "Hello World" HTML demo under a sanitizer (ASan) shows 0 bytes lost on shutdown.
+3. **Header Hygiene:** `Core` headers do not include `Platform` headers.
+4. **Formatting:** `clang-format` has been applied to all files (consistency).
 
 
 ---
