@@ -17,9 +17,13 @@ namespace Hummingbird::Html {
 class Parser {
 public:
     Parser(ArenaAllocator& arena, std::string_view html);
-    ArenaPtr<DOM::Node> parse();
-    const std::unordered_set<std::string>& unsupported_tags() const { return m_unsupported_tags; }
-    const std::vector<std::string>& style_blocks() const { return m_style_blocks; }
+    struct Result {
+        ArenaPtr<DOM::Node> dom;
+        std::vector<std::string> style_blocks;
+        std::unordered_set<std::string> unsupported_tags;
+    };
+
+    Result parse();
 
 private:
     struct ParseState {

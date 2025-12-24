@@ -42,11 +42,11 @@ TEST(PainterIntegrationTest, PaintsTextNodesFromParserOutput) {
     std::string_view html = "<html><body><p>First line</p><p>Second line</p></body></html>";
     ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
-    auto dom = parser.parse();
+    auto result = parser.parse();
 
     // Build render tree.
     Hummingbird::Layout::TreeBuilder builder;
-    auto render_tree = builder.build(dom.get());
+    auto render_tree = builder.build(result.dom.get());
     ASSERT_NE(render_tree, nullptr);
 
     // Layout and paint with recording context.
@@ -68,10 +68,10 @@ TEST(PainterDebugTest, DrawsOutlinesWhenDebugEnabled) {
     std::string_view html = "<html><body><p>Text</p></body></html>";
     ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
-    auto dom = parser.parse();
+    auto result = parser.parse();
 
     Hummingbird::Layout::TreeBuilder builder;
-    auto render_tree = builder.build(dom.get());
+    auto render_tree = builder.build(result.dom.get());
     ASSERT_NE(render_tree, nullptr);
 
     RecordingGraphicsContext context;
@@ -91,16 +91,16 @@ TEST(PainterTest, PaintsBordersFromComputedStyle) {
     std::string_view html = "<html><body><div>Box</div></body></html>";
     ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
-    auto dom = parser.parse();
+    auto result = parser.parse();
 
     std::string css = "div { border-width: 2px; border-style: solid; border-color: red; }";
     Parser css_parser(css);
     auto sheet = css_parser.parse();
     StyleEngine engine;
-    engine.apply(sheet, dom.get());
+    engine.apply(sheet, result.dom.get());
 
     Hummingbird::Layout::TreeBuilder builder;
-    auto render_tree = builder.build(dom.get());
+    auto render_tree = builder.build(result.dom.get());
     ASSERT_NE(render_tree, nullptr);
 
     RecordingGraphicsContext context;
@@ -118,10 +118,10 @@ TEST(PainterTest, SkipsPaintForOffscreenNodes) {
     std::string_view html = "<html><body><p>First</p><p>Second</p></body></html>";
     ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
-    auto dom = parser.parse();
+    auto result = parser.parse();
 
     Hummingbird::Layout::TreeBuilder builder;
-    auto render_tree = builder.build(dom.get());
+    auto render_tree = builder.build(result.dom.get());
     ASSERT_NE(render_tree, nullptr);
 
     RecordingGraphicsContext context;
@@ -141,14 +141,14 @@ TEST(PainterTest, PaintsListMarkersWithCulling) {
     std::string_view html = "<html><body><ul><li>Item</li></ul></body></html>";
     ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
-    auto dom = parser.parse();
+    auto result = parser.parse();
 
     Hummingbird::Css::Stylesheet sheet;
     Hummingbird::Css::StyleEngine engine;
-    engine.apply(sheet, dom.get());
+    engine.apply(sheet, result.dom.get());
 
     Hummingbird::Layout::TreeBuilder builder;
-    auto render_tree = builder.build(dom.get());
+    auto render_tree = builder.build(result.dom.get());
     ASSERT_NE(render_tree, nullptr);
 
     RecordingGraphicsContext context;
@@ -183,10 +183,10 @@ TEST(PainterTest, PaintsHorizontalRuleWithCulling) {
     std::string_view html = "<html><body><hr></body></html>";
     ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
-    auto dom = parser.parse();
+    auto result = parser.parse();
 
     Hummingbird::Layout::TreeBuilder builder;
-    auto render_tree = builder.build(dom.get());
+    auto render_tree = builder.build(result.dom.get());
     ASSERT_NE(render_tree, nullptr);
 
     RecordingGraphicsContext context;

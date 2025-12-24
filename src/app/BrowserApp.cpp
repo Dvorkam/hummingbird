@@ -262,7 +262,8 @@ void BrowserApp::consume_pending_html_and_rebuild() {
     // Parse HTML
     const auto parse_start = Hummingbird::Core::Clock::now();
     Hummingbird::Html::Parser parser(dom_arena_, *html);
-    dom_tree_ = parser.parse();
+    auto parse_result = parser.parse();
+    dom_tree_ = std::move(parse_result.dom);
     const auto parse_end = Hummingbird::Core::Clock::now();
 
     HB_LOG_INFO("[pipeline] parsed DOM children: " << dom_tree_->get_children().size()
@@ -271,7 +272,7 @@ void BrowserApp::consume_pending_html_and_rebuild() {
 
     // Temporary CSS (later: fetch/parse real CSS)
     std::string css = "body { padding: 8px; } p { margin: 4px; }";
-    for (const auto& block : parser.style_blocks()) {
+    for (const auto& block : parse_result.style_blocks) {
         css.append("\n");
         css.append(block);
     }

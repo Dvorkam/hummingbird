@@ -37,7 +37,9 @@ bool is_known_element(std::string_view name) {
 }
 }  // namespace
 
-ArenaPtr<DOM::Node> Parser::parse() {
+Parser::Result Parser::parse() {
+    m_style_blocks.clear();
+    m_unsupported_tags.clear();
     auto root = make_arena_ptr<DOM::Element>(m_arena, "root");
     ParseState state;
     state.open_elements.push_back(root.get());
@@ -70,7 +72,11 @@ ArenaPtr<DOM::Node> Parser::parse() {
         }
     }
 
-    return ArenaPtr<DOM::Node>(root.release());
+    Result result;
+    result.dom = ArenaPtr<DOM::Node>(root.release());
+    result.style_blocks = std::move(m_style_blocks);
+    result.unsupported_tags = std::move(m_unsupported_tags);
+    return result;
 }
 
 void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) {
