@@ -9,10 +9,10 @@
 
 #include "core/ArenaAllocator.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/INetwork.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 #include "layout/TreeBuilder.h"
-#include "core/platform_api/INetwork.h"
 #include "renderer/Painter.h"
 #include "style/StyleEngine.h"
 
