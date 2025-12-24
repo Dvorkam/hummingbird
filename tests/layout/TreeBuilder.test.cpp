@@ -1,10 +1,12 @@
-#include <gtest/gtest.h>
 #include "layout/TreeBuilder.h"
+
+#include <gtest/gtest.h>
+
+#include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
-#include "core/ArenaAllocator.h"
 #include "layout/TextBox.h"
-#include "style/Parser.h"
+#include "style/CssParser.h"
 #include "style/StyleEngine.h"
 
 using namespace Hummingbird::Layout;
@@ -15,7 +17,7 @@ TEST(TreeBuilderTest, SimpleTree) {
     ArenaAllocator arena(1024);
     auto dom_root = make_arena_ptr<Element>(arena, "html");
     dom_root->append_child(make_arena_ptr<Element>(arena, "body"));
-    
+
     TreeBuilder tree_builder;
     auto render_root = tree_builder.build(dom_root.get());
 

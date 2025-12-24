@@ -1,5 +1,6 @@
+#include "style/CssParser.h"
+
 #include <gtest/gtest.h>
-#include "style/Parser.h"
 
 using namespace Hummingbird::Css;
 

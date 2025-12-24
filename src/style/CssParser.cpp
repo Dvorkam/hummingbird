@@ -1,6 +1,6 @@
-#include <optional>
-
 #include "style/CssParser.h"
+
+#include <optional>
 
 namespace Hummingbird::Css {
 

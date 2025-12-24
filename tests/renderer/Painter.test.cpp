@@ -8,7 +8,7 @@
 #include "html/HtmlParser.h"
 #include "layout/RenderListItem.h"
 #include "layout/TreeBuilder.h"
-#include "style/Parser.h"
+#include "style/CssParser.h"
 #include "style/StyleEngine.h"
 
 using Hummingbird::Layout::RenderObject;

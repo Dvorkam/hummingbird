@@ -7,7 +7,7 @@
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "html/HtmlParser.h"
-#include "style/Parser.h"
+#include "style/CssParser.h"
 
 // Include concrete definitions:
 #include "core/dom/Node.h"

@@ -11,8 +11,8 @@ find_package(CURL REQUIRED)
 
 # --- Style Library ---
 add_library(Style STATIC
-    src/style/Tokenizer.cpp
-    src/style/Parser.cpp
+    src/style/CssTokenizer.cpp
+    src/style/CssParser.cpp
     src/style/SelectorMatcher.cpp
     src/style/StyleEngine.cpp
 )

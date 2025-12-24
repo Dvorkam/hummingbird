@@ -1,9 +1,11 @@
-#include <gtest/gtest.h>
-#include "style/Parser.h"
 #include "style/StyleEngine.h"
+
+#include <gtest/gtest.h>
+
+#include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
-#include "core/ArenaAllocator.h"
+#include "style/CssParser.h"
 
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
