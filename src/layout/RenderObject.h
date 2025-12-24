@@ -30,7 +30,8 @@ public:
     virtual bool is_inline() const { return false; }
     virtual void reset_inline_layout() {}
     virtual void collect_inline_runs(IGraphicsContext& /*context*/, std::vector<InlineRun>& /*runs*/) {}
-    virtual void apply_inline_fragment(size_t /*index*/, const InlineFragment& /*fragment*/, const InlineRun& /*run*/) {}
+    virtual void apply_inline_fragment(size_t /*index*/, const InlineFragment& /*fragment*/, const InlineRun& /*run*/) {
+    }
     virtual void finalize_inline_layout() {}
     virtual void offset_inline_layout(float dx, float dy) {
         m_rect.x += dx;

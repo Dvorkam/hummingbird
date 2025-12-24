@@ -1,6 +1,6 @@
-#include <cctype>
-
 #include "style/CssTokenizer.h"
+
+#include <cctype>
 
 namespace Hummingbird::Css {
 
