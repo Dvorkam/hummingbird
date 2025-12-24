@@ -114,7 +114,7 @@
 
 ### **Epic 2.5: Architecture Hardening & Tech Debt Paydown**
 
-**Goal:** Ensure the codebase adheres to "Ports & Adapters," has zero "spaghetti dependencies," and is self-documenting before Milestone 2 begins.
+**Goal:** Ensure the codebase adheres to "Ports & Adapters," has zero "spaghetti dependencies," and is self-documenting before Milestone 3 begins.
 
 #### **Story 2.5.1: The Architectural Firewall (Dependency Audit)**
 
@@ -132,21 +132,27 @@
 
 
 
-#### **Story 2.5.2: The "Big Method" Split (Cyclomatic Complexity)**
+#### **Story 2.5.2: The "Big Method" Split & Abstraction Hygiene**
 
 * **As a** Maintainer,
-* **I want** to break down massive "god functions" into small, single-purpose, named private methods.
-* **The Candidates:**
+* **I want** to split massive "god functions" into small, single-purpose methods **and** enforce consistent levels of abstraction within each function.
+* **Level A — God Functions:**
 * `HtmlParser::parse()`: Likely a giant loop. Split into `parseStartTag()`, `parseEndTag()`, `handleCharacterData()`.
 * `TreeBuilder::createRenderObject()`: Likely a massive `if/else` chain for every tag.
+* **Level B — Abstraction Hygiene:**
+* If a function calls higher-level helpers, it must not contain low-level parsing/layout details.
+* Extract low-level work into named helpers so each function reads at a single abstraction level.
 
 
 * **Action:**
 * Apply the **"Extract Method"** refactoring pattern.
 * Ensure no function exceeds ~30-50 lines of code.
+* Enforce SLAP: high-level methods delegate; low-level methods do the mechanics.
 
 
-* **Acceptance:** `TreeBuilder.cpp` reads like a high-level table of contents, not a wall of logic.
+* **Acceptance:**
+* `TreeBuilder.cpp` reads like a high-level table of contents, not a wall of logic.
+* Functions do not mix high-level orchestration with low-level mechanics.
 
 #### **Story 2.5.3: Magic String & Magic Number Purge**
 
