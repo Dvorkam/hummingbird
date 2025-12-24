@@ -12,6 +12,17 @@
 
 namespace Hummingbird::Layout {
 
+namespace {
+bool is_whitespace_only(const std::string& text) {
+    for (char c : text) {
+        if (c != ' ' && c != '\n' && c != '\r' && c != '\t') {
+            return false;
+        }
+    }
+    return true;
+}
+}  // namespace
+
 std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
     if (auto element_node = dynamic_cast<const DOM::Element*>(node)) {
         // Skip non-visual elements for now.
@@ -43,8 +54,14 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         }
         return std::make_unique<BlockBox>(element_node);
     } else if (auto text_node = dynamic_cast<const DOM::Text*>(node)) {
-        // Preserve whitespace-only text nodes; TextBox will collapse appropriately.
         if (!text_node->get_text().empty()) {
+            const auto& text = text_node->get_text();
+            if (is_whitespace_only(text)) {
+                auto style = text_node->get_computed_style();
+                if (!style || style->whitespace != Css::ComputedStyle::WhiteSpace::Preserve) {
+                    return nullptr;
+                }
+            }
             return std::make_unique<TextBox>(text_node);
         }
     }

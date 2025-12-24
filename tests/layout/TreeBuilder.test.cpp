@@ -85,3 +85,37 @@ TEST(TreeBuilderTest, SkipsDisplayNoneElements) {
     ASSERT_EQ(render_root->get_children().size(), 1u);
     EXPECT_EQ(render_root->get_children()[0]->get_dom_node(), dom_root->get_children()[0].get());
 }
+
+TEST(TreeBuilderTest, SkipsWhitespaceOnlyTextInNormalMode) {
+    ArenaAllocator arena(1024);
+    auto dom_root = make_arena_ptr<Element>(arena, "p");
+    dom_root->append_child(make_arena_ptr<Text>(arena, " \n\t "));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder tree_builder;
+    auto render_root = tree_builder.build(dom_root.get());
+
+    ASSERT_NE(render_root, nullptr);
+    EXPECT_TRUE(render_root->get_children().empty());
+}
+
+TEST(TreeBuilderTest, PreservesWhitespaceOnlyTextInPreMode) {
+    ArenaAllocator arena(1024);
+    auto dom_root = make_arena_ptr<Element>(arena, "pre");
+    dom_root->append_child(make_arena_ptr<Text>(arena, " \n\t "));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder tree_builder;
+    auto render_root = tree_builder.build(dom_root.get());
+
+    ASSERT_NE(render_root, nullptr);
+    ASSERT_EQ(render_root->get_children().size(), 1u);
+    const auto* text_box = dynamic_cast<const TextBox*>(render_root->get_children()[0].get());
+    ASSERT_NE(text_box, nullptr);
+}
