@@ -36,6 +36,8 @@ private:
     void skip_whitespace();
     Token identifier();
     Token number();
+    Token emit_single(TokenType type, std::string_view lexeme);
+    bool consume_simple_token(std::vector<Token>& tokens);
 
     std::string_view m_input;
     size_t m_pos = 0;
