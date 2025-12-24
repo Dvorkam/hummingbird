@@ -4,6 +4,12 @@
 
 namespace Hummingbird::Css {
 
+namespace {
+bool is_identifier_start(char c) {
+    return std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '-';
+}
+}  // namespace
+
 Tokenizer::Tokenizer(std::string_view input) : m_input(input) {}
 
 char Tokenizer::peek() const {
@@ -91,12 +97,13 @@ bool Tokenizer::consume_simple_token(std::vector<Token>& tokens) {
 
 std::vector<Token> Tokenizer::tokenize() {
     std::vector<Token> tokens;
+    tokens.reserve(m_input.size());
     while (!eof()) {
         skip_whitespace();
         if (eof()) break;
         if (consume_simple_token(tokens)) continue;
         char c = peek();
-        if (std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '-') {
+        if (is_identifier_start(c)) {
             tokens.push_back(identifier());
         } else if (std::isdigit(static_cast<unsigned char>(c))) {
             tokens.push_back(number());
