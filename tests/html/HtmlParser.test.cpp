@@ -144,3 +144,24 @@ TEST(HtmlParserTest, AutoClosesListItems) {
     EXPECT_EQ(ul->get_tag_name(), "ul");
     EXPECT_EQ(ul->get_children().size(), 2u);
 }
+
+TEST(HtmlParserTest, MovesBodyOutOfHead) {
+    std::string_view html = "<html><head><body><p>Hi</p></body></head></html>";
+    ArenaAllocator arena(4096);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto dom = parser.parse();
+
+    ASSERT_NE(dom, nullptr);
+    ASSERT_EQ(dom->get_children().size(), 1u);
+    auto* html_node = dynamic_cast<Hummingbird::DOM::Element*>(dom->get_children()[0].get());
+    ASSERT_NE(html_node, nullptr);
+    ASSERT_EQ(html_node->get_tag_name(), "html");
+
+    ASSERT_EQ(html_node->get_children().size(), 2u);
+    auto* head = dynamic_cast<Hummingbird::DOM::Element*>(html_node->get_children()[0].get());
+    auto* body = dynamic_cast<Hummingbird::DOM::Element*>(html_node->get_children()[1].get());
+    ASSERT_NE(head, nullptr);
+    ASSERT_NE(body, nullptr);
+    EXPECT_EQ(head->get_tag_name(), "head");
+    EXPECT_EQ(body->get_tag_name(), "body");
+}
