@@ -48,9 +48,6 @@ size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
         if (peek_char() == '/' || peek_char() == '>') {
             break;
         }
-        if (count >= attrs.size()) {
-            break;  // ignore extras
-        }
         size_t name_start = m_pos;
         while (!eof() &&
                (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == '-' || peek_char() == '_')) {
@@ -75,7 +72,9 @@ size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
             value = m_input.substr(val_start, m_pos - val_start);
             if (quote && peek_char() == quote) consume_char();
         }
-        attrs[count++] = Attribute{name, value};
+        if (count < attrs.size()) {
+            attrs[count++] = Attribute{name, value};
+        }
     }
     return count;
 }
