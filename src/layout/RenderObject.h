@@ -52,7 +52,7 @@ public:
     RenderObject* get_parent() const { return m_parent; }
 
     virtual void layout(IGraphicsContext& context, const Rect& bounds);
-    void paint(IGraphicsContext& context, const Point& offset);
+    virtual void paint(IGraphicsContext& context, const Point& offset) final;
     virtual void paint_self(IGraphicsContext& context, const Point& offset);
 
 protected:
