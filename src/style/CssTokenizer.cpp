@@ -97,7 +97,7 @@ bool Tokenizer::consume_simple_token(std::vector<Token>& tokens) {
 
 std::vector<Token> Tokenizer::tokenize() {
     std::vector<Token> tokens;
-    tokens.reserve(m_input.size());
+    tokens.reserve(m_input.size() + 1);
     while (!eof()) {
         skip_whitespace();
         if (eof()) break;
