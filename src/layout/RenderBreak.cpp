@@ -13,7 +13,7 @@ void RenderBreak::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     m_rect.height = line_height;
 }
 
-void RenderBreak::paint(IGraphicsContext& /*context*/, const Point& /*offset*/) {
+void RenderBreak::paint_self(IGraphicsContext& /*context*/, const Point& /*offset*/) {
     // No-op; this is a control object for layout only.
 }
 

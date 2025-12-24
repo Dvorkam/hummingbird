@@ -15,7 +15,6 @@ public:
     void finalize_inline_layout() override;
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
-    void paint(IGraphicsContext& context, const Point& offset) override;
 
 private:
     bool m_inline_atomic = false;

@@ -133,12 +133,6 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.height = cursor_y + inset_bottom;
 }
 
-void BlockBox::paint(IGraphicsContext& context, const Point& offset) {
-    // A basic block box doesn't draw anything itself, it just contains other boxes.
-    // The default implementation correctly paints the children.
-    RenderObject::paint(context, offset);
-}
-
 void InlineBlockBox::reset_inline_layout() {
     m_inline_atomic = false;
 }

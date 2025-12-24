@@ -9,7 +9,6 @@ public:
     using RenderObject::RenderObject;  // Inherit constructor
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
-    void paint(IGraphicsContext& context, const Point& offset) override;
 };
 
 class InlineBlockBox : public BlockBox {

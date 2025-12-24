@@ -150,8 +150,4 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.height = cursor_y + line_height + inset_bottom;
 }
 
-void InlineBox::paint(IGraphicsContext& context, const Point& offset) {
-    RenderObject::paint(context, offset);
-}
-
 }  // namespace Hummingbird::Layout

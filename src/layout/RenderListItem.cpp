@@ -178,7 +178,7 @@ void RenderMarker::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     m_rect.height = m_size;
 }
 
-void RenderMarker::paint(IGraphicsContext& context, const Point& offset) {
+void RenderMarker::paint_self(IGraphicsContext& context, const Point& offset) {
     const auto* style = get_computed_style();
     Color color = style ? style->color : Color{0, 0, 0, 255};
     Rect absolute{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
