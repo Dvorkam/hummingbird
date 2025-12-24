@@ -16,3 +16,7 @@
 - **App Module Pass:** Refactor `src/app` orchestration to remove low-level logic from high-level flow.
 - **Platform Module Pass:** Refactor `src/platform` to keep API glue thin and push details into helpers.
 - **Verification Sweep:** Re-scan for long/mixed functions and confirm no regressions via unit tests.
+
+## Follow-ups
+
+- **StyleEngine UA Defaults:** Move `apply_ua_defaults` to a data-driven table or dedicated module to keep tag growth manageable.
