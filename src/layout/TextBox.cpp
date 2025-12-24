@@ -1,10 +1,9 @@
 #include "layout/TextBox.h"
 
 #include <algorithm>
-#include <iostream>
-
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/AssetPath.h"
+#include "core/utils/Log.h"
 #include "layout/InlineLineBuilder.h"
 
 namespace Hummingbird::Layout {
@@ -195,8 +194,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     }
 
     if (m_last_metrics.width == 0 || m_last_metrics.height == 0) {
-        std::cerr << "[TextBox::layout] zero metrics for text '" << m_rendered_text << "' using font "
-                  << text_style.font_path << "\n";
+        HB_LOG_WARN("[layout] zero metrics for text '" << m_rendered_text << "' using font " << text_style.font_path);
     }
 }
 

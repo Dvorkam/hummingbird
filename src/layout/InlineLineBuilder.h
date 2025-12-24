@@ -30,6 +30,18 @@ public:
     const std::vector<float>& line_heights() const { return m_line_heights; }
 
 private:
+    struct LayoutCursor {
+        float x = 0.0f;
+        float y = 0.0f;
+        float line_height = 0.0f;
+        size_t line_index = 0;
+    };
+
+    bool should_wrap(float max_width, const LayoutCursor& cursor, float next_width) const;
+    void advance_line(LayoutCursor& cursor);
+    InlineFragment build_fragment(size_t run_index, const LayoutCursor& cursor, const InlineRun& run) const;
+    void push_line_height(LayoutCursor& cursor, bool has_line);
+
     std::vector<InlineRun> m_runs;
     std::vector<float> m_line_heights;
 };
