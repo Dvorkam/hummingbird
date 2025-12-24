@@ -25,6 +25,11 @@ private:
     Property parse_property();
     Value parse_value();
     std::vector<Declaration> parse_declarations();
+    Property parse_property_name(std::string_view name) const;
+    Value parse_hash_value();
+    Value parse_identifier_value();
+    Value parse_number_value();
+    bool consume_declaration(std::vector<Declaration>& decls);
 
     std::string m_buffer;
     std::vector<Token> m_tokens;

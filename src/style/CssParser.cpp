@@ -103,7 +103,33 @@ static std::optional<Color> parse_hex_color(std::string_view hex) {
 
 Property Parser::parse_property() {
     if (peek().type != TokenType::Identifier) return Property::Unknown;
-    std::string_view name = advance().lexeme;
+    return parse_property_name(advance().lexeme);
+}
+
+Value Parser::parse_value() {
+    if (eof()) return Value::identifier("");
+
+    if (match(TokenType::Hash)) return parse_hash_value();
+    if (peek().type == TokenType::Identifier) return parse_identifier_value();
+    if (peek().type == TokenType::Number) return parse_number_value();
+
+    advance();
+    return Value::identifier("");
+}
+
+std::vector<Declaration> Parser::parse_declarations() {
+    std::vector<Declaration> decls;
+    while (!eof() && peek().type != TokenType::RBrace) {
+        if (peek().type != TokenType::Identifier) {
+            advance();
+            continue;
+        }
+        consume_declaration(decls);
+    }
+    return decls;
+}
+
+Property Parser::parse_property_name(std::string_view name) const {
     if (name == "display") return Property::Display;
     if (name == "border-width") return Property::BorderWidth;
     if (name == "border-color") return Property::BorderColor;
@@ -127,68 +153,54 @@ Property Parser::parse_property() {
     return Property::Unknown;
 }
 
-Value Parser::parse_value() {
-    if (eof()) return Value::identifier("");
-
-    if (match(TokenType::Hash)) {
-        if (peek().type == TokenType::Identifier || peek().type == TokenType::Number) {
-            std::string hex = std::string(advance().lexeme);
-            if (auto color = parse_hex_color(hex)) {
-                return Value::color_value(*color);
-            }
-            return Value::identifier("#" + hex);
-        }
-        return Value::identifier("#");
-    }
-
-    if (peek().type == TokenType::Identifier) {
-        std::string ident = std::string(advance().lexeme);
-        if (auto color = parse_named_color(ident)) {
+Value Parser::parse_hash_value() {
+    if (peek().type == TokenType::Identifier || peek().type == TokenType::Number) {
+        std::string hex = std::string(advance().lexeme);
+        if (auto color = parse_hex_color(hex)) {
             return Value::color_value(*color);
         }
-        return Value::identifier(std::move(ident));
+        return Value::identifier("#" + hex);
     }
-
-    if (peek().type == TokenType::Number) {
-        std::string number_text = std::string(advance().lexeme);
-        float number = 0.0f;
-        try {
-            number = std::stof(number_text);
-        } catch (...) {
-            number = 0.0f;
-        }
-        if (peek().type == TokenType::Identifier) {
-            std::string unit_text = std::string(advance().lexeme);
-            Unit unit = unit_text == "px" ? Unit::Px : Unit::Unknown;
-            return Value::length_value(number, unit);
-        }
-        return Value::number_value(number);
-    }
-
-    advance();
-    return Value::identifier("");
+    return Value::identifier("#");
 }
 
-std::vector<Declaration> Parser::parse_declarations() {
-    std::vector<Declaration> decls;
-    while (!eof() && peek().type != TokenType::RBrace) {
-        if (peek().type != TokenType::Identifier) {
-            advance();
-            continue;
-        }
-        Property property = parse_property();
-        if (!match(TokenType::Colon)) {
-            continue;
-        }
-        Value value = parse_value();
-        // Skip remaining value tokens we don't model yet.
-        while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
-            advance();
-        }
-        match(TokenType::Semicolon);  // consume if present
-        decls.push_back({property, value});
+Value Parser::parse_identifier_value() {
+    std::string ident = std::string(advance().lexeme);
+    if (auto color = parse_named_color(ident)) {
+        return Value::color_value(*color);
     }
-    return decls;
+    return Value::identifier(std::move(ident));
+}
+
+Value Parser::parse_number_value() {
+    std::string number_text = std::string(advance().lexeme);
+    float number = 0.0f;
+    try {
+        number = std::stof(number_text);
+    } catch (...) {
+        number = 0.0f;
+    }
+    if (peek().type == TokenType::Identifier) {
+        std::string unit_text = std::string(advance().lexeme);
+        Unit unit = unit_text == "px" ? Unit::Px : Unit::Unknown;
+        return Value::length_value(number, unit);
+    }
+    return Value::number_value(number);
+}
+
+bool Parser::consume_declaration(std::vector<Declaration>& decls) {
+    Property property = parse_property();
+    if (!match(TokenType::Colon)) {
+        return false;
+    }
+    Value value = parse_value();
+    // Skip remaining value tokens we don't model yet.
+    while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+        advance();
+    }
+    match(TokenType::Semicolon);  // consume if present
+    decls.push_back({property, value});
+    return true;
 }
 
 Stylesheet Parser::parse() {

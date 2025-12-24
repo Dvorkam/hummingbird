@@ -38,3 +38,16 @@ TEST(CSSParserTest, ParsesSelectorList) {
     EXPECT_FLOAT_EQ(rule.declarations[0].value.length.value, 10.0f);
     EXPECT_EQ(rule.declarations[0].value.length.unit, Unit::Px);
 }
+
+TEST(CSSParserTest, ParsesHexColor) {
+    Parser parser("div { color: #abc; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& rule = sheet.rules[0];
+    ASSERT_EQ(rule.declarations.size(), 1u);
+    EXPECT_EQ(rule.declarations[0].property, Property::Color);
+    ASSERT_EQ(rule.declarations[0].value.type, Value::Type::Color);
+    EXPECT_EQ(rule.declarations[0].value.color.r, 170);
+    EXPECT_EQ(rule.declarations[0].value.color.g, 187);
+    EXPECT_EQ(rule.declarations[0].value.color.b, 204);
+}
