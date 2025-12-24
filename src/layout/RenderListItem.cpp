@@ -164,12 +164,12 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
     }
 }
 
-void RenderListItem::paint(IGraphicsContext& context, const Point& offset) {
+void RenderListItem::paint_self(IGraphicsContext& context, const Point& offset) {
     if (m_marker) {
         Point marker_offset{offset.x + m_rect.x, offset.y + m_rect.y};
         m_marker->paint(context, marker_offset);
     }
-    RenderObject::paint(context, offset);
+    RenderObject::paint_self(context, offset);
 }
 
 void RenderMarker::layout(IGraphicsContext& /*context*/, const Rect& bounds) {

@@ -1,5 +1,7 @@
+#include <functional>
 #include <gtest/gtest.h>
 #include "renderer/Painter.h"
+#include "layout/RenderListItem.h"
 #include "layout/TreeBuilder.h"
 #include "html/HtmlParser.h"
 #include "core/IGraphicsContext.h"
@@ -130,4 +132,46 @@ TEST(PainterTest, SkipsPaintForOffscreenNodes) {
 
     EXPECT_EQ(context.draw_calls, 1);
     EXPECT_EQ(context.last_text, "First");
+}
+
+TEST(PainterTest, PaintsListMarkersWithCulling) {
+    std::string_view html = "<html><body><ul><li>Item</li></ul></body></html>";
+    ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto dom = parser.parse();
+
+    Hummingbird::Css::Stylesheet sheet;
+    Hummingbird::Css::StyleEngine engine;
+    engine.apply(sheet, dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Layout::RenderListItem* list_item = nullptr;
+    std::function<void(Hummingbird::Layout::RenderObject*)> find_list_item =
+        [&](Hummingbird::Layout::RenderObject* node) {
+            if (!node || list_item) return;
+            if (auto* item = dynamic_cast<Hummingbird::Layout::RenderListItem*>(node)) {
+                list_item = item;
+                return;
+            }
+            for (const auto& child : node->get_children()) {
+                find_list_item(child.get());
+            }
+        };
+    find_list_item(render_tree.get());
+    ASSERT_NE(list_item, nullptr);
+    EXPECT_GT(list_item->marker_rect().width, 0.0f);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    opts.viewport = viewport;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_FALSE(context.fill_calls.empty());
 }

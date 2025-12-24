@@ -15,7 +15,7 @@ public:
     const Rect& marker_rect() const;
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
-    void paint(IGraphicsContext& context, const Point& offset) override;
+    void paint_self(IGraphicsContext& context, const Point& offset) override;
 
 private:
     std::unique_ptr<RenderMarker> m_marker;
