@@ -5,6 +5,7 @@
 
 #include "core/AssetPath.h"
 #include "core/Log.h"
+#include "core/Timing.h"
 #include "html/HtmlParser.h"
 #include "style/Parser.h"
 
@@ -182,13 +183,17 @@ void BrowserApp::clamp_scroll(float viewport_height) {
 void BrowserApp::relayout_for_window(int win_w, int win_h) {
     if (!render_tree_ || !graphics_) return;
 
+    const auto layout_start = Hummingbird::Core::Clock::now();
     const int content_h = std::max(0, win_h - url_bar_height_);
     Hummingbird::Layout::Rect viewport{0.0f, static_cast<float>(url_bar_height_), static_cast<float>(win_w),
                                        static_cast<float>(content_h)};
 
     render_tree_->layout(*graphics_, viewport);
+    const auto layout_end = Hummingbird::Core::Clock::now();
     content_height_ = render_tree_->get_rect().height;
     clamp_scroll(viewport.height);
+    HB_LOG_INFO("[perf] layout ms=" << Hummingbird::Core::duration_ms(layout_start, layout_end)
+                                    << " viewport=" << viewport.width << "x" << viewport.height);
 }
 
 void BrowserApp::load_url(const std::string& url) {
@@ -237,11 +242,14 @@ void BrowserApp::consume_pending_html_and_rebuild() {
     HB_LOG_INFO("[pipeline] html size: " << html->size());
 
     // Parse HTML
+    const auto parse_start = Hummingbird::Core::Clock::now();
     Hummingbird::Html::Parser parser(dom_arena_, *html);
     dom_tree_ = parser.parse();
+    const auto parse_end = Hummingbird::Core::Clock::now();
 
     HB_LOG_INFO("[pipeline] parsed DOM children: " << dom_tree_->get_children().size()
                                                    << " total nodes: " << count_nodes_recursive(dom_tree_.get()));
+    HB_LOG_INFO("[perf] html parse ms=" << Hummingbird::Core::duration_ms(parse_start, parse_end));
 
     // Temporary CSS (later: fetch/parse real CSS)
     std::string css = "body { padding: 8px; } p { margin: 4px; }";
@@ -249,15 +257,25 @@ void BrowserApp::consume_pending_html_and_rebuild() {
         css.append("\n");
         css.append(block);
     }
+    const auto css_parse_start = Hummingbird::Core::Clock::now();
     Hummingbird::Css::Parser css_parser(css);
     auto stylesheet = css_parser.parse();
+    const auto css_parse_end = Hummingbird::Core::Clock::now();
+    HB_LOG_INFO("[perf] css parse ms=" << Hummingbird::Core::duration_ms(css_parse_start, css_parse_end)
+                                       << " rules=" << stylesheet.rules.size());
 
+    const auto style_start = Hummingbird::Core::Clock::now();
     style_engine_.apply(stylesheet, dom_tree_.get());
+    const auto style_end = Hummingbird::Core::Clock::now();
     HB_LOG_INFO("[pipeline] applied stylesheet rules: " << stylesheet.rules.size());
+    HB_LOG_INFO("[perf] style apply ms=" << Hummingbird::Core::duration_ms(style_start, style_end));
 
     // Build render tree
+    const auto render_start = Hummingbird::Core::Clock::now();
     render_tree_ = tree_builder_.build(dom_tree_.get());
+    const auto render_end = Hummingbird::Core::Clock::now();
     if (!render_tree_ || !graphics_) return;
+    HB_LOG_INFO("[perf] render tree build ms=" << Hummingbird::Core::duration_ms(render_start, render_end));
 
     // Layout to current window size
     auto [win_w, win_h] = window_->get_size();

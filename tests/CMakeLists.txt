@@ -5,6 +5,7 @@ find_package(GTest REQUIRED)
 add_executable(HummingbirdTests
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp
+    core/Timing.test.cpp
     html/HtmlTokenizer.test.cpp
     html/HtmlParser.test.cpp
     layout/TreeBuilder.test.cpp
