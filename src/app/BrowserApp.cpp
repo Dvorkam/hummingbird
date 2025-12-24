@@ -320,7 +320,11 @@ void BrowserApp::render_if_needed() {
         opts.scroll_y = scroll_y_;
         opts.viewport = viewport;
 
+        const auto paint_start = Hummingbird::Core::Clock::now();
         painter_.paint(*render_tree_, *graphics_, opts);
+        const auto paint_end = Hummingbird::Core::Clock::now();
+        HB_LOG_DEBUG("[perf] paint ms=" << Hummingbird::Core::duration_ms(paint_start, paint_end)
+                                        << " scroll_y=" << scroll_y_);
     }
 
     graphics_->present();
