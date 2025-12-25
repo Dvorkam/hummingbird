@@ -11,6 +11,28 @@ namespace Hummingbird::Layout {
 TextBox::TextBox(const DOM::Text* dom_node) : RenderObject(dom_node) {}
 
 namespace {
+constexpr float kInlineMeasurementWidth = 100000.0f;
+
+struct Insets {
+    float left;
+    float right;
+    float top;
+    float bottom;
+};
+
+Insets compute_insets(const Css::ComputedStyle* style) {
+    float padding_left = style ? style->padding.left : 0.0f;
+    float padding_right = style ? style->padding.right : 0.0f;
+    float padding_top = style ? style->padding.top : 0.0f;
+    float padding_bottom = style ? style->padding.bottom : 0.0f;
+    float border_left = style ? style->border_width.left : 0.0f;
+    float border_right = style ? style->border_width.right : 0.0f;
+    float border_top = style ? style->border_width.top : 0.0f;
+    float border_bottom = style ? style->border_width.bottom : 0.0f;
+    return {padding_left + border_left, padding_right + border_right, padding_top + border_top,
+            padding_bottom + border_bottom};
+}
+
 // Collapse runs of whitespace to a single space; convert newlines/tabs to spaces.
 std::string collapse_whitespace(const std::string& text) {
     std::string out;
@@ -85,19 +107,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.y = bounds.y;
 
     const auto* style = get_computed_style();
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-
-    float inset_left = padding_left + border_left;
-    float inset_right = padding_right + border_right;
-    float inset_top = padding_top + border_top;
-    float inset_bottom = padding_bottom + border_bottom;
+    Insets insets = compute_insets(style);
 
     const std::string& text = get_dom_node()->get_text();
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
@@ -113,8 +123,8 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         m_lines.push_back("");
         m_last_metrics = {};
         m_line_height = 0.0f;
-        m_rect.width = inset_left + inset_right;
-        m_rect.height = inset_top + inset_bottom;
+        m_rect.width = insets.left + insets.right;
+        m_rect.height = insets.top + insets.bottom;
         return;
     }
 
@@ -129,11 +139,11 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_line_height = line_height;
 
     float content_width = 0.0f;
-    float available_width = bounds.width - inset_left - inset_right;
+    float available_width = bounds.width - insets.left - insets.right;
     if (available_width <= 0.0f) available_width = 0.0f;
 
     if (style && style->width.has_value()) {
-        available_width = *style->width - inset_left - inset_right;
+        available_width = *style->width - insets.left - insets.right;
         if (available_width < 0.0f) available_width = 0.0f;
     }
 
@@ -182,15 +192,15 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         append_line(line_text, line_width);
     }
 
-    m_rect.height = static_cast<float>(m_lines.size()) * line_height + inset_top + inset_bottom;
+    m_rect.height = static_cast<float>(m_lines.size()) * line_height + insets.top + insets.bottom;
 
     if (content_width == 0.0f) {
         content_width = m_last_metrics.width;
     }
 
-    m_rect.width = content_width + inset_left + inset_right;
+    m_rect.width = content_width + insets.left + insets.right;
     if (m_rect.height == 0.0f) {
-        m_rect.height = line_height + inset_top + inset_bottom;
+        m_rect.height = line_height + insets.top + insets.bottom;
     }
 
     if (m_last_metrics.width == 0 || m_last_metrics.height == 0) {
@@ -208,7 +218,7 @@ void TextBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineR
     const auto* style = get_computed_style();
     const std::string& text = get_dom_node()->get_text();
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
-        layout(context, {0.0f, 0.0f, 100000.0f, 0.0f});
+        layout(context, {0.0f, 0.0f, kInlineMeasurementWidth, 0.0f});
         InlineRun run;
         run.owner = this;
         run.local_index = 0;
@@ -279,16 +289,10 @@ void TextBox::finalize_inline_layout() {
 void TextBox::paint_self(IGraphicsContext& context, const Point& offset) {
     // The absolute position to draw the text is the parent's offset plus our own relative position.
     const auto* style = get_computed_style();
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
+    Insets insets = compute_insets(style);
 
-    float inset_left = padding_left + border_left;
-    float inset_top = padding_top + border_top;
-
-    float absolute_x = offset.x + m_rect.x + inset_left;
-    float absolute_y = offset.y + m_rect.y + inset_top;
+    float absolute_x = offset.x + m_rect.x + insets.left;
+    float absolute_y = offset.y + m_rect.y + insets.top;
 
     TextStyle text_style = build_text_style(style);
 

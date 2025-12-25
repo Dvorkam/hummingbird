@@ -103,3 +103,22 @@ TEST(TextBoxLayoutTest, SelectsFontByBoldItalicCombination) {
     bold_italic.style = Hummingbird::Css::ComputedStyle::FontStyle::Italic;
     run_case(bold_italic, "Roboto-BoldItalic.ttf");
 }
+
+TEST(TextBoxLayoutTest, IncludesPaddingAndBorderInSize) {
+    Hummingbird::DOM::Text dom_text("Hi");
+    auto style = Hummingbird::Css::default_computed_style();
+    style.padding.left = 2.0f;
+    style.padding.right = 2.0f;
+    style.border_width.left = 1.0f;
+    style.border_width.right = 1.0f;
+    dom_text.set_computed_style(std::make_shared<Hummingbird::Css::ComputedStyle>(style));
+
+    Hummingbird::Layout::TextBox text_box(&dom_text);
+    Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
+    TestGraphicsContext context;
+
+    text_box.layout(context, bounds);
+
+    const auto& rect = text_box.get_rect();
+    EXPECT_FLOAT_EQ(rect.width, 16.0f + 6.0f);
+}
