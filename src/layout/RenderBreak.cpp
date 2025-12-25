@@ -4,9 +4,13 @@
 
 namespace Hummingbird::Layout {
 
+namespace {
+constexpr float kDefaultLineHeight = 16.0f;
+}
+
 void RenderBreak::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     const auto* style = get_computed_style();
-    float line_height = style ? style->font_size : 16.0f;
+    float line_height = style ? style->font_size : kDefaultLineHeight;
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
     m_rect.width = 0.0f;
