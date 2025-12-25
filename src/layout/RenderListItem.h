@@ -4,6 +4,9 @@
 
 #include "layout/BlockBox.h"
 
+class ListItemLayoutTest_GeneratesMarkerLeftOfContent_Test;
+class PainterTest_PaintsListMarkersWithCulling_Test;
+
 namespace Hummingbird::Layout {
 
 class RenderMarker;
@@ -12,12 +15,15 @@ class RenderListItem : public BlockBox {
 public:
     explicit RenderListItem(const DOM::Node* dom_node);
 
-    const Rect& marker_rect() const;
-
     void layout(IGraphicsContext& context, const Rect& bounds) override;
     void paint_self(IGraphicsContext& context, const Point& offset) override;
 
 private:
+    friend class ::ListItemLayoutTest_GeneratesMarkerLeftOfContent_Test;
+    friend class ::PainterTest_PaintsListMarkersWithCulling_Test;
+
+    const Rect& marker_rect() const;
+
     std::unique_ptr<RenderMarker> m_marker;
 };
 
