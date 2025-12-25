@@ -100,6 +100,16 @@ struct InlineLayoutResult {
     std::vector<float> heights;
 };
 
+void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
+                         std::vector<InlineRun>& runs) {
+    while (i < children.size() && InlineLayoutAccess::is_inline(*children[i])) {
+        auto& inline_child = children[i];
+        InlineLayoutAccess::reset(*inline_child);
+        InlineLayoutAccess::collect(*inline_child, context, runs);
+        ++i;
+    }
+}
+
 InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
                                        size_t& i, const LayoutMetrics& metrics, LineCursor& cursor) {
     InlineLayoutResult result;
@@ -108,12 +118,7 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
     std::vector<InlineRun> runs;
     size_t group_start = i;
 
-    while (i < children.size() && InlineLayoutAccess::is_inline(*children[i])) {
-        auto& inline_child = children[i];
-        InlineLayoutAccess::reset(*inline_child);
-        InlineLayoutAccess::collect(*inline_child, context, runs);
-        ++i;
-    }
+    collect_inline_runs(context, children, i, runs);
 
     if (runs.empty()) {
         return result;
