@@ -209,4 +209,5 @@ TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
     const auto& text_rect = span_box->get_children()[0]->get_rect();
 
     EXPECT_GT(span_rect.width, text_rect.width);
+    EXPECT_FLOAT_EQ(span_rect.width, text_rect.width + 6.0f);
 }

@@ -8,6 +8,8 @@
 namespace Hummingbird::Layout {
 
 namespace {
+constexpr float kInlineAtomicLayoutWidth = 100000.0f;
+
 struct LayoutMetrics {
     float inset_left;
     float inset_right;
@@ -71,7 +73,7 @@ void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<Inlin
 
     if (has_insets(style)) {
         m_inline_atomic = true;
-        layout(context, {0.0f, 0.0f, 100000.0f, 0.0f});
+        layout(context, {0.0f, 0.0f, kInlineAtomicLayoutWidth, 0.0f});
         InlineRun run;
         run.owner = this;
         run.local_index = 0;
