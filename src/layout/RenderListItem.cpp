@@ -171,6 +171,23 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
     cursor.line_height = std::max(cursor.line_height, last_height);
     return result;
 }
+
+void update_marker_for_block(bool& marker_y_set, float& marker_y, float inset_top) {
+    if (marker_y_set) {
+        return;
+    }
+    marker_y = inset_top;
+    marker_y_set = true;
+}
+
+void update_marker_for_inline(const InlineLayoutResult& inline_layout, bool& marker_y_set, float& marker_y,
+                              float inset_top) {
+    if (marker_y_set || inline_layout.heights.empty()) {
+        return;
+    }
+    marker_y = inset_top + std::max(0.0f, (inline_layout.heights[0] - kMarkerSize) * 0.5f);
+    marker_y_set = true;
+}
 }  // namespace
 
 RenderListItem::RenderListItem(const DOM::Node* dom_node) : BlockBox(dom_node) {
@@ -194,27 +211,15 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         const auto* child_style = child->get_computed_style();
         ChildMargins margins = compute_child_margins(child_style);
 
-        bool is_inline = child->is_inline();
-
-        if (!is_inline) {
+        if (!child->is_inline()) {
             layout_block_child(context, *child, margins, metrics, cursor);
-            if (!marker_y_set) {
-                marker_y = metrics.inset_top;
-                marker_y_set = true;
-            }
+            update_marker_for_block(marker_y_set, marker_y, metrics.inset_top);
             ++i;
             continue;
         }
 
         InlineLayoutResult inline_layout = layout_inline_group(context, m_children, i, metrics, cursor);
-        if (inline_layout.heights.empty()) {
-            continue;
-        }
-
-        if (!marker_y_set) {
-            marker_y = metrics.inset_top + std::max(0.0f, (inline_layout.heights[0] - kMarkerSize) * 0.5f);
-            marker_y_set = true;
-        }
+        update_marker_for_inline(inline_layout, marker_y_set, marker_y, metrics.inset_top);
     }
 
     flush_line(cursor, metrics.inset_left, metrics.marker_offset);
