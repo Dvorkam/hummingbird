@@ -10,8 +10,8 @@ void RenderObject::layout(IGraphicsContext& context, const Rect& bounds) {
 
 void RenderObject::paint(IGraphicsContext& context, const Point& offset) {
     paint_self(context, offset);
+    Point child_offset = {offset.x + m_rect.x, offset.y + m_rect.y};
     for (auto& child : m_children) {
-        Point child_offset = {offset.x + m_rect.x, offset.y + m_rect.y};
         child->paint(context, child_offset);
     }
 }
