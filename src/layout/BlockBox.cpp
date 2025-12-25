@@ -94,10 +94,10 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
     std::vector<InlineRun> runs;
     size_t group_start = i;
 
-    while (i < children.size() && children[i]->is_inline()) {
+    while (i < children.size() && InlineLayoutAccess::is_inline(*children[i])) {
         auto& inline_child = children[i];
-        inline_child->reset_inline_layout();
-        inline_child->collect_inline_runs(context, runs);
+        InlineLayoutAccess::reset(*inline_child);
+        InlineLayoutAccess::collect(*inline_child, context, runs);
         ++i;
     }
 
@@ -134,12 +134,12 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
         fragment.rect.y += base_y;
         auto& run = runs[fragment.run_index];
         if (run.owner) {
-            run.owner->apply_inline_fragment(run.local_index, fragment, run);
+            InlineLayoutAccess::apply_fragment(*run.owner, run.local_index, fragment, run);
         }
     }
 
     for (size_t j = group_start; j < i; ++j) {
-        children[j]->finalize_inline_layout();
+        InlineLayoutAccess::finalize(*children[j]);
     }
 
     float total_height = 0.0f;
@@ -169,7 +169,7 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         const auto* child_style = child->get_computed_style();
         ChildMargins margins = compute_child_margins(child_style);
 
-        bool is_inline = child->is_inline();
+        bool is_inline = InlineLayoutAccess::is_inline(*child);
 
         if (!is_inline) {
             // Control objects like <br> need to break the line before stacking blocks.

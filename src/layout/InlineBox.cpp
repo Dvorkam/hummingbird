@@ -85,8 +85,8 @@ void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<Inlin
 
     m_inline_atomic = false;
     for (auto& child : m_children) {
-        child->reset_inline_layout();
-        child->collect_inline_runs(context, runs);
+        InlineLayoutAccess::reset(*child);
+        InlineLayoutAccess::collect(*child, context, runs);
     }
 }
 
@@ -117,7 +117,7 @@ void InlineBox::finalize_inline_layout() {
     float max_y = 0.0f;
 
     for (const auto& child : m_children) {
-        child->finalize_inline_layout();
+        InlineLayoutAccess::finalize(*child);
         const auto& rect = child->get_rect();
         if (!has_bounds) {
             min_x = rect.x;
@@ -144,7 +144,7 @@ void InlineBox::finalize_inline_layout() {
     m_rect.height = max_y - min_y;
 
     for (auto& child : m_children) {
-        child->offset_inline_layout(-min_x, -min_y);
+        InlineLayoutAccess::offset(*child, -min_x, -min_y);
     }
 }
 

@@ -27,16 +27,6 @@ public:
     RenderObject(const DOM::Node* dom_node) : m_dom_node(dom_node) {}
     virtual ~RenderObject() = default;
 
-    virtual bool is_inline() const { return false; }
-    virtual void reset_inline_layout() {}
-    virtual void collect_inline_runs(IGraphicsContext& /*context*/, std::vector<InlineRun>& /*runs*/) {}
-    virtual void apply_inline_fragment(size_t /*index*/, const InlineFragment& /*fragment*/, const InlineRun& /*run*/) {
-    }
-    virtual void finalize_inline_layout() {}
-    virtual void offset_inline_layout(float dx, float dy) {
-        m_rect.x += dx;
-        m_rect.y += dy;
-    }
     const DOM::Node* get_dom_node() const { return m_dom_node; }
     const Rect& get_rect() const { return m_rect; }
     const Css::ComputedStyle* get_computed_style() const {
@@ -57,10 +47,38 @@ public:
     virtual void paint_self(IGraphicsContext& context, const Point& offset);
 
 protected:
+    virtual bool is_inline() const { return false; }
+    virtual void reset_inline_layout() {}
+    virtual void collect_inline_runs(IGraphicsContext& /*context*/, std::vector<InlineRun>& /*runs*/) {}
+    virtual void apply_inline_fragment(size_t /*index*/, const InlineFragment& /*fragment*/, const InlineRun& /*run*/) {
+    }
+    virtual void finalize_inline_layout() {}
+    virtual void offset_inline_layout(float dx, float dy) {
+        m_rect.x += dx;
+        m_rect.y += dy;
+    }
+
+    friend class InlineLayoutAccess;
+
     const DOM::Node* m_dom_node;  // Non-owning pointer
     RenderObject* m_parent = nullptr;
     std::vector<std::unique_ptr<RenderObject>> m_children;
     Rect m_rect;
+};
+
+class InlineLayoutAccess {
+public:
+    static bool is_inline(const RenderObject& object) { return object.is_inline(); }
+    static void reset(RenderObject& object) { object.reset_inline_layout(); }
+    static void collect(RenderObject& object, IGraphicsContext& context, std::vector<InlineRun>& runs) {
+        object.collect_inline_runs(context, runs);
+    }
+    static void apply_fragment(RenderObject& object, size_t index, const InlineFragment& fragment,
+                               const InlineRun& run) {
+        object.apply_inline_fragment(index, fragment, run);
+    }
+    static void finalize(RenderObject& object) { object.finalize_inline_layout(); }
+    static void offset(RenderObject& object, float dx, float dy) { object.offset_inline_layout(dx, dy); }
 };
 
 }  // namespace Hummingbird::Layout
