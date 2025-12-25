@@ -131,22 +131,30 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
 
     result.fragments.reserve(runs.size());
     result.heights.reserve(lines.size());
-    for (const auto& line : lines) {
-        result.heights.push_back(line.height);
-        for (const auto& fragment : line.fragments) {
-            result.fragments.push_back(fragment);
-        }
-    }
 
     float base_x = metrics.inset_left + metrics.marker_offset;
     float base_y = cursor.y;
+    size_t last_line = lines.size() - 1;
+    float last_line_width = 0.0f;
+    float total_height = 0.0f;
+    float last_height = lines.back().height;
 
-    for (auto& fragment : result.fragments) {
-        fragment.rect.x += base_x;
-        fragment.rect.y += base_y;
-        auto& run = runs[fragment.run_index];
-        if (run.owner) {
-            run.owner->apply_inline_fragment(run.local_index, fragment, run);
+    for (const auto& line : lines) {
+        total_height += line.height;
+        result.heights.push_back(line.height);
+        for (const auto& fragment : line.fragments) {
+            InlineFragment resolved = fragment;
+            resolved.rect.x += base_x;
+            resolved.rect.y += base_y;
+            result.fragments.push_back(resolved);
+            auto& run = runs[resolved.run_index];
+            if (run.owner) {
+                run.owner->apply_inline_fragment(run.local_index, resolved, run);
+            }
+            if (resolved.line_index == last_line) {
+                float extent = resolved.rect.x + resolved.rect.width - base_x;
+                last_line_width = std::max(last_line_width, extent);
+            }
         }
     }
 
@@ -156,17 +164,6 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
 
     if (result.heights.empty()) {
         return result;
-    }
-
-    float total_height = 0.0f;
-    for (float h : result.heights) total_height += h;
-    float last_height = result.heights.back();
-    size_t last_line = result.heights.size() - 1;
-    float last_line_width = 0.0f;
-    for (const auto& fragment : result.fragments) {
-        if (fragment.line_index == last_line) {
-            last_line_width = std::max(last_line_width, fragment.rect.x + fragment.rect.width - base_x);
-        }
     }
 
     cursor.y = base_y + (total_height - last_height);

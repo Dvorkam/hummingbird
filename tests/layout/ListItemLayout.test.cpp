@@ -81,3 +81,36 @@ TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
     const auto& block_rect = list_item->get_children()[1]->get_rect();
     EXPECT_GT(block_rect.y, text_rect.y);
 }
+
+TEST(ListItemLayoutTest, InlineRunsShareLineWithinListItem) {
+    ArenaAllocator arena(4096);
+    auto body = make_arena_ptr<Element>(arena, "body");
+    auto ul = make_arena_ptr<Element>(arena, "ul");
+    auto li = make_arena_ptr<Element>(arena, "li");
+    li->append_child(make_arena_ptr<Text>(arena, "Hello"));
+    li->append_child(make_arena_ptr<Text>(arena, "World"));
+    ul->append_child(std::move(li));
+    body->append_child(std::move(ul));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+
+    const auto& ul_box = render_root->get_children()[0];
+    auto* list_item = dynamic_cast<RenderListItem*>(ul_box->get_children()[0].get());
+    ASSERT_NE(list_item, nullptr);
+    ASSERT_GE(list_item->get_children().size(), 2u);
+
+    const auto& first_rect = list_item->get_children()[0]->get_rect();
+    const auto& second_rect = list_item->get_children()[1]->get_rect();
+    EXPECT_EQ(first_rect.y, second_rect.y);
+    EXPECT_GT(second_rect.x, first_rect.x);
+}
