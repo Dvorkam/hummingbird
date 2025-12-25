@@ -20,3 +20,4 @@
 ## Follow-ups
 
 - **StyleEngine UA Defaults:** Move `apply_ua_defaults` to a data-driven table or dedicated module to keep tag growth manageable.
+- **Layout API Surface:** Introduce a layout controller / friend interface to hide inline-layout hooks on `RenderObject` and reduce public surface area.
