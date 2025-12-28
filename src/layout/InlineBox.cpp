@@ -57,9 +57,7 @@ bool has_insets(const Css::ComputedStyle* style) {
 }
 
 ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
-    return {style ? style->margin.left : 0.0f,
-            style ? style->margin.right : 0.0f,
-            style ? style->margin.top : 0.0f,
+    return {style ? style->margin.left : 0.0f, style ? style->margin.right : 0.0f, style ? style->margin.top : 0.0f,
             style ? style->margin.bottom : 0.0f};
 }
 }  // namespace
@@ -85,8 +83,10 @@ void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<Inlin
 
     m_inline_atomic = false;
     for (auto& child : m_children) {
-        InlineLayoutAccess::reset(*child);
-        InlineLayoutAccess::collect(*child, context, runs);
+        if (auto p = child->Inline()) {
+            p.get().reset_inline_layout();
+            p.get().collect_inline_runs(context, runs);
+        }
     }
 }
 
@@ -117,7 +117,9 @@ void InlineBox::finalize_inline_layout() {
     float max_y = 0.0f;
 
     for (const auto& child : m_children) {
-        InlineLayoutAccess::finalize(*child);
+        if (auto p = child->Inline()) {
+            p.get().finalize_inline_layout();
+        }
         const auto& rect = child->get_rect();
         if (!has_bounds) {
             min_x = rect.x;
@@ -144,7 +146,9 @@ void InlineBox::finalize_inline_layout() {
     m_rect.height = max_y - min_y;
 
     for (auto& child : m_children) {
-        InlineLayoutAccess::offset(*child, -min_x, -min_y);
+        if (auto p = child->Inline()) {
+            p.get().offset_inline_layout(-min_x, -min_y);
+        }
     }
 }
 

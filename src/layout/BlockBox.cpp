@@ -61,9 +61,7 @@ LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bound
 }
 
 ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
-    return {style ? style->margin.left : 0.0f,
-            style ? style->margin.right : 0.0f,
-            style ? style->margin.top : 0.0f,
+    return {style ? style->margin.left : 0.0f, style ? style->margin.right : 0.0f, style ? style->margin.top : 0.0f,
             style ? style->margin.bottom : 0.0f};
 }
 
@@ -89,10 +87,12 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
 
 void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
                          std::vector<InlineRun>& runs) {
-    while (i < children.size() && InlineLayoutAccess::is_inline(*children[i])) {
-        auto& inline_child = children[i];
-        InlineLayoutAccess::reset(*inline_child);
-        InlineLayoutAccess::collect(*inline_child, context, runs);
+    while (i < children.size()) {
+        auto inl = children[i]->Inline();
+        if (!inl) break;
+
+        inl.get().reset_inline_layout();
+        inl.get().collect_inline_runs(context, runs);
         ++i;
     }
 }
@@ -139,12 +139,16 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
         fragment.rect.y += base_y;
         auto& run = runs[fragment.run_index];
         if (run.owner) {
-            InlineLayoutAccess::apply_fragment(*run.owner, run.local_index, fragment, run);
+            if (auto inl = run.owner->Inline()) {
+                inl.get().apply_inline_fragment(run.local_index, fragment, run);
+            }
         }
     }
 
     for (size_t j = group_start; j < i; ++j) {
-        InlineLayoutAccess::finalize(*children[j]);
+        if (auto inl = children[j]->Inline()) {
+            inl.get().finalize_inline_layout();
+        }
     }
 
     float total_height = 0.0f;
@@ -174,9 +178,7 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         const auto* child_style = child->get_computed_style();
         ChildMargins margins = compute_child_margins(child_style);
 
-        bool is_inline = InlineLayoutAccess::is_inline(*child);
-
-        if (!is_inline) {
+        if (!child->Inline()) {
             // Control objects like <br> need to break the line before stacking blocks.
             layout_block_child(context, *child, margins, metrics, cursor);
             ++i;

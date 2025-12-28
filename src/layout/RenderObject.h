@@ -4,20 +4,15 @@
 #include <vector>
 
 #include "core/dom/Node.h"
+#include "layout/Geometry.h"
+#include "layout/inline/IInlineParticipant.h"
+#include "layout/inline/InlineRef.h"
 #include "style/ComputedStyle.h"
 
 // Forward declare IGraphicsContext to break dependency cycle
 class IGraphicsContext;
 
 namespace Hummingbird::Layout {
-
-struct Point {
-    float x = 0, y = 0;
-};
-
-struct Rect {
-    float x = 0, y = 0, width = 0, height = 0;
-};
 
 struct InlineRun;
 struct InlineFragment;
@@ -42,43 +37,19 @@ public:
     const std::vector<std::unique_ptr<RenderObject>>& get_children() const { return m_children; }
     RenderObject* get_parent() const { return m_parent; }
 
+    InlineRef Inline() { return InlineRef(as_inline_participant()); }
+    InlineRef Inline() const { return InlineRef(const_cast<IInlineParticipant*>(as_inline_participant())); }
+
     virtual void layout(IGraphicsContext& context, const Rect& bounds);
     virtual void paint(IGraphicsContext& context, const Point& offset) final;
     virtual void paint_self(IGraphicsContext& context, const Point& offset);
 
 protected:
-    virtual bool is_inline() const { return false; }
-    virtual void reset_inline_layout() {}
-    virtual void collect_inline_runs(IGraphicsContext& /*context*/, std::vector<InlineRun>& /*runs*/) {}
-    virtual void apply_inline_fragment(size_t /*index*/, const InlineFragment& /*fragment*/, const InlineRun& /*run*/) {
-    }
-    virtual void finalize_inline_layout() {}
-    virtual void offset_inline_layout(float dx, float dy) {
-        m_rect.x += dx;
-        m_rect.y += dy;
-    }
-
-    friend class InlineLayoutAccess;
-
+    virtual IInlineParticipant* as_inline_participant() { return nullptr; }
+    virtual const IInlineParticipant* as_inline_participant() const { return nullptr; }
     const DOM::Node* m_dom_node;  // Non-owning pointer
     RenderObject* m_parent = nullptr;
     std::vector<std::unique_ptr<RenderObject>> m_children;
     Rect m_rect;
 };
-
-class InlineLayoutAccess {
-public:
-    static bool is_inline(const RenderObject& object) { return object.is_inline(); }
-    static void reset(RenderObject& object) { object.reset_inline_layout(); }
-    static void collect(RenderObject& object, IGraphicsContext& context, std::vector<InlineRun>& runs) {
-        object.collect_inline_runs(context, runs);
-    }
-    static void apply_fragment(RenderObject& object, size_t index, const InlineFragment& fragment,
-                               const InlineRun& run) {
-        object.apply_inline_fragment(index, fragment, run);
-    }
-    static void finalize(RenderObject& object) { object.finalize_inline_layout(); }
-    static void offset(RenderObject& object, float dx, float dy) { object.offset_inline_layout(dx, dy); }
-};
-
 }  // namespace Hummingbird::Layout

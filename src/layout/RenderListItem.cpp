@@ -69,9 +69,7 @@ LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bound
 }
 
 ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
-    return {style ? style->margin.left : 0.0f,
-            style ? style->margin.right : 0.0f,
-            style ? style->margin.top : 0.0f,
+    return {style ? style->margin.left : 0.0f, style ? style->margin.right : 0.0f, style ? style->margin.top : 0.0f,
             style ? style->margin.bottom : 0.0f};
 }
 
@@ -102,10 +100,12 @@ struct InlineLayoutResult {
 
 void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
                          std::vector<InlineRun>& runs) {
-    while (i < children.size() && InlineLayoutAccess::is_inline(*children[i])) {
-        auto& inline_child = children[i];
-        InlineLayoutAccess::reset(*inline_child);
-        InlineLayoutAccess::collect(*inline_child, context, runs);
+    while (i < children.size()) {
+        auto p = children[i]->Inline();
+        if (!p) break;
+
+        p.get().reset_inline_layout();
+        p.get().collect_inline_runs(context, runs);
         ++i;
     }
 }
@@ -154,7 +154,9 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
             result.fragments.push_back(resolved);
             auto& run = runs[resolved.run_index];
             if (run.owner) {
-                InlineLayoutAccess::apply_fragment(*run.owner, run.local_index, resolved, run);
+                if (auto p = run.owner->Inline()) {
+                    p.get().apply_inline_fragment(run.local_index, resolved, run);
+                }
             }
             if (resolved.line_index == last_line) {
                 float extent = resolved.rect.x + resolved.rect.width - base_x;
@@ -164,7 +166,9 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
     }
 
     for (size_t j = group_start; j < i; ++j) {
-        InlineLayoutAccess::finalize(*children[j]);
+        if (auto p = children[j]->Inline()) {
+            p.get().finalize_inline_layout();
+        }
     }
 
     if (result.heights.empty()) {
@@ -216,7 +220,7 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         const auto* child_style = child->get_computed_style();
         ChildMargins margins = compute_child_margins(child_style);
 
-        if (!InlineLayoutAccess::is_inline(*child)) {
+        if (!child->Inline()) {
             layout_block_child(context, *child, margins, metrics, cursor);
             update_marker_for_block(marker_y_set, marker_y, metrics.inset_top);
             ++i;
