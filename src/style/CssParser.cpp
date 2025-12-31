@@ -3,6 +3,7 @@
 #include <optional>
 
 #include "style/CssPropertyNames.h"
+#include "style/CssValueNames.h"
 
 namespace Hummingbird::Css {
 
@@ -66,10 +67,10 @@ std::vector<Selector> Parser::parse_selectors() {
 }
 
 static std::optional<Color> parse_named_color(std::string_view value) {
-    if (value == "red") return Color{255, 0, 0, 255};
-    if (value == "blue") return Color{0, 0, 255, 255};
-    if (value == "black") return Color{0, 0, 0, 255};
-    if (value == "white") return Color{255, 255, 255, 255};
+    if (value == ValueNames::Red) return Color{255, 0, 0, 255};
+    if (value == ValueNames::Blue) return Color{0, 0, 255, 255};
+    if (value == ValueNames::Black) return Color{0, 0, 0, 255};
+    if (value == ValueNames::White) return Color{255, 255, 255, 255};
     return std::nullopt;
 }
 
@@ -184,7 +185,7 @@ Value Parser::parse_number_value() {
     }
     if (peek().type == TokenType::Identifier) {
         std::string unit_text = std::string(advance().lexeme);
-        Unit unit = unit_text == "px" ? Unit::Px : Unit::Unknown;
+        Unit unit = unit_text == ValueNames::Px ? Unit::Px : Unit::Unknown;
         return Value::length_value(number, unit);
     }
     return Value::number_value(number);

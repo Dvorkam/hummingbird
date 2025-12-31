@@ -6,6 +6,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/dom/HtmlTagNames.h"
+#include "style/CssValueNames.h"
 #include "style/SelectorMatcher.h"
 
 namespace Hummingbird::Css {
@@ -91,7 +92,7 @@ void apply_optional_length_if_present(const PropertyMap& properties, Property pr
 
 void apply_border_style(ComputedStyle& style, const Value& value) {
     if (value.type != Value::Type::Identifier) return;
-    if (value.ident == "solid") {
+    if (value.ident == ValueNames::Solid) {
         style.border_style = ComputedStyle::BorderStyle::Solid;
     }
 }
@@ -103,15 +104,15 @@ bool apply_display_property(const PropertyMap& properties, ComputedStyle& style)
     }
 
     const auto& ident = display_it->second.value.ident;
-    if (ident == "none") {
+    if (ident == ValueNames::None) {
         style.display = ComputedStyle::Display::None;
-    } else if (ident == "inline") {
+    } else if (ident == ValueNames::Inline) {
         style.display = ComputedStyle::Display::Inline;
-    } else if (ident == "inline-block") {
+    } else if (ident == ValueNames::InlineBlock) {
         style.display = ComputedStyle::Display::InlineBlock;
-    } else if (ident == "list-item") {
+    } else if (ident == ValueNames::ListItem) {
         style.display = ComputedStyle::Display::ListItem;
-    } else if (ident == "block") {
+    } else if (ident == ValueNames::Block) {
         style.display = ComputedStyle::Display::Block;
     }
     return true;
