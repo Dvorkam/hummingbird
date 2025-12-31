@@ -1,38 +1,9 @@
 #include "platform/StubNetwork.h"
 
-void StubNetwork::shutdown() {
-    if (m_stopping.exchange(true, std::memory_order_relaxed)) return;
-    join_all();
-}
-
-void StubNetwork::join_all() {
-    std::vector<std::thread> threads;
-    {
-        std::lock_guard<std::mutex> lg(m_threads_mutex);
-        threads.swap(m_threads);
-    }
-    for (auto& t : threads) {
-        if (t.joinable()) t.join();
-    }
-}
-
-void StubNetwork::get(const std::string& url, std::function<void(std::string)> callback) {
-    if (m_stopping.load(std::memory_order_relaxed)) {
-        if (callback) callback({});
-        return;
-    }
-
-    auto cb = std::move(callback);
-
-    std::thread worker([url, cb = std::move(cb), this]() mutable {
-        if (m_stopping.load(std::memory_order_relaxed)) {
-            if (cb) cb({});
-            return;
-        }
-
-        std::string body;
-        if (url == "http://example.dev" || url == "https://example.dev") {
-            body = R"HTML(
+namespace {
+std::string build_stub_body(const std::string& url) {
+    if (url == "http://example.dev" || url == "https://example.dev") {
+        return R"HTML(
 <!doctype html>
 <html>
   <head>
@@ -66,11 +37,49 @@ void StubNetwork::get(const std::string& url, std::function<void(std::string)> c
   </body>
 </html>
 )HTML";
-        } else {
-            body = "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
-        }
+    }
 
-        if (cb) cb(std::move(body));
+    return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
+}
+
+void run_stub_request(const std::string& url, std::function<void(std::string)> cb,
+                      std::atomic<bool>& stopping) {
+    if (stopping.load(std::memory_order_relaxed)) {
+        if (cb) cb({});
+        return;
+    }
+
+    std::string body = build_stub_body(url);
+    if (cb) cb(std::move(body));
+}
+}  // namespace
+
+void StubNetwork::shutdown() {
+    if (m_stopping.exchange(true, std::memory_order_relaxed)) return;
+    join_all();
+}
+
+void StubNetwork::join_all() {
+    std::vector<std::thread> threads;
+    {
+        std::lock_guard<std::mutex> lg(m_threads_mutex);
+        threads.swap(m_threads);
+    }
+    for (auto& t : threads) {
+        if (t.joinable()) t.join();
+    }
+}
+
+void StubNetwork::get(const std::string& url, std::function<void(std::string)> callback) {
+    if (m_stopping.load(std::memory_order_relaxed)) {
+        if (callback) callback({});
+        return;
+    }
+
+    auto cb = std::move(callback);
+
+    std::thread worker([url, cb = std::move(cb), this]() mutable {
+        run_stub_request(url, std::move(cb), m_stopping);
     });
 
     {

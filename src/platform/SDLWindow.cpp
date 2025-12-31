@@ -110,6 +110,51 @@ static MouseButton to_mouse_button(uint8_t b) {
     }
 }
 
+static bool translate_text_input(const SDL_Event& e, InputEvent& out) {
+    out.type = EventType::TextInput;
+    out.text.text = e.text.text;  // UTF-8
+    return true;
+}
+
+static bool translate_key_event(const SDL_Event& e, InputEvent& out, EventType type, bool repeat) {
+    out.type = type;
+    out.mods = to_mods(static_cast<SDL_Keymod>(e.key.keysym.mod));
+    out.key.key = to_key(e.key.keysym.sym);
+    out.key.repeat = repeat;
+    return true;
+}
+
+static bool translate_mouse_button_event(const SDL_Event& e, InputEvent& out, EventType type) {
+    out.type = type;
+    out.mouse_button.x = e.button.x;
+    out.mouse_button.y = e.button.y;
+    out.mouse_button.button = to_mouse_button(e.button.button);
+    return true;
+}
+
+static bool translate_mouse_wheel(const SDL_Event& e, InputEvent& out) {
+    out.type = EventType::MouseWheel;
+    float dx = static_cast<float>(e.wheel.x);
+    float dy = static_cast<float>(e.wheel.y);
+    if (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
+        dx = -dx;
+        dy = -dy;
+    }
+    out.wheel.dx = dx;
+    out.wheel.dy = dy;
+    return true;
+}
+
+static bool translate_window_event(const SDL_Event& e, InputEvent& out) {
+    if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED || e.window.event == SDL_WINDOWEVENT_RESIZED) {
+        out.type = EventType::Resize;
+        out.resize.width = e.window.data1;
+        out.resize.height = e.window.data2;
+        return true;
+    }
+    return false;
+}
+
 static bool translate_event(const SDL_Event& e, InputEvent& out) {
     out = {};  // reset
 
@@ -119,59 +164,25 @@ static bool translate_event(const SDL_Event& e, InputEvent& out) {
             return true;
 
         case SDL_TEXTINPUT:
-            out.type = EventType::TextInput;
-            out.text.text = e.text.text;  // UTF-8
-            return true;
+            return translate_text_input(e, out);
 
         case SDL_KEYDOWN:
-            out.type = EventType::KeyDown;
-            out.mods = to_mods(static_cast<SDL_Keymod>(e.key.keysym.mod));
-            out.key.key = to_key(e.key.keysym.sym);
-            out.key.repeat = (e.key.repeat != 0);
-            return true;
+            return translate_key_event(e, out, EventType::KeyDown, e.key.repeat != 0);
 
         case SDL_KEYUP:
-            out.type = EventType::KeyUp;
-            out.mods = to_mods(static_cast<SDL_Keymod>(e.key.keysym.mod));
-            out.key.key = to_key(e.key.keysym.sym);
-            out.key.repeat = false;
-            return true;
+            return translate_key_event(e, out, EventType::KeyUp, false);
 
         case SDL_MOUSEBUTTONDOWN:
-            out.type = EventType::MouseDown;
-            out.mouse_button.x = e.button.x;
-            out.mouse_button.y = e.button.y;
-            out.mouse_button.button = to_mouse_button(e.button.button);
-            return true;
+            return translate_mouse_button_event(e, out, EventType::MouseDown);
 
         case SDL_MOUSEBUTTONUP:
-            out.type = EventType::MouseUp;
-            out.mouse_button.x = e.button.x;
-            out.mouse_button.y = e.button.y;
-            out.mouse_button.button = to_mouse_button(e.button.button);
-            return true;
+            return translate_mouse_button_event(e, out, EventType::MouseUp);
 
-        case SDL_MOUSEWHEEL: {
-            out.type = EventType::MouseWheel;
-            float dx = static_cast<float>(e.wheel.x);
-            float dy = static_cast<float>(e.wheel.y);
-            if (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
-                dx = -dx;
-                dy = -dy;
-            }
-            out.wheel.dx = dx;
-            out.wheel.dy = dy;
-            return true;
-        }
+        case SDL_MOUSEWHEEL:
+            return translate_mouse_wheel(e, out);
 
         case SDL_WINDOWEVENT:
-            if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED || e.window.event == SDL_WINDOWEVENT_RESIZED) {
-                out.type = EventType::Resize;
-                out.resize.width = e.window.data1;
-                out.resize.height = e.window.data2;
-                return true;
-            }
-            return false;
+            return translate_window_event(e, out);
 
         default:
             return false;
