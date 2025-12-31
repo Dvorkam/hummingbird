@@ -7,14 +7,21 @@ namespace Hummingbird::Layout {
 
 class BlockBox : public RenderObject {
 public:
-    using RenderObject::RenderObject;  // Inherit constructor
+    static std::unique_ptr<BlockBox> create(const DOM::Node* dom_node) {
+        return std::unique_ptr<BlockBox>(new BlockBox(dom_node));
+    }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
+
+protected:
+    explicit BlockBox(const DOM::Node* dom_node) : RenderObject(dom_node) {}
 };
 
 class InlineBlockBox : public BlockBox, public IInlineParticipant {
 public:
-    using BlockBox::BlockBox;
+    static std::unique_ptr<InlineBlockBox> create(const DOM::Node* dom_node) {
+        return std::unique_ptr<InlineBlockBox>(new InlineBlockBox(dom_node));
+    }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
     IInlineParticipant* as_inline_participant() override { return this; }
@@ -32,6 +39,8 @@ protected:
     }
 
 private:
+    explicit InlineBlockBox(const DOM::Node* dom_node) : BlockBox(dom_node) {}
+
     bool m_inline_atomic = false;
     float m_inline_measured_width = 0.0f;
     float m_inline_measured_height = 0.0f;

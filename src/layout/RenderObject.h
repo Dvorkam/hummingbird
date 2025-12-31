@@ -19,7 +19,6 @@ struct InlineFragment;
 
 class RenderObject {
 public:
-    RenderObject(const DOM::Node* dom_node) : m_dom_node(dom_node) {}
     virtual ~RenderObject() = default;
 
     const DOM::Node* get_dom_node() const { return m_dom_node; }
@@ -44,6 +43,8 @@ public:
     virtual void paint_self(IGraphicsContext& context, const Point& offset);
 
 protected:
+    explicit RenderObject(const DOM::Node* dom_node) : m_dom_node(dom_node) {}
+
     virtual IInlineParticipant* as_inline_participant() { return nullptr; }
     virtual const IInlineParticipant* as_inline_participant() const { return nullptr; }
     const DOM::Node* m_dom_node;  // Non-owning pointer

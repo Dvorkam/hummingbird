@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "core/ArenaAllocator.h"
+#include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlTagNames.h"
@@ -14,10 +15,10 @@ using namespace Hummingbird::DOM;
 TEST(StyleEngineTest, AppliesRulesAndCascade) {
     // DOM: <div class="box" id="main"><span></span></div>
     ArenaAllocator arena(2048);
-    auto root = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Div);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
     root->set_attribute("class", "box");
     root->set_attribute("id", "main");
-    root->append_child(make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Span));
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
 
     // CSS: tag rule then id rule overriding width
     std::string css = R"(div { width: 50px; margin: 5px; } #main { width: 80px; padding: 3px; })";
@@ -41,16 +42,16 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
 
 TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     ArenaAllocator arena(2048);
-    auto ul = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Ul);
-    auto pre = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Pre);
-    auto anchor = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::A);
-    auto code = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Code);
-    auto blockquote = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Blockquote);
-    auto hr = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Hr);
-    auto h1 = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::H1);
+    auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
+    auto pre = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Pre);
+    auto anchor = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    auto code = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Code);
+    auto blockquote = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Blockquote);
+    auto hr = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Hr);
+    auto h1 = DomFactory::create_element(arena, Hummingbird::Html::TagNames::H1);
 
     // Build a small DOM tree to traverse.
-    auto root = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Div);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
     root->append_child(std::move(ul));
     root->append_child(std::move(pre));
     root->append_child(std::move(anchor));
@@ -103,7 +104,7 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
 
 TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
     ArenaAllocator arena(2048);
-    auto root = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::P);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
     root->set_attribute("class", "text");
     root->set_attribute("id", "main");
 
@@ -128,7 +129,7 @@ TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
 
 TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
     ArenaAllocator arena(2048);
-    auto root = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Div);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
     root->set_attribute("class", "box");
 
     std::string css = R"(
@@ -148,7 +149,7 @@ TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
 
 TEST(StyleEngineTest, AppliesBorderProperties) {
     ArenaAllocator arena(2048);
-    auto root = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Div);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = R"(
         div { border-width: 2px; border-style: solid; border-color: #cc0000; }
@@ -170,7 +171,7 @@ TEST(StyleEngineTest, AppliesBorderProperties) {
 
 TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
     ArenaAllocator arena(2048);
-    auto root = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Div);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = "div { display: inline-block; }";
     Parser parser(css);
@@ -186,7 +187,7 @@ TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
 
 TEST(StyleEngineTest, DefaultsListItemDisplay) {
     ArenaAllocator arena(2048);
-    auto root = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Li);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
 
     StyleEngine engine;
     Stylesheet empty_sheet;
@@ -199,9 +200,9 @@ TEST(StyleEngineTest, DefaultsListItemDisplay) {
 
 TEST(StyleEngineTest, EmInheritsHeadingTypography) {
     ArenaAllocator arena(2048);
-    auto h1 = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::H1);
-    auto em = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Em);
-    em->append_child(make_arena_ptr<Text>(arena, "Emphasized"));
+    auto h1 = DomFactory::create_element(arena, Hummingbird::Html::TagNames::H1);
+    auto em = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Em);
+    em->append_child(DomFactory::create_text(arena, "Emphasized"));
     h1->append_child(std::move(em));
 
     StyleEngine engine;

@@ -2,6 +2,7 @@
 
 #include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
+#include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "layout/BlockBox.h"
@@ -16,11 +17,11 @@ using namespace Hummingbird::Css;
 TEST(LayoutStyleIntegrationTest, AppliesMarginPaddingAndWidth) {
     // DOM: <body><p>Hello</p><p>World</p></body>
     ArenaAllocator arena(4096);
-    auto dom_root = make_arena_ptr<Element>(arena, "body");
-    auto p1 = make_arena_ptr<Element>(arena, "p");
-    p1->append_child(make_arena_ptr<Text>(arena, "Hello"));
-    auto p2 = make_arena_ptr<Element>(arena, "p");
-    p2->append_child(make_arena_ptr<Text>(arena, "World"));
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto p1 = DomFactory::create_element(arena, "p");
+    p1->append_child(DomFactory::create_text(arena, "Hello"));
+    auto p2 = DomFactory::create_element(arena, "p");
+    p2->append_child(DomFactory::create_text(arena, "World"));
     dom_root->append_child(std::move(p1));
     dom_root->append_child(std::move(p2));
 
@@ -70,10 +71,10 @@ TEST(LayoutStyleIntegrationTest, AppliesMarginPaddingAndWidth) {
 TEST(LayoutStyleIntegrationTest, IncludesBorderInInlineBoxSizing) {
     // DOM: <body><p><span>Hi</span></p></body>
     ArenaAllocator arena(4096);
-    auto dom_root = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
-    auto span = make_arena_ptr<Element>(arena, "span");
-    span->append_child(make_arena_ptr<Text>(arena, "Hi"));
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    auto span = DomFactory::create_element(arena, "span");
+    span->append_child(DomFactory::create_text(arena, "Hi"));
     p->append_child(std::move(span));
     dom_root->append_child(std::move(p));
 
@@ -108,12 +109,12 @@ TEST(LayoutStyleIntegrationTest, IncludesBorderInInlineBoxSizing) {
 TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
     // DOM: <body><p><span>A</span><span>B</span></p></body>
     ArenaAllocator arena(4096);
-    auto dom_root = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
-    auto span1 = make_arena_ptr<Element>(arena, "span");
-    span1->append_child(make_arena_ptr<Text>(arena, "A"));
-    auto span2 = make_arena_ptr<Element>(arena, "span");
-    span2->append_child(make_arena_ptr<Text>(arena, "B"));
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    auto span1 = DomFactory::create_element(arena, "span");
+    span1->append_child(DomFactory::create_text(arena, "A"));
+    auto span2 = DomFactory::create_element(arena, "span");
+    span2->append_child(DomFactory::create_text(arena, "B"));
     p->append_child(std::move(span1));
     p->append_child(std::move(span2));
     dom_root->append_child(std::move(p));

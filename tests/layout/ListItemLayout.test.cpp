@@ -2,6 +2,7 @@
 
 #include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
+#include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlTagNames.h"
@@ -15,10 +16,10 @@ using namespace Hummingbird::Css;
 
 TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Body);
-    auto ul = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Ul);
-    auto li = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Li);
-    li->append_child(make_arena_ptr<Text>(arena, "Item"));
+    auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
+    auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    li->append_child(DomFactory::create_text(arena, "Item"));
     ul->append_child(std::move(li));
     body->append_child(std::move(ul));
 
@@ -49,12 +50,12 @@ TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
 
 TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Body);
-    auto ul = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Ul);
-    auto li = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Li);
-    li->append_child(make_arena_ptr<Text>(arena, "Item"));
-    auto div = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Div);
-    div->append_child(make_arena_ptr<Text>(arena, "Block"));
+    auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
+    auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    li->append_child(DomFactory::create_text(arena, "Item"));
+    auto div = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    div->append_child(DomFactory::create_text(arena, "Block"));
     li->append_child(std::move(div));
     ul->append_child(std::move(li));
     body->append_child(std::move(ul));
@@ -85,11 +86,11 @@ TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
 
 TEST(ListItemLayoutTest, InlineRunsShareLineWithinListItem) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Body);
-    auto ul = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Ul);
-    auto li = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Li);
-    li->append_child(make_arena_ptr<Text>(arena, "Hello"));
-    li->append_child(make_arena_ptr<Text>(arena, "World"));
+    auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
+    auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    li->append_child(DomFactory::create_text(arena, "Hello"));
+    li->append_child(DomFactory::create_text(arena, "World"));
     ul->append_child(std::move(li));
     body->append_child(std::move(ul));
 

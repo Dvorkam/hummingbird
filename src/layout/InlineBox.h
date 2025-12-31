@@ -7,7 +7,9 @@ namespace Hummingbird::Layout {
 
 class InlineBox : public RenderObject, public IInlineParticipant {
 public:
-    using RenderObject::RenderObject;
+    static std::unique_ptr<InlineBox> create(const DOM::Node* dom_node) {
+        return std::unique_ptr<InlineBox>(new InlineBox(dom_node));
+    }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
 
@@ -26,6 +28,8 @@ protected:
     }
 
 private:
+    explicit InlineBox(const DOM::Node* dom_node) : RenderObject(dom_node) {}
+
     bool m_inline_atomic = false;
     float m_inline_measured_width = 0.0f;
     float m_inline_measured_height = 0.0f;

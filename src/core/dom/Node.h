@@ -36,6 +36,8 @@ public:
     std::shared_ptr<const Css::ComputedStyle> get_computed_style() const { return m_computed_style; }
 
 protected:
+    Node() = default;
+
     Node* m_parent = nullptr;
     std::vector<ArenaPtr<Node>> m_children;
     std::shared_ptr<Css::ComputedStyle> m_computed_style;

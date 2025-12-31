@@ -3,12 +3,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlTagNames.h"
-#include "layout/BlockBox.h"
-#include "layout/InlineBox.h"
-#include "layout/RenderBreak.h"
-#include "layout/RenderListItem.h"
-#include "layout/RenderRule.h"
-#include "layout/TextBox.h"
+#include "layout/RenderFactory.h"
 #include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
@@ -31,16 +26,16 @@ bool is_non_visual_tag(std::string_view tag) {
 std::unique_ptr<RenderObject> render_for_display(const DOM::Element* element, Css::ComputedStyle::Display display) {
     switch (display) {
         case Css::ComputedStyle::Display::Inline:
-            return std::make_unique<InlineBox>(element);
+            return RenderFactory::create_inline_box(element);
         case Css::ComputedStyle::Display::InlineBlock:
-            return std::make_unique<InlineBlockBox>(element);
+            return RenderFactory::create_inline_block_box(element);
         case Css::ComputedStyle::Display::ListItem:
-            return std::make_unique<RenderListItem>(element);
+            return RenderFactory::create_list_item(element);
         case Css::ComputedStyle::Display::None:
             return nullptr;
         case Css::ComputedStyle::Display::Block:
         default:
-            return std::make_unique<BlockBox>(element);
+            return RenderFactory::create_block_box(element);
     }
 }
 
@@ -65,19 +60,19 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
             return nullptr;
         }
         if (tag == Hummingbird::Html::TagNames::Br) {
-            return std::make_unique<RenderBreak>(element_node);
+            return RenderFactory::create_break(element_node);
         }
         if (tag == Hummingbird::Html::TagNames::Hr) {
-            return std::make_unique<RenderRule>(element_node);
+            return RenderFactory::create_rule(element_node);
         }
         auto style = element_node->get_computed_style();
         if (style) {
             return render_for_display(element_node, style->display);
         }
-        return std::make_unique<BlockBox>(element_node);
+        return RenderFactory::create_block_box(element_node);
     } else if (auto text_node = dynamic_cast<const DOM::Text*>(node)) {
         if (!should_skip_text_node(text_node)) {
-            return std::make_unique<TextBox>(text_node);
+            return RenderFactory::create_text_box(text_node);
         }
     }
     return nullptr;
@@ -122,7 +117,7 @@ std::unique_ptr<RenderObject> TreeBuilder::build_impl(const DOM::Node* dom_root)
     // Always return a render root to host visible children, even if the root DOM node itself is non-visual.
     auto render_root = create_render_object(dom_root);
     if (!render_root) {
-        render_root = std::make_unique<BlockBox>(dom_root);
+        render_root = RenderFactory::create_block_box(dom_root);
     }
 
     for (const auto& child_dom : dom_root->get_children()) {

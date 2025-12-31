@@ -12,7 +12,9 @@ namespace Hummingbird::Layout {
 
 class TextBox : public RenderObject, public IInlineParticipant {
 public:
-    TextBox(const DOM::Text* dom_node);
+    static std::unique_ptr<TextBox> create(const DOM::Text* dom_node) {
+        return std::unique_ptr<TextBox>(new TextBox(dom_node));
+    }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
     void paint_self(IGraphicsContext& context, const Point& offset) override;
@@ -35,6 +37,8 @@ protected:
     }
 
 private:
+    explicit TextBox(const DOM::Text* dom_node);
+
     void paint_fragments(IGraphicsContext& context, const TextStyle& text_style, float absolute_x, float absolute_y,
                          float line_height, bool underline) const;
     void paint_lines(IGraphicsContext& context, const TextStyle& text_style, float absolute_x, float absolute_y,

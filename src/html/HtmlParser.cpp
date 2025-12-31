@@ -2,6 +2,7 @@
 
 #include <algorithm>
 
+#include "core/dom/DomFactory.h"
 #include "core/utils/Log.h"
 #include "html/HtmlTagNames.h"
 
@@ -55,7 +56,7 @@ bool is_known_element(std::string_view name) {
 Parser::Result Parser::parse() {
     m_style_blocks.clear();
     m_unsupported_tags.clear();
-    auto root = make_arena_ptr<DOM::Element>(m_arena, Hummingbird::Html::TagNames::Root);
+    auto root = DOM::DomFactory::create_element(m_arena, Hummingbird::Html::TagNames::Root);
     ParseState state;
     state.open_elements.push_back(root.get());
 
@@ -98,7 +99,7 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
     std::string lowered_name = to_lower(tag_data.name);
     maybe_close_list_item(state, lowered_name);
 
-    auto new_element = make_arena_ptr<DOM::Element>(m_arena, lowered_name);
+    auto new_element = DOM::DomFactory::create_element(m_arena, lowered_name);
     apply_attributes(*new_element, tag_data);
 
     DOM::Node* parent = select_parent(state, lowered_name);
@@ -160,7 +161,7 @@ void Parser::append_text_node(DOM::Node* parent, std::string_view text) {
             return;
         }
     }
-    auto new_text = make_arena_ptr<DOM::Text>(m_arena, text);
+    auto new_text = DOM::DomFactory::create_text(m_arena, text);
     parent->append_child(std::move(new_text));
 }
 

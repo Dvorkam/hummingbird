@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "core/ArenaAllocator.h"
+#include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlTagNames.h"
@@ -19,8 +20,8 @@ namespace TagNames = Hummingbird::Html::TagNames;
 
 TEST(TreeBuilderTest, SimpleTree) {
     ArenaAllocator arena(1024);
-    auto dom_root = make_arena_ptr<Element>(arena, TagNames::Html);
-    dom_root->append_child(make_arena_ptr<Element>(arena, TagNames::Body));
+    auto dom_root = DomFactory::create_element(arena, TagNames::Html);
+    dom_root->append_child(DomFactory::create_element(arena, TagNames::Body));
 
     TreeBuilder tree_builder;
     auto render_root = tree_builder.build(dom_root.get());
@@ -36,8 +37,8 @@ TEST(TreeBuilderTest, SimpleTree) {
 
 TEST(TreeBuilderTest, CreatesTextBoxForTextNode) {
     ArenaAllocator arena(1024);
-    auto dom_root = make_arena_ptr<Element>(arena, TagNames::P);
-    dom_root->append_child(make_arena_ptr<Text>(arena, "Hello"));
+    auto dom_root = DomFactory::create_element(arena, TagNames::P);
+    dom_root->append_child(DomFactory::create_text(arena, "Hello"));
 
     TreeBuilder tree_builder;
     auto render_root = tree_builder.build(dom_root.get());
@@ -51,9 +52,9 @@ TEST(TreeBuilderTest, CreatesTextBoxForTextNode) {
 
 TEST(TreeBuilderTest, CreatesBreakAndRuleForControlTags) {
     ArenaAllocator arena(1024);
-    auto dom_root = make_arena_ptr<Element>(arena, TagNames::Body);
-    dom_root->append_child(make_arena_ptr<Element>(arena, TagNames::Br));
-    dom_root->append_child(make_arena_ptr<Element>(arena, TagNames::Hr));
+    auto dom_root = DomFactory::create_element(arena, TagNames::Body);
+    dom_root->append_child(DomFactory::create_element(arena, TagNames::Br));
+    dom_root->append_child(DomFactory::create_element(arena, TagNames::Hr));
 
     TreeBuilder tree_builder;
     auto render_root = tree_builder.build(dom_root.get());
@@ -66,11 +67,11 @@ TEST(TreeBuilderTest, CreatesBreakAndRuleForControlTags) {
 
 TEST(TreeBuilderTest, SkipsNonVisualNodesButKeepsRootContainer) {
     ArenaAllocator arena(2048);
-    auto dom_root = make_arena_ptr<Element>(arena, TagNames::Html);
-    auto head = make_arena_ptr<Element>(arena, TagNames::Head);
-    head->append_child(make_arena_ptr<Element>(arena, TagNames::Style));
-    auto body = make_arena_ptr<Element>(arena, TagNames::Body);
-    body->append_child(make_arena_ptr<Element>(arena, TagNames::Div));
+    auto dom_root = DomFactory::create_element(arena, TagNames::Html);
+    auto head = DomFactory::create_element(arena, TagNames::Head);
+    head->append_child(DomFactory::create_element(arena, TagNames::Style));
+    auto body = DomFactory::create_element(arena, TagNames::Body);
+    body->append_child(DomFactory::create_element(arena, TagNames::Div));
     dom_root->append_child(std::move(head));
     dom_root->append_child(std::move(body));
 
@@ -86,9 +87,9 @@ TEST(TreeBuilderTest, SkipsNonVisualNodesButKeepsRootContainer) {
 
 TEST(TreeBuilderTest, SkipsDisplayNoneElements) {
     ArenaAllocator arena(2048);
-    auto dom_root = make_arena_ptr<Element>(arena, TagNames::Body);
-    auto visible = make_arena_ptr<Element>(arena, TagNames::Div);
-    auto hidden = make_arena_ptr<Element>(arena, TagNames::Div);
+    auto dom_root = DomFactory::create_element(arena, TagNames::Body);
+    auto visible = DomFactory::create_element(arena, TagNames::Div);
+    auto hidden = DomFactory::create_element(arena, TagNames::Div);
     hidden->set_attribute("class", "hidden");
     dom_root->append_child(std::move(visible));
     dom_root->append_child(std::move(hidden));
@@ -109,8 +110,8 @@ TEST(TreeBuilderTest, SkipsDisplayNoneElements) {
 
 TEST(TreeBuilderTest, SkipsWhitespaceOnlyTextInNormalMode) {
     ArenaAllocator arena(1024);
-    auto dom_root = make_arena_ptr<Element>(arena, TagNames::P);
-    dom_root->append_child(make_arena_ptr<Text>(arena, " \n\t "));
+    auto dom_root = DomFactory::create_element(arena, TagNames::P);
+    dom_root->append_child(DomFactory::create_text(arena, " \n\t "));
 
     Stylesheet sheet;
     StyleEngine engine;
@@ -125,8 +126,8 @@ TEST(TreeBuilderTest, SkipsWhitespaceOnlyTextInNormalMode) {
 
 TEST(TreeBuilderTest, PreservesWhitespaceOnlyTextInPreMode) {
     ArenaAllocator arena(1024);
-    auto dom_root = make_arena_ptr<Element>(arena, TagNames::Pre);
-    dom_root->append_child(make_arena_ptr<Text>(arena, " \n\t "));
+    auto dom_root = DomFactory::create_element(arena, TagNames::Pre);
+    dom_root->append_child(DomFactory::create_text(arena, " \n\t "));
 
     Stylesheet sheet;
     StyleEngine engine;

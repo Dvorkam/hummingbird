@@ -10,7 +10,10 @@ namespace Hummingbird::DOM {
 
 class Element : public Node {
 public:
-    explicit Element(std::string_view tag_name) : m_tag_name(tag_name) {}
+    static ArenaPtr<Element> create(ArenaAllocator& arena, std::string_view tag_name) {
+        void* mem = arena.allocate(sizeof(Element), alignof(Element));
+        return ArenaPtr<Element>(new (mem) Element(tag_name));
+    }
 
     const std::string& get_tag_name() const { return m_tag_name; }
     const std::unordered_map<std::string, std::string>& get_attributes() const { return m_attributes; }
@@ -20,6 +23,8 @@ public:
     }
 
 private:
+    explicit Element(std::string_view tag_name) : m_tag_name(tag_name) {}
+
     std::string m_tag_name;
     std::unordered_map<std::string, std::string> m_attributes;
 };

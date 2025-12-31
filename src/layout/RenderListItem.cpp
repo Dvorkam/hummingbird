@@ -229,7 +229,7 @@ void update_marker_for_inline(const InlineLayoutResult& inline_layout, bool& mar
 }  // namespace
 
 RenderListItem::RenderListItem(const DOM::Node* dom_node) : BlockBox(dom_node) {
-    m_marker = std::make_unique<RenderMarker>(dom_node);
+    m_marker = RenderMarker::create(dom_node);
 }
 
 const Rect& RenderListItem::marker_rect() const {

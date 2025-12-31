@@ -5,6 +5,7 @@
 
 #include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
+#include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "layout/TreeBuilder.h"
@@ -15,9 +16,9 @@ using namespace Hummingbird::DOM;
 TEST(BlockBoxLayoutTest, SimpleStacking) {
     // Create a DOM tree: <body><p/><p/></body>
     ArenaAllocator arena(2048);
-    auto dom_root = make_arena_ptr<Element>(arena, "body");
-    auto p1 = make_arena_ptr<Element>(arena, "p");
-    auto p2 = make_arena_ptr<Element>(arena, "p");
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto p1 = DomFactory::create_element(arena, "p");
+    auto p2 = DomFactory::create_element(arena, "p");
     // Give the paragraphs some fake height for testing layout
     // In a real scenario, this would come from child text nodes or CSS
     p1->set_attribute("height", "10");
@@ -33,7 +34,7 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
     // This is a hack for now. A real implementation would calculate height from children.
     class TestBlockBox : public BlockBox {
     public:
-        using BlockBox::BlockBox;
+        explicit TestBlockBox(const Node* dom_node) : BlockBox(dom_node) {}
         void layout(IGraphicsContext& context, const Rect& bounds) override {
             BlockBox::layout(context, bounds);
             const auto* element_node = dynamic_cast<const Hummingbird::DOM::Element*>(get_dom_node());
@@ -82,12 +83,12 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
 
 TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
     ArenaAllocator arena(2048);
-    auto span = make_arena_ptr<Element>(arena, "span");
-    auto text = make_arena_ptr<Text>(arena, "Hello");
+    auto span = DomFactory::create_element(arena, "span");
+    auto text = DomFactory::create_text(arena, "Hello");
     span->append_child(std::move(text));
 
-    auto inline_block = std::make_unique<InlineBlockBox>(span.get());
-    inline_block->append_child(std::make_unique<TextBox>(
+    auto inline_block = InlineBlockBox::create(span.get());
+    inline_block->append_child(TextBox::create(
         dynamic_cast<Text*>(span->get_children()[0].get())));
 
     TestGraphicsContext context;

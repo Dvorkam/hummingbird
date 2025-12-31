@@ -2,6 +2,7 @@
 
 #include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
+#include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "layout/TreeBuilder.h"
@@ -14,13 +15,13 @@ using namespace Hummingbird::Css;
 
 TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
-    p->append_child(make_arena_ptr<Text>(arena, "Hello "));
-    auto strong = make_arena_ptr<Element>(arena, "strong");
-    strong->append_child(make_arena_ptr<Text>(arena, "World"));
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hello "));
+    auto strong = DomFactory::create_element(arena, "strong");
+    strong->append_child(DomFactory::create_text(arena, "World"));
     p->append_child(std::move(strong));
-    p->append_child(make_arena_ptr<Text>(arena, "!"));
+    p->append_child(DomFactory::create_text(arena, "!"));
     body->append_child(std::move(p));
 
     Stylesheet sheet;
@@ -51,11 +52,11 @@ TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
 
 TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto ul = make_arena_ptr<Element>(arena, "ul");
-    ul->append_child(make_arena_ptr<Element>(arena, "li"));
-    auto ol = make_arena_ptr<Element>(arena, "ol");
-    ol->append_child(make_arena_ptr<Element>(arena, "li"));
+    auto body = DomFactory::create_element(arena, "body");
+    auto ul = DomFactory::create_element(arena, "ul");
+    ul->append_child(DomFactory::create_element(arena, "li"));
+    auto ol = DomFactory::create_element(arena, "ol");
+    ol->append_child(DomFactory::create_element(arena, "li"));
     body->append_child(std::move(ul));
     body->append_child(std::move(ol));
 
@@ -83,10 +84,10 @@ TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
 
 TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
     // "HelloHello" (10 chars) at 8px each = 80px > 60px available forces wrap.
-    p->append_child(make_arena_ptr<Text>(arena, "Hello Hello"));
+    p->append_child(DomFactory::create_text(arena, "Hello Hello"));
     body->append_child(std::move(p));
 
     Stylesheet sheet;
@@ -112,13 +113,13 @@ TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
 
 TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
-    p->append_child(make_arena_ptr<Text>(arena, "Hello "));
-    auto a = make_arena_ptr<Element>(arena, "a");
-    a->append_child(make_arena_ptr<Text>(arena, "link"));
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hello "));
+    auto a = DomFactory::create_element(arena, "a");
+    a->append_child(DomFactory::create_text(arena, "link"));
     p->append_child(std::move(a));
-    p->append_child(make_arena_ptr<Text>(arena, " world"));
+    p->append_child(DomFactory::create_text(arena, " world"));
     body->append_child(std::move(p));
 
     Stylesheet sheet;
@@ -147,11 +148,11 @@ TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
 
 TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
-    p->append_child(make_arena_ptr<Text>(arena, "Hello Hello Hello "));
-    auto code = make_arena_ptr<Element>(arena, "code");
-    code->append_child(make_arena_ptr<Text>(arena, "code"));
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hello Hello Hello "));
+    auto code = DomFactory::create_element(arena, "code");
+    code->append_child(DomFactory::create_text(arena, "code"));
     p->append_child(std::move(code));
     body->append_child(std::move(p));
 
@@ -179,10 +180,10 @@ TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
 
 TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
-    auto span = make_arena_ptr<Element>(arena, "span");
-    span->append_child(make_arena_ptr<Text>(arena, "Hello"));
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    auto span = DomFactory::create_element(arena, "span");
+    span->append_child(DomFactory::create_text(arena, "Hello"));
     p->append_child(std::move(span));
     body->append_child(std::move(p));
 

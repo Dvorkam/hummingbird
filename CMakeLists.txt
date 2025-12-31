@@ -25,6 +25,7 @@ target_include_directories(Style
 # This library will contain the abstract interfaces and platform-independent logic.
 add_library(Core STATIC
     src/core/ArenaAllocator.cpp
+    src/core/dom/DomFactory.cpp
     src/core/utils/AssetPath.cpp
 )
 target_include_directories(Core
@@ -61,6 +62,7 @@ target_include_directories(Html
 # --- Layout Library ---
 add_library(Layout STATIC
     src/layout/RenderObject.cpp
+    src/layout/RenderFactory.cpp
     src/layout/TreeBuilder.cpp
     src/layout/BlockBox.cpp
     src/layout/InlineBox.cpp
