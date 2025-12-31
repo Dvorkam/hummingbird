@@ -167,8 +167,7 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
     apply_color_property(properties, style, overrides);
 }
 
-void apply_ua_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,
-                       bool display_set) {
+void apply_ua_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides, bool display_set) {
     const auto& tag = element.get_tag_name();
     const auto set_heading = [&](float scale, float margin_em) {
         style.font_size = 16.0f * scale;

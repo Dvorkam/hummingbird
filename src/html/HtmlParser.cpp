@@ -25,11 +25,10 @@ bool is_void_element(std::string_view name) {
 }
 
 bool is_known_element(std::string_view name) {
-    static constexpr std::string_view kKnown[] = {"html",  "head", "body",  "title", "style", "script", "div",
-                                                  "p",     "span", "h1",   "h2",    "h3",    "h4",     "h5",
-                                                  "h6",    "b",    "strong", "i",    "em",    "img",    "br",
-                                                  "hr",    "input", "ul",   "ol",    "li",    "pre",    "code",
-                                                  "a",     "blockquote"};
+    static constexpr std::string_view kKnown[] = {
+        "html", "head", "body",  "title", "style", "script", "div",    "p",    "span", "h1",
+        "h2",   "h3",   "h4",    "h5",    "h6",    "b",      "strong", "i",    "em",   "img",
+        "br",   "hr",   "input", "ul",    "ol",    "li",     "pre",    "code", "a",    "blockquote"};
     for (auto tag : kKnown) {
         if (tag == name) return true;
     }

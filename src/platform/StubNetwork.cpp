@@ -42,8 +42,7 @@ std::string build_stub_body(const std::string& url) {
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
 }
 
-void run_stub_request(const std::string& url, std::function<void(std::string)> cb,
-                      std::atomic<bool>& stopping) {
+void run_stub_request(const std::string& url, std::function<void(std::string)> cb, std::atomic<bool>& stopping) {
     if (stopping.load(std::memory_order_relaxed)) {
         if (cb) cb({});
         return;
@@ -78,9 +77,7 @@ void StubNetwork::get(const std::string& url, std::function<void(std::string)> c
 
     auto cb = std::move(callback);
 
-    std::thread worker([url, cb = std::move(cb), this]() mutable {
-        run_stub_request(url, std::move(cb), m_stopping);
-    });
+    std::thread worker([url, cb = std::move(cb), this]() mutable { run_stub_request(url, std::move(cb), m_stopping); });
 
     {
         std::lock_guard<std::mutex> lg(m_threads_mutex);

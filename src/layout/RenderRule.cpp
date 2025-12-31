@@ -7,7 +7,7 @@ namespace Hummingbird::Layout {
 namespace {
 constexpr float kDefaultRuleHeight = 2.0f;
 constexpr Color kDefaultRuleColor{50, 50, 50, 255};
-}
+}  // namespace
 
 void RenderRule::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     const auto* style = get_computed_style();

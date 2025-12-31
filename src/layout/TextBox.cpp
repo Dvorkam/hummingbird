@@ -1,6 +1,7 @@
 #include "layout/TextBox.h"
 
 #include <algorithm>
+
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
