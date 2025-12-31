@@ -15,9 +15,9 @@ using namespace Hummingbird::Css;
 
 TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Body));
-    auto ul = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Ul));
-    auto li = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Li));
+    auto body = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Body);
+    auto ul = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Ul);
+    auto li = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Li);
     li->append_child(make_arena_ptr<Text>(arena, "Item"));
     ul->append_child(std::move(li));
     body->append_child(std::move(ul));
@@ -49,11 +49,11 @@ TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
 
 TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Body));
-    auto ul = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Ul));
-    auto li = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Li));
+    auto body = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Body);
+    auto ul = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Ul);
+    auto li = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Li);
     li->append_child(make_arena_ptr<Text>(arena, "Item"));
-    auto div = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Div));
+    auto div = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Div);
     div->append_child(make_arena_ptr<Text>(arena, "Block"));
     li->append_child(std::move(div));
     ul->append_child(std::move(li));
@@ -85,9 +85,9 @@ TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
 
 TEST(ListItemLayoutTest, InlineRunsShareLineWithinListItem) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Body));
-    auto ul = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Ul));
-    auto li = make_arena_ptr<Element>(arena, std::string(Hummingbird::Html::TagNames::Li));
+    auto body = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Body);
+    auto ul = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Ul);
+    auto li = make_arena_ptr<Element>(arena, Hummingbird::Html::TagNames::Li);
     li->append_child(make_arena_ptr<Text>(arena, "Hello"));
     li->append_child(make_arena_ptr<Text>(arena, "World"));
     ul->append_child(std::move(li));

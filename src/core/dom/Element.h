@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 #include "core/dom/Node.h"
@@ -9,7 +10,7 @@ namespace Hummingbird::DOM {
 
 class Element : public Node {
 public:
-    Element(const std::string& tag_name) : m_tag_name(tag_name) {}
+    explicit Element(std::string_view tag_name) : m_tag_name(tag_name) {}
 
     const std::string& get_tag_name() const { return m_tag_name; }
     const std::unordered_map<std::string, std::string>& get_attributes() const { return m_attributes; }

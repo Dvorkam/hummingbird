@@ -55,7 +55,7 @@ bool is_known_element(std::string_view name) {
 Parser::Result Parser::parse() {
     m_style_blocks.clear();
     m_unsupported_tags.clear();
-    auto root = make_arena_ptr<DOM::Element>(m_arena, std::string(Hummingbird::Html::TagNames::Root));
+    auto root = make_arena_ptr<DOM::Element>(m_arena, Hummingbird::Html::TagNames::Root);
     ParseState state;
     state.open_elements.push_back(root.get());
 

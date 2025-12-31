@@ -9,7 +9,7 @@ using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
 
 TEST(SelectorMatcherTest, MatchesTagClassId) {
-    Element elem(std::string(Hummingbird::Html::TagNames::Div));
+    Element elem(Hummingbird::Html::TagNames::Div);
     elem.set_attribute("class", "foo bar");
     elem.set_attribute("id", "main");
 
