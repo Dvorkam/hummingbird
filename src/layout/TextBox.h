@@ -35,6 +35,11 @@ protected:
     }
 
 private:
+    void paint_fragments(IGraphicsContext& context, const TextStyle& text_style, float absolute_x, float absolute_y,
+                         float line_height, bool underline) const;
+    void paint_lines(IGraphicsContext& context, const TextStyle& text_style, float absolute_x, float absolute_y,
+                     bool underline) const;
+
     struct TextFragment {
         std::string text;
         Rect rect;

@@ -96,6 +96,7 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
 struct InlineLayoutResult {
     std::vector<InlineFragment> fragments;
     std::vector<float> heights;
+    float last_line_width = 0.0f;
 };
 
 void measure_inline_participants(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
@@ -119,6 +120,56 @@ void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<
         p.get().collect_inline_runs(context, runs);
         ++i;
     }
+}
+
+InlineLayoutResult apply_inline_fragments(const std::vector<InlineLine>& lines, const std::vector<InlineRun>& runs,
+                                          float base_x, float base_y) {
+    InlineLayoutResult result;
+    if (lines.empty()) {
+        return result;
+    }
+
+    result.fragments.reserve(runs.size());
+    result.heights.reserve(lines.size());
+    size_t last_line = lines.size() - 1;
+
+    for (const auto& line : lines) {
+        result.heights.push_back(line.height);
+        for (const auto& fragment : line.fragments) {
+            InlineFragment resolved = fragment;
+            resolved.rect.x += base_x;
+            resolved.rect.y += base_y;
+            result.fragments.push_back(resolved);
+            auto& run = runs[resolved.run_index];
+            if (run.owner) {
+                if (auto p = run.owner->Inline()) {
+                    p.get().apply_inline_fragment(run.local_index, resolved, run);
+                }
+            }
+            if (resolved.line_index == last_line) {
+                float extent = resolved.rect.x + resolved.rect.width - base_x;
+                result.last_line_width = std::max(result.last_line_width, extent);
+            }
+        }
+    }
+
+    return result;
+}
+
+void update_cursor_for_inline(LineCursor& cursor, const LayoutMetrics& metrics, float base_y,
+                              const InlineLayoutResult& result) {
+    if (result.heights.empty()) {
+        return;
+    }
+
+    float total_height = 0.0f;
+    for (float h : result.heights) {
+        total_height += h;
+    }
+    float last_height = result.heights.back();
+    cursor.y = base_y + (total_height - last_height);
+    cursor.x = metrics.inset_left + metrics.marker_offset + result.last_line_width;
+    cursor.line_height = std::max(cursor.line_height, last_height);
 }
 
 InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
@@ -148,36 +199,9 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
         return result;
     }
 
-    result.fragments.reserve(runs.size());
-    result.heights.reserve(lines.size());
-
     float base_x = metrics.inset_left + metrics.marker_offset;
     float base_y = cursor.y;
-    size_t last_line = lines.size() - 1;
-    float last_line_width = 0.0f;
-    float total_height = 0.0f;
-    float last_height = lines.back().height;
-
-    for (const auto& line : lines) {
-        total_height += line.height;
-        result.heights.push_back(line.height);
-        for (const auto& fragment : line.fragments) {
-            InlineFragment resolved = fragment;
-            resolved.rect.x += base_x;
-            resolved.rect.y += base_y;
-            result.fragments.push_back(resolved);
-            auto& run = runs[resolved.run_index];
-            if (run.owner) {
-                if (auto p = run.owner->Inline()) {
-                    p.get().apply_inline_fragment(run.local_index, resolved, run);
-                }
-            }
-            if (resolved.line_index == last_line) {
-                float extent = resolved.rect.x + resolved.rect.width - base_x;
-                last_line_width = std::max(last_line_width, extent);
-            }
-        }
-    }
+    result = apply_inline_fragments(lines, runs, base_x, base_y);
 
     for (size_t j = group_start; j < group_end; ++j) {
         if (auto p = children[j]->Inline()) {
@@ -185,13 +209,7 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
         }
     }
 
-    if (result.heights.empty()) {
-        return result;
-    }
-
-    cursor.y = base_y + (total_height - last_height);
-    cursor.x = metrics.inset_left + metrics.marker_offset + last_line_width;
-    cursor.line_height = std::max(cursor.line_height, last_height);
+    update_cursor_for_inline(cursor, metrics, base_y, result);
     return result;
 }
 
