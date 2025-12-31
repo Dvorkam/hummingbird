@@ -6,6 +6,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/RenderObject.h"
 #include "layout/inline/IInlineParticipant.h"
+#include "layout/inline/InlineTypes.h"
 
 namespace Hummingbird::Layout {
 
@@ -24,6 +25,7 @@ public:
 
 protected:
     void reset_inline_layout() override;
+    void measure_inline(IGraphicsContext& context) override;
     void collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) override;
     void apply_inline_fragment(size_t index, const InlineFragment& fragment, const InlineRun& run) override;
     void finalize_inline_layout() override;
@@ -42,6 +44,7 @@ private:
     std::string m_rendered_text;
     std::vector<std::string> m_lines;
     std::vector<TextFragment> m_fragments;
+    std::vector<InlineRun> m_inline_runs;
     float m_line_height = 0.0f;
     TextMetrics m_last_metrics{};
 };

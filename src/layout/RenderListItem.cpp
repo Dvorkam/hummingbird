@@ -98,13 +98,24 @@ struct InlineLayoutResult {
     std::vector<float> heights;
 };
 
+void measure_inline_participants(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
+                                 size_t& i) {
+    while (i < children.size()) {
+        auto p = children[i]->Inline();
+        if (!p) break;
+
+        p.get().reset_inline_layout();
+        p.get().measure_inline(context);
+        ++i;
+    }
+}
+
 void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
                          std::vector<InlineRun>& runs) {
     while (i < children.size()) {
         auto p = children[i]->Inline();
         if (!p) break;
 
-        p.get().reset_inline_layout();
         p.get().collect_inline_runs(context, runs);
         ++i;
     }
@@ -117,7 +128,10 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
     builder.reset();
     std::vector<InlineRun> runs;
     size_t group_start = i;
+    size_t group_end = i;
 
+    measure_inline_participants(context, children, group_end);
+    i = group_start;
     collect_inline_runs(context, children, i, runs);
 
     if (runs.empty()) {
@@ -165,7 +179,7 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
         }
     }
 
-    for (size_t j = group_start; j < i; ++j) {
+    for (size_t j = group_start; j < group_end; ++j) {
         if (auto p = children[j]->Inline()) {
             p.get().finalize_inline_layout();
         }

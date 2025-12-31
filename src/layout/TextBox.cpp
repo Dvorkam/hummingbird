@@ -212,9 +212,11 @@ void TextBox::reset_inline_layout() {
     m_fragments.clear();
     m_lines.clear();
     m_line_height = 0.0f;
+    m_inline_runs.clear();
 }
 
-void TextBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) {
+void TextBox::measure_inline(IGraphicsContext& context) {
+    m_inline_runs.clear();
     const auto* style = get_computed_style();
     const std::string& text = get_dom_node()->get_text();
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
@@ -225,7 +227,7 @@ void TextBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineR
         run.text = m_rendered_text;
         run.width = m_rect.width;
         run.height = m_rect.height;
-        runs.push_back(std::move(run));
+        m_inline_runs.push_back(std::move(run));
         return;
     }
 
@@ -237,6 +239,7 @@ void TextBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineR
     m_fragments.clear();
     m_fragments.resize(tokens.size());
 
+    m_inline_runs.reserve(tokens.size());
     for (size_t i = 0; i < tokens.size(); ++i) {
         InlineRun run;
         run.owner = this;
@@ -244,8 +247,12 @@ void TextBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineR
         run.text = tokens[i];
         run.width = context.measure_text(tokens[i], text_style).width;
         run.height = line_height;
-        runs.push_back(std::move(run));
+        m_inline_runs.push_back(std::move(run));
     }
+}
+
+void TextBox::collect_inline_runs(IGraphicsContext& /*context*/, std::vector<InlineRun>& runs) {
+    runs.insert(runs.end(), m_inline_runs.begin(), m_inline_runs.end());
 }
 
 void TextBox::apply_inline_fragment(size_t index, const InlineFragment& fragment, const InlineRun& run) {

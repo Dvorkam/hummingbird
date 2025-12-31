@@ -87,15 +87,16 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
     cursor.y = child_y + child.get_rect().height + margins.bottom;
 }
 
-InlineRun build_inline_atomic_run(InlineBlockBox& box, IGraphicsContext& context) {
-    box.layout(context, {0.0f, 0.0f, kInlineAtomicLayoutWidth, 0.0f});
-    const auto& rect = box.get_rect();
-    InlineRun run;
-    run.owner = &box;
-    run.local_index = 0;
-    run.width = rect.width;
-    run.height = rect.height;
-    return run;
+void measure_inline_participants(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
+                                 size_t& i) {
+    while (i < children.size()) {
+        auto inl = children[i]->Inline();
+        if (!inl) break;
+
+        inl.get().reset_inline_layout();
+        inl.get().measure_inline(context);
+        ++i;
+    }
 }
 
 void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
@@ -104,7 +105,6 @@ void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<
         auto inl = children[i]->Inline();
         if (!inl) break;
 
-        inl.get().reset_inline_layout();
         inl.get().collect_inline_runs(context, runs);
         ++i;
     }
@@ -116,7 +116,10 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
     builder.reset();
     std::vector<InlineRun> runs;
     size_t group_start = i;
+    size_t group_end = i;
 
+    measure_inline_participants(context, children, group_end);
+    i = group_start;
     collect_inline_runs(context, children, i, runs);
 
     if (runs.empty()) {
@@ -158,7 +161,7 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
         }
     }
 
-    for (size_t j = group_start; j < i; ++j) {
+    for (size_t j = group_start; j < group_end; ++j) {
         if (auto inl = children[j]->Inline()) {
             inl.get().finalize_inline_layout();
         }
@@ -206,11 +209,24 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
 void InlineBlockBox::reset_inline_layout() {
     m_inline_atomic = false;
+    m_inline_measured_width = 0.0f;
+    m_inline_measured_height = 0.0f;
 }
 
-void InlineBlockBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) {
+void InlineBlockBox::measure_inline(IGraphicsContext& context) {
     m_inline_atomic = true;
-    runs.push_back(build_inline_atomic_run(*this, context));
+    layout(context, {0.0f, 0.0f, kInlineAtomicLayoutWidth, 0.0f});
+    m_inline_measured_width = m_rect.width;
+    m_inline_measured_height = m_rect.height;
+}
+
+void InlineBlockBox::collect_inline_runs(IGraphicsContext& /*context*/, std::vector<InlineRun>& runs) {
+    InlineRun run;
+    run.owner = this;
+    run.local_index = 0;
+    run.width = m_inline_measured_width;
+    run.height = m_inline_measured_height;
+    runs.push_back(std::move(run));
 }
 
 void InlineBlockBox::apply_inline_fragment(size_t index, const InlineFragment& fragment, const InlineRun& run) {

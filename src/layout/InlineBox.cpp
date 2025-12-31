@@ -60,29 +60,22 @@ ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
     return {style ? style->margin.left : 0.0f, style ? style->margin.right : 0.0f, style ? style->margin.top : 0.0f,
             style ? style->margin.bottom : 0.0f};
 }
-
-InlineRun build_inline_atomic_run(InlineBox& box, IGraphicsContext& context) {
-    box.layout(context, {0.0f, 0.0f, kInlineAtomicLayoutWidth, 0.0f});
-    const auto& rect = box.get_rect();
-    InlineRun run;
-    run.owner = &box;
-    run.local_index = 0;
-    run.width = rect.width;
-    run.height = rect.height;
-    return run;
-}
 }  // namespace
 
 void InlineBox::reset_inline_layout() {
     m_inline_atomic = false;
+    m_inline_measured_width = 0.0f;
+    m_inline_measured_height = 0.0f;
 }
 
-void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) {
+void InlineBox::measure_inline(IGraphicsContext& context) {
     const auto* style = get_computed_style();
 
     if (has_insets(style)) {
         m_inline_atomic = true;
-        runs.push_back(build_inline_atomic_run(*this, context));
+        layout(context, {0.0f, 0.0f, kInlineAtomicLayoutWidth, 0.0f});
+        m_inline_measured_width = m_rect.width;
+        m_inline_measured_height = m_rect.height;
         return;
     }
 
@@ -90,6 +83,24 @@ void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<Inlin
     for (auto& child : m_children) {
         if (auto p = child->Inline()) {
             p.get().reset_inline_layout();
+            p.get().measure_inline(context);
+        }
+    }
+}
+
+void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) {
+    if (m_inline_atomic) {
+        InlineRun run;
+        run.owner = this;
+        run.local_index = 0;
+        run.width = m_inline_measured_width;
+        run.height = m_inline_measured_height;
+        runs.push_back(std::move(run));
+        return;
+    }
+
+    for (auto& child : m_children) {
+        if (auto p = child->Inline()) {
             p.get().collect_inline_runs(context, runs);
         }
     }
