@@ -148,7 +148,7 @@ DOM::Node* Parser::select_parent(const ParseState& state, std::string_view tag_n
 void Parser::apply_attributes(DOM::Element& element, const StartTagToken& tag_data) {
     for (size_t i = 0; i < tag_data.attribute_count; ++i) {
         const auto& attr = tag_data.attributes[i];
-        element.set_attribute(std::string(attr.name), std::string(attr.value));
+        element.set_attribute(attr.name, attr.value);
     }
 }
 
@@ -156,11 +156,11 @@ void Parser::append_text_node(DOM::Node* parent, std::string_view text) {
     auto& children = parent->get_children();
     if (!children.empty()) {
         if (auto* last_text = dynamic_cast<DOM::Text*>(children.back().get())) {
-            last_text->append(std::string(text));
+            last_text->append(text);
             return;
         }
     }
-    auto new_text = make_arena_ptr<DOM::Text>(m_arena, std::string(text));
+    auto new_text = make_arena_ptr<DOM::Text>(m_arena, text);
     parent->append_child(std::move(new_text));
 }
 

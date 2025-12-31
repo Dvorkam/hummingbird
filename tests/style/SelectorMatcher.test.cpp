@@ -13,8 +13,8 @@ TEST(SelectorMatcherTest, MatchesTagClassId) {
     elem.set_attribute("class", "foo bar");
     elem.set_attribute("id", "main");
 
-    EXPECT_TRUE(matches_selector(&elem, Selector{SelectorType::Tag, std::string(Hummingbird::Html::TagNames::Div)}));
-    EXPECT_FALSE(matches_selector(&elem, Selector{SelectorType::Tag, std::string(Hummingbird::Html::TagNames::Span)}));
+    EXPECT_TRUE(matches_selector(&elem, Selector{SelectorType::Tag, Hummingbird::Html::TagNames::Div}));
+    EXPECT_FALSE(matches_selector(&elem, Selector{SelectorType::Tag, Hummingbird::Html::TagNames::Span}));
     EXPECT_TRUE(matches_selector(&elem, Selector{SelectorType::Class, "foo"}));
     EXPECT_TRUE(matches_selector(&elem, Selector{SelectorType::Class, "bar"}));
     EXPECT_FALSE(matches_selector(&elem, Selector{SelectorType::Class, "baz"}));

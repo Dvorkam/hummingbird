@@ -15,7 +15,9 @@ public:
     const std::string& get_tag_name() const { return m_tag_name; }
     const std::unordered_map<std::string, std::string>& get_attributes() const { return m_attributes; }
 
-    void set_attribute(const std::string& key, const std::string& value) { m_attributes[key] = value; }
+    void set_attribute(std::string_view key, std::string_view value) {
+        m_attributes[std::string(key)] = std::string(value);
+    }
 
 private:
     std::string m_tag_name;

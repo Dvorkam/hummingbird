@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
@@ -89,6 +90,8 @@ struct Value {
 struct Selector {
     SelectorType type;
     std::string value;
+
+    Selector(SelectorType type, std::string_view value) : type(type), value(value) {}
 
     int specificity() const {
         switch (type) {
