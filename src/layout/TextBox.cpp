@@ -217,6 +217,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     text_style.font_size = font_size;
 
     // TODO: choose real monospace fonts when available.
+    HB_LOG_WARN("[layout] Not implemented: real monospace font selection");
     float line_height = measure_text_block(context, m_rendered_text, text_style, m_last_metrics);
     m_line_height = line_height;
 
