@@ -28,6 +28,8 @@ struct ChildMargins {
     float bottom;
 };
 
+constexpr float kInlineAtomicLayoutWidth = 100000.0f;
+
 LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect) {
     float padding_left = style ? style->padding.left : 0.0f;
     float padding_right = style ? style->padding.right : 0.0f;
@@ -83,6 +85,17 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
     Rect child_bounds = {child_x, child_y, available_width, 0.0f};
     child.layout(context, child_bounds);
     cursor.y = child_y + child.get_rect().height + margins.bottom;
+}
+
+InlineRun build_inline_atomic_run(InlineBlockBox& box, IGraphicsContext& context) {
+    box.layout(context, {0.0f, 0.0f, kInlineAtomicLayoutWidth, 0.0f});
+    const auto& rect = box.get_rect();
+    InlineRun run;
+    run.owner = &box;
+    run.local_index = 0;
+    run.width = rect.width;
+    run.height = rect.height;
+    return run;
 }
 
 void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
@@ -197,13 +210,7 @@ void InlineBlockBox::reset_inline_layout() {
 
 void InlineBlockBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) {
     m_inline_atomic = true;
-    layout(context, {0.0f, 0.0f, 100000.0f, 0.0f});
-    InlineRun run;
-    run.owner = this;
-    run.local_index = 0;
-    run.width = m_rect.width;
-    run.height = m_rect.height;
-    runs.push_back(std::move(run));
+    runs.push_back(build_inline_atomic_run(*this, context));
 }
 
 void InlineBlockBox::apply_inline_fragment(size_t index, const InlineFragment& fragment, const InlineRun& run) {

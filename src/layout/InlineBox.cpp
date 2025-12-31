@@ -60,6 +60,17 @@ ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
     return {style ? style->margin.left : 0.0f, style ? style->margin.right : 0.0f, style ? style->margin.top : 0.0f,
             style ? style->margin.bottom : 0.0f};
 }
+
+InlineRun build_inline_atomic_run(InlineBox& box, IGraphicsContext& context) {
+    box.layout(context, {0.0f, 0.0f, kInlineAtomicLayoutWidth, 0.0f});
+    const auto& rect = box.get_rect();
+    InlineRun run;
+    run.owner = &box;
+    run.local_index = 0;
+    run.width = rect.width;
+    run.height = rect.height;
+    return run;
+}
 }  // namespace
 
 void InlineBox::reset_inline_layout() {
@@ -71,13 +82,7 @@ void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<Inlin
 
     if (has_insets(style)) {
         m_inline_atomic = true;
-        layout(context, {0.0f, 0.0f, kInlineAtomicLayoutWidth, 0.0f});
-        InlineRun run;
-        run.owner = this;
-        run.local_index = 0;
-        run.width = m_rect.width;
-        run.height = m_rect.height;
-        runs.push_back(std::move(run));
+        runs.push_back(build_inline_atomic_run(*this, context));
         return;
     }
 

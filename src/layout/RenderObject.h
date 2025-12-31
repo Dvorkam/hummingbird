@@ -38,7 +38,6 @@ public:
     RenderObject* get_parent() const { return m_parent; }
 
     InlineRef Inline() { return InlineRef(as_inline_participant()); }
-    InlineRef Inline() const { return InlineRef(const_cast<IInlineParticipant*>(as_inline_participant())); }
 
     virtual void layout(IGraphicsContext& context, const Rect& bounds);
     virtual void paint(IGraphicsContext& context, const Point& offset) final;
