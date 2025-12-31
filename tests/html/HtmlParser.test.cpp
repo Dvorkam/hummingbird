@@ -2,7 +2,12 @@
 
 #include <gtest/gtest.h>
 
+#include "core/dom/HtmlTagNames.h"
+#include "style/CssPropertyNames.h"
+
 using namespace Hummingbird::Html;
+namespace TagNames = Hummingbird::Html::TagNames;
+namespace PropertyNames = Hummingbird::Css::PropertyNames;
 
 TEST(HtmlParserTest, SimpleTreeConstruction) {
     std::string_view html = "<html><body><p>Hello</p></body></html>";
@@ -48,7 +53,7 @@ TEST(HtmlParserTest, HandlesVoidAndSelfClosingTagsWithoutStackingChildren) {
 
     auto br_node = dynamic_cast<Hummingbird::DOM::Element*>(children[1].get());
     ASSERT_NE(br_node, nullptr);
-    EXPECT_EQ(br_node->get_tag_name(), "br");
+    EXPECT_EQ(br_node->get_tag_name(), TagNames::Br);
 
     auto trailing_text = dynamic_cast<Hummingbird::DOM::Text*>(children[2].get());
     ASSERT_NE(trailing_text, nullptr);
@@ -56,7 +61,7 @@ TEST(HtmlParserTest, HandlesVoidAndSelfClosingTagsWithoutStackingChildren) {
 
     auto img_node = dynamic_cast<Hummingbird::DOM::Element*>(children[3].get());
     ASSERT_NE(img_node, nullptr);
-    EXPECT_EQ(img_node->get_tag_name(), "img");
+    EXPECT_EQ(img_node->get_tag_name(), TagNames::Img);
 }
 
 TEST(HtmlParserTest, TracksUnsupportedTags) {
@@ -85,17 +90,17 @@ TEST(HtmlParserTest, PopsToMatchingAncestorOnMismatchedEndTag) {
     auto trailing_p = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[1].get());
     ASSERT_NE(div_node, nullptr);
     ASSERT_NE(trailing_p, nullptr);
-    EXPECT_EQ(div_node->get_tag_name(), "div");
+    EXPECT_EQ(div_node->get_tag_name(), TagNames::Div);
 
     ASSERT_EQ(div_node->get_children().size(), 1u);
     auto span_node = dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[0].get());
     ASSERT_NE(span_node, nullptr);
-    EXPECT_EQ(span_node->get_tag_name(), "span");
+    EXPECT_EQ(span_node->get_tag_name(), TagNames::Span);
 
     ASSERT_EQ(span_node->get_children().size(), 1u);
     auto inner_p = dynamic_cast<Hummingbird::DOM::Element*>(span_node->get_children()[0].get());
     ASSERT_NE(inner_p, nullptr);
-    EXPECT_EQ(inner_p->get_tag_name(), "p");
+    EXPECT_EQ(inner_p->get_tag_name(), TagNames::P);
     ASSERT_EQ(inner_p->get_children().size(), 1u);
     auto text = dynamic_cast<Hummingbird::DOM::Text*>(inner_p->get_children()[0].get());
     ASSERT_NE(text, nullptr);
@@ -110,10 +115,10 @@ TEST(HtmlParserTest, IsCaseInsensitiveForTags) {
     ASSERT_NE(result.dom, nullptr);
     auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
     ASSERT_NE(div_node, nullptr);
-    EXPECT_EQ(div_node->get_tag_name(), "div");
+    EXPECT_EQ(div_node->get_tag_name(), TagNames::Div);
     auto a_node = dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[0].get());
     ASSERT_NE(a_node, nullptr);
-    EXPECT_EQ(a_node->get_tag_name(), "a");
+    EXPECT_EQ(a_node->get_tag_name(), TagNames::A);
     auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(a_node->get_children()[0].get());
     ASSERT_NE(text_node, nullptr);
     EXPECT_EQ(text_node->get_text(), "Link");
@@ -127,8 +132,8 @@ TEST(HtmlParserTest, ExtractsStyleBlocks) {
     ASSERT_NE(result.dom, nullptr);
     const auto& styles = result.style_blocks;
     ASSERT_EQ(styles.size(), 1u);
-    EXPECT_NE(styles[0].find("body"), std::string::npos);
-    EXPECT_NE(styles[0].find("color"), std::string::npos);
+    EXPECT_NE(styles[0].find(TagNames::Body), std::string::npos);
+    EXPECT_NE(styles[0].find(PropertyNames::Color), std::string::npos);
 }
 
 TEST(HtmlParserTest, AutoClosesListItems) {
@@ -141,7 +146,7 @@ TEST(HtmlParserTest, AutoClosesListItems) {
     ASSERT_EQ(result.dom->get_children().size(), 1u);
     auto* ul = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
     ASSERT_NE(ul, nullptr);
-    EXPECT_EQ(ul->get_tag_name(), "ul");
+    EXPECT_EQ(ul->get_tag_name(), TagNames::Ul);
     EXPECT_EQ(ul->get_children().size(), 2u);
 }
 
@@ -155,13 +160,13 @@ TEST(HtmlParserTest, MovesBodyOutOfHead) {
     ASSERT_EQ(result.dom->get_children().size(), 1u);
     auto* html_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
     ASSERT_NE(html_node, nullptr);
-    ASSERT_EQ(html_node->get_tag_name(), "html");
+    ASSERT_EQ(html_node->get_tag_name(), TagNames::Html);
 
     ASSERT_EQ(html_node->get_children().size(), 2u);
     auto* head = dynamic_cast<Hummingbird::DOM::Element*>(html_node->get_children()[0].get());
     auto* body = dynamic_cast<Hummingbird::DOM::Element*>(html_node->get_children()[1].get());
     ASSERT_NE(head, nullptr);
     ASSERT_NE(body, nullptr);
-    EXPECT_EQ(head->get_tag_name(), "head");
-    EXPECT_EQ(body->get_tag_name(), "body");
+    EXPECT_EQ(head->get_tag_name(), TagNames::Head);
+    EXPECT_EQ(body->get_tag_name(), TagNames::Body);
 }

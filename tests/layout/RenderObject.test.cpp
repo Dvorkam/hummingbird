@@ -14,7 +14,7 @@
 //     TextBox text_box(&text_node);
 //     EXPECT_TRUE(InlineLayoutAccess::is_inline(text_box));
 //
-//     Element div("div");
+//     Element div(TagNames::Div);
 //     BlockBox block_box(&div);
 //     EXPECT_FALSE(InlineLayoutAccess::is_inline(block_box));
 // }

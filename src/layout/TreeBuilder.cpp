@@ -9,6 +9,7 @@
 #include "layout/RenderRule.h"
 #include "layout/TextBox.h"
 #include "style/ComputedStyle.h"
+#include "core/dom/HtmlTagNames.h"
 
 namespace Hummingbird::Layout {
 
@@ -23,7 +24,8 @@ bool is_whitespace_only(const std::string& text) {
 }
 
 bool is_non_visual_tag(std::string_view tag) {
-    return tag == "head" || tag == "style" || tag == "title" || tag == "script";
+    return tag == Hummingbird::Html::TagNames::Head || tag == Hummingbird::Html::TagNames::Style ||
+           tag == Hummingbird::Html::TagNames::Title || tag == Hummingbird::Html::TagNames::Script;
 }
 
 std::unique_ptr<RenderObject> render_for_display(const DOM::Element* element, Css::ComputedStyle::Display display) {
@@ -62,10 +64,10 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         if (is_non_visual_tag(tag)) {
             return nullptr;
         }
-        if (tag == "br") {
+        if (tag == Hummingbird::Html::TagNames::Br) {
             return std::make_unique<RenderBreak>(element_node);
         }
-        if (tag == "hr") {
+        if (tag == Hummingbird::Html::TagNames::Hr) {
             return std::make_unique<RenderRule>(element_node);
         }
         auto style = element_node->get_computed_style();

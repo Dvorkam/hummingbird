@@ -2,6 +2,8 @@
 
 #include <optional>
 
+#include "style/CssPropertyNames.h"
+
 namespace Hummingbird::Css {
 
 Parser::Parser(std::string_view input) : m_buffer(input) {
@@ -130,26 +132,26 @@ std::vector<Declaration> Parser::parse_declarations() {
 }
 
 Property Parser::parse_property_name(std::string_view name) const {
-    if (name == "display") return Property::Display;
-    if (name == "border-width") return Property::BorderWidth;
-    if (name == "border-color") return Property::BorderColor;
-    if (name == "border-style") return Property::BorderStyle;
-    if (name == "margin") return Property::Margin;
-    if (name == "margin-top") return Property::MarginTop;
-    if (name == "margin-right") return Property::MarginRight;
-    if (name == "margin-bottom") return Property::MarginBottom;
-    if (name == "margin-left") return Property::MarginLeft;
-    if (name == "padding") return Property::Padding;
-    if (name == "padding-top") return Property::PaddingTop;
-    if (name == "padding-right") return Property::PaddingRight;
-    if (name == "padding-bottom") return Property::PaddingBottom;
-    if (name == "padding-left") return Property::PaddingLeft;
-    if (name == "width") return Property::Width;
-    if (name == "height") return Property::Height;
-    if (name == "color") return Property::Color;
-    if (name == "font-size") return Property::FontSize;
-    if (name == "line-height") return Property::LineHeight;
-    if (name == "max-width") return Property::MaxWidth;
+    if (name == PropertyNames::Display) return Property::Display;
+    if (name == PropertyNames::BorderWidth) return Property::BorderWidth;
+    if (name == PropertyNames::BorderColor) return Property::BorderColor;
+    if (name == PropertyNames::BorderStyle) return Property::BorderStyle;
+    if (name == PropertyNames::Margin) return Property::Margin;
+    if (name == PropertyNames::MarginTop) return Property::MarginTop;
+    if (name == PropertyNames::MarginRight) return Property::MarginRight;
+    if (name == PropertyNames::MarginBottom) return Property::MarginBottom;
+    if (name == PropertyNames::MarginLeft) return Property::MarginLeft;
+    if (name == PropertyNames::Padding) return Property::Padding;
+    if (name == PropertyNames::PaddingTop) return Property::PaddingTop;
+    if (name == PropertyNames::PaddingRight) return Property::PaddingRight;
+    if (name == PropertyNames::PaddingBottom) return Property::PaddingBottom;
+    if (name == PropertyNames::PaddingLeft) return Property::PaddingLeft;
+    if (name == PropertyNames::Width) return Property::Width;
+    if (name == PropertyNames::Height) return Property::Height;
+    if (name == PropertyNames::Color) return Property::Color;
+    if (name == PropertyNames::FontSize) return Property::FontSize;
+    if (name == PropertyNames::LineHeight) return Property::LineHeight;
+    if (name == PropertyNames::MaxWidth) return Property::MaxWidth;
     return Property::Unknown;
 }
 

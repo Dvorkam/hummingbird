@@ -8,9 +8,6 @@
 namespace Hummingbird::Layout {
 
 namespace {
-constexpr float kMarkerSize = 6.0f;
-constexpr float kMarkerGap = 6.0f;
-
 struct LayoutMetrics {
     float inset_left;
     float inset_right;
@@ -61,7 +58,7 @@ LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bound
         rect.width = bounds.width;
     }
 
-    float marker_offset = kMarkerSize + kMarkerGap;
+    float marker_offset = kListMarkerSizePx + kListMarkerGapPx;
     float content_width = rect.width - inset_left - inset_right - marker_offset;
     if (content_width < 0.0f) content_width = 0.0f;
 
@@ -226,7 +223,7 @@ void update_marker_for_inline(const InlineLayoutResult& inline_layout, bool& mar
     if (marker_y_set || inline_layout.heights.empty()) {
         return;
     }
-    marker_y = inset_top + std::max(0.0f, (inline_layout.heights[0] - kMarkerSize) * 0.5f);
+    marker_y = inset_top + std::max(0.0f, (inline_layout.heights[0] - kListMarkerSizePx) * 0.5f);
     marker_y_set = true;
 }
 }  // namespace
@@ -267,7 +264,7 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.height = cursor.y + metrics.inset_bottom;
 
     if (m_marker) {
-        Rect marker_bounds{metrics.inset_left, marker_y, kMarkerSize, kMarkerSize};
+        Rect marker_bounds{metrics.inset_left, marker_y, kListMarkerSizePx, kListMarkerSizePx};
         m_marker->layout(context, marker_bounds);
     }
 }

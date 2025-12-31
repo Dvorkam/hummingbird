@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "core/utils/Log.h"
+#include "core/dom/HtmlTagNames.h"
 
 namespace Hummingbird::Html {
 
@@ -17,7 +18,12 @@ std::string to_lower(const std::string_view& view) {
 }
 
 bool is_void_element(std::string_view name) {
-    static constexpr std::string_view kVoidElements[] = {"meta", "link", "br", "img", "input", "hr"};
+    static constexpr std::string_view kVoidElements[] = {Hummingbird::Html::TagNames::Meta,
+                                                         Hummingbird::Html::TagNames::Link,
+                                                         Hummingbird::Html::TagNames::Br,
+                                                         Hummingbird::Html::TagNames::Img,
+                                                         Hummingbird::Html::TagNames::Input,
+                                                         Hummingbird::Html::TagNames::Hr};
     for (auto tag : kVoidElements) {
         if (tag == name) return true;
     }
@@ -26,9 +32,22 @@ bool is_void_element(std::string_view name) {
 
 bool is_known_element(std::string_view name) {
     static constexpr std::string_view kKnown[] = {
-        "html", "head", "body",  "title", "style", "script", "div",    "p",    "span", "h1",
-        "h2",   "h3",   "h4",    "h5",    "h6",    "b",      "strong", "i",    "em",   "img",
-        "br",   "hr",   "input", "ul",    "ol",    "li",     "pre",    "code", "a",    "blockquote"};
+        Hummingbird::Html::TagNames::Html,      Hummingbird::Html::TagNames::Head,
+        Hummingbird::Html::TagNames::Body,      Hummingbird::Html::TagNames::Title,
+        Hummingbird::Html::TagNames::Style,     Hummingbird::Html::TagNames::Script,
+        Hummingbird::Html::TagNames::Div,       Hummingbird::Html::TagNames::P,
+        Hummingbird::Html::TagNames::Span,      Hummingbird::Html::TagNames::H1,
+        Hummingbird::Html::TagNames::H2,        Hummingbird::Html::TagNames::H3,
+        Hummingbird::Html::TagNames::H4,        Hummingbird::Html::TagNames::H5,
+        Hummingbird::Html::TagNames::H6,        Hummingbird::Html::TagNames::B,
+        Hummingbird::Html::TagNames::Strong,    Hummingbird::Html::TagNames::I,
+        Hummingbird::Html::TagNames::Em,        Hummingbird::Html::TagNames::Img,
+        Hummingbird::Html::TagNames::Br,        Hummingbird::Html::TagNames::Hr,
+        Hummingbird::Html::TagNames::Input,     Hummingbird::Html::TagNames::Ul,
+        Hummingbird::Html::TagNames::Ol,        Hummingbird::Html::TagNames::Li,
+        Hummingbird::Html::TagNames::Pre,       Hummingbird::Html::TagNames::Code,
+        Hummingbird::Html::TagNames::A,         Hummingbird::Html::TagNames::Blockquote,
+        Hummingbird::Html::TagNames::Meta,      Hummingbird::Html::TagNames::Link};
     for (auto tag : kKnown) {
         if (tag == name) return true;
     }
@@ -39,7 +58,7 @@ bool is_known_element(std::string_view name) {
 Parser::Result Parser::parse() {
     m_style_blocks.clear();
     m_unsupported_tags.clear();
-    auto root = make_arena_ptr<DOM::Element>(m_arena, "root");
+    auto root = make_arena_ptr<DOM::Element>(m_arena, std::string(Hummingbird::Html::TagNames::Root));
     ParseState state;
     state.open_elements.push_back(root.get());
 
@@ -95,7 +114,7 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
     if (should_push) {
         state.open_elements.push_back(appended);
     }
-    if (lowered_name == "style" && should_push) {
+    if (lowered_name == Hummingbird::Html::TagNames::Style && should_push) {
         m_style_blocks.emplace_back();
         state.in_style = true;
     }
@@ -103,7 +122,7 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
 
 void Parser::handle_end_tag(const EndTagToken& end_data, ParseState& state) {
     std::string lowered_end = to_lower(end_data.name);
-    if (lowered_end == "style") {
+    if (lowered_end == Hummingbird::Html::TagNames::Style) {
         state.in_style = false;
     }
     pop_to_matching_ancestor(state, lowered_end);
@@ -121,7 +140,8 @@ void Parser::handle_character_data(const CharacterDataToken& char_data, ParseSta
 DOM::Node* Parser::select_parent(const ParseState& state, std::string_view tag_name) const {
     DOM::Node* parent = state.open_elements.back();
     if (auto parent_el = dynamic_cast<DOM::Element*>(parent)) {
-        if (parent_el->get_tag_name() == "head" && tag_name == "body" && state.open_elements.size() >= 2) {
+        if (parent_el->get_tag_name() == Hummingbird::Html::TagNames::Head &&
+            tag_name == Hummingbird::Html::TagNames::Body && state.open_elements.size() >= 2) {
             return state.open_elements[state.open_elements.size() - 2];
         }
     }
@@ -173,9 +193,9 @@ void Parser::pop_to_matching_ancestor(ParseState& state, std::string_view tag_na
 }
 
 void Parser::maybe_close_list_item(ParseState& state, std::string_view tag_name) {
-    if (tag_name != "li" || state.open_elements.empty()) return;
+    if (tag_name != Hummingbird::Html::TagNames::Li || state.open_elements.empty()) return;
     if (auto* top_el = dynamic_cast<DOM::Element*>(state.open_elements.back())) {
-        if (top_el->get_tag_name() == "li") {
+        if (top_el->get_tag_name() == Hummingbird::Html::TagNames::Li) {
             state.open_elements.pop_back();
         }
     }

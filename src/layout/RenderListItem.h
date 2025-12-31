@@ -11,6 +11,9 @@ namespace Hummingbird::Layout {
 
 class RenderMarker;
 
+inline constexpr float kListMarkerSizePx = 6.0f;
+inline constexpr float kListMarkerGapPx = 6.0f;
+
 class RenderListItem : public BlockBox {
 public:
     explicit RenderListItem(const DOM::Node* dom_node);
@@ -35,7 +38,7 @@ public:
     void paint_self(IGraphicsContext& context, const Point& offset) override;
 
 private:
-    float m_size = 6.0f;
+    float m_size = kListMarkerSizePx;
 };
 
 }  // namespace Hummingbird::Layout

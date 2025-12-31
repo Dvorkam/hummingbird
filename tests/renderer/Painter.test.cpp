@@ -5,6 +5,7 @@
 #include <cmath>
 #include <functional>
 
+#include "core/dom/HtmlTagNames.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/dom/Element.h"
 #include "html/HtmlParser.h"
@@ -171,7 +172,7 @@ TEST(PainterTest, PaintsBorderEdgesAtComputedPositions) {
     Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
     render_tree->layout(context, viewport);
 
-    auto* div_node = find_tag(render_tree.get(), "div");
+    auto* div_node = find_tag(render_tree.get(), Hummingbird::Html::TagNames::Div);
     ASSERT_NE(div_node, nullptr);
     const auto* style = div_node->get_computed_style();
     ASSERT_NE(style, nullptr);

@@ -5,6 +5,7 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
+#include "core/dom/HtmlTagNames.h"
 #include "style/SelectorMatcher.h"
 
 namespace Hummingbird::Css {
@@ -177,71 +178,73 @@ void apply_ua_defaults(const DOM::Element& element, ComputedStyle& style, StyleO
     };
 
     if (!display_set) {
-        if (tag == "a" || tag == "span" || tag == "strong" || tag == "em" || tag == "b" || tag == "i" ||
-            tag == "code") {
+        if (tag == Hummingbird::Html::TagNames::A || tag == Hummingbird::Html::TagNames::Span ||
+            tag == Hummingbird::Html::TagNames::Strong || tag == Hummingbird::Html::TagNames::Em ||
+            tag == Hummingbird::Html::TagNames::B || tag == Hummingbird::Html::TagNames::I ||
+            tag == Hummingbird::Html::TagNames::Code) {
             style.display = ComputedStyle::Display::Inline;
-        } else if (tag == "li") {
+        } else if (tag == Hummingbird::Html::TagNames::Li) {
             style.display = ComputedStyle::Display::ListItem;
         }
     }
 
-    if (tag == "ul" || tag == "ol") {
+    if (tag == Hummingbird::Html::TagNames::Ul || tag == Hummingbird::Html::TagNames::Ol) {
         style.padding.left = 20.0f;
-    } else if (tag == "pre") {
+    } else if (tag == Hummingbird::Html::TagNames::Pre) {
         if (style.whitespace == ComputedStyle::WhiteSpace::Normal) {
             style.whitespace = ComputedStyle::WhiteSpace::Preserve;
         }
         style.font_monospace = true;
         overrides.whitespace = true;
         overrides.font_monospace = true;
-    } else if (tag == "a") {
+    } else if (tag == Hummingbird::Html::TagNames::A) {
         style.color = {0, 0, 255, 255};
         style.underline = true;
         overrides.color = true;
         overrides.underline = true;
-    } else if (tag == "code") {
+    } else if (tag == Hummingbird::Html::TagNames::Code) {
         style.font_monospace = true;
         style.background = Color{230, 230, 230, 255};
         style.padding.left = style.padding.right = 2.0f;
         style.padding.top = style.padding.bottom = 1.0f;
         overrides.font_monospace = true;
         overrides.background = true;
-    } else if (tag == "blockquote") {
+    } else if (tag == Hummingbird::Html::TagNames::Blockquote) {
         style.margin.left = 40.0f;
         style.margin.right = 40.0f;
         style.margin.top = 8.0f;
         style.margin.bottom = 8.0f;
-    } else if (tag == "hr") {
+    } else if (tag == Hummingbird::Html::TagNames::Hr) {
         style.height = 2.0f;
         style.margin.top = style.margin.bottom = 8.0f;
         style.background = Color{50, 50, 50, 255};
-    } else if (tag == "strong") {
+    } else if (tag == Hummingbird::Html::TagNames::Strong) {
         style.weight = ComputedStyle::FontWeight::Bold;
         overrides.weight = true;
-    } else if (tag == "em") {
+    } else if (tag == Hummingbird::Html::TagNames::Em) {
         style.style = ComputedStyle::FontStyle::Italic;
         overrides.style = true;
-    } else if (tag == "h1") {
+    } else if (tag == Hummingbird::Html::TagNames::H1) {
         set_heading(2.0f, 0.67f);
         overrides.font_size = true;
         overrides.weight = true;
-    } else if (tag == "h2") {
+    } else if (tag == Hummingbird::Html::TagNames::H2) {
         set_heading(1.5f, 0.83f);
         overrides.font_size = true;
         overrides.weight = true;
-    } else if (tag == "h3") {
+    } else if (tag == Hummingbird::Html::TagNames::H3) {
         set_heading(1.17f, 1.0f);
         overrides.font_size = true;
         overrides.weight = true;
-    } else if (tag == "h4") {
+    } else if (tag == Hummingbird::Html::TagNames::H4) {
         set_heading(1.0f, 1.33f);
         overrides.font_size = true;
         overrides.weight = true;
-    } else if (tag == "h5") {
+    } else if (tag == Hummingbird::Html::TagNames::H5) {
         set_heading(0.83f, 1.67f);
         overrides.font_size = true;
         overrides.weight = true;
-    } else if (tag == "h6") {
+    } else if (tag == Hummingbird::Html::TagNames::H6) {
         set_heading(0.67f, 2.33f);
         overrides.font_size = true;
         overrides.weight = true;

@@ -13,6 +13,9 @@ TextBox::TextBox(const DOM::Text* dom_node) : RenderObject(dom_node) {}
 
 namespace {
 constexpr float kInlineMeasurementWidth = 100000.0f;
+constexpr float kDefaultFontSizePx = 16.0f;
+constexpr float kUnderlineOffsetPx = 2.0f;
+constexpr float kUnderlineThicknessPx = 1.0f;
 
 struct Insets {
     float left;
@@ -71,7 +74,7 @@ std::string resolve_text_font_path(const Css::ComputedStyle* style) {
 TextStyle build_text_style(const Css::ComputedStyle* style) {
     TextStyle text_style;
     text_style.font_path = resolve_text_font_path(style);
-    text_style.font_size = style ? style->font_size : 16.0f;
+    text_style.font_size = style ? style->font_size : kDefaultFontSizePx;
     text_style.bold = false;
     text_style.italic = false;
     text_style.monospace = style && style->font_monospace;
@@ -213,7 +216,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     }
 
     // Assumptions for now: monospace font selection is still hardcoded.
-    float font_size = style ? style->font_size : 16.0f;
+    float font_size = style ? style->font_size : kDefaultFontSizePx;
     TextStyle text_style = build_text_style(style);
     text_style.font_size = font_size;
 
@@ -379,8 +382,8 @@ void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_s
         if (line_widths[i] <= 0.0f) {
             continue;
         }
-        float underline_y = absolute_y + static_cast<float>(i + 1) * line_height - 2.0f;
-        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, line_widths[i], 1.0f};
+        float underline_y = absolute_y + static_cast<float>(i + 1) * line_height - kUnderlineOffsetPx;
+        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, line_widths[i], kUnderlineThicknessPx};
         context.fill_rect(line_rect, text_style.color);
     }
 }
@@ -398,8 +401,8 @@ void TextBox::paint_lines(IGraphicsContext& context, const TextStyle& text_style
     }
 
     if (underline && underline_width > 0) {
-        float underline_y = absolute_y + static_cast<float>(m_lines.size()) * line_height - 2.0f;
-        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, underline_width, 1.0f};
+        float underline_y = absolute_y + static_cast<float>(m_lines.size()) * line_height - kUnderlineOffsetPx;
+        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, underline_width, kUnderlineThicknessPx};
         context.fill_rect(line_rect, text_style.color);
     }
 }

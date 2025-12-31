@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include "core/dom/HtmlTagNames.h"
+
 using namespace Hummingbird::Css;
 
 TEST(CSSParserTest, ParsesSingleRule) {
@@ -11,7 +13,7 @@ TEST(CSSParserTest, ParsesSingleRule) {
     const auto& rule = sheet.rules[0];
     ASSERT_EQ(rule.selectors.size(), 1u);
     EXPECT_EQ(rule.selectors[0].type, SelectorType::Tag);
-    EXPECT_EQ(rule.selectors[0].value, "div");
+    EXPECT_EQ(rule.selectors[0].value, Hummingbird::Html::TagNames::Div);
     ASSERT_EQ(rule.declarations.size(), 1u);
     EXPECT_EQ(rule.declarations[0].property, Property::Color);
     EXPECT_EQ(rule.declarations[0].value.type, Value::Type::Color);
@@ -27,9 +29,9 @@ TEST(CSSParserTest, ParsesSelectorList) {
     const auto& rule = sheet.rules[0];
     ASSERT_EQ(rule.selectors.size(), 3u);
     EXPECT_EQ(rule.selectors[0].type, SelectorType::Tag);
-    EXPECT_EQ(rule.selectors[0].value, "h1");
+    EXPECT_EQ(rule.selectors[0].value, Hummingbird::Html::TagNames::H1);
     EXPECT_EQ(rule.selectors[1].type, SelectorType::Tag);
-    EXPECT_EQ(rule.selectors[1].value, "h2");
+    EXPECT_EQ(rule.selectors[1].value, Hummingbird::Html::TagNames::H2);
     EXPECT_EQ(rule.selectors[2].type, SelectorType::Class);
     EXPECT_EQ(rule.selectors[2].value, "title");
     ASSERT_EQ(rule.declarations.size(), 1u);
