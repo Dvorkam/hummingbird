@@ -1,8 +1,9 @@
+#include "style/SelectorMatcher.h"
+
 #include <gtest/gtest.h>
 
 #include "core/dom/Element.h"
-#include "core/dom/HtmlTagNames.h"
-#include "style/SelectorMatcher.h"
+#include "html/HtmlTagNames.h"
 
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;

@@ -4,8 +4,8 @@
 
 #include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
-#include "core/dom/HtmlTagNames.h"
 #include "core/dom/Text.h"
+#include "html/HtmlTagNames.h"
 #include "layout/RenderBreak.h"
 #include "layout/RenderRule.h"
 #include "layout/TextBox.h"

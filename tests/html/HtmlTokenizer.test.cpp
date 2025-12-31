@@ -1,6 +1,8 @@
-#include <gtest/gtest.h>
 #include "html/HtmlTokenizer.h"
-#include "core/dom/HtmlTagNames.h"
+
+#include <gtest/gtest.h>
+
+#include "html/HtmlTagNames.h"
 
 using namespace Hummingbird::Html;
 namespace TagNames = Hummingbird::Html::TagNames;

@@ -5,10 +5,10 @@
 #include <cmath>
 #include <functional>
 
-#include "core/dom/HtmlTagNames.h"
-#include "core/platform_api/IGraphicsContext.h"
 #include "core/dom/Element.h"
+#include "core/platform_api/IGraphicsContext.h"
 #include "html/HtmlParser.h"
+#include "html/HtmlTagNames.h"
 #include "layout/RenderListItem.h"
 #include "layout/TreeBuilder.h"
 #include "style/CssParser.h"

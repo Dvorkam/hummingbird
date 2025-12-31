@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "core/dom/HtmlTagNames.h"
+#include "html/HtmlTagNames.h"
 #include "style/CssPropertyNames.h"
 
 using namespace Hummingbird::Html;

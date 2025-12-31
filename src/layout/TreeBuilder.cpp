@@ -2,6 +2,7 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "html/HtmlTagNames.h"
 #include "layout/BlockBox.h"
 #include "layout/InlineBox.h"
 #include "layout/RenderBreak.h"
@@ -9,7 +10,6 @@
 #include "layout/RenderRule.h"
 #include "layout/TextBox.h"
 #include "style/ComputedStyle.h"
-#include "core/dom/HtmlTagNames.h"
 
 namespace Hummingbird::Layout {
 

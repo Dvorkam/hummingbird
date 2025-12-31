@@ -5,7 +5,7 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
-#include "core/dom/HtmlTagNames.h"
+#include "html/HtmlTagNames.h"
 #include "style/CssValueNames.h"
 #include "style/SelectorMatcher.h"
 

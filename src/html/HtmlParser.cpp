@@ -3,7 +3,7 @@
 #include <algorithm>
 
 #include "core/utils/Log.h"
-#include "core/dom/HtmlTagNames.h"
+#include "html/HtmlTagNames.h"
 
 namespace Hummingbird::Html {
 
@@ -18,12 +18,9 @@ std::string to_lower(const std::string_view& view) {
 }
 
 bool is_void_element(std::string_view name) {
-    static constexpr std::string_view kVoidElements[] = {Hummingbird::Html::TagNames::Meta,
-                                                         Hummingbird::Html::TagNames::Link,
-                                                         Hummingbird::Html::TagNames::Br,
-                                                         Hummingbird::Html::TagNames::Img,
-                                                         Hummingbird::Html::TagNames::Input,
-                                                         Hummingbird::Html::TagNames::Hr};
+    static constexpr std::string_view kVoidElements[] = {
+        Hummingbird::Html::TagNames::Meta, Hummingbird::Html::TagNames::Link,  Hummingbird::Html::TagNames::Br,
+        Hummingbird::Html::TagNames::Img,  Hummingbird::Html::TagNames::Input, Hummingbird::Html::TagNames::Hr};
     for (auto tag : kVoidElements) {
         if (tag == name) return true;
     }
@@ -32,22 +29,22 @@ bool is_void_element(std::string_view name) {
 
 bool is_known_element(std::string_view name) {
     static constexpr std::string_view kKnown[] = {
-        Hummingbird::Html::TagNames::Html,      Hummingbird::Html::TagNames::Head,
-        Hummingbird::Html::TagNames::Body,      Hummingbird::Html::TagNames::Title,
-        Hummingbird::Html::TagNames::Style,     Hummingbird::Html::TagNames::Script,
-        Hummingbird::Html::TagNames::Div,       Hummingbird::Html::TagNames::P,
-        Hummingbird::Html::TagNames::Span,      Hummingbird::Html::TagNames::H1,
-        Hummingbird::Html::TagNames::H2,        Hummingbird::Html::TagNames::H3,
-        Hummingbird::Html::TagNames::H4,        Hummingbird::Html::TagNames::H5,
-        Hummingbird::Html::TagNames::H6,        Hummingbird::Html::TagNames::B,
-        Hummingbird::Html::TagNames::Strong,    Hummingbird::Html::TagNames::I,
-        Hummingbird::Html::TagNames::Em,        Hummingbird::Html::TagNames::Img,
-        Hummingbird::Html::TagNames::Br,        Hummingbird::Html::TagNames::Hr,
-        Hummingbird::Html::TagNames::Input,     Hummingbird::Html::TagNames::Ul,
-        Hummingbird::Html::TagNames::Ol,        Hummingbird::Html::TagNames::Li,
-        Hummingbird::Html::TagNames::Pre,       Hummingbird::Html::TagNames::Code,
-        Hummingbird::Html::TagNames::A,         Hummingbird::Html::TagNames::Blockquote,
-        Hummingbird::Html::TagNames::Meta,      Hummingbird::Html::TagNames::Link};
+        Hummingbird::Html::TagNames::Html,   Hummingbird::Html::TagNames::Head,
+        Hummingbird::Html::TagNames::Body,   Hummingbird::Html::TagNames::Title,
+        Hummingbird::Html::TagNames::Style,  Hummingbird::Html::TagNames::Script,
+        Hummingbird::Html::TagNames::Div,    Hummingbird::Html::TagNames::P,
+        Hummingbird::Html::TagNames::Span,   Hummingbird::Html::TagNames::H1,
+        Hummingbird::Html::TagNames::H2,     Hummingbird::Html::TagNames::H3,
+        Hummingbird::Html::TagNames::H4,     Hummingbird::Html::TagNames::H5,
+        Hummingbird::Html::TagNames::H6,     Hummingbird::Html::TagNames::B,
+        Hummingbird::Html::TagNames::Strong, Hummingbird::Html::TagNames::I,
+        Hummingbird::Html::TagNames::Em,     Hummingbird::Html::TagNames::Img,
+        Hummingbird::Html::TagNames::Br,     Hummingbird::Html::TagNames::Hr,
+        Hummingbird::Html::TagNames::Input,  Hummingbird::Html::TagNames::Ul,
+        Hummingbird::Html::TagNames::Ol,     Hummingbird::Html::TagNames::Li,
+        Hummingbird::Html::TagNames::Pre,    Hummingbird::Html::TagNames::Code,
+        Hummingbird::Html::TagNames::A,      Hummingbird::Html::TagNames::Blockquote,
+        Hummingbird::Html::TagNames::Meta,   Hummingbird::Html::TagNames::Link};
     for (auto tag : kKnown) {
         if (tag == name) return true;
     }
