@@ -108,75 +108,112 @@ void BrowserApp::pump_events() {
 
 void BrowserApp::handle_event(const InputEvent& event) {
     switch (event.type) {
-        case EventType::Quit: {
-            shutdown();
+        case EventType::Quit:
+            handle_quit_event();
             return;
-        }
-
-        case EventType::TextInput: {
-            if (url_bar_active_) {
-                url_bar_text_ += event.text.text;
-                needs_repaint_ = true;
-            }
+        case EventType::TextInput:
+            handle_text_input_event(event);
             return;
-        }
-
-        case EventType::KeyDown: {
-            if (event.key.key == Key::Backspace && url_bar_active_ && !url_bar_text_.empty()) {
-                url_bar_text_.pop_back();
-            } else if (event.key.key == Key::Enter) {
-                url_bar_active_ = false;
-                window_->stop_text_input();
-                load_url(url_bar_text_);
-            } else if (event.key.key == Key::Escape) {
-                url_bar_active_ = false;
-                window_->stop_text_input();
-            } else if (event.key.key == Key::F1) {
-                debug_outlines_ = !debug_outlines_;
-                HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines_ ? "ON" : "OFF"));
-            } else if (event.key.key == Key::L && event.mods.ctrl) {
-                url_bar_active_ = true;
-                window_->start_text_input();
-                HB_LOG_INFO("[ui] URL bar focused");
-            }
-            needs_repaint_ = true;
+        case EventType::KeyDown:
+            handle_key_down_event(event);
             return;
-        }
-
-        case EventType::MouseDown: {
-            const int y = event.mouse_button.y;
-            if (y < url_bar_height_) {
-                url_bar_active_ = true;
-                window_->start_text_input();
-                HB_LOG_INFO("[ui] URL bar focused (mouse)");
-            } else {
-                url_bar_active_ = false;
-                window_->stop_text_input();
-            }
-            needs_repaint_ = true;
+        case EventType::MouseDown:
+            handle_mouse_down_event(event);
             return;
-        }
-
-        case EventType::MouseWheel: {
-            const float delta = static_cast<float>(event.wheel.dy) * 32.0f;
-            scroll_y_ -= delta;
-
-            auto [win_w, win_h] = window_->get_size();
-            const float viewport_h = static_cast<float>(win_h - url_bar_height_);
-            clamp_scroll(viewport_h);
-
-            needs_repaint_ = true;
+        case EventType::MouseWheel:
+            handle_mouse_wheel_event(event);
             return;
-        }
-
-        case EventType::Resize: {
-            relayout_for_window(event.resize.width, event.resize.height);
-            needs_repaint_ = true;
+        case EventType::Resize:
+            handle_resize_event(event);
             return;
-        }
-
         default:
             return;
+    }
+}
+
+void BrowserApp::handle_quit_event() {
+    shutdown();
+}
+
+void BrowserApp::handle_text_input_event(const InputEvent& event) {
+    if (!url_bar_active_) return;
+    url_bar_text_ += event.text.text;
+    needs_repaint_ = true;
+}
+
+void BrowserApp::handle_key_down_event(const InputEvent& event) {
+    if (event.key.key == Key::Backspace && url_bar_active_ && !url_bar_text_.empty()) {
+        url_bar_text_.pop_back();
+        needs_repaint_ = true;
+        return;
+    }
+
+    if (event.key.key == Key::Enter) {
+        set_url_bar_active(false, nullptr);
+        load_url(url_bar_text_);
+        needs_repaint_ = true;
+        return;
+    }
+
+    if (event.key.key == Key::Escape) {
+        set_url_bar_active(false, nullptr);
+        needs_repaint_ = true;
+        return;
+    }
+
+    if (event.key.key == Key::F1) {
+        debug_outlines_ = !debug_outlines_;
+        HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines_ ? "ON" : "OFF"));
+        needs_repaint_ = true;
+        return;
+    }
+
+    if (event.key.key == Key::L && event.mods.ctrl) {
+        set_url_bar_active(true, "[ui] URL bar focused");
+        needs_repaint_ = true;
+        return;
+    }
+
+    needs_repaint_ = true;
+}
+
+void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
+    const int y = event.mouse_button.y;
+    if (y < url_bar_height_) {
+        set_url_bar_active(true, "[ui] URL bar focused (mouse)");
+    } else {
+        set_url_bar_active(false, nullptr);
+    }
+    needs_repaint_ = true;
+}
+
+void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
+    const float delta = static_cast<float>(event.wheel.dy) * 32.0f;
+    scroll_y_ -= delta;
+
+    auto [win_w, win_h] = window_->get_size();
+    const float viewport_h = static_cast<float>(win_h - url_bar_height_);
+    clamp_scroll(viewport_h);
+
+    needs_repaint_ = true;
+}
+
+void BrowserApp::handle_resize_event(const InputEvent& event) {
+    relayout_for_window(event.resize.width, event.resize.height);
+    needs_repaint_ = true;
+}
+
+void BrowserApp::set_url_bar_active(bool active, const char* log_message) {
+    url_bar_active_ = active;
+    if (window_) {
+        if (active) {
+            window_->start_text_input();
+        } else {
+            window_->stop_text_input();
+        }
+    }
+    if (log_message) {
+        HB_LOG_INFO(log_message);
     }
 }
 
@@ -241,41 +278,78 @@ void BrowserApp::load_url(const std::string& url) {
 }
 
 void BrowserApp::consume_pending_html_and_rebuild() {
+    auto html = take_pending_html();
+    if (!html) return;
+    rebuild_from_html(*html);
+}
+
+std::optional<std::string> BrowserApp::take_pending_html() {
     std::optional<std::string> html;
-    {
-        std::lock_guard<std::mutex> lg(pending_mutex_);
-        if (pending_html_) {
-            html = std::move(pending_html_);
-            pending_html_.reset();
-        }
+    std::lock_guard<std::mutex> lg(pending_mutex_);
+    if (pending_html_) {
+        html = std::move(pending_html_);
+        pending_html_.reset();
+    }
+    return html;
+}
+
+void BrowserApp::rebuild_from_html(const std::string& html) {
+    reset_document_state();
+    HB_LOG_INFO("[pipeline] html size: " << html.size());
+
+    std::vector<std::string> style_blocks;
+    if (!parse_html(html, style_blocks)) {
+        return;
     }
 
-    if (!html) return;
+    std::string css = build_css_source(style_blocks);
+    parse_and_apply_css(css);
 
-    // Drop old trees before resetting arena
+    if (!build_render_tree()) {
+        return;
+    }
+
+    layout_current_window();
+    HB_LOG_INFO("[pipeline] render tree root children: " << render_tree_->get_children().size());
+    needs_repaint_ = true;
+}
+
+void BrowserApp::reset_document_state() {
     dom_tree_.reset();
     render_tree_.reset();
     dom_arena_.reset();
+}
 
-    HB_LOG_INFO("[pipeline] html size: " << html->size());
-
-    // Parse HTML
+bool BrowserApp::parse_html(const std::string& html, std::vector<std::string>& style_blocks) {
     const auto parse_start = Hummingbird::Core::Clock::now();
-    Hummingbird::Html::Parser parser(dom_arena_, *html);
+    Hummingbird::Html::Parser parser(dom_arena_, html);
     auto parse_result = parser.parse();
-    dom_tree_ = std::move(parse_result.dom);
     const auto parse_end = Hummingbird::Core::Clock::now();
+
+    dom_tree_ = std::move(parse_result.dom);
+    style_blocks = std::move(parse_result.style_blocks);
+
+    if (!dom_tree_) {
+        HB_LOG_WARN("[pipeline] parsed empty DOM");
+        return false;
+    }
 
     HB_LOG_INFO("[pipeline] parsed DOM children: " << dom_tree_->get_children().size()
                                                    << " total nodes: " << count_nodes_recursive(dom_tree_.get()));
     HB_LOG_INFO("[perf] html parse ms=" << Hummingbird::Core::duration_ms(parse_start, parse_end));
+    return true;
+}
 
-    // Temporary CSS (later: fetch/parse real CSS)
+std::string BrowserApp::build_css_source(const std::vector<std::string>& style_blocks) const {
     std::string css = "body { padding: 8px; } p { margin: 4px; }";
-    for (const auto& block : parse_result.style_blocks) {
+    for (const auto& block : style_blocks) {
         css.append("\n");
         css.append(block);
     }
+    return css;
+}
+
+void BrowserApp::parse_and_apply_css(const std::string& css) {
     const auto css_parse_start = Hummingbird::Core::Clock::now();
     Hummingbird::Css::Parser css_parser(css);
     auto stylesheet = css_parser.parse();
@@ -288,21 +362,23 @@ void BrowserApp::consume_pending_html_and_rebuild() {
     const auto style_end = Hummingbird::Core::Clock::now();
     HB_LOG_INFO("[pipeline] applied stylesheet rules: " << stylesheet.rules.size());
     HB_LOG_INFO("[perf] style apply ms=" << Hummingbird::Core::duration_ms(style_start, style_end));
+}
 
-    // Build render tree
+bool BrowserApp::build_render_tree() {
     const auto render_start = Hummingbird::Core::Clock::now();
     render_tree_ = tree_builder_.build(dom_tree_.get());
     const auto render_end = Hummingbird::Core::Clock::now();
-    if (!render_tree_ || !graphics_) return;
+    if (!render_tree_ || !graphics_) {
+        HB_LOG_WARN("[pipeline] render tree build skipped");
+        return false;
+    }
     HB_LOG_INFO("[perf] render tree build ms=" << Hummingbird::Core::duration_ms(render_start, render_end));
+    return true;
+}
 
-    // Layout to current window size
+void BrowserApp::layout_current_window() {
     auto [win_w, win_h] = window_->get_size();
     relayout_for_window(win_w, win_h);
-
-    HB_LOG_INFO("[pipeline] render tree root children: " << render_tree_->get_children().size());
-
-    needs_repaint_ = true;
 }
 
 void BrowserApp::render_if_needed() {

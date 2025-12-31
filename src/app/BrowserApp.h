@@ -6,6 +6,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "core/ArenaAllocator.h"
 #include "core/platform_api/IGraphicsContext.h"
@@ -45,6 +46,13 @@ private:
 
     // --- event handling ---
     void handle_event(const InputEvent& e);
+    void handle_quit_event();
+    void handle_text_input_event(const InputEvent& e);
+    void handle_key_down_event(const InputEvent& e);
+    void handle_mouse_down_event(const InputEvent& e);
+    void handle_mouse_wheel_event(const InputEvent& e);
+    void handle_resize_event(const InputEvent& e);
+    void set_url_bar_active(bool active, const char* log_message);
 
     // --- navigation ---
     void load_url(const std::string& url);
@@ -52,6 +60,14 @@ private:
     // --- helpers ---
     void clamp_scroll(float viewport_height);
     void relayout_for_window(int win_w, int win_h);
+    std::optional<std::string> take_pending_html();
+    void rebuild_from_html(const std::string& html);
+    void reset_document_state();
+    bool parse_html(const std::string& html, std::vector<std::string>& style_blocks);
+    std::string build_css_source(const std::vector<std::string>& style_blocks) const;
+    void parse_and_apply_css(const std::string& css);
+    bool build_render_tree();
+    void layout_current_window();
 
 private:
     // App Utils
