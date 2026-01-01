@@ -10,6 +10,7 @@
 #include "core/utils/Timing.h"
 #include "html/HtmlParser.h"
 #include "style/CssParser.h"
+#include "style/StylesheetSource.h"
 
 // Include concrete definitions:
 #include "core/dom/Node.h"
@@ -311,7 +312,7 @@ void BrowserApp::rebuild_from_html(const std::string& html) {
         HB_LOG_INFO("[pipeline] discovered stylesheet links: " << stylesheet_links.size());
     }
 
-    std::string css = build_css_source(style_blocks);
+    std::string css = build_css_source(style_blocks, stylesheet_links);
     parse_and_apply_css(css);
 
     if (!build_render_tree()) {
@@ -351,24 +352,32 @@ bool BrowserApp::parse_html(const std::string& html, std::vector<std::string>& s
     return true;
 }
 
-std::string BrowserApp::build_css_source(const std::vector<std::string>& style_blocks) const {
-    std::string css;
+std::string BrowserApp::build_css_source(const std::vector<std::string>& style_blocks,
+                                         const std::vector<std::string>& stylesheet_links) const {
+    std::string ua_css;
     if (resource_provider_) {
-        if (auto ua_css = resource_provider_->load_text("assets/ua.css")) {
-            css = std::move(*ua_css);
+        if (auto ua = resource_provider_->load_text("assets/ua.css")) {
+            ua_css = std::move(*ua);
         }
     }
-    if (css.empty()) {
-        css = "body { padding: 8px; } p { margin: 4px; }";
+    if (ua_css.empty()) {
+        ua_css = "body { padding: 8px; } p { margin: 4px; }";
     }
-    if (!css.empty() && css.back() != '\n') {
-        css.append("\n");
+
+    std::vector<std::string> link_sources;
+    if (resource_provider_) {
+        link_sources.reserve(stylesheet_links.size());
+        for (const auto& href : stylesheet_links) {
+            auto text = resource_provider_->load_text(href);
+            if (!text) {
+                HB_LOG_WARN("[resource] missing stylesheet: " << href);
+                continue;
+            }
+            link_sources.push_back(std::move(*text));
+        }
     }
-    for (const auto& block : style_blocks) {
-        css.append(block);
-        css.append("\n");
-    }
-    return css;
+
+    return Hummingbird::Css::merge_css_sources(ua_css, link_sources, style_blocks);
 }
 
 void BrowserApp::parse_and_apply_css(const std::string& css) {

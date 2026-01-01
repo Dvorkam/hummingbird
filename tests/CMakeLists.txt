@@ -18,6 +18,7 @@ add_executable(HummingbirdTests
     style/CSSParser.test.cpp
     style/SelectorMatcher.test.cpp
     style/StyleEngine.test.cpp
+    style/StylesheetSource.test.cpp
     layout/LayoutStyleIntegration.test.cpp
     platform/ResourceProvider.test.cpp
     network/StubNetwork.test.cpp

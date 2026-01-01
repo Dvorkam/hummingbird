@@ -35,6 +35,7 @@ add_library(Style STATIC
     src/style/CssParser.cpp
     src/style/SelectorMatcher.cpp
     src/style/StyleEngine.cpp
+    src/style/StylesheetSource.cpp
 )
 target_include_directories(Style
     PUBLIC
