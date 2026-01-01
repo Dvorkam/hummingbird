@@ -1,6 +1,7 @@
 #include "style/StyleEngine.h"
 
 #include <algorithm>
+#include <cctype>
 #include <unordered_map>
 
 #include "core/dom/Element.h"
@@ -37,6 +38,7 @@ struct StyleOverrides {
     bool weight = false;
     bool style = false;
     bool font_size = false;
+    bool text_align = false;
     bool background = false;
 };
 
@@ -261,6 +263,38 @@ void apply_ua_defaults(const DOM::Element& element, ComputedStyle& style, StyleO
     }
 }
 
+void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides) {
+    auto matches_name = [](std::string_view a, std::string_view b) {
+        if (a.size() != b.size()) return false;
+        for (size_t i = 0; i < a.size(); ++i) {
+            if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    for (const auto& [key, value] : element.get_attributes()) {
+        if (!matches_name(key, "align")) {
+            continue;
+        }
+        std::string normalized = value;
+        std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        if (normalized == "left") {
+            style.text_align = ComputedStyle::TextAlign::Left;
+            overrides.text_align = true;
+        } else if (normalized == "center") {
+            style.text_align = ComputedStyle::TextAlign::Center;
+            overrides.text_align = true;
+        } else if (normalized == "right") {
+            style.text_align = ComputedStyle::TextAlign::Right;
+            overrides.text_align = true;
+        }
+        break;
+    }
+}
+
 void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.margin = source.margin;
     target.padding = source.padding;
@@ -281,6 +315,7 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
     if (overrides.weight) target.weight = source.weight;
     if (overrides.style) target.style = source.style;
     if (overrides.font_size) target.font_size = source.font_size;
+    if (overrides.text_align) target.text_align = source.text_align;
     if (overrides.background) target.background = source.background;
 }
 
@@ -294,6 +329,7 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     // Minimal UA defaults for basic HTML readability.
     if (const auto* element = dynamic_cast<const DOM::Element*>(node)) {
         apply_ua_defaults(*element, style, result.overrides, display_set);
+        apply_legacy_attributes(*element, style, result.overrides);
     }
 
     apply_properties_to_style(properties, style, result.overrides, display_set);

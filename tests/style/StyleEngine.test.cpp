@@ -259,3 +259,24 @@ TEST(StyleEngineTest, EmInheritsHeadingTypography) {
     EXPECT_EQ(em_style->weight, h1_style->weight);
     EXPECT_EQ(em_style->style, ComputedStyle::FontStyle::Italic);
 }
+
+TEST(StyleEngineTest, AlignAttributeMapsToTextAlign) {
+    ArenaAllocator arena(2048);
+    auto cell = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
+    cell->set_attribute("align", "center");
+    auto span = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    span->append_child(DomFactory::create_text(arena, "Text"));
+    cell->append_child(std::move(span));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, cell.get());
+
+    auto cell_style = cell->get_computed_style();
+    ASSERT_TRUE(cell_style);
+    EXPECT_EQ(cell_style->text_align, ComputedStyle::TextAlign::Center);
+
+    auto child_style = cell->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child_style);
+    EXPECT_EQ(child_style->text_align, ComputedStyle::TextAlign::Center);
+}
