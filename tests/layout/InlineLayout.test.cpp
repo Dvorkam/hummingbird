@@ -276,3 +276,31 @@ TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
     EXPECT_FLOAT_EQ(image_rect.width, 300.0f);
     EXPECT_FLOAT_EQ(image_rect.height, 150.0f);
 }
+
+TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->set_attribute("align", "center");
+    p->append_child(DomFactory::create_text(arena, "Hi"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+
+    EXPECT_FLOAT_EQ(text_rect.width, 16.0f);
+    EXPECT_FLOAT_EQ(text_rect.x, 92.0f);
+}

@@ -115,6 +115,42 @@ void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<
     }
 }
 
+void align_inline_lines(std::vector<InlineLine>& lines, float available_width, Css::ComputedStyle::TextAlign align) {
+    if (align == Css::ComputedStyle::TextAlign::Left || available_width <= 0.0f) {
+        return;
+    }
+
+    for (auto& line : lines) {
+        if (line.fragments.empty()) {
+            continue;
+        }
+        float min_x = line.fragments.front().rect.x;
+        float max_x = line.fragments.front().rect.x + line.fragments.front().rect.width;
+        for (const auto& fragment : line.fragments) {
+            min_x = std::min(min_x, fragment.rect.x);
+            max_x = std::max(max_x, fragment.rect.x + fragment.rect.width);
+        }
+        float line_width = max_x - min_x;
+        if (line_width <= 0.0f || line_width >= available_width) {
+            continue;
+        }
+
+        float desired_start = 0.0f;
+        if (align == Css::ComputedStyle::TextAlign::Center) {
+            desired_start = (available_width - line_width) * 0.5f;
+        } else if (align == Css::ComputedStyle::TextAlign::Right) {
+            desired_start = available_width - line_width;
+        }
+        float shift = desired_start - min_x;
+        if (shift == 0.0f) {
+            continue;
+        }
+        for (auto& fragment : line.fragments) {
+            fragment.rect.x += shift;
+        }
+    }
+}
+
 InlineLayoutMetrics apply_inline_fragments(const std::vector<InlineLine>& lines, const std::vector<InlineRun>& runs,
                                            float base_x, float base_y) {
     InlineLayoutMetrics metrics;
@@ -164,7 +200,7 @@ void update_cursor_for_inline(LineCursor& cursor, const LayoutMetrics& metrics, 
 }
 
 void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
-                         const LayoutMetrics& metrics, LineCursor& cursor) {
+                         const LayoutMetrics& metrics, LineCursor& cursor, Css::ComputedStyle::TextAlign text_align) {
     InlineLineBuilder builder;
     builder.reset();
     std::vector<InlineRun> runs;
@@ -185,6 +221,7 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
 
     float start_x = cursor.x - metrics.inset_left;
     auto lines = builder.layout(metrics.content_width, start_x);
+    align_inline_lines(lines, metrics.content_width, text_align);
     float base_x = metrics.inset_left;
     float base_y = cursor.y;
 
@@ -217,7 +254,8 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
             ++i;
             continue;
         }
-        layout_inline_group(context, m_children, i, metrics, cursor);
+        auto align = style ? style->text_align : Css::ComputedStyle::TextAlign::Left;
+        layout_inline_group(context, m_children, i, metrics, cursor, align);
     }
 
     flush_line(cursor, metrics.inset_left);
