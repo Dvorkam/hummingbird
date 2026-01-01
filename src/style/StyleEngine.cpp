@@ -275,23 +275,24 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
     };
 
     for (const auto& [key, value] : element.get_attributes()) {
-        if (!matches_name(key, "align")) {
-            continue;
+        if (matches_name(key, "align")) {
+            std::string normalized = value;
+            std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (normalized == "left") {
+                style.text_align = ComputedStyle::TextAlign::Left;
+                overrides.text_align = true;
+            } else if (normalized == "center") {
+                style.text_align = ComputedStyle::TextAlign::Center;
+                overrides.text_align = true;
+            } else if (normalized == "right") {
+                style.text_align = ComputedStyle::TextAlign::Right;
+                overrides.text_align = true;
+            }
+        } else if (matches_name(key, "nowrap")) {
+            style.whitespace = ComputedStyle::WhiteSpace::NoWrap;
+            overrides.whitespace = true;
         }
-        std::string normalized = value;
-        std::transform(normalized.begin(), normalized.end(), normalized.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (normalized == "left") {
-            style.text_align = ComputedStyle::TextAlign::Left;
-            overrides.text_align = true;
-        } else if (normalized == "center") {
-            style.text_align = ComputedStyle::TextAlign::Center;
-            overrides.text_align = true;
-        } else if (normalized == "right") {
-            style.text_align = ComputedStyle::TextAlign::Right;
-            overrides.text_align = true;
-        }
-        break;
     }
 }
 

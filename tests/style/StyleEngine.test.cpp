@@ -280,3 +280,22 @@ TEST(StyleEngineTest, AlignAttributeMapsToTextAlign) {
     ASSERT_TRUE(child_style);
     EXPECT_EQ(child_style->text_align, ComputedStyle::TextAlign::Center);
 }
+
+TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
+    ArenaAllocator arena(2048);
+    auto cell = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
+    cell->set_attribute("nowrap", "");
+    cell->append_child(DomFactory::create_text(arena, "Text"));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, cell.get());
+
+    auto cell_style = cell->get_computed_style();
+    ASSERT_TRUE(cell_style);
+    EXPECT_EQ(cell_style->whitespace, ComputedStyle::WhiteSpace::NoWrap);
+
+    auto child_style = cell->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child_style);
+    EXPECT_EQ(child_style->whitespace, ComputedStyle::WhiteSpace::NoWrap);
+}

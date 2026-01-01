@@ -29,7 +29,7 @@ struct ComputedStyle {
     Color color{0, 0, 0, 255};
     bool underline = false;
     bool font_monospace = false;
-    enum class WhiteSpace { Normal, Preserve };
+    enum class WhiteSpace { Normal, Preserve, NoWrap };
     WhiteSpace whitespace = WhiteSpace::Normal;
     enum class FontWeight { Normal, Bold };
     enum class FontStyle { Normal, Italic };
