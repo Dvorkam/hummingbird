@@ -206,6 +206,78 @@
 
 ---
 
+### **Epic 2.6: Stylesheet Sources & Loading (Offline / Harness)**
+
+**Goal:** Make “pages render differently based on a .css file” concretely true without HTTP.
+
+#### **Story 2.6.1: `<link rel="stylesheet">` Discovery**
+* **As a** style engine,
+* **I want** to extract stylesheet hrefs from the DOM (head, and optionally body).
+* **Acceptance:** DOM containing `<link rel="stylesheet" href="site.css">` yields a recorded stylesheet request in document order.
+
+#### **Story 2.6.2: `IResourceProvider` Boundary (No Platform Headers)**
+* **As a** lead architect,
+* **I want** Core/Html/Layout to request resources through a Core interface, not Platform headers.
+* **Action:**
+* Add `Core` interface: `IResourceProvider::load_text(ResourceId)` (returns optional buffer/view).
+* App/Platform supplies a file-based implementation for Milestone 2.
+* **Acceptance:** Core/Html/Layout compile without Platform deps; stylesheet text is delivered through the interface.
+
+#### **Story 2.6.3: Author Stylesheet Merge + Cascade Order**
+* **As a** style engine,
+* **I want** author stylesheets to be merged in correct order before applying the cascade.
+* **Order:**
+* UA defaults (can remain hardcoded or represented as a built-in stylesheet string).
+* `<link>` stylesheets in document order.
+* `<style>` blocks in document order.
+* **Acceptance:** Later rules override earlier rules when specificity ties.
+
+
+
+### **Epic 2.7: Color & Background Paint Integration**
+
+**Goal:** Ensure parsed/computed styles affect pixels.
+
+#### **Story 2.7.1: Typed Color Value Parsing**
+* **As a** CSS parser,
+* **I want** named colors and hex colors to map to typed values.
+* **Support:** `red`, `black`, `white`, `#rgb`, `#rrggbb`.
+* **Acceptance:** `color: #333; background-color: white;` produces correct typed values.
+
+#### **Story 2.7.2: `color` Applied to Text**
+* **As a** renderer,
+* **I want** text painting to use `ComputedStyle.color` (not hardcoded defaults).
+* **Acceptance:** `p { color: red; }` makes paragraph text red.
+
+#### **Story 2.7.3: `background-color` Applied to Boxes**
+* **As a** renderer,
+* **I want** box backgrounds filled before children where applicable.
+* **Acceptance:** `div { background-color: #eee; }` visibly fills behind children.
+
+
+
+### **Epic 2.8: `<img>` as a Replaced Element (Placeholder MVP)**
+
+**Goal:** Support basic images without a full media pipeline.
+
+#### **Story 2.8.1: Intrinsic Sizing (Attributes-First)**
+* **As a** layout engine,
+* **I want** `<img>` to use width/height attributes if present.
+* **Fallback:** Use a conservative default (e.g., 300x150).
+* **Acceptance:** `<img width="64" height="64">` occupies 64x64 in layout.
+
+#### **Story 2.8.2: Inline Integration**
+* **As a** layout engine,
+* **I want** `<img>` to participate in inline flow (like inline-block).
+* **Acceptance:** Text `<img ...> Text` lays out on one line until wrapping.
+
+#### **Story 2.8.3: Placeholder Painting**
+* **As a** renderer,
+* **I want** a visible placeholder box with optional alt text.
+* **Acceptance:** Images “exist” visually and do not collapse layout even without decoding.
+
+---
+
 ### **Refactoring Checklist (The "Definition of Done" for Epic 2.5)**
 
 Before you write a single line of CSS parsing code, the codebase must pass this "Health Check":
