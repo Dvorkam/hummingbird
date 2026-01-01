@@ -23,6 +23,7 @@ public:
 
 private:
     template <typename T, typename... Args>
+    // Allow arena_new to invoke the private constructor while keeping creation centralized.
     friend T* ::arena_new(ArenaAllocator&, Args&&...);
 
     explicit Element(std::string_view tag_name) : m_tag_name(tag_name) {}

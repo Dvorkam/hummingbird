@@ -36,6 +36,7 @@ using ArenaPtr = std::unique_ptr<T, ArenaDeleter<T>>;
 
 template <typename T, typename... Args>
 T* arena_new(ArenaAllocator& arena, Args&&... args) {
+    // Centralized placement-new for arena-backed objects; keep this the only site that constructs in arena memory.
     void* mem = arena.allocate(sizeof(T), alignof(T));
     return new (mem) T(std::forward<Args>(args)...);
 }
