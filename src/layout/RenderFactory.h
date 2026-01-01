@@ -3,6 +3,7 @@
 #include <memory>
 
 namespace Hummingbird::DOM {
+class Element;
 class Node;
 class Text;
 }  // namespace Hummingbird::DOM
@@ -20,6 +21,7 @@ public:
     static std::unique_ptr<RenderObject> create_break(const DOM::Node* dom_node);
     static std::unique_ptr<RenderObject> create_rule(const DOM::Node* dom_node);
     static std::unique_ptr<RenderObject> create_text_box(const DOM::Text* dom_node);
+    static std::unique_ptr<RenderObject> create_image(const DOM::Element* dom_node);
 };
 
 }  // namespace Hummingbird::Layout

@@ -212,3 +212,67 @@ TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
     EXPECT_GT(span_rect.width, text_rect.width);
     EXPECT_FLOAT_EQ(span_rect.width, text_rect.width + 6.0f);
 }
+
+TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hi"));
+    auto img = DomFactory::create_element(arena, "img");
+    img->set_attribute("width", "64");
+    img->set_attribute("height", "32");
+    p->append_child(std::move(img));
+    p->append_child(DomFactory::create_text(arena, "!"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 3u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+    const auto& image_rect = para->get_children()[1]->get_rect();
+    const auto& bang_rect = para->get_children()[2]->get_rect();
+
+    EXPECT_FLOAT_EQ(image_rect.width, 64.0f);
+    EXPECT_FLOAT_EQ(image_rect.height, 32.0f);
+    EXPECT_FLOAT_EQ(image_rect.x, text_rect.x + text_rect.width);
+    EXPECT_FLOAT_EQ(bang_rect.x, image_rect.x + image_rect.width);
+    EXPECT_FLOAT_EQ(text_rect.y, image_rect.y);
+}
+
+TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_element(arena, "img"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 500, 400};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    const auto& image_rect = para->get_children()[0]->get_rect();
+
+    EXPECT_FLOAT_EQ(image_rect.width, 300.0f);
+    EXPECT_FLOAT_EQ(image_rect.height, 150.0f);
+}

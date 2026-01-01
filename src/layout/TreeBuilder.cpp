@@ -65,6 +65,9 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         if (tag == Hummingbird::Html::TagNames::Hr) {
             return RenderFactory::create_rule(element_node);
         }
+        if (tag == Hummingbird::Html::TagNames::Img) {
+            return RenderFactory::create_image(element_node);
+        }
         auto style = element_node->get_computed_style();
         if (style) {
             return render_for_display(element_node, style->display);

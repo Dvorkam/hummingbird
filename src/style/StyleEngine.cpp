@@ -191,7 +191,7 @@ void apply_ua_defaults(const DOM::Element& element, ComputedStyle& style, StyleO
         if (tag == Hummingbird::Html::TagNames::A || tag == Hummingbird::Html::TagNames::Span ||
             tag == Hummingbird::Html::TagNames::Strong || tag == Hummingbird::Html::TagNames::Em ||
             tag == Hummingbird::Html::TagNames::B || tag == Hummingbird::Html::TagNames::I ||
-            tag == Hummingbird::Html::TagNames::Code) {
+            tag == Hummingbird::Html::TagNames::Code || tag == Hummingbird::Html::TagNames::Img) {
             style.display = ComputedStyle::Display::Inline;
         } else if (tag == Hummingbird::Html::TagNames::Li) {
             style.display = ComputedStyle::Display::ListItem;

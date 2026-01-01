@@ -94,6 +94,7 @@ add_library(Layout STATIC
     src/layout/RenderListItem.cpp
     src/layout/RenderBreak.cpp
     src/layout/RenderRule.cpp
+    src/layout/RenderImage.cpp
 )
 target_include_directories(Layout
     PUBLIC

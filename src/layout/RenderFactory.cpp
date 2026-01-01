@@ -3,6 +3,7 @@
 #include "layout/BlockBox.h"
 #include "layout/InlineBox.h"
 #include "layout/RenderBreak.h"
+#include "layout/RenderImage.h"
 #include "layout/RenderListItem.h"
 #include "layout/RenderRule.h"
 #include "layout/TextBox.h"
@@ -35,6 +36,10 @@ std::unique_ptr<RenderObject> RenderFactory::create_rule(const DOM::Node* dom_no
 
 std::unique_ptr<RenderObject> RenderFactory::create_text_box(const DOM::Text* dom_node) {
     return TextBox::create(dom_node);
+}
+
+std::unique_ptr<RenderObject> RenderFactory::create_image(const DOM::Element* dom_node) {
+    return RenderImage::create(dom_node);
 }
 
 }  // namespace Hummingbird::Layout
