@@ -159,7 +159,10 @@ Property Parser::parse_property_name(std::string_view name) const {
 
 Value Parser::parse_hash_value() {
     if (peek().type == TokenType::Identifier || peek().type == TokenType::Number) {
-        std::string hex = std::string(advance().lexeme);
+        std::string hex;
+        while (peek().type == TokenType::Identifier || peek().type == TokenType::Number) {
+            hex.append(advance().lexeme);
+        }
         if (auto color = parse_hex_color(hex)) {
             return Value::color_value(*color);
         }
