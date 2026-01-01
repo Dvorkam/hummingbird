@@ -71,6 +71,36 @@ std::optional<std::string_view> find_attribute_value(const DOM::Element& element
     return std::nullopt;
 }
 
+std::optional<size_t> parse_span_value(std::string_view value) {
+    std::string_view trimmed = trim(value);
+    if (trimmed.empty()) {
+        return std::nullopt;
+    }
+    std::string temp(trimmed);
+    char* end = nullptr;
+    long parsed = std::strtol(temp.c_str(), &end, 10);
+    if (end == temp.c_str()) {
+        return std::nullopt;
+    }
+    if (parsed < 1) {
+        parsed = 1;
+    }
+    return static_cast<size_t>(parsed);
+}
+
+size_t cell_colspan(const RenderTableCell& cell) {
+    auto* element = dynamic_cast<const DOM::Element*>(cell.get_dom_node());
+    if (!element) {
+        return 1;
+    }
+    auto attr = find_attribute_value(*element, "colspan");
+    if (!attr) {
+        return 1;
+    }
+    auto parsed = parse_span_value(*attr);
+    return parsed.value_or(1);
+}
+
 std::optional<ParsedWidth> parse_width_value(std::string_view value) {
     std::string_view trimmed = trim(value);
     if (trimmed.empty()) {
@@ -121,8 +151,8 @@ float resolve_table_target_width(const DOM::Element& element, const Css::Compute
 size_t count_cells(const RenderTableRow& row) {
     size_t count = 0;
     for (const auto& child : row.get_children()) {
-        if (dynamic_cast<const RenderTableCell*>(child.get())) {
-            ++count;
+        if (auto* cell = dynamic_cast<const RenderTableCell*>(child.get())) {
+            count += cell_colspan(*cell);
         }
     }
     return count;
@@ -169,11 +199,26 @@ void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
             if (!cell) {
                 continue;
             }
+            size_t span = cell_colspan(*cell);
+            if (span == 0) {
+                span = 1;
+            }
             float width = cell->measure_intrinsic_width(context);
             if (col < column_widths.size()) {
-                column_widths[col] = std::max(column_widths[col], width);
+                float current_width = 0.0f;
+                size_t limit = std::min(column_widths.size(), col + span);
+                for (size_t i = col; i < limit; ++i) {
+                    current_width += column_widths[i];
+                }
+                if (width > current_width && span > 0) {
+                    float extra = width - current_width;
+                    float per_column = extra / static_cast<float>(span);
+                    for (size_t i = col; i < limit; ++i) {
+                        column_widths[i] += per_column;
+                    }
+                }
             }
-            ++col;
+            col += span;
         }
     }
 
@@ -249,12 +294,20 @@ void RenderTableRow::layout_row(IGraphicsContext& context, const Rect& bounds,
         if (!cell) {
             continue;
         }
-        float cell_width = col < column_widths.size() ? column_widths[col] : 0.0f;
+        size_t span = cell_colspan(*cell);
+        if (span == 0) {
+            span = 1;
+        }
+        float cell_width = 0.0f;
+        size_t limit = std::min(column_widths.size(), col + span);
+        for (size_t i = col; i < limit; ++i) {
+            cell_width += column_widths[i];
+        }
         Rect cell_bounds{cursor_x, 0.0f, cell_width, 0.0f};
         cell->layout(context, cell_bounds);
         row_height = std::max(row_height, cell->get_rect().height);
         cursor_x += cell_width;
-        ++col;
+        col += span;
     }
 
     m_rect.width = cursor_x;
