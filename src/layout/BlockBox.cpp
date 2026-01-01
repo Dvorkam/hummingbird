@@ -256,6 +256,11 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
             continue;
         }
         auto align = style ? style->text_align : Css::ComputedStyle::TextAlign::Left;
+        // Avoid using text-align during intrinsic measurement with oversized widths.
+        if (align != Css::ComputedStyle::TextAlign::Left && bounds.width >= kInlineAtomicLayoutWidth &&
+            !(style && style->width.has_value())) {
+            align = Css::ComputedStyle::TextAlign::Left;
+        }
         float wrap_width = (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap)
                                ? 0.0f
                                : metrics.content_width;

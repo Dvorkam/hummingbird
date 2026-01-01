@@ -197,3 +197,46 @@ TEST(TableLayoutTest, ColspanExpandsColumnWidths) {
     EXPECT_FLOAT_EQ(cell13_render->get_rect().width, 32.0f);
     EXPECT_FLOAT_EQ(cell21_render->get_rect().width, 72.0f);
 }
+
+TEST(TableLayoutTest, AlignDoesNotInflateIntrinsicWidths) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, TagNames::Body);
+    auto table = DomFactory::create_element(arena, TagNames::Table);
+    auto row = DomFactory::create_element(arena, TagNames::Tr);
+    auto cell1 = DomFactory::create_element(arena, TagNames::Td);
+    cell1->set_attribute("align", "center");
+    cell1->append_child(DomFactory::create_text(arena, "HELLO"));
+    auto cell2 = DomFactory::create_element(arena, TagNames::Td);
+    cell2->append_child(DomFactory::create_text(arena, "B"));
+    row->append_child(std::move(cell1));
+    row->append_child(std::move(cell2));
+    table->append_child(std::move(row));
+    body->append_child(std::move(table));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    auto* table_render = dynamic_cast<RenderTable*>(render_root->get_children()[0].get());
+    ASSERT_NE(table_render, nullptr);
+    auto* row_render = dynamic_cast<RenderTableRow*>(table_render->get_children()[0].get());
+    ASSERT_NE(row_render, nullptr);
+    ASSERT_EQ(row_render->get_children().size(), 2u);
+
+    auto* cell1_render = dynamic_cast<RenderTableCell*>(row_render->get_children()[0].get());
+    auto* cell2_render = dynamic_cast<RenderTableCell*>(row_render->get_children()[1].get());
+    ASSERT_NE(cell1_render, nullptr);
+    ASSERT_NE(cell2_render, nullptr);
+
+    EXPECT_FLOAT_EQ(table_render->get_rect().width, 48.0f);
+    EXPECT_FLOAT_EQ(cell1_render->get_rect().width, 40.0f);
+    EXPECT_FLOAT_EQ(cell2_render->get_rect().width, 8.0f);
+}
