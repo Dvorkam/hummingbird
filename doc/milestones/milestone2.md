@@ -278,6 +278,74 @@
 
 ---
 
+### **Epic 2.9: Table Layout Scaffolding (MVP Grid)**
+
+**Goal:** Provide a minimal table layout model that aligns rows/cells for classic HTML pages.
+
+#### **Story 2.9.1: Table Render Objects**
+* **As a** layout engine,
+* **I want** `<table>`, `<tr>`, `<td>`, `<th>` to map to dedicated render objects (e.g., RenderTable, RenderTableRow, RenderTableCell).
+* **Acceptance:** A DOM table produces a render tree that preserves row/cell structure.
+
+#### **Story 2.9.2: Two-Pass Table Measurement**
+* **As a** layout engine,
+* **I want** to measure cell contents, compute column widths, then assign row heights.
+* **Acceptance:** Two cells in a row align horizontally and share a common row height.
+
+#### **Story 2.9.3: Table Width Resolution**
+* **As a** layout engine,
+* **I want** tables to honor explicit widths (including `width="100%"`) and distribute extra space across columns.
+* **Acceptance:** A 100% width table spans the parent width and columns expand accordingly.
+
+#### **Story 2.9.4: Basic `colspan` Support**
+* **As a** layout engine,
+* **I want** `colspan` to let a cell span multiple columns (no complex edge cases yet).
+* **Acceptance:** `<td colspan="2">` occupies the combined width of two columns.
+
+
+
+### **Epic 2.10: Legacy Attribute Translation (HTML -> CSS)**
+
+**Goal:** Map presentational HTML attributes to computed style so classic pages render sensibly.
+
+#### **Story 2.10.1: `align` Attribute Mapping**
+* **As a** style engine,
+* **I want** `align="left|center|right"` on table cells/rows to map to `text-align`.
+* **Acceptance:** `<td align="center">` centers its inline content.
+
+#### **Story 2.10.2: `nowrap` Attribute Mapping**
+* **As a** style engine,
+* **I want** `nowrap` to map to a no-wrap white-space mode.
+* **Acceptance:** Cells with `nowrap` keep inline content on one line when possible.
+
+#### **Story 2.10.3: Width/Height Attribute Mapping**
+* **As a** style engine,
+* **I want** `width`/`height` attributes to map to computed width/height when CSS has not set them.
+* **Acceptance:** `<table width="100%">` and `<td width="200">` influence layout.
+
+#### **Story 2.10.4: `<font>` Tag Translation (Scoped MVP)**
+* **As a** style engine,
+* **I want** `<font size="N">` to map to computed font size (face handling can be minimal).
+* **Acceptance:** `<font size="6">` produces visibly larger text than surrounding content.
+
+
+
+### **Epic 2.11: Text Alignment & No-Wrap Support**
+
+**Goal:** Allow alignment and wrapping control to influence inline layout.
+
+#### **Story 2.11.1: `text-align` Property**
+* **As a** layout engine,
+* **I want** `text-align: left|center|right` to offset inline line boxes within the available width.
+* **Acceptance:** A centered paragraph lays out with line boxes centered in its container.
+
+#### **Story 2.11.2: `white-space: nowrap`**
+* **As a** layout engine,
+* **I want** `nowrap` to prevent line wrapping for inline runs.
+* **Acceptance:** A `nowrap` cell lays out a single line unless it exceeds the container width.
+
+---
+
 ### **Refactoring Checklist (The "Definition of Done" for Epic 2.5)**
 
 Before you write a single line of CSS parsing code, the codebase must pass this "Health Check":
