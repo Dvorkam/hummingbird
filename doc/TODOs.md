@@ -20,3 +20,7 @@
 ## Typography Follow-Ups
 
 - **Font Face Mapping:** `TextBox::resolve_text_font_path()` ignores `ComputedStyle::font_face` and always picks Roboto variants; add a mapping table for known faces (fallback to Roboto with warning).
+
+## Table/Layout Follow-Ups
+
+- **Table Cell Block Alignment:** `text-align` only offsets inline runs; add centering/right alignment for block-level children inside table cells (ACME header mismatch).
