@@ -127,6 +127,26 @@ TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
     EXPECT_FLOAT_EQ(style->margin.top, 3.0f);
 }
 
+TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
+    ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    root->append_child(DomFactory::create_text(arena, "Link"));
+
+    std::string css = "a { color: red; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 255);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 0);
+    EXPECT_TRUE(style->underline);
+}
+
 TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
     ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

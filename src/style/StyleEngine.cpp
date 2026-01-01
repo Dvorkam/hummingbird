@@ -279,13 +279,14 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
     StyleResult result{default_computed_style(), {}};
     ComputedStyle& style = result.style;
     PropertyMap properties = collect_matched_properties(sheet, node);
-    bool display_set = false;
-    apply_properties_to_style(properties, style, result.overrides, display_set);
+    bool display_set = properties.find(Property::Display) != properties.end();
 
     // Minimal UA defaults for basic HTML readability.
     if (const auto* element = dynamic_cast<const DOM::Element*>(node)) {
         apply_ua_defaults(*element, style, result.overrides, display_set);
     }
+
+    apply_properties_to_style(properties, style, result.overrides, display_set);
 
     return result;
 }
