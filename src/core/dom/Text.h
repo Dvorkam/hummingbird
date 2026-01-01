@@ -10,14 +10,16 @@ namespace Hummingbird::DOM {
 class Text : public Node {
 public:
     static ArenaPtr<Text> create(ArenaAllocator& arena, std::string_view text) {
-        void* mem = arena.allocate(sizeof(Text), alignof(Text));
-        return ArenaPtr<Text>(new (mem) Text(text));
+        return ArenaPtr<Text>(arena_new<Text>(arena, text));
     }
 
     const std::string& get_text() const { return m_text; }
     void append(std::string_view extra) { m_text.append(extra); }
 
 private:
+    template <typename T, typename... Args>
+    friend T* ::arena_new(ArenaAllocator&, Args&&...);
+
     explicit Text(std::string_view text) : m_text(text) {}
 
     std::string m_text;

@@ -11,8 +11,7 @@ namespace Hummingbird::DOM {
 class Element : public Node {
 public:
     static ArenaPtr<Element> create(ArenaAllocator& arena, std::string_view tag_name) {
-        void* mem = arena.allocate(sizeof(Element), alignof(Element));
-        return ArenaPtr<Element>(new (mem) Element(tag_name));
+        return ArenaPtr<Element>(arena_new<Element>(arena, tag_name));
     }
 
     const std::string& get_tag_name() const { return m_tag_name; }
@@ -23,6 +22,9 @@ public:
     }
 
 private:
+    template <typename T, typename... Args>
+    friend T* ::arena_new(ArenaAllocator&, Args&&...);
+
     explicit Element(std::string_view tag_name) : m_tag_name(tag_name) {}
 
     std::string m_tag_name;
