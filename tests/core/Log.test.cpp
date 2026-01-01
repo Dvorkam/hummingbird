@@ -14,6 +14,10 @@ TEST(LogTest, EmitsWhenEnabled) {
     std::cerr.rdbuf(old);
     auto output = buffer.str();
 
+#ifdef HB_ENABLE_LOG
     EXPECT_NE(output.find("[info] hello"), std::string::npos);
     EXPECT_NE(output.find("[warn] world"), std::string::npos);
+#else
+    EXPECT_TRUE(output.empty());
+#endif
 }

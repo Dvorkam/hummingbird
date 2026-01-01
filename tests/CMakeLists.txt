@@ -34,7 +34,6 @@ target_link_libraries(HummingbirdTests PRIVATE
     Style
     Platform
 )
-target_compile_definitions(HummingbirdTests PRIVATE HB_ENABLE_LOG)
 
 # Add the root src directory to the include path so tests can find headers
 target_include_directories(HummingbirdTests PRIVATE

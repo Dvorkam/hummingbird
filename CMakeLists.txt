@@ -5,6 +5,15 @@ project(Hummingbird)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(HB_ENABLE_LOG "Enable info/warn logs" OFF)
+option(HB_ENABLE_DEBUG_LOG "Enable debug logs" OFF)
+if(HB_ENABLE_LOG)
+    add_compile_definitions(HB_ENABLE_LOG)
+    if(HB_ENABLE_DEBUG_LOG)
+        add_compile_definitions(HB_ENABLE_DEBUG_LOG)
+    endif()
+endif()
+
 find_package(SDL2 REQUIRED)
 find_package(blend2d REQUIRED)
 find_package(CURL REQUIRED)
@@ -100,8 +109,6 @@ target_include_directories(Hummingbird PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(Hummingbird PRIVATE Platform Html Layout Renderer Style SDL2::SDL2main)
-target_compile_definitions(Hummingbird PRIVATE HB_ENABLE_LOG)
-target_compile_definitions(Hummingbird PRIVATE HB_ENABLE_DEBUG_LOG)
 
 # --- Unit Testing ---
 enable_testing()
