@@ -1,7 +1,14 @@
 #include "layout/RenderTable.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstdlib>
 #include <numeric>
+#include <optional>
+#include <string>
+#include <string_view>
+
+#include "core/dom/Element.h"
 
 namespace Hummingbird::Layout {
 
@@ -15,6 +22,11 @@ struct Insets {
     float bottom;
 };
 
+struct ParsedWidth {
+    float value;
+    bool is_percent;
+};
+
 Insets compute_insets(const Css::ComputedStyle* style) {
     float padding_left = style ? style->padding.left : 0.0f;
     float padding_right = style ? style->padding.right : 0.0f;
@@ -26,6 +38,84 @@ Insets compute_insets(const Css::ComputedStyle* style) {
     float border_bottom = style ? style->border_width.bottom : 0.0f;
     return {padding_left + border_left, padding_right + border_right, padding_top + border_top,
             padding_bottom + border_bottom};
+}
+
+bool iequals(std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) {
+        return false;
+    }
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::string_view trim(std::string_view view) {
+    while (!view.empty() && std::isspace(static_cast<unsigned char>(view.front()))) {
+        view.remove_prefix(1);
+    }
+    while (!view.empty() && std::isspace(static_cast<unsigned char>(view.back()))) {
+        view.remove_suffix(1);
+    }
+    return view;
+}
+
+std::optional<std::string_view> find_attribute_value(const DOM::Element& element, std::string_view name) {
+    for (const auto& [key, value] : element.get_attributes()) {
+        if (iequals(key, name)) {
+            return std::string_view(value);
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<ParsedWidth> parse_width_value(std::string_view value) {
+    std::string_view trimmed = trim(value);
+    if (trimmed.empty()) {
+        return std::nullopt;
+    }
+
+    bool is_percent = false;
+    if (trimmed.back() == '%') {
+        is_percent = true;
+        trimmed.remove_suffix(1);
+        trimmed = trim(trimmed);
+        if (trimmed.empty()) {
+            return std::nullopt;
+        }
+    }
+
+    std::string temp(trimmed);
+    char* end = nullptr;
+    float parsed = std::strtof(temp.c_str(), &end);
+    if (end == temp.c_str()) {
+        return std::nullopt;
+    }
+    if (parsed < 0.0f) {
+        parsed = 0.0f;
+    }
+    return ParsedWidth{parsed, is_percent};
+}
+
+float resolve_table_target_width(const DOM::Element& element, const Css::ComputedStyle* style,
+                                 float available_width) {
+    if (style && style->width.has_value()) {
+        return std::max(0.0f, *style->width);
+    }
+    auto attr = find_attribute_value(element, "width");
+    if (!attr) {
+        return 0.0f;
+    }
+    auto parsed = parse_width_value(*attr);
+    if (!parsed) {
+        return 0.0f;
+    }
+    if (parsed->is_percent) {
+        return std::max(0.0f, available_width * (parsed->value / 100.0f));
+    }
+    return parsed->value;
 }
 
 size_t count_cells(const RenderTableRow& row) {
@@ -58,6 +148,10 @@ float sum_widths(const std::vector<float>& widths) {
 void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
     Insets insets = compute_insets(style);
+    float available_width = bounds.width - insets.left - insets.right;
+    if (available_width < 0.0f) {
+        available_width = 0.0f;
+    }
 
     std::vector<RenderTableRow*> rows;
     collect_rows(*this, rows);
@@ -84,6 +178,20 @@ void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
     }
 
     float content_width = sum_widths(column_widths);
+    auto* element = static_cast<const DOM::Element*>(get_dom_node());
+    float target_width = resolve_table_target_width(*element, style, available_width);
+    if (target_width > content_width) {
+        if (!column_widths.empty()) {
+            float extra = target_width - content_width;
+            float per_column = extra / static_cast<float>(column_widths.size());
+            for (auto& width : column_widths) {
+                width += per_column;
+            }
+        }
+        content_width = target_width;
+    } else if (target_width > 0.0f) {
+        content_width = std::max(content_width, target_width);
+    }
 
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
