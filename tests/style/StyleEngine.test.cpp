@@ -317,3 +317,21 @@ TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
     EXPECT_FLOAT_EQ(img_style->width.value(), 120.0f);
     EXPECT_FLOAT_EQ(img_style->height.value(), 80.0f);
 }
+
+TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
+    ArenaAllocator arena(2048);
+    auto font = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Font);
+    font->set_attribute("size", "6");
+    font->set_attribute("face", "Sans-Serif");
+    font->append_child(DomFactory::create_text(arena, "Hello"));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, font.get());
+
+    auto font_style = font->get_computed_style();
+    ASSERT_TRUE(font_style);
+    EXPECT_FLOAT_EQ(font_style->font_size, 32.0f);
+    EXPECT_EQ(font_style->font_face, "sans-serif");
+    EXPECT_EQ(font_style->display, ComputedStyle::Display::Inline);
+}

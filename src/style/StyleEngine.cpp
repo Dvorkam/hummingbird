@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdlib>
 #include <unordered_map>
 
 #include "core/dom/Element.h"
@@ -38,6 +39,7 @@ struct StyleOverrides {
     bool weight = false;
     bool style = false;
     bool font_size = false;
+    bool font_face = false;
     bool text_align = false;
     bool background = false;
 };
@@ -193,7 +195,8 @@ void apply_ua_defaults(const DOM::Element& element, ComputedStyle& style, StyleO
         if (tag == Hummingbird::Html::TagNames::A || tag == Hummingbird::Html::TagNames::Span ||
             tag == Hummingbird::Html::TagNames::Strong || tag == Hummingbird::Html::TagNames::Em ||
             tag == Hummingbird::Html::TagNames::B || tag == Hummingbird::Html::TagNames::I ||
-            tag == Hummingbird::Html::TagNames::Code || tag == Hummingbird::Html::TagNames::Img) {
+            tag == Hummingbird::Html::TagNames::Code || tag == Hummingbird::Html::TagNames::Img ||
+            tag == Hummingbird::Html::TagNames::Font) {
             style.display = ComputedStyle::Display::Inline;
         } else if (tag == Hummingbird::Html::TagNames::Li) {
             style.display = ComputedStyle::Display::ListItem;
@@ -303,6 +306,63 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
         return parsed;
     };
 
+    auto parse_font_size_value = [](std::string_view value) -> std::optional<float> {
+        std::string_view trimmed = value;
+        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) {
+            trimmed.remove_prefix(1);
+        }
+        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
+            trimmed.remove_suffix(1);
+        }
+        if (trimmed.empty()) {
+            return std::nullopt;
+        }
+        std::string temp(trimmed);
+        char* end = nullptr;
+        long parsed = std::strtol(temp.c_str(), &end, 10);
+        if (end == temp.c_str()) {
+            return std::nullopt;
+        }
+        while (end && *end != '\0' && std::isspace(static_cast<unsigned char>(*end))) {
+            ++end;
+        }
+        if (end && *end != '\0') {
+            return std::nullopt;
+        }
+        if (parsed < 1) {
+            parsed = 1;
+        }
+        if (parsed > 7) {
+            parsed = 7;
+        }
+        static constexpr float kFontSizes[] = {10.0f, 13.0f, 16.0f, 18.0f, 24.0f, 32.0f, 48.0f};
+        return kFontSizes[parsed - 1];
+    };
+
+    auto parse_font_face_value = [](std::string_view value) -> std::string {
+        std::string_view trimmed = value;
+        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) {
+            trimmed.remove_prefix(1);
+        }
+        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
+            trimmed.remove_suffix(1);
+        }
+        if (auto comma = trimmed.find(','); comma != std::string_view::npos) {
+            trimmed = trimmed.substr(0, comma);
+            while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
+                trimmed.remove_suffix(1);
+            }
+        }
+        if (trimmed.size() >= 2 &&
+            ((trimmed.front() == '"' && trimmed.back() == '"') || (trimmed.front() == '\'' && trimmed.back() == '\''))) {
+            trimmed = trimmed.substr(1, trimmed.size() - 2);
+        }
+        std::string normalized(trimmed);
+        std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+        return normalized;
+    };
+
     for (const auto& [key, value] : element.get_attributes()) {
         if (matches_name(key, "align")) {
             std::string normalized = value;
@@ -329,6 +389,17 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
             if (auto parsed = parse_length_value(value)) {
                 style.height = *parsed;
             }
+        } else if (matches_name(key, "size")) {
+            if (auto parsed = parse_font_size_value(value)) {
+                style.font_size = *parsed;
+                overrides.font_size = true;
+            }
+        } else if (matches_name(key, "face")) {
+            std::string face = parse_font_face_value(value);
+            if (!face.empty()) {
+                style.font_face = std::move(face);
+                overrides.font_face = true;
+            }
         }
     }
 }
@@ -353,6 +424,7 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
     if (overrides.weight) target.weight = source.weight;
     if (overrides.style) target.style = source.style;
     if (overrides.font_size) target.font_size = source.font_size;
+    if (overrides.font_face) target.font_face = source.font_face;
     if (overrides.text_align) target.text_align = source.text_align;
     if (overrides.background) target.background = source.background;
 }

@@ -1,6 +1,7 @@
 #include "layout/TextBox.h"
 
 #include <algorithm>
+#include <cctype>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/AssetPath.h"
@@ -60,6 +61,13 @@ std::string collapse_whitespace(const std::string& text) {
 std::string resolve_text_font_path(const Css::ComputedStyle* style) {
     bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
     bool italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
+    std::string face = style ? style->font_face : std::string{};
+    std::transform(face.begin(), face.end(), face.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    bool face_supported = face.empty() || face == "roboto" || face == "sans-serif" || face == "sans serif";
+    if (!face_supported) {
+        HB_LOG_WARN("[style] Unsupported font face '" << face << "', falling back to Roboto");
+    }
     const char* font_path = "assets/fonts/Roboto-Regular.ttf";
     if (bold && italic) {
         font_path = "assets/fonts/Roboto-BoldItalic.ttf";

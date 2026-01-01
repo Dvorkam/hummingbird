@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <string>
 
 #include "core/platform_api/IGraphicsContext.h"
 
@@ -36,6 +37,7 @@ struct ComputedStyle {
     FontWeight weight = FontWeight::Normal;
     FontStyle style = FontStyle::Normal;
     float font_size = 16.0f;  // px
+    std::string font_face;
     std::optional<Color> background;
     // Future: background, font family, etc.
 };

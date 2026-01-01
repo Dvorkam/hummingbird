@@ -38,6 +38,7 @@ static constexpr std::string_view Pre = "pre";
 static constexpr std::string_view Code = "code";
 static constexpr std::string_view A = "a";
 static constexpr std::string_view Blockquote = "blockquote";
+static constexpr std::string_view Font = "font";
 static constexpr std::string_view Table = "table";
 static constexpr std::string_view Thead = "thead";
 static constexpr std::string_view Tbody = "tbody";
