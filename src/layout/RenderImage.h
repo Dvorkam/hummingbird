@@ -15,6 +15,7 @@ public:
     }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
+    void paint_self(IGraphicsContext& context, const Point& offset) const override;
 
     IInlineParticipant* as_inline_participant() override;
     const IInlineParticipant* as_inline_participant() const override;

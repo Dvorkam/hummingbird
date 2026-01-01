@@ -248,6 +248,29 @@ TEST(PainterTest, PaintsBackgroundForBoxes) {
     EXPECT_TRUE(found);
 }
 
+TEST(PainterTest, PaintsImagePlaceholderWithAltText) {
+    std::string_view html = "<html><body><img alt=\"Logo\" width=\"32\" height=\"16\"></body></html>";
+    ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_EQ(context.draw_calls, 1);
+    EXPECT_EQ(context.last_text, "Logo");
+    EXPECT_GE(context.fill_calls.size(), 4u);
+}
+
 TEST(PainterTest, SkipsPaintForOffscreenNodes) {
     std::string_view html = "<html><body><p>First</p><p>Second</p></body></html>";
     ArenaAllocator arena(2048);

@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 
+#include "core/utils/AssetPath.h"
 #include "layout/inline/InlineTypes.h"
 
 namespace Hummingbird::Layout {
@@ -14,6 +15,10 @@ namespace Hummingbird::Layout {
 namespace {
 constexpr float kDefaultImageWidth = 300.0f;
 constexpr float kDefaultImageHeight = 150.0f;
+constexpr float kAltTextPadding = 4.0f;
+
+const Color kPlaceholderFill{230, 230, 230, 255};
+const Color kPlaceholderStroke{150, 150, 150, 255};
 
 struct Insets {
     float left;
@@ -103,6 +108,31 @@ LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedS
     float content_height = resolve_height(element, style);
     return {content_width + insets.left + insets.right, content_height + insets.top + insets.bottom};
 }
+
+std::string find_attribute_value(const DOM::Element& element, std::string_view name) {
+    for (const auto& [key, value] : element.get_attributes()) {
+        if (iequals(key, name)) {
+            return value;
+        }
+    }
+    return {};
+}
+
+void draw_outline(IGraphicsContext& context, const Rect& rect, const Color& color) {
+    constexpr float kThickness = 1.0f;
+    Rect top{rect.x, rect.y, rect.width, kThickness};
+    Rect bottom{rect.x, rect.y + rect.height - kThickness, rect.width, kThickness};
+    Rect left{rect.x, rect.y, kThickness, rect.height};
+    Rect right{rect.x + rect.width - kThickness, rect.y, kThickness, rect.height};
+    context.fill_rect(top, color);
+    context.fill_rect(bottom, color);
+    context.fill_rect(left, color);
+    context.fill_rect(right, color);
+}
+
+std::string resolve_default_font_path() {
+    return Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
+}
 }  // namespace
 
 void RenderImage::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
@@ -114,6 +144,43 @@ void RenderImage::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     m_rect.y = bounds.y;
     m_rect.width = size.width;
     m_rect.height = size.height;
+}
+
+void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) const {
+    RenderObject::paint_self(context, offset);
+
+    auto* element = static_cast<const DOM::Element*>(get_dom_node());
+    const auto* style = get_computed_style();
+    Insets insets = compute_insets(style);
+
+    Rect content{offset.x + m_rect.x + insets.left,
+                 offset.y + m_rect.y + insets.top,
+                 m_rect.width - insets.left - insets.right,
+                 m_rect.height - insets.top - insets.bottom};
+
+    if (content.width <= 0.0f || content.height <= 0.0f) {
+        return;
+    }
+
+    bool has_background = style && style->background.has_value();
+    if (!has_background) {
+        context.fill_rect(content, kPlaceholderFill);
+    }
+    draw_outline(context, content, kPlaceholderStroke);
+
+    std::string alt_text = find_attribute_value(*element, "alt");
+    if (alt_text.empty()) {
+        return;
+    }
+
+    TextStyle text_style;
+    text_style.font_path = resolve_default_font_path();
+    text_style.font_size = style ? style->font_size : 12.0f;
+    text_style.color = style ? style->color : Color{80, 80, 80, 255};
+
+    float text_x = content.x + kAltTextPadding;
+    float text_y = content.y + kAltTextPadding;
+    context.draw_text(alt_text, text_x, text_y, text_style);
 }
 
 IInlineParticipant* RenderImage::as_inline_participant() {
