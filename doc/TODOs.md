@@ -16,3 +16,7 @@
 - **App Module Pass:** Refactor `src/app` orchestration to remove low-level logic from high-level flow.
 - **Platform Module Pass:** Refactor `src/platform` to keep API glue thin and push details into helpers.
 - **Verification Sweep:** Re-scan for long/mixed functions and confirm no regressions via unit tests.
+
+## Typography Follow-Ups
+
+- **Font Face Mapping:** `TextBox::resolve_text_font_path()` ignores `ComputedStyle::font_face` and always picks Roboto variants; add a mapping table for known faces (fallback to Roboto with warning).
