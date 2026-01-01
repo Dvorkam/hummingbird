@@ -303,8 +303,12 @@ void BrowserApp::rebuild_from_html(const std::string& html) {
     HB_LOG_INFO("[pipeline] html size: " << html.size());
 
     std::vector<std::string> style_blocks;
-    if (!parse_html(html, style_blocks)) {
+    std::vector<std::string> stylesheet_links;
+    if (!parse_html(html, style_blocks, stylesheet_links)) {
         return;
+    }
+    if (!stylesheet_links.empty()) {
+        HB_LOG_INFO("[pipeline] discovered stylesheet links: " << stylesheet_links.size());
     }
 
     std::string css = build_css_source(style_blocks);
@@ -325,7 +329,8 @@ void BrowserApp::reset_document_state() {
     dom_arena_.reset();
 }
 
-bool BrowserApp::parse_html(const std::string& html, std::vector<std::string>& style_blocks) {
+bool BrowserApp::parse_html(const std::string& html, std::vector<std::string>& style_blocks,
+                            std::vector<std::string>& stylesheet_links) {
     const auto parse_start = Hummingbird::Core::Clock::now();
     Hummingbird::Html::Parser parser(dom_arena_, html);
     auto parse_result = parser.parse();
@@ -333,6 +338,7 @@ bool BrowserApp::parse_html(const std::string& html, std::vector<std::string>& s
 
     dom_tree_ = std::move(parse_result.dom);
     style_blocks = std::move(parse_result.style_blocks);
+    stylesheet_links = std::move(parse_result.stylesheet_links);
 
     if (!dom_tree_) {
         HB_LOG_WARN("[pipeline] parsed empty DOM");

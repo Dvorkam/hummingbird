@@ -136,6 +136,17 @@ TEST(HtmlParserTest, ExtractsStyleBlocks) {
     EXPECT_NE(styles[0].find(PropertyNames::Color), std::string::npos);
 }
 
+TEST(HtmlParserTest, DiscoversStylesheetLinks) {
+    std::string_view html =
+        "<head><link rel=\"stylesheet\" href=\"site.css\"></head><body><link href='print.css' rel='StyleSheet'></body>";
+    ArenaAllocator arena(2048);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_EQ(result.stylesheet_links.size(), 2u);
+    EXPECT_EQ(result.stylesheet_links[0], "site.css");
+    EXPECT_EQ(result.stylesheet_links[1], "print.css");
+}
+
 TEST(HtmlParserTest, AutoClosesListItems) {
     std::string_view html = "<ul><li>One<li>Two</ul>";
     ArenaAllocator arena(2048);

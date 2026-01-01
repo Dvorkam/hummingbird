@@ -1,6 +1,7 @@
 #include "html/HtmlParser.h"
 
 #include <algorithm>
+#include <cctype>
 
 #include "core/dom/DomFactory.h"
 #include "core/utils/Log.h"
@@ -16,6 +17,26 @@ std::string to_lower(const std::string_view& view) {
     std::transform(out.begin(), out.end(), out.begin(),
                    [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return out;
+}
+
+bool iequals(std::string_view a, std::string_view b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::string_view find_attribute(const StartTagToken& tag_data, std::string_view name) {
+    for (size_t i = 0; i < tag_data.attribute_count; ++i) {
+        const auto& attr = tag_data.attributes[i];
+        if (iequals(attr.name, name)) {
+            return attr.value;
+        }
+    }
+    return {};
 }
 
 bool is_void_element(std::string_view name) {
@@ -55,6 +76,7 @@ bool is_known_element(std::string_view name) {
 
 Parser::Result Parser::parse() {
     m_style_blocks.clear();
+    m_stylesheet_links.clear();
     m_unsupported_tags.clear();
     auto root = DOM::DomFactory::create_element(m_arena, Hummingbird::Html::TagNames::Root);
     ParseState state;
@@ -91,6 +113,7 @@ Parser::Result Parser::parse() {
     Result result;
     result.dom = ArenaPtr<DOM::Node>(root.release());
     result.style_blocks = std::move(m_style_blocks);
+    result.stylesheet_links = std::move(m_stylesheet_links);
     result.unsupported_tags = std::move(m_unsupported_tags);
     return result;
 }
@@ -107,6 +130,13 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
 
     DOM::Node* appended = parent->get_children().back().get();
     track_unsupported_tag(lowered_name);
+    if (lowered_name == Hummingbird::Html::TagNames::Link) {
+        auto rel = to_lower(find_attribute(tag_data, "rel"));
+        auto href = find_attribute(tag_data, "href");
+        if (rel == "stylesheet" && !href.empty()) {
+            m_stylesheet_links.emplace_back(href);
+        }
+    }
 
     bool should_push = !is_void_element(lowered_name) && !tag_data.self_closing;
     if (should_push) {

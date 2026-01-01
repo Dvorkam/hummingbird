@@ -20,6 +20,7 @@ public:
     struct Result {
         ArenaPtr<DOM::Node> dom;
         std::vector<std::string> style_blocks;
+        std::vector<std::string> stylesheet_links;
         std::unordered_set<std::string> unsupported_tags;
     };
 
@@ -46,6 +47,7 @@ private:
     ArenaAllocator& m_arena;
     std::unordered_set<std::string> m_unsupported_tags;
     std::vector<std::string> m_style_blocks;
+    std::vector<std::string> m_stylesheet_links;
 };
 
 }  // namespace Hummingbird::Html
