@@ -269,7 +269,7 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
     }
 }
 
-void RenderListItem::paint_self(IGraphicsContext& context, const Point& offset) {
+void RenderListItem::paint_self(IGraphicsContext& context, const Point& offset) const {
     if (m_marker) {
         Point marker_offset{offset.x + m_rect.x, offset.y + m_rect.y};
         m_marker->paint(context, marker_offset);
@@ -283,7 +283,7 @@ void RenderMarker::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     m_rect.height = m_size;
 }
 
-void RenderMarker::paint_self(IGraphicsContext& context, const Point& offset) {
+void RenderMarker::paint_self(IGraphicsContext& context, const Point& offset) const {
     const auto* style = get_computed_style();
     Color color = style ? style->color : Color{0, 0, 0, 255};
     Rect absolute{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};

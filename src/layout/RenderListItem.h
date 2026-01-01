@@ -21,7 +21,7 @@ public:
     }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
-    void paint_self(IGraphicsContext& context, const Point& offset) override;
+    void paint_self(IGraphicsContext& context, const Point& offset) const override;
 
 private:
     friend class ::ListItemLayoutTest_GeneratesMarkerLeftOfContent_Test;
@@ -41,7 +41,7 @@ public:
     }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
-    void paint_self(IGraphicsContext& context, const Point& offset) override;
+    void paint_self(IGraphicsContext& context, const Point& offset) const override;
 
 private:
     explicit RenderMarker(const DOM::Node* dom_node) : RenderObject(dom_node) {}

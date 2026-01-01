@@ -26,7 +26,7 @@ bool intersects(const Layout::Rect& a, const Layout::Rect& b) {
 }
 
 template <typename Visitor>
-void traverse_tree(Layout::RenderObject& node, const Layout::Point& offset, Visitor&& visitor) {
+void traverse_tree(const Layout::RenderObject& node, const Layout::Point& offset, Visitor&& visitor) {
     const auto& rect = node.get_rect();
     Layout::Rect absolute{offset.x + rect.x, offset.y + rect.y, rect.width, rect.height};
     if (!visitor(node, absolute, offset)) {
@@ -39,10 +39,11 @@ void traverse_tree(Layout::RenderObject& node, const Layout::Point& offset, Visi
     }
 }
 
-void paint_tree_culled(Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
+void paint_tree_culled(const Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
                        const Layout::Rect& viewport) {
     traverse_tree(node, offset,
-                  [&](Layout::RenderObject& current, const Layout::Rect& absolute, const Layout::Point& local_offset) {
+                  [&](const Layout::RenderObject& current, const Layout::Rect& absolute,
+                      const Layout::Point& local_offset) {
                       if (!intersects(absolute, viewport)) {
                           return false;
                       }
@@ -51,11 +52,12 @@ void paint_tree_culled(Layout::RenderObject& node, IGraphicsContext& context, co
                   });
 }
 
-void paint_debug_outlines(Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
+void paint_debug_outlines(const Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
                           const Color& color) {
     traverse_tree(
         node, offset,
-        [&](Layout::RenderObject& /*current*/, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+        [&](const Layout::RenderObject& /*current*/, const Layout::Rect& absolute,
+            const Layout::Point& /*local_offset*/) {
             draw_outline(context, absolute, color);
             return true;
         });
@@ -63,7 +65,7 @@ void paint_debug_outlines(Layout::RenderObject& node, IGraphicsContext& context,
 
 }  // namespace
 
-void Painter::paint(Layout::RenderObject& root, IGraphicsContext& context, const PaintOptions& options) {
+void Painter::paint(const Layout::RenderObject& root, IGraphicsContext& context, const PaintOptions& options) {
     context.set_viewport(options.viewport);
     // Start the recursive paint process from the root with scroll offset applied.
     Layout::Point offset{0, -options.scroll_y};

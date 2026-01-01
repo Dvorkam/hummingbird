@@ -30,7 +30,8 @@ public:
     }
 
     const std::vector<ArenaPtr<Node>>& get_children() const { return m_children; }
-    Node* get_parent() const { return m_parent; }
+    Node* get_parent() { return m_parent; }
+    const Node* get_parent() const { return m_parent; }
 
     void set_computed_style(std::shared_ptr<Css::ComputedStyle> style) { m_computed_style = std::move(style); }
     std::shared_ptr<const Css::ComputedStyle> get_computed_style() const { return m_computed_style; }

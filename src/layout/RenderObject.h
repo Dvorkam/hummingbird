@@ -34,13 +34,14 @@ public:
     }
 
     const std::vector<std::unique_ptr<RenderObject>>& get_children() const { return m_children; }
-    RenderObject* get_parent() const { return m_parent; }
+    RenderObject* get_parent() { return m_parent; }
+    const RenderObject* get_parent() const { return m_parent; }
 
     InlineRef Inline() { return InlineRef(as_inline_participant()); }
 
     virtual void layout(IGraphicsContext& context, const Rect& bounds);
-    virtual void paint(IGraphicsContext& context, const Point& offset) final;
-    virtual void paint_self(IGraphicsContext& context, const Point& offset);
+    virtual void paint(IGraphicsContext& context, const Point& offset) const final;
+    virtual void paint_self(IGraphicsContext& context, const Point& offset) const;
 
 protected:
     explicit RenderObject(const DOM::Node* dom_node) : m_dom_node(dom_node) {}

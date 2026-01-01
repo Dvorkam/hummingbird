@@ -335,7 +335,7 @@ void TextBox::finalize_inline_layout() {
     }
 }
 
-void TextBox::paint_self(IGraphicsContext& context, const Point& offset) {
+void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
     // The absolute position to draw the text is the parent's offset plus our own relative position.
     const auto* style = get_computed_style();
     Insets insets = compute_insets(style);

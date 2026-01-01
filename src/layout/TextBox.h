@@ -17,7 +17,7 @@ public:
     }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
-    void paint_self(IGraphicsContext& context, const Point& offset) override;
+    void paint_self(IGraphicsContext& context, const Point& offset) const override;
     const std::string& rendered_text() const { return m_rendered_text; }
 
     const DOM::Text* get_dom_node() const { return static_cast<const DOM::Text*>(m_dom_node); }

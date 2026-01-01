@@ -18,7 +18,7 @@ void RenderRule::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     m_rect.height = h;
 }
 
-void RenderRule::paint_self(IGraphicsContext& context, const Point& offset) {
+void RenderRule::paint_self(IGraphicsContext& context, const Point& offset) const {
     const auto* style = get_computed_style();
     Color c = style && style->background.has_value() ? *style->background : kDefaultRuleColor;
     Rect rect{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};

@@ -13,7 +13,8 @@ struct PaintOptions {
 
 class Painter {
 public:
-    void paint(Layout::RenderObject& root, IGraphicsContext& context, const PaintOptions& options = PaintOptions{});
+    void paint(const Layout::RenderObject& root, IGraphicsContext& context,
+               const PaintOptions& options = PaintOptions{});
 };
 
 }  // namespace Hummingbird::Renderer

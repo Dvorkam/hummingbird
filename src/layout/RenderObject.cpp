@@ -8,7 +8,7 @@ void RenderObject::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect = bounds;
 }
 
-void RenderObject::paint(IGraphicsContext& context, const Point& offset) {
+void RenderObject::paint(IGraphicsContext& context, const Point& offset) const {
     paint_self(context, offset);
     Point child_offset = {offset.x + m_rect.x, offset.y + m_rect.y};
     for (auto& child : m_children) {
@@ -16,7 +16,7 @@ void RenderObject::paint(IGraphicsContext& context, const Point& offset) {
     }
 }
 
-void RenderObject::paint_self(IGraphicsContext& context, const Point& offset) {
+void RenderObject::paint_self(IGraphicsContext& context, const Point& offset) const {
     const auto* style = get_computed_style();
     if (style && style->border_style == Css::ComputedStyle::BorderStyle::Solid) {
         Layout::Rect absolute{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
