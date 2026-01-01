@@ -299,3 +299,21 @@ TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
     ASSERT_TRUE(child_style);
     EXPECT_EQ(child_style->whitespace, ComputedStyle::WhiteSpace::NoWrap);
 }
+
+TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
+    ArenaAllocator arena(2048);
+    auto img = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Img);
+    img->set_attribute("width", "120");
+    img->set_attribute("height", "80");
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, img.get());
+
+    auto img_style = img->get_computed_style();
+    ASSERT_TRUE(img_style);
+    ASSERT_TRUE(img_style->width.has_value());
+    ASSERT_TRUE(img_style->height.has_value());
+    EXPECT_FLOAT_EQ(img_style->width.value(), 120.0f);
+    EXPECT_FLOAT_EQ(img_style->height.value(), 80.0f);
+}

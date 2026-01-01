@@ -274,6 +274,35 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
         return true;
     };
 
+    auto parse_length_value = [](std::string_view value) -> std::optional<float> {
+        std::string_view trimmed = value;
+        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) {
+            trimmed.remove_prefix(1);
+        }
+        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
+            trimmed.remove_suffix(1);
+        }
+        if (trimmed.empty()) {
+            return std::nullopt;
+        }
+        std::string temp(trimmed);
+        char* end = nullptr;
+        float parsed = std::strtof(temp.c_str(), &end);
+        if (end == temp.c_str()) {
+            return std::nullopt;
+        }
+        while (end && *end != '\0' && std::isspace(static_cast<unsigned char>(*end))) {
+            ++end;
+        }
+        if (end && *end != '\0') {
+            return std::nullopt;
+        }
+        if (parsed < 0.0f) {
+            parsed = 0.0f;
+        }
+        return parsed;
+    };
+
     for (const auto& [key, value] : element.get_attributes()) {
         if (matches_name(key, "align")) {
             std::string normalized = value;
@@ -292,6 +321,14 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
         } else if (matches_name(key, "nowrap")) {
             style.whitespace = ComputedStyle::WhiteSpace::NoWrap;
             overrides.whitespace = true;
+        } else if (matches_name(key, "width") && !style.width.has_value()) {
+            if (auto parsed = parse_length_value(value)) {
+                style.width = *parsed;
+            }
+        } else if (matches_name(key, "height") && !style.height.has_value()) {
+            if (auto parsed = parse_length_value(value)) {
+                style.height = *parsed;
+            }
         }
     }
 }
