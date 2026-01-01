@@ -29,6 +29,7 @@ enum class Property {
     Width,
     Height,
     Color,
+    BackgroundColor,
     FontSize,
     LineHeight,
     MaxWidth,

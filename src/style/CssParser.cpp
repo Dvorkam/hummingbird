@@ -150,6 +150,7 @@ Property Parser::parse_property_name(std::string_view name) const {
     if (name == PropertyNames::Width) return Property::Width;
     if (name == PropertyNames::Height) return Property::Height;
     if (name == PropertyNames::Color) return Property::Color;
+    if (name == PropertyNames::BackgroundColor) return Property::BackgroundColor;
     if (name == PropertyNames::FontSize) return Property::FontSize;
     if (name == PropertyNames::LineHeight) return Property::LineHeight;
     if (name == PropertyNames::MaxWidth) return Property::MaxWidth;

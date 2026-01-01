@@ -21,6 +21,7 @@ static constexpr std::string_view PaddingLeft = "padding-left";
 static constexpr std::string_view Width = "width";
 static constexpr std::string_view Height = "height";
 static constexpr std::string_view Color = "color";
+static constexpr std::string_view BackgroundColor = "background-color";
 static constexpr std::string_view FontSize = "font-size";
 static constexpr std::string_view LineHeight = "line-height";
 static constexpr std::string_view MaxWidth = "max-width";

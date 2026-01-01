@@ -53,3 +53,23 @@ TEST(CSSParserTest, ParsesHexColor) {
     EXPECT_EQ(rule.declarations[0].value.color.g, 187);
     EXPECT_EQ(rule.declarations[0].value.color.b, 204);
 }
+
+TEST(CSSParserTest, ParsesBackgroundColorAndShortHex) {
+    Parser parser("div { color: #333; background-color: white; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& rule = sheet.rules[0];
+    ASSERT_EQ(rule.declarations.size(), 2u);
+
+    EXPECT_EQ(rule.declarations[0].property, Property::Color);
+    ASSERT_EQ(rule.declarations[0].value.type, Value::Type::Color);
+    EXPECT_EQ(rule.declarations[0].value.color.r, 51);
+    EXPECT_EQ(rule.declarations[0].value.color.g, 51);
+    EXPECT_EQ(rule.declarations[0].value.color.b, 51);
+
+    EXPECT_EQ(rule.declarations[1].property, Property::BackgroundColor);
+    ASSERT_EQ(rule.declarations[1].value.type, Value::Type::Color);
+    EXPECT_EQ(rule.declarations[1].value.color.r, 255);
+    EXPECT_EQ(rule.declarations[1].value.color.g, 255);
+    EXPECT_EQ(rule.declarations[1].value.color.b, 255);
+}
