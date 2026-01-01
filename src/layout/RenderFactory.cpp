@@ -6,6 +6,7 @@
 #include "layout/RenderImage.h"
 #include "layout/RenderListItem.h"
 #include "layout/RenderRule.h"
+#include "layout/RenderTable.h"
 #include "layout/TextBox.h"
 
 namespace Hummingbird::Layout {
@@ -40,6 +41,22 @@ std::unique_ptr<RenderObject> RenderFactory::create_text_box(const DOM::Text* do
 
 std::unique_ptr<RenderObject> RenderFactory::create_image(const DOM::Element* dom_node) {
     return RenderImage::create(dom_node);
+}
+
+std::unique_ptr<RenderObject> RenderFactory::create_table(const DOM::Node* dom_node) {
+    return RenderTable::create(dom_node);
+}
+
+std::unique_ptr<RenderObject> RenderFactory::create_table_section(const DOM::Node* dom_node) {
+    return RenderTableSection::create(dom_node);
+}
+
+std::unique_ptr<RenderObject> RenderFactory::create_table_row(const DOM::Node* dom_node) {
+    return RenderTableRow::create(dom_node);
+}
+
+std::unique_ptr<RenderObject> RenderFactory::create_table_cell(const DOM::Node* dom_node) {
+    return RenderTableCell::create(dom_node);
 }
 
 }  // namespace Hummingbird::Layout

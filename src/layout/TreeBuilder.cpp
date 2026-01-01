@@ -68,6 +68,19 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         if (tag == Hummingbird::Html::TagNames::Img) {
             return RenderFactory::create_image(element_node);
         }
+        if (tag == Hummingbird::Html::TagNames::Table) {
+            return RenderFactory::create_table(element_node);
+        }
+        if (tag == Hummingbird::Html::TagNames::Thead || tag == Hummingbird::Html::TagNames::Tbody ||
+            tag == Hummingbird::Html::TagNames::Tfoot) {
+            return RenderFactory::create_table_section(element_node);
+        }
+        if (tag == Hummingbird::Html::TagNames::Tr) {
+            return RenderFactory::create_table_row(element_node);
+        }
+        if (tag == Hummingbird::Html::TagNames::Td || tag == Hummingbird::Html::TagNames::Th) {
+            return RenderFactory::create_table_cell(element_node);
+        }
         auto style = element_node->get_computed_style();
         if (style) {
             return render_for_display(element_node, style->display);

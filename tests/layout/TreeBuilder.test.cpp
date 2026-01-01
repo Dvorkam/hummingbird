@@ -9,6 +9,7 @@
 #include "html/HtmlTagNames.h"
 #include "layout/RenderBreak.h"
 #include "layout/RenderRule.h"
+#include "layout/RenderTable.h"
 #include "layout/TextBox.h"
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
@@ -140,4 +141,30 @@ TEST(TreeBuilderTest, PreservesWhitespaceOnlyTextInPreMode) {
     ASSERT_EQ(render_root->get_children().size(), 1u);
     const auto* text_box = dynamic_cast<const TextBox*>(render_root->get_children()[0].get());
     ASSERT_NE(text_box, nullptr);
+}
+
+TEST(TreeBuilderTest, CreatesTableRenderObjects) {
+    ArenaAllocator arena(2048);
+    auto dom_root = DomFactory::create_element(arena, TagNames::Body);
+    auto table = DomFactory::create_element(arena, TagNames::Table);
+    auto row = DomFactory::create_element(arena, TagNames::Tr);
+    auto cell = DomFactory::create_element(arena, TagNames::Td);
+    cell->append_child(DomFactory::create_text(arena, "Cell"));
+    row->append_child(std::move(cell));
+    table->append_child(std::move(row));
+    dom_root->append_child(std::move(table));
+
+    TreeBuilder tree_builder;
+    auto render_root = tree_builder.build(dom_root.get());
+
+    ASSERT_NE(render_root, nullptr);
+    ASSERT_EQ(render_root->get_children().size(), 1u);
+    const auto* table_render = dynamic_cast<const RenderTable*>(render_root->get_children()[0].get());
+    ASSERT_NE(table_render, nullptr);
+    ASSERT_EQ(table_render->get_children().size(), 1u);
+    const auto* row_render = dynamic_cast<const RenderTableRow*>(table_render->get_children()[0].get());
+    ASSERT_NE(row_render, nullptr);
+    ASSERT_EQ(row_render->get_children().size(), 1u);
+    const auto* cell_render = dynamic_cast<const RenderTableCell*>(row_render->get_children()[0].get());
+    ASSERT_NE(cell_render, nullptr);
 }

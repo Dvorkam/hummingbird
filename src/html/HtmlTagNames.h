@@ -38,5 +38,12 @@ static constexpr std::string_view Pre = "pre";
 static constexpr std::string_view Code = "code";
 static constexpr std::string_view A = "a";
 static constexpr std::string_view Blockquote = "blockquote";
+static constexpr std::string_view Table = "table";
+static constexpr std::string_view Thead = "thead";
+static constexpr std::string_view Tbody = "tbody";
+static constexpr std::string_view Tfoot = "tfoot";
+static constexpr std::string_view Tr = "tr";
+static constexpr std::string_view Td = "td";
+static constexpr std::string_view Th = "th";
 
 }  // namespace Hummingbird::Html::TagNames

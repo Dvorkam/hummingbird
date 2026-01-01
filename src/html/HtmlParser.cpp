@@ -66,7 +66,11 @@ bool is_known_element(std::string_view name) {
         Hummingbird::Html::TagNames::Ol,     Hummingbird::Html::TagNames::Li,
         Hummingbird::Html::TagNames::Pre,    Hummingbird::Html::TagNames::Code,
         Hummingbird::Html::TagNames::A,      Hummingbird::Html::TagNames::Blockquote,
-        Hummingbird::Html::TagNames::Meta,   Hummingbird::Html::TagNames::Link};
+        Hummingbird::Html::TagNames::Meta,   Hummingbird::Html::TagNames::Link,
+        Hummingbird::Html::TagNames::Table,  Hummingbird::Html::TagNames::Thead,
+        Hummingbird::Html::TagNames::Tbody,  Hummingbird::Html::TagNames::Tfoot,
+        Hummingbird::Html::TagNames::Tr,     Hummingbird::Html::TagNames::Td,
+        Hummingbird::Html::TagNames::Th};
     for (auto tag : kKnown) {
         if (tag == name) return true;
     }
