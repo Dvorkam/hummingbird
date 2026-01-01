@@ -210,6 +210,44 @@ TEST(PainterTest, PaintsBorderEdgesAtComputedPositions) {
     EXPECT_TRUE(found_right);
 }
 
+TEST(PainterTest, PaintsBackgroundForBoxes) {
+    std::string_view html = "<html><body><div>Box</div></body></html>";
+    ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "div { background-color: #cccccc; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    auto* div_node = find_tag(render_tree.get(), Hummingbird::Html::TagNames::Div);
+    ASSERT_NE(div_node, nullptr);
+    const auto expected = absolute_rect_for(div_node);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    bool found = false;
+    for (const auto& rect : context.fill_calls) {
+        if (rect_matches(rect, expected)) {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
 TEST(PainterTest, SkipsPaintForOffscreenNodes) {
     std::string_view html = "<html><body><p>First</p><p>Second</p></body></html>";
     ArenaAllocator arena(2048);

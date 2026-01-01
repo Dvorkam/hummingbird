@@ -189,6 +189,25 @@ TEST(StyleEngineTest, AppliesBorderProperties) {
     EXPECT_EQ(style->border_color.b, 0x00);
 }
 
+TEST(StyleEngineTest, AppliesBackgroundColor) {
+    ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background-color: #333; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->background.has_value());
+    EXPECT_EQ(style->background->r, 51);
+    EXPECT_EQ(style->background->g, 51);
+    EXPECT_EQ(style->background->b, 51);
+}
+
 TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
     ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

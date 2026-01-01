@@ -126,6 +126,14 @@ void apply_color_property(const PropertyMap& properties, ComputedStyle& style, S
     }
 }
 
+void apply_background_property(const PropertyMap& properties, ComputedStyle& style, StyleOverrides& overrides) {
+    auto bg_it = properties.find(Property::BackgroundColor);
+    if (bg_it != properties.end() && bg_it->second.value.type == Value::Type::Color) {
+        style.background = bg_it->second.value.color;
+        overrides.background = true;
+    }
+}
+
 void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& style, StyleOverrides& overrides,
                                bool& display_set) {
     display_set = apply_display_property(properties, style);
@@ -167,6 +175,7 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
     apply_optional_length_if_present(properties, Property::Height, style.height);
 
     apply_color_property(properties, style, overrides);
+    apply_background_property(properties, style, overrides);
 }
 
 void apply_ua_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides, bool display_set) {
@@ -261,6 +270,7 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.border_width = source.border_width;
     target.border_color = source.border_color;
     target.border_style = source.border_style;
+    target.background = source.background;
 }
 
 void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& source, const StyleOverrides& overrides) {
