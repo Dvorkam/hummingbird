@@ -4,10 +4,10 @@
 #include <blend2d.h>
 
 #include <cmath>
-#include <iostream>
 #include <span>
 
 #include "core/utils/AssetPath.h"
+#include "core/utils/Log.h"
 
 namespace {
 struct FontSetup {
@@ -19,11 +19,11 @@ struct FontSetup {
 bool load_font_setup(const std::string& font_path, float font_size, FontSetup& out, bool include_error) {
     BLResult err = out.face.createFromFile(font_path.c_str());
     if (err != BL_SUCCESS) {
-        std::cerr << "Failed to load font: " << font_path;
         if (include_error) {
-            std::cerr << " (err=" << err << ")";
+            HB_LOG_ERROR("[platform] Failed to load font: " << font_path << " (err=" << err << ")");
+        } else {
+            HB_LOG_ERROR("[platform] Failed to load font: " << font_path);
         }
-        std::cerr << std::endl;
         return false;
     }
 
@@ -75,7 +75,7 @@ SDL_Texture* build_text_texture(SDL_Renderer* renderer, const std::string& text,
     SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(
         const_cast<uint8_t*>(pixels.data()), target_width, target_height, 32, imgData.stride, SDL_PIXELFORMAT_BGRA32);
     if (!surface) {
-        std::cerr << "Failed to create SDL_Surface from BLImage" << std::endl;
+        HB_LOG_ERROR("[platform] Failed to create SDL_Surface from BLImage");
         return nullptr;
     }
 
@@ -83,7 +83,7 @@ SDL_Texture* build_text_texture(SDL_Renderer* renderer, const std::string& text,
     SDL_FreeSurface(surface);
 
     if (!texture) {
-        std::cerr << "Failed to create SDL_Texture from SDL_Surface" << std::endl;
+        HB_LOG_ERROR("[platform] Failed to create SDL_Texture from SDL_Surface");
         return nullptr;
     }
 
@@ -167,7 +167,7 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     int target_width = 0;
     int target_height = 0;
     if (!resolve_target_dimensions(metrics, target_width, target_height)) {
-        std::cerr << "[draw_text] measured zero size for '" << text << "'\n";
+        HB_LOG_DEBUG("[draw_text] measured zero size for '" << text << "'");
         return;
     }
     if (is_outside_viewport(m_viewport, x, y, target_width, target_height)) return;
@@ -185,8 +185,8 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
 
     static bool logged = false;
     if (!logged) {
-        std::cerr << "[draw_text] text='" << text << "' at (" << x << ", " << y << ") size=(" << target_width << ", "
-                  << target_height << ") font=" << resolved_font << "\n";
+        HB_LOG_DEBUG("[draw_text] text='" << text << "' at (" << x << ", " << y << ") size=(" << target_width << ", "
+                                         << target_height << ") font=" << resolved_font);
         logged = true;
     }
 
@@ -225,8 +225,8 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
 
     static bool logged = false;
     if (!logged) {
-        std::cerr << "[measure_text] path=" << resolved_font << " text='" << text << "' size=" << style.font_size
-                  << " -> (" << width << ", " << height << ")\n";
+        HB_LOG_DEBUG("[measure_text] path=" << resolved_font << " text='" << text << "' size=" << style.font_size
+                                            << " -> (" << width << ", " << height << ")");
         logged = true;
     }
 

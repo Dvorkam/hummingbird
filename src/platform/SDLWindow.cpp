@@ -2,13 +2,12 @@
 
 #include <SDL.h>
 
-#include <iostream>
-
+#include "core/utils/Log.h"
 #include "platform/SDLGraphicsContext.h"
 
 SDLWindow::SDLWindow() {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
-        std::cerr << "SDL_Init Error: " << SDL_GetError() << std::endl;
+        HB_LOG_ERROR("[platform] SDL_Init failed: " << SDL_GetError());
     }
 }
 
@@ -20,13 +19,13 @@ SDLWindow::~SDLWindow() {
 void SDLWindow::open() {
     m_window = SDL_CreateWindow("Hummingbird", 100, 100, 1024, 768, SDL_WINDOW_SHOWN);
     if (m_window == nullptr) {
-        std::cerr << "SDL_CreateWindow Error: " << SDL_GetError() << std::endl;
+        HB_LOG_ERROR("[platform] SDL_CreateWindow failed: " << SDL_GetError());
         return;
     }
 
     m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (m_renderer == nullptr) {
-        std::cerr << "SDL_CreateRenderer Error: " << SDL_GetError() << std::endl;
+        HB_LOG_ERROR("[platform] SDL_CreateRenderer failed: " << SDL_GetError());
         close();
         return;
     }
