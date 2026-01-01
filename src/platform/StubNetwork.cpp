@@ -9,6 +9,7 @@ std::string build_stub_body(const std::string& url) {
   <head>
     <meta charset="utf-8">
     <title>Hummingbird CSS Demo</title>
+    <link rel="stylesheet" href="assets/stub.css">
     <style>
       body { margin: 20px; padding: 10px; color: #444; }
       h1, h2, .title { margin: 10px; }
@@ -17,6 +18,7 @@ std::string build_stub_body(const std::string& url) {
       .hidden { display: none; }
       .boxed { border-width: 20px; border-style: solid; border-color: #cc0000; padding: 4px; }
       .inline-block { display: inline-block; border-width: 1px; border-style: solid; border-color: #008000; padding: 2px; }
+      .external-demo { color: #cc0000; }
     </style>
   </head>
   <body>
@@ -26,6 +28,8 @@ std::string build_stub_body(const std::string& url) {
     <p>Inline <em>emphasis</em> and <code>code</code> samples.</p>
     <p class="boxed">Bordered example paragraph.</p>
     <p><span class="inline-block">Inline</span> <span class="inline-block">Block</span></p>
+    <h2>External Stylesheet</h2>
+    <p class="external-demo">Text color overrides inline, border comes from linked CSS.</p>
     <p class="hidden">You should not see this paragraph.</p>
     <ul>
       <li>List item one</li>
