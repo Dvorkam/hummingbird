@@ -11,6 +11,7 @@
 #include "core/ArenaAllocator.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/INetwork.h"
+#include "core/platform_api/IResourceProvider.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 #include "layout/TreeBuilder.h"
@@ -83,6 +84,7 @@ private:
     // Deps / subsystems
     std::unique_ptr<INetwork> network_;
     std::unique_ptr<INetwork> fallback_network_;
+    ResourceProviderPtr resource_provider_;
     Hummingbird::Css::StyleEngine style_engine_;
     Hummingbird::Layout::TreeBuilder tree_builder_;
     Hummingbird::Renderer::Painter painter_;

@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "core/platform_api/NetworkFactory.h"
+#include "core/platform_api/ResourceProviderFactory.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
@@ -34,8 +35,12 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window) : window_(std::move(wind
     graphics_ = window_ ? window_->get_graphics_context() : nullptr;
     network_ = create_network(NetworkBackend::Curl);
     fallback_network_ = create_network(NetworkBackend::Stub);
+    resource_provider_ = create_resource_provider();
     if (!network_ || !fallback_network_) {
         HB_LOG_ERROR("[network] failed to create network backend(s)");
+    }
+    if (!resource_provider_) {
+        HB_LOG_WARN("[resource] no resource provider available");
     }
 }
 
@@ -341,10 +346,21 @@ bool BrowserApp::parse_html(const std::string& html, std::vector<std::string>& s
 }
 
 std::string BrowserApp::build_css_source(const std::vector<std::string>& style_blocks) const {
-    std::string css = "body { padding: 8px; } p { margin: 4px; }";
-    for (const auto& block : style_blocks) {
+    std::string css;
+    if (resource_provider_) {
+        if (auto ua_css = resource_provider_->load_text("assets/ua.css")) {
+            css = std::move(*ua_css);
+        }
+    }
+    if (css.empty()) {
+        css = "body { padding: 8px; } p { margin: 4px; }";
+    }
+    if (!css.empty() && css.back() != '\n') {
         css.append("\n");
+    }
+    for (const auto& block : style_blocks) {
         css.append(block);
+        css.append("\n");
     }
     return css;
 }

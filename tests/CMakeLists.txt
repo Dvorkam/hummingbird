@@ -19,6 +19,7 @@ add_executable(HummingbirdTests
     style/SelectorMatcher.test.cpp
     style/StyleEngine.test.cpp
     layout/LayoutStyleIntegration.test.cpp
+    platform/ResourceProvider.test.cpp
     network/StubNetwork.test.cpp
     network/CurlNetwork.test.cpp
     network/NetworkFactory.test.cpp

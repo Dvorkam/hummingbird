@@ -61,6 +61,8 @@ add_library(Platform STATIC
     src/platform/CurlNetwork.cpp
     src/platform/StubNetwork.cpp
     src/platform/NetworkFactory.cpp
+    src/platform/FileResourceProvider.cpp
+    src/platform/ResourceProviderFactory.cpp
     src/platform/SDLWindowFactory.cpp
 )
 target_include_directories(Platform
