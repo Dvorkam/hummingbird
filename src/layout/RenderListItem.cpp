@@ -207,7 +207,7 @@ void update_cursor_for_inline(LineCursor& cursor, const LayoutMetrics& metrics, 
 
 InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
                                        size_t& i, const LayoutMetrics& metrics, LineCursor& cursor,
-                                       Css::ComputedStyle::TextAlign text_align) {
+                                       Css::ComputedStyle::TextAlign text_align, float wrap_width) {
     InlineLayoutResult result;
     InlineLineBuilder builder;
     builder.reset();
@@ -228,7 +228,7 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
     }
 
     float start_x = cursor.x - (metrics.inset_left + metrics.marker_offset);
-    auto lines = builder.layout(metrics.content_width, start_x);
+    auto lines = builder.layout(wrap_width, start_x);
     if (lines.empty()) {
         return result;
     }
@@ -295,7 +295,10 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         }
 
         auto align = style ? style->text_align : Css::ComputedStyle::TextAlign::Left;
-        InlineLayoutResult inline_layout = layout_inline_group(context, m_children, i, metrics, cursor, align);
+        float wrap_width = (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap)
+                               ? 0.0f
+                               : metrics.content_width;
+        InlineLayoutResult inline_layout = layout_inline_group(context, m_children, i, metrics, cursor, align, wrap_width);
         update_marker_for_inline(inline_layout, marker_y_set, marker_y, metrics.inset_top);
     }
 

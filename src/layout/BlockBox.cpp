@@ -200,7 +200,8 @@ void update_cursor_for_inline(LineCursor& cursor, const LayoutMetrics& metrics, 
 }
 
 void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
-                         const LayoutMetrics& metrics, LineCursor& cursor, Css::ComputedStyle::TextAlign text_align) {
+                         const LayoutMetrics& metrics, LineCursor& cursor, Css::ComputedStyle::TextAlign text_align,
+                         float wrap_width) {
     InlineLineBuilder builder;
     builder.reset();
     std::vector<InlineRun> runs;
@@ -220,7 +221,7 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
     }
 
     float start_x = cursor.x - metrics.inset_left;
-    auto lines = builder.layout(metrics.content_width, start_x);
+    auto lines = builder.layout(wrap_width, start_x);
     align_inline_lines(lines, metrics.content_width, text_align);
     float base_x = metrics.inset_left;
     float base_y = cursor.y;
@@ -255,7 +256,10 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
             continue;
         }
         auto align = style ? style->text_align : Css::ComputedStyle::TextAlign::Left;
-        layout_inline_group(context, m_children, i, metrics, cursor, align);
+        float wrap_width = (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap)
+                               ? 0.0f
+                               : metrics.content_width;
+        layout_inline_group(context, m_children, i, metrics, cursor, align, wrap_width);
     }
 
     flush_line(cursor, metrics.inset_left);
