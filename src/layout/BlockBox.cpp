@@ -261,9 +261,8 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
             !(style && style->width.has_value())) {
             align = Css::ComputedStyle::TextAlign::Left;
         }
-        float wrap_width = (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap)
-                               ? 0.0f
-                               : metrics.content_width;
+        float wrap_width =
+            (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) ? 0.0f : metrics.content_width;
         layout_inline_group(context, m_children, i, metrics, cursor, align, wrap_width);
     }
 

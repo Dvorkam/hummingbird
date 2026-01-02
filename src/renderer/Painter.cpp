@@ -41,26 +41,25 @@ void traverse_tree(const Layout::RenderObject& node, const Layout::Point& offset
 
 void paint_tree_culled(const Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
                        const Layout::Rect& viewport) {
-    traverse_tree(node, offset,
-                  [&](const Layout::RenderObject& current, const Layout::Rect& absolute,
-                      const Layout::Point& local_offset) {
-                      if (!intersects(absolute, viewport)) {
-                          return false;
-                      }
-                      current.paint_self(context, local_offset);
-                      return true;
-                  });
+    traverse_tree(
+        node, offset,
+        [&](const Layout::RenderObject& current, const Layout::Rect& absolute, const Layout::Point& local_offset) {
+            if (!intersects(absolute, viewport)) {
+                return false;
+            }
+            current.paint_self(context, local_offset);
+            return true;
+        });
 }
 
 void paint_debug_outlines(const Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
                           const Color& color) {
-    traverse_tree(
-        node, offset,
-        [&](const Layout::RenderObject& /*current*/, const Layout::Rect& absolute,
-            const Layout::Point& /*local_offset*/) {
-            draw_outline(context, absolute, color);
-            return true;
-        });
+    traverse_tree(node, offset,
+                  [&](const Layout::RenderObject& /*current*/, const Layout::Rect& absolute,
+                      const Layout::Point& /*local_offset*/) {
+                      draw_outline(context, absolute, color);
+                      return true;
+                  });
 }
 
 }  // namespace

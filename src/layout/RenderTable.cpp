@@ -130,8 +130,7 @@ std::optional<ParsedWidth> parse_width_value(std::string_view value) {
     return ParsedWidth{parsed, is_percent};
 }
 
-float resolve_table_target_width(const DOM::Element& element, const Css::ComputedStyle* style,
-                                 float available_width) {
+float resolve_table_target_width(const DOM::Element& element, const Css::ComputedStyle* style, float available_width) {
     if (style && style->width.has_value()) {
         return std::max(0.0f, *style->width);
     }

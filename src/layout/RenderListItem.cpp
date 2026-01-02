@@ -295,10 +295,10 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         }
 
         auto align = style ? style->text_align : Css::ComputedStyle::TextAlign::Left;
-        float wrap_width = (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap)
-                               ? 0.0f
-                               : metrics.content_width;
-        InlineLayoutResult inline_layout = layout_inline_group(context, m_children, i, metrics, cursor, align, wrap_width);
+        float wrap_width =
+            (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) ? 0.0f : metrics.content_width;
+        InlineLayoutResult inline_layout =
+            layout_inline_group(context, m_children, i, metrics, cursor, align, wrap_width);
         update_marker_for_inline(inline_layout, marker_y_set, marker_y, metrics.inset_top);
     }
 

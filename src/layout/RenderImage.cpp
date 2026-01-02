@@ -154,10 +154,8 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
     const auto* style = get_computed_style();
     Insets insets = compute_insets(style);
 
-    Rect content{offset.x + m_rect.x + insets.left,
-                 offset.y + m_rect.y + insets.top,
-                 m_rect.width - insets.left - insets.right,
-                 m_rect.height - insets.top - insets.bottom};
+    Rect content{offset.x + m_rect.x + insets.left, offset.y + m_rect.y + insets.top,
+                 m_rect.width - insets.left - insets.right, m_rect.height - insets.top - insets.bottom};
 
     if (content.width <= 0.0f || content.height <= 0.0f) {
         return;

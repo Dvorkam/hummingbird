@@ -186,7 +186,7 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     static bool logged = false;
     if (!logged) {
         HB_LOG_DEBUG("[draw_text] text='" << text << "' at (" << x << ", " << y << ") size=(" << target_width << ", "
-                                         << target_height << ") font=" << resolved_font);
+                                          << target_height << ") font=" << resolved_font);
         logged = true;
     }
 

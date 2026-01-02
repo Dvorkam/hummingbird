@@ -354,8 +354,8 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
                 trimmed.remove_suffix(1);
             }
         }
-        if (trimmed.size() >= 2 &&
-            ((trimmed.front() == '"' && trimmed.back() == '"') || (trimmed.front() == '\'' && trimmed.back() == '\''))) {
+        if (trimmed.size() >= 2 && ((trimmed.front() == '"' && trimmed.back() == '"') ||
+                                    (trimmed.front() == '\'' && trimmed.back() == '\''))) {
             trimmed = trimmed.substr(1, trimmed.size() - 2);
         }
         std::string normalized(trimmed);
