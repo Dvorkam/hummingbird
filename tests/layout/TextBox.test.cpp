@@ -1,12 +1,14 @@
+#include "layout/TextBox.h"
+
 #include <gtest/gtest.h>
 
 #include <string>
-#include "layout/TextBox.h"
+
+#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Text.h"
 #include "style/ComputedStyle.h"
-#include "TestGraphicsContext.h"
 
 class FontCaptureContext : public IGraphicsContext {
 public:

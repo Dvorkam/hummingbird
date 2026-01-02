@@ -1,11 +1,11 @@
-#include <chrono>
+#include <gtest/gtest.h>
+
 #include <cctype>
+#include <chrono>
 #include <cstdlib>
 #include <memory>
 #include <string_view>
 #include <utility>
-
-#include <gtest/gtest.h>
 
 #include "app/BrowserApp.h"
 #include "core/platform_api/WindowFactory.h"
