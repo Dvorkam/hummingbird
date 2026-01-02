@@ -3,6 +3,9 @@ find_package(GTest REQUIRED)
 
 # Create the test executable
 add_executable(HummingbirdTests
+    app/SmokeMain.test.cpp
+    ../src/app/BrowserApp.cpp
+    ../src/app/BrowserApp.h
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp
     core/Timing.test.cpp

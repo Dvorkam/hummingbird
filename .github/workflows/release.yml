@@ -1,0 +1,224 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+env:
+  VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg/bincache
+  VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg/bincache,readwrite
+
+jobs:
+  windows_zip:
+    runs-on: windows-latest
+    name: Windows (portable zip)
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: .vcpkg/bincache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Setup vcpkg (manifest)
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
+
+      - name: Configure (preset)
+        run: cmake --preset ninja-multi-vcpkg
+
+      - name: Build (Release)
+        run: cmake --build --preset ninja-multi-vcpkg --config Release
+
+      - name: Test (Release)
+        run: ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
+
+      - name: Stage + Zip
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tag = "${{ github.ref_name }}"
+          $ver = $tag.TrimStart("v")
+
+          $exe = Join-Path $PWD "build/Release/Hummingbird.exe"
+          if (-not (Test-Path $exe)) { throw "Expected binary not found: $exe" }
+
+          $distRoot = Join-Path $PWD "dist"
+          $bundleDir = Join-Path $distRoot ("Hummingbird-" + $ver + "-win64")
+          New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
+
+          Copy-Item $exe (Join-Path $bundleDir "hummingbird.exe") -Force
+
+          foreach ($dir in @("assets", "resources")) {
+            if (Test-Path (Join-Path $PWD $dir)) {
+              Copy-Item (Join-Path $PWD $dir) (Join-Path $bundleDir $dir) -Recurse -Force
+            }
+          }
+          if (Test-Path (Join-Path $PWD "licenses")) {
+            Copy-Item (Join-Path $PWD "licenses") (Join-Path $bundleDir "licenses") -Recurse -Force
+          }
+
+          # Copy DLLs next to exe (common case)
+          Get-ChildItem -Path (Join-Path $PWD "build/Release") -Filter "*.dll" -File -ErrorAction SilentlyContinue |
+            ForEach-Object { Copy-Item $_.FullName $bundleDir -Force }
+
+          # Best-effort: also copy vcpkg installed bin DLLs
+          $vcpkgInstalled = Join-Path $PWD "vcpkg_installed"
+          if (Test-Path $vcpkgInstalled) {
+            Get-ChildItem -Path $vcpkgInstalled -Recurse -Filter "*.dll" -File -ErrorAction SilentlyContinue |
+              ForEach-Object { Copy-Item $_.FullName $bundleDir -Force }
+          }
+
+          $zipPath = Join-Path $distRoot ("Hummingbird-" + $ver + "-win64.zip")
+          if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+          Compress-Archive -Path $bundleDir -DestinationPath $zipPath
+          Write-Host "Created $zipPath"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: dist/*.zip
+
+  linux_appimage:
+    runs-on: ubuntu-latest
+    name: Linux (AppImage)
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: .vcpkg/bincache
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
+      - name: System deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build build-essential \
+            xvfb \
+            patchelf file curl
+
+      - name: Setup vcpkg (manifest)
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
+
+      - name: Configure (preset)
+        run: cmake --preset ninja-multi-vcpkg
+
+      - name: Build (Release)
+        run: cmake --build --preset ninja-multi-vcpkg --config Release
+
+      - name: Test (Release, headless)
+        run: xvfb-run -a ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
+
+      - name: Build AppImage
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VER="${TAG#v}"
+
+          BIN="build/Release/Hummingbird"
+          if [[ ! -x "$BIN" ]]; then
+            echo "Expected binary not found or not executable: $BIN"
+            exit 1
+          fi
+
+          mkdir -p dist AppDir/usr/bin AppDir/usr/share/hummingbird
+
+          cp "$BIN" AppDir/usr/bin/hummingbird
+
+          for d in assets resources; do
+            if [[ -d "$d" ]]; then
+              cp -R "$d" "AppDir/usr/share/hummingbird/$d"
+            fi
+          done
+          if [[ -d "licenses" ]]; then
+            cp -R "licenses" "AppDir/usr/share/hummingbird/licenses"
+          fi
+
+          cat > AppDir/hummingbird.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Hummingbird
+          Exec=hummingbird
+          Icon=hummingbird
+          Categories=Network;WebBrowser;
+          Terminal=false
+          EOF
+
+          # Minimal icon placeholder (replace later)
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          if ! command -v convert >/dev/null 2>&1; then
+            sudo apt-get install -y imagemagick
+          fi
+          convert -size 256x256 xc:white AppDir/usr/share/icons/hicolor/256x256/apps/hummingbird.png
+          cp AppDir/usr/share/icons/hicolor/256x256/apps/hummingbird.png AppDir/hummingbird.png
+
+          curl -L -o linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
+
+          # Make vcpkg libs visible for bundling
+          # vcpkg_installed/**/lib is where shared libs typically live
+          VCPKG_LIB_DIR="$(find vcpkg_installed -type d -path "*/lib" | head -n 1 || true)"
+          if [[ -n "${VCPKG_LIB_DIR}" ]]; then
+            export LD_LIBRARY_PATH="${VCPKG_LIB_DIR}:${LD_LIBRARY_PATH:-}"
+          fi
+
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            -e AppDir/usr/bin/hummingbird \
+            -d AppDir/hummingbird.desktop \
+            -i AppDir/hummingbird.png \
+            --output appimage
+
+          OUT="$(ls -1 *.AppImage | head -n 1)"
+          mv "$OUT" "dist/Hummingbird-${VER}-linux-x86_64.AppImage"
+
+          echo "Created dist/Hummingbird-${VER}-linux-x86_64.AppImage"
+          file AppDir/usr/bin/hummingbird
+          ldd AppDir/usr/bin/hummingbird || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-appimage
+          path: dist/*.AppImage
+
+  github_release:
+    runs-on: ubuntu-latest
+    name: Publish GitHub Release
+    needs: [windows_zip, linux_appimage]
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "${{ github.ref_name }}"
+          tag_name: "${{ github.ref_name }}"
+          generate_release_notes: true
+          files: |
+            dist/**/*
