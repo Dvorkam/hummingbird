@@ -214,6 +214,16 @@ jobs:
     needs: [windows_zip, linux_appimage]
 
     steps:
+      - name: Determine prerelease flag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ "$tag" =~ (a|b|rc)[0-9]+$ ]]; then
+            echo "HB_PRERELEASE=true" >> "$GITHUB_ENV"
+          else
+            echo "HB_PRERELEASE=false" >> "$GITHUB_ENV"
+          fi
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -224,5 +234,6 @@ jobs:
           name: "${{ github.ref_name }}"
           tag_name: "${{ github.ref_name }}"
           generate_release_notes: true
+          prerelease: ${{ env.HB_PRERELEASE == 'true' }}
           files: |
             dist/**/*
