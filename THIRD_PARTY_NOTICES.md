@@ -18,11 +18,11 @@ Hummingbird uses vcpkg to fetch/build third-party libraries declared in `vcpkg.j
 
 When building from source with vcpkg, vcpkg installs per-port license texts at:
 
-`vcpkg_installed/**/share/<port>/copyright`
+`**/vcpkg_installed/**/share/<port>/copyright` (often under `build/vcpkg_installed/...` when using the provided CMake preset)
 
 Release artifacts bundle these (best-effort) under:
 
-- Windows zip: `licenses/vcpkg/` (or `licenses/vcpkg-<port>.txt`)
+- Windows zip: `licenses/vcpkg/*.txt`
 - Linux AppImage: `usr/share/hummingbird/licenses/vcpkg/*.txt`
 
 ## Build-time tools (not bundled)

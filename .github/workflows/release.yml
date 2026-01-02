@@ -80,14 +80,27 @@ jobs:
           }
 
           # Bundle vcpkg port license notices (best-effort)
-          $vcpkgInstalled = Join-Path $PWD "vcpkg_installed"
-          if (Test-Path $vcpkgInstalled) {
-            Get-ChildItem -Path $vcpkgInstalled -Recurse -File -Filter copyright -ErrorAction SilentlyContinue |
-              Where-Object { $_.FullName -match "[\\\\/]share[\\\\/][^\\\\/]+[\\\\/]copyright$" } |
-              ForEach-Object {
-                $port = Split-Path (Split-Path $_.FullName -Parent) -Leaf
-                Copy-Item $_.FullName (Join-Path $licensesDir ("vcpkg-" + $port + ".txt")) -Force
-              }
+          $vcpkgCandidates = @(
+            (Join-Path $PWD "build/vcpkg_installed"),
+            (Join-Path $PWD "vcpkg_installed")
+          )
+          $vcpkgRoots = $vcpkgCandidates | Where-Object { Test-Path $_ }
+          if ($vcpkgRoots.Count -gt 0) {
+            $vcpkgLicensesDir = Join-Path $licensesDir "vcpkg"
+            New-Item -ItemType Directory -Force -Path $vcpkgLicensesDir | Out-Null
+
+            $copied = 0
+            foreach ($root in $vcpkgRoots) {
+              Get-ChildItem -Path $root -Recurse -File -Filter copyright -ErrorAction SilentlyContinue |
+                ForEach-Object {
+                  if ($_.FullName -match "[\\\\/]share[\\\\/]([^\\\\/]+)[\\\\/]copyright$") {
+                    $port = $Matches[1]
+                    Copy-Item $_.FullName (Join-Path $vcpkgLicensesDir ($port + ".txt")) -Force
+                    $copied++
+                  }
+                }
+            }
+            Write-Host "Bundled $copied vcpkg license file(s) into $vcpkgLicensesDir"
           }
 
           # Copy DLLs next to exe (common case)
@@ -95,9 +108,11 @@ jobs:
             ForEach-Object { Copy-Item $_.FullName $bundleDir -Force }
 
           # Best-effort: also copy vcpkg installed bin DLLs
-          if (Test-Path $vcpkgInstalled) {
-            Get-ChildItem -Path $vcpkgInstalled -Recurse -Filter "*.dll" -File -ErrorAction SilentlyContinue |
-              ForEach-Object { Copy-Item $_.FullName $bundleDir -Force }
+          if ($vcpkgRoots.Count -gt 0) {
+            foreach ($root in $vcpkgRoots) {
+              Get-ChildItem -Path $root -Recurse -Filter "*.dll" -File -ErrorAction SilentlyContinue |
+                ForEach-Object { Copy-Item $_.FullName $bundleDir -Force }
+            }
           }
 
           $zipPath = Join-Path $distRoot ("Hummingbird-" + $ver + "-win64.zip")
@@ -178,12 +193,13 @@ jobs:
           if [[ -f NOTICE ]]; then
             cp NOTICE AppDir/usr/share/hummingbird/licenses/Hummingbird-NOTICE.txt
           fi
-          if [[ -d "vcpkg_installed" ]]; then
-            while IFS= read -r -d '' f; do
-              port="$(basename "$(dirname "$f")")"
-              cp "$f" "AppDir/usr/share/hummingbird/licenses/vcpkg/${port}.txt"
-            done < <(find vcpkg_installed -type f -path "*/share/*/copyright" -print0)
-          fi
+          copied=0
+          while IFS= read -r -d '' f; do
+            port="$(basename "$(dirname "$f")")"
+            cp "$f" "AppDir/usr/share/hummingbird/licenses/vcpkg/${port}.txt"
+            copied=$((copied + 1))
+          done < <(find . -type f -path "*/vcpkg_installed/*/share/*/copyright" -print0 2>/dev/null || true)
+          echo "Bundled ${copied} vcpkg license file(s) into AppDir/usr/share/hummingbird/licenses/vcpkg"
 
           cat > AppDir/hummingbird.desktop <<'EOF'
           [Desktop Entry]
@@ -209,7 +225,7 @@ jobs:
 
           # Make vcpkg libs visible for bundling
           # vcpkg_installed/**/lib is where shared libs typically live
-          VCPKG_LIB_DIR="$(find vcpkg_installed -type d -path "*/lib" | head -n 1 || true)"
+          VCPKG_LIB_DIR="$(find . -type d -path "*/vcpkg_installed/*/lib" | head -n 1 || true)"
           if [[ -n "${VCPKG_LIB_DIR}" ]]; then
             export LD_LIBRARY_PATH="${VCPKG_LIB_DIR}:${LD_LIBRARY_PATH:-}"
           fi
