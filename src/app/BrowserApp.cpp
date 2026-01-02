@@ -250,6 +250,16 @@ void BrowserApp::load_url(const std::string& url) {
 
     requested_url_ = url;
 
+    // Built-in demo URL: keep startup deterministic and avoid network timeouts.
+    if ((url == "http://example.dev" || url == "https://example.dev") && fallback_network_) {
+        fallback_network_->get(url, [this, id](std::string body) {
+            if (id != active_nav_.load(std::memory_order_relaxed)) return;
+            std::lock_guard<std::mutex> lg(pending_mutex_);
+            pending_html_ = std::move(body);
+        });
+        return;
+    }
+
     if (!network_) {
         HB_LOG_ERROR("[network] no backend available for " << url);
         if (fallback_network_) {

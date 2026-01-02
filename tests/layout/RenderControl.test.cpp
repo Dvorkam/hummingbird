@@ -1,11 +1,11 @@
 #include <gtest/gtest.h>
 
+#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "layout/RenderBreak.h"
 #include "layout/RenderRule.h"
-#include "TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;

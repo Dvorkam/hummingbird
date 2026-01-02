@@ -1,6 +1,6 @@
-#include "core/platform_api/ResourceProviderFactory.h"
-
 #include <gtest/gtest.h>
+
+#include "core/platform_api/ResourceProviderFactory.h"
 
 TEST(ResourceProviderTest, LoadsTextFromAssets) {
     auto provider = create_resource_provider();

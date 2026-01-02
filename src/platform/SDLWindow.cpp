@@ -25,6 +25,10 @@ void SDLWindow::open() {
 
     m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (m_renderer == nullptr) {
+        HB_LOG_WARN("[platform] SDL_CreateRenderer (accelerated) failed: " << SDL_GetError());
+        m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_SOFTWARE);
+    }
+    if (m_renderer == nullptr) {
         HB_LOG_ERROR("[platform] SDL_CreateRenderer failed: " << SDL_GetError());
         close();
         return;

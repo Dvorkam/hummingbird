@@ -81,6 +81,7 @@ target_include_directories(Html
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+target_link_libraries(Html PUBLIC Core)
 
 # --- Layout Library ---
 add_library(Layout STATIC
@@ -101,7 +102,7 @@ target_include_directories(Layout
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(Layout PUBLIC blend2d::blend2d Style)
+target_link_libraries(Layout PUBLIC Core Style)
 
 # --- Renderer Library ---
 add_library(Renderer STATIC

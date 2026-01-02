@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "layout/InlineLineBuilder.h"
+
+#include <gtest/gtest.h>
 
 using Hummingbird::Layout::InlineLineBuilder;
 using Hummingbird::Layout::InlineRun;

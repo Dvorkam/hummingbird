@@ -1,5 +1,7 @@
-#include <gtest/gtest.h>
 #include "platform/StubNetwork.h"
+
+#include <gtest/gtest.h>
+
 #include <future>
 
 TEST(StubNetworkTest, ReturnsExampleBody) {
@@ -16,7 +18,8 @@ TEST(StubNetworkTest, ReturnsExampleBody) {
     EXPECT_NE(body.find(".hidden { display: none; }"), std::string::npos);
     EXPECT_NE(body.find(".boxed { border-width: 20px; border-style: solid; border-color: #cc0000; padding: 4px; }"),
               std::string::npos);
-    EXPECT_NE(body.find(".inline-block { display: inline-block; border-width: 1px; border-style: solid; border-color: #008000; padding: 2px; }"),
+    EXPECT_NE(body.find(".inline-block { display: inline-block; border-width: 1px; border-style: solid; border-color: "
+                        "#008000; padding: 2px; }"),
               std::string::npos);
     EXPECT_NE(body.find(".external-demo { color: #cc0000; }"), std::string::npos);
     EXPECT_NE(body.find("class=\"boxed\""), std::string::npos);

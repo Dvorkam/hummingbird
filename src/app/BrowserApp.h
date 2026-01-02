@@ -92,7 +92,7 @@ private:
     Hummingbird::Renderer::Painter painter_;
 
     // UI state
-    std::string url_bar_text_ = "http://bettermotherfuckingwebsite.com/";
+    std::string url_bar_text_ = "https://example.dev";
     std::string requested_url_ = url_bar_text_;
     bool url_bar_active_ = true;
     bool debug_outlines_ = false;

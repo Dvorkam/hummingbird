@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "core/platform_api/NetworkFactory.h"
+
+#include <gtest/gtest.h>
 
 TEST(NetworkFactoryTest, CreatesBackends) {
     auto curl = create_network(NetworkBackend::Curl);

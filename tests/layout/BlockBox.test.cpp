@@ -1,5 +1,4 @@
 #include "layout/BlockBox.h"
-#include "layout/TextBox.h"
 
 #include <gtest/gtest.h>
 
@@ -9,6 +8,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/TextBox.h"
 #include "layout/TreeBuilder.h"
 
 using namespace Hummingbird::Layout;
@@ -90,8 +90,7 @@ TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
     span->append_child(std::move(text));
 
     auto inline_block = InlineBlockBox::create(span.get());
-    inline_block->append_child(TextBox::create(
-        dynamic_cast<Text*>(span->get_children()[0].get())));
+    inline_block->append_child(TextBox::create(dynamic_cast<Text*>(span->get_children()[0].get())));
 
     TestGraphicsContext context;
     Rect bounds{0, 0, 300, 0};

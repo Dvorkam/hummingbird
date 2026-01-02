@@ -1,5 +1,6 @@
-#include <gtest/gtest.h>
 #include "core/ArenaAllocator.h"
+
+#include <gtest/gtest.h>
 
 TEST(ArenaAllocatorTest, SimpleAllocation) {
     ArenaAllocator allocator(1024);
@@ -28,7 +29,7 @@ TEST(ArenaAllocatorTest, Reset) {
 TEST(ArenaAllocatorTest, ZeroAllocation) {
     ArenaAllocator allocator(1024);
     void* ptr = allocator.allocate(0);
-    ASSERT_NE(ptr, nullptr); // Allocating 0 bytes should still return a valid pointer
+    ASSERT_NE(ptr, nullptr);  // Allocating 0 bytes should still return a valid pointer
 }
 
 TEST(ArenaAllocatorTest, RespectsAlignment) {
