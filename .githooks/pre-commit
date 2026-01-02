@@ -9,8 +9,15 @@ if ! command -v clang-format >/dev/null 2>&1; then
     exit 1
 fi
 
-clang-format -i -- src/**/*.cpp
-clang-format -i -- src/**/*.h
+shopt -s globstar nullglob
+files=(src/**/*.cpp src/**/*.h tests/**/*.cpp tests/**/*.h)
+if (( ${#files[@]} )); then
+    clang-format -i -- "${files[@]}"
+fi
 
-cmake --build --preset user-ninja-multi-vcpkglt
-ctest --preset user-ninja-multi-vcpkglt
+# Optional (slow): build + test before commit.
+if [[ "${HB_PRECOMMIT_RUN_TESTS:-0}" == "1" ]]; then
+    preset="${HB_PRECOMMIT_CMAKE_PRESET:-ninja-multi-vcpkg}"
+    cmake --build --preset "$preset"
+    ctest --preset "$preset"
+fi

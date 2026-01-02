@@ -69,8 +69,25 @@ jobs:
               Copy-Item (Join-Path $PWD $dir) (Join-Path $bundleDir $dir) -Recurse -Force
             }
           }
-          if (Test-Path (Join-Path $PWD "licenses")) {
-            Copy-Item (Join-Path $PWD "licenses") (Join-Path $bundleDir "licenses") -Recurse -Force
+
+          $licensesDir = Join-Path $bundleDir "licenses"
+          New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
+          if (Test-Path (Join-Path $PWD "LICENSE")) {
+            Copy-Item (Join-Path $PWD "LICENSE") (Join-Path $licensesDir "Hummingbird-LICENSE.txt") -Force
+          }
+          if (Test-Path (Join-Path $PWD "NOTICE")) {
+            Copy-Item (Join-Path $PWD "NOTICE") (Join-Path $licensesDir "Hummingbird-NOTICE.txt") -Force
+          }
+
+          # Bundle vcpkg port license notices (best-effort)
+          $vcpkgInstalled = Join-Path $PWD "vcpkg_installed"
+          if (Test-Path $vcpkgInstalled) {
+            Get-ChildItem -Path $vcpkgInstalled -Recurse -File -Filter copyright -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -match "[\\\\/]share[\\\\/][^\\\\/]+[\\\\/]copyright$" } |
+              ForEach-Object {
+                $port = Split-Path (Split-Path $_.FullName -Parent) -Leaf
+                Copy-Item $_.FullName (Join-Path $licensesDir ("vcpkg-" + $port + ".txt")) -Force
+              }
           }
 
           # Copy DLLs next to exe (common case)
@@ -78,7 +95,6 @@ jobs:
             ForEach-Object { Copy-Item $_.FullName $bundleDir -Force }
 
           # Best-effort: also copy vcpkg installed bin DLLs
-          $vcpkgInstalled = Join-Path $PWD "vcpkg_installed"
           if (Test-Path $vcpkgInstalled) {
             Get-ChildItem -Path $vcpkgInstalled -Recurse -Filter "*.dll" -File -ErrorAction SilentlyContinue |
               ForEach-Object { Copy-Item $_.FullName $bundleDir -Force }
@@ -156,8 +172,17 @@ jobs:
               cp -R "$d" "AppDir/usr/share/hummingbird/$d"
             fi
           done
-          if [[ -d "licenses" ]]; then
-            cp -R "licenses" "AppDir/usr/share/hummingbird/licenses"
+
+          mkdir -p AppDir/usr/share/hummingbird/licenses/vcpkg
+          cp LICENSE AppDir/usr/share/hummingbird/licenses/Hummingbird-LICENSE.txt
+          if [[ -f NOTICE ]]; then
+            cp NOTICE AppDir/usr/share/hummingbird/licenses/Hummingbird-NOTICE.txt
+          fi
+          if [[ -d "vcpkg_installed" ]]; then
+            while IFS= read -r -d '' f; do
+              port="$(basename "$(dirname "$f")")"
+              cp "$f" "AppDir/usr/share/hummingbird/licenses/vcpkg/${port}.txt"
+            done < <(find vcpkg_installed -type f -path "*/share/*/copyright" -print0)
           fi
 
           cat > AppDir/hummingbird.desktop <<'EOF'

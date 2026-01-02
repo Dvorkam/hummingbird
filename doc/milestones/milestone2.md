@@ -362,9 +362,9 @@ Before you write a single line of CSS parsing code, the codebase must pass this 
 
 These sites are perfect "Golden Masters" for Milestone 2 because they rely heavily on the **Cascade**, **Box Model**, and **Typography** without needing JavaScript.
 
-1. **[BetterMotherfuckingWebsite.com](http://bettermotherfuckingwebsite.com/)**
-* **Why:** This is the direct sequel to your M1 test case. It adds basic CSS (margins, line-height, color, max-width) to the original.
-* **Test Value:** Verifies that your engine can override the "User Agent" styles you wrote in M1.
+1. **[IANA Example Domains](https://www.iana.org/help/example-domains)**
+* **Why:** A clean, stable HTML page that’s safe to link publicly.
+* **Test Value:** Basic typography + link styling without relying on scripting.
 
 
 2. **[CSS Zen Garden (The Sample HTML)](http://www.csszengarden.com/)**
