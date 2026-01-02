@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if ! command -v clang-format >/dev/null 2>&1; then
+    echo "pre-commit: clang-format not found in PATH."
+    exit 1
+fi
+
+staged_files=()
+while IFS= read -r file; do
+    case "$file" in
+        src/*.cpp|src/*.h|src/**/*.cpp|src/**/*.h)
+            staged_files+=("$file")
+            ;;
+    esac
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+if [ "${#staged_files[@]}" -gt 0 ]; then
+    clang-format -i -- "${staged_files[@]}"
+    git add -- "${staged_files[@]}"
+fi
+
+cmake --build --preset user-ninja-multi-vcpkglt
+ctest --preset user-ninja-multi-vcpkglt
