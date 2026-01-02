@@ -45,6 +45,8 @@ jobs:
 
       - name: Test (Release)
         run: ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
+        env:
+          HB_RUN_SMOKE_TEST: "1"
 
       - name: Stage + Zip
         shell: pwsh
@@ -129,6 +131,8 @@ jobs:
 
       - name: Test (Release, headless)
         run: xvfb-run -a ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
+        env:
+          HB_RUN_SMOKE_TEST: "1"
 
       - name: Build AppImage
         shell: bash
