@@ -7,7 +7,7 @@
 #include <thread>
 #include <vector>
 
-#include "core/INetwork.h"
+#include "core/platform_api/INetwork.h"
 
 class StubNetwork : public INetwork {
 public:
@@ -16,7 +16,7 @@ public:
 
     void get(const std::string& url, std::function<void(std::string)> callback) override;
 
-    void shutdown();
+    void shutdown() override;
 
 private:
     void join_all();

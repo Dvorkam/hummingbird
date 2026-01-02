@@ -25,6 +25,11 @@ private:
                    size_t attr_count);
     void parse_tag_name(std::string_view& out_name);
     size_t parse_attributes(std::array<Attribute, 8>& attrs);
+    bool handle_data_state(Token& out);
+    bool handle_tag_open_state(Token& out);
+    bool handle_end_tag_open_state(Token& out);
+    void skip_directive_or_comment();
+    void skip_until(char terminal);
 
     std::string_view m_input;
     size_t m_pos = 0;

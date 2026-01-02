@@ -1,5 +1,7 @@
+#include "core/utils/AssetPath.h"
+
 #include <gtest/gtest.h>
-#include "core/AssetPath.h"
+
 #include <filesystem>
 
 TEST(AssetPathTest, ResolvesFontFromRepoRoot) {

@@ -1,0 +1,12 @@
+.external-demo {
+  border-width: 2px;
+  border-style: solid;
+  border-color: #008000;
+  padding: 4px;
+  color: #008000;
+  background-color: #99cc99;
+}
+
+body {
+  background-color: #5a6bcb;
+}

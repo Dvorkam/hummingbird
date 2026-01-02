@@ -1,4 +1,4 @@
-#include "core/WindowFactory.h"
+#include "core/platform_api/WindowFactory.h"
 #include "platform/SDLWindow.h"
 
 std::unique_ptr<IWindow> create_window() {

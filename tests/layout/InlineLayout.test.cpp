@@ -2,24 +2,28 @@
 
 #include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
+#include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "html/HtmlAttributeNames.h"
 #include "layout/TreeBuilder.h"
+#include "style/CssParser.h"
 #include "style/StyleEngine.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
+namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
-    p->append_child(make_arena_ptr<Text>(arena, "Hello "));
-    auto strong = make_arena_ptr<Element>(arena, "strong");
-    strong->append_child(make_arena_ptr<Text>(arena, "World"));
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hello "));
+    auto strong = DomFactory::create_element(arena, "strong");
+    strong->append_child(DomFactory::create_text(arena, "World"));
     p->append_child(std::move(strong));
-    p->append_child(make_arena_ptr<Text>(arena, "!"));
+    p->append_child(DomFactory::create_text(arena, "!"));
     body->append_child(std::move(p));
 
     Stylesheet sheet;
@@ -50,11 +54,11 @@ TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
 
 TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto ul = make_arena_ptr<Element>(arena, "ul");
-    ul->append_child(make_arena_ptr<Element>(arena, "li"));
-    auto ol = make_arena_ptr<Element>(arena, "ol");
-    ol->append_child(make_arena_ptr<Element>(arena, "li"));
+    auto body = DomFactory::create_element(arena, "body");
+    auto ul = DomFactory::create_element(arena, "ul");
+    ul->append_child(DomFactory::create_element(arena, "li"));
+    auto ol = DomFactory::create_element(arena, "ol");
+    ol->append_child(DomFactory::create_element(arena, "li"));
     body->append_child(std::move(ul));
     body->append_child(std::move(ol));
 
@@ -82,10 +86,10 @@ TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
 
 TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
     // "HelloHello" (10 chars) at 8px each = 80px > 60px available forces wrap.
-    p->append_child(make_arena_ptr<Text>(arena, "Hello Hello"));
+    p->append_child(DomFactory::create_text(arena, "Hello Hello"));
     body->append_child(std::move(p));
 
     Stylesheet sheet;
@@ -111,13 +115,13 @@ TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
 
 TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
     ArenaAllocator arena(4096);
-    auto body = make_arena_ptr<Element>(arena, "body");
-    auto p = make_arena_ptr<Element>(arena, "p");
-    p->append_child(make_arena_ptr<Text>(arena, "Hello "));
-    auto a = make_arena_ptr<Element>(arena, "a");
-    a->append_child(make_arena_ptr<Text>(arena, "link"));
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hello "));
+    auto a = DomFactory::create_element(arena, "a");
+    a->append_child(DomFactory::create_text(arena, "link"));
     p->append_child(std::move(a));
-    p->append_child(make_arena_ptr<Text>(arena, " world"));
+    p->append_child(DomFactory::create_text(arena, " world"));
     body->append_child(std::move(p));
 
     Stylesheet sheet;
@@ -142,4 +146,191 @@ TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
     EXPECT_GT(link.x, first.x + 0.1f);
     // Expect trailing text to start after link width (space preserved)
     EXPECT_GT(last.x, link.x + link.width - 0.1f);
+}
+
+TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hello Hello Hello "));
+    auto code = DomFactory::create_element(arena, "code");
+    code->append_child(DomFactory::create_text(arena, "code"));
+    p->append_child(std::move(code));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 120, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 2u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+    const auto& code_rect = para->get_children()[1]->get_rect();
+
+    // Text wraps to two lines (16px line height). Code should continue on the second line.
+    EXPECT_FLOAT_EQ(code_rect.y, text_rect.y + 16.0f);
+    EXPECT_GT(code_rect.x, 0.0f);
+}
+
+TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    auto span = DomFactory::create_element(arena, "span");
+    span->append_child(DomFactory::create_text(arena, "Hello"));
+    p->append_child(std::move(span));
+    body->append_child(std::move(p));
+
+    std::string css = "span { padding: 2px; border-width: 1px; border-style: solid; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 300, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    const auto& span_box = para->get_children()[0];
+    ASSERT_EQ(span_box->get_children().size(), 1u);
+    const auto& span_rect = span_box->get_rect();
+    const auto& text_rect = span_box->get_children()[0]->get_rect();
+
+    EXPECT_GT(span_rect.width, text_rect.width);
+    EXPECT_FLOAT_EQ(span_rect.width, text_rect.width + 6.0f);
+}
+
+TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hi"));
+    auto img = DomFactory::create_element(arena, "img");
+    img->set_attribute(Attr::Width, "64");
+    img->set_attribute(Attr::Height, "32");
+    p->append_child(std::move(img));
+    p->append_child(DomFactory::create_text(arena, "!"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 3u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+    const auto& image_rect = para->get_children()[1]->get_rect();
+    const auto& bang_rect = para->get_children()[2]->get_rect();
+
+    EXPECT_FLOAT_EQ(image_rect.width, 64.0f);
+    EXPECT_FLOAT_EQ(image_rect.height, 32.0f);
+    EXPECT_FLOAT_EQ(image_rect.x, text_rect.x + text_rect.width);
+    EXPECT_FLOAT_EQ(bang_rect.x, image_rect.x + image_rect.width);
+    EXPECT_FLOAT_EQ(text_rect.y, image_rect.y);
+}
+
+TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_element(arena, "img"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 500, 400};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    const auto& image_rect = para->get_children()[0]->get_rect();
+
+    EXPECT_FLOAT_EQ(image_rect.width, 300.0f);
+    EXPECT_FLOAT_EQ(image_rect.height, 150.0f);
+}
+
+TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->set_attribute(Attr::Align, "center");
+    p->append_child(DomFactory::create_text(arena, "Hi"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+
+    EXPECT_FLOAT_EQ(text_rect.width, 16.0f);
+    EXPECT_FLOAT_EQ(text_rect.x, 92.0f);
+}
+
+TEST(InlineLayoutTest, NoWrapAttributeKeepsSingleLine) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->set_attribute(Attr::NoWrap, "");
+    p->append_child(DomFactory::create_text(arena, "Hello Hello"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 60, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+
+    EXPECT_FLOAT_EQ(text_rect.height, 16.0f);
+    EXPECT_GT(text_rect.width, viewport.width);
 }

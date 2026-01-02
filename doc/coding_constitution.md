@@ -125,6 +125,26 @@ void render() {
 * Mark parameters `const` if they are not modified.
 * **Why:** This allows the compiler to optimize better and prevents silly bugs.
 
+### 3.5. Magic Strings & Magic Numbers
+
+* **No raw HTML/CSS identifiers:** Use centralized constants for tags, attributes, and properties.
+  * Tags: `html/HtmlTagNames.h`
+  * Attributes: `html/HtmlAttributeNames.h`
+  * CSS properties: `style/CssPropertyNames.h`
+* **No magic layout constants:** Use named `k...` constants for pixel values and thresholds.
+
+### 3.6. Factory-Only Creation
+
+* **No direct `new` for Core/DOM/Layout objects.**
+* Always create DOM nodes and render objects through the designated factories (e.g., `DomFactory`, `RenderFactory`) or arena helpers.
+* If you must introduce a constructor, make it `protected/private` and wire it through the factory.
+
+### 3.7. View Safety (string_view Lifetime)
+
+* Any `std::string_view` stored in DOM or layout must outlive its usage.
+* Only take `std::string_view` from buffers whose lifetime is guaranteed (e.g., tokenizer input or arena-owned strings).
+* Never return a view into a temporary `std::string`.
+
 ---
 
 ## 4. Modern C++ (C++20) Standards
@@ -177,6 +197,7 @@ Browser engines are performance-critical. Avoid `try/catch` in hot paths (parsin
 * **`LOG_INFO`**: High-level lifecycle events.
 * **`LOG_WARN`**: Recoverable issues (e.g., "Unknown HTML tag").
 * **`LOG_ERROR`**: Something broke, but we are limping along.
+* Any TODO/HACK/placeholder behavior should log a `LOG_WARN` explaining the gap.
 
 ---
 

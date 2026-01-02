@@ -86,6 +86,7 @@ void CurlNetwork::get(const std::string& url, std::function<void(std::string)> c
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
+        curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, accept_encoding());
 
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);

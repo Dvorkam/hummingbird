@@ -30,3 +30,10 @@ TEST(ArenaAllocatorTest, ZeroAllocation) {
     void* ptr = allocator.allocate(0);
     ASSERT_NE(ptr, nullptr); // Allocating 0 bytes should still return a valid pointer
 }
+
+TEST(ArenaAllocatorTest, RespectsAlignment) {
+    ArenaAllocator allocator(1024);
+    void* ptr = allocator.allocate(8, 16);
+    ASSERT_NE(ptr, nullptr);
+    EXPECT_EQ(reinterpret_cast<size_t>(ptr) % 16u, 0u);
+}

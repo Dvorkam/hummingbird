@@ -1,25 +1,30 @@
 #include "layout/BlockBox.h"
+#include "layout/TextBox.h"
 
 #include <gtest/gtest.h>
 
 #include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
+#include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
+#include "core/dom/Text.h"
+#include "html/HtmlAttributeNames.h"
 #include "layout/TreeBuilder.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
+namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(BlockBoxLayoutTest, SimpleStacking) {
     // Create a DOM tree: <body><p/><p/></body>
     ArenaAllocator arena(2048);
-    auto dom_root = make_arena_ptr<Element>(arena, "body");
-    auto p1 = make_arena_ptr<Element>(arena, "p");
-    auto p2 = make_arena_ptr<Element>(arena, "p");
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto p1 = DomFactory::create_element(arena, "p");
+    auto p2 = DomFactory::create_element(arena, "p");
     // Give the paragraphs some fake height for testing layout
     // In a real scenario, this would come from child text nodes or CSS
-    p1->set_attribute("height", "10");
-    p2->set_attribute("height", "20");
+    p1->set_attribute(Attr::Height, "10");
+    p2->set_attribute(Attr::Height, "20");
     dom_root->append_child(std::move(p1));
     dom_root->append_child(std::move(p2));
 
@@ -31,13 +36,13 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
     // This is a hack for now. A real implementation would calculate height from children.
     class TestBlockBox : public BlockBox {
     public:
-        using BlockBox::BlockBox;
+        explicit TestBlockBox(const Node* dom_node) : BlockBox(dom_node) {}
         void layout(IGraphicsContext& context, const Rect& bounds) override {
             BlockBox::layout(context, bounds);
             const auto* element_node = dynamic_cast<const Hummingbird::DOM::Element*>(get_dom_node());
             if (element_node) {
                 const auto& attributes = element_node->get_attributes();
-                auto it = attributes.find("height");
+                auto it = attributes.find(std::string(Attr::Height));
                 if (it != attributes.end()) {
                     m_rect.height = std::stof(it->second);
                 }
@@ -76,4 +81,22 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
 
     // The root's height should be the sum of the children's heights
     EXPECT_EQ(test_render_root->get_rect().height, 30);
+}
+
+TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
+    ArenaAllocator arena(2048);
+    auto span = DomFactory::create_element(arena, "span");
+    auto text = DomFactory::create_text(arena, "Hello");
+    span->append_child(std::move(text));
+
+    auto inline_block = InlineBlockBox::create(span.get());
+    inline_block->append_child(TextBox::create(
+        dynamic_cast<Text*>(span->get_children()[0].get())));
+
+    TestGraphicsContext context;
+    Rect bounds{0, 0, 300, 0};
+    inline_block->layout(context, bounds);
+
+    EXPECT_LT(inline_block->get_rect().width, bounds.width);
+    EXPECT_GT(inline_block->get_rect().width, 0.0f);
 }

@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "core/IWindow.h"
+#include "core/platform_api/IWindow.h"
 
 // Forward declarations
 struct SDL_Window;

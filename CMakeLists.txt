@@ -5,16 +5,37 @@ project(Hummingbird)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+set(HB_LOG_LEVEL "ERROR" CACHE STRING "Log level: OFF, ERROR, WARN, INFO, DEBUG")
+set_property(CACHE HB_LOG_LEVEL PROPERTY STRINGS OFF ERROR WARN INFO DEBUG)
+
+string(TOUPPER "${HB_LOG_LEVEL}" HB_LOG_LEVEL_UPPER)
+set(HB_LOG_LEVEL_NUM 1)
+if(HB_LOG_LEVEL_UPPER STREQUAL "OFF")
+    set(HB_LOG_LEVEL_NUM 0)
+elseif(HB_LOG_LEVEL_UPPER STREQUAL "ERROR")
+    set(HB_LOG_LEVEL_NUM 1)
+elseif(HB_LOG_LEVEL_UPPER STREQUAL "WARN")
+    set(HB_LOG_LEVEL_NUM 2)
+elseif(HB_LOG_LEVEL_UPPER STREQUAL "INFO")
+    set(HB_LOG_LEVEL_NUM 3)
+elseif(HB_LOG_LEVEL_UPPER STREQUAL "DEBUG")
+    set(HB_LOG_LEVEL_NUM 4)
+else()
+    message(FATAL_ERROR "Unknown HB_LOG_LEVEL: ${HB_LOG_LEVEL}")
+endif()
+add_compile_definitions(HB_LOG_LEVEL=${HB_LOG_LEVEL_NUM})
+
 find_package(SDL2 REQUIRED)
 find_package(blend2d REQUIRED)
 find_package(CURL REQUIRED)
 
 # --- Style Library ---
 add_library(Style STATIC
-    src/style/Tokenizer.cpp
-    src/style/Parser.cpp
+    src/style/CssTokenizer.cpp
+    src/style/CssParser.cpp
     src/style/SelectorMatcher.cpp
     src/style/StyleEngine.cpp
+    src/style/StylesheetSource.cpp
 )
 target_include_directories(Style
     PUBLIC
@@ -25,7 +46,8 @@ target_include_directories(Style
 # This library will contain the abstract interfaces and platform-independent logic.
 add_library(Core STATIC
     src/core/ArenaAllocator.cpp
-    src/core/AssetPath.cpp
+    src/core/dom/DomFactory.cpp
+    src/core/utils/AssetPath.cpp
 )
 target_include_directories(Core
     PUBLIC
@@ -39,6 +61,9 @@ add_library(Platform STATIC
     src/platform/SDLGraphicsContext.cpp
     src/platform/CurlNetwork.cpp
     src/platform/StubNetwork.cpp
+    src/platform/NetworkFactory.cpp
+    src/platform/FileResourceProvider.cpp
+    src/platform/ResourceProviderFactory.cpp
     src/platform/SDLWindowFactory.cpp
 )
 target_include_directories(Platform
@@ -60,12 +85,17 @@ target_include_directories(Html
 # --- Layout Library ---
 add_library(Layout STATIC
     src/layout/RenderObject.cpp
+    src/layout/RenderFactory.cpp
     src/layout/TreeBuilder.cpp
     src/layout/BlockBox.cpp
     src/layout/InlineBox.cpp
     src/layout/TextBox.cpp
+    src/layout/InlineLineBuilder.cpp
+    src/layout/RenderListItem.cpp
     src/layout/RenderBreak.cpp
     src/layout/RenderRule.cpp
+    src/layout/RenderImage.cpp
+    src/layout/RenderTable.cpp
 )
 target_include_directories(Layout
     PUBLIC
@@ -85,7 +115,7 @@ target_include_directories(Renderer
 # --- App Executable ---
 # This is the main application that brings everything together.
 add_executable(Hummingbird
-    src/main.cpp
+    src/app/main.cpp
     src/app/BrowserApp.cpp
     src/app/BrowserApp.h
 )
@@ -95,7 +125,6 @@ target_include_directories(Hummingbird PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(Hummingbird PRIVATE Platform Html Layout Renderer Style SDL2::SDL2main)
-target_compile_definitions(Hummingbird PRIVATE HB_ENABLE_LOG)
 
 # --- Unit Testing ---
 enable_testing()

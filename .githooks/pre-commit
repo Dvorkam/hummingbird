@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if ! command -v clang-format >/dev/null 2>&1; then
+    echo "pre-commit: clang-format not found in PATH."
+    exit 1
+fi
+
+clang-format -i -- src/**/*.cpp
+clang-format -i -- src/**/*.h
+
+cmake --build --preset user-ninja-multi-vcpkglt
+ctest --preset user-ninja-multi-vcpkglt

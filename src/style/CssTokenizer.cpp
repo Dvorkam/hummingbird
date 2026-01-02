@@ -1,8 +1,14 @@
-#include "style/Tokenizer.h"
+#include "style/CssTokenizer.h"
 
 #include <cctype>
 
 namespace Hummingbird::Css {
+
+namespace {
+bool is_identifier_start(char c) {
+    return std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '-';
+}
+}  // namespace
 
 Tokenizer::Tokenizer(std::string_view input) : m_input(input) {}
 
@@ -56,47 +62,54 @@ Token Tokenizer::number() {
     return Token{TokenType::Number, m_input.substr(start, m_pos - start)};
 }
 
+Token Tokenizer::emit_single(TokenType type, std::string_view lexeme) {
+    advance();
+    return Token{type, lexeme};
+}
+
+bool Tokenizer::consume_simple_token(std::vector<Token>& tokens) {
+    switch (peek()) {
+        case '{':
+            tokens.push_back(emit_single(TokenType::LBrace, "{"));
+            return true;
+        case '}':
+            tokens.push_back(emit_single(TokenType::RBrace, "}"));
+            return true;
+        case ',':
+            tokens.push_back(emit_single(TokenType::Comma, ","));
+            return true;
+        case ':':
+            tokens.push_back(emit_single(TokenType::Colon, ":"));
+            return true;
+        case ';':
+            tokens.push_back(emit_single(TokenType::Semicolon, ";"));
+            return true;
+        case '.':
+            tokens.push_back(emit_single(TokenType::Dot, "."));
+            return true;
+        case '#':
+            tokens.push_back(emit_single(TokenType::Hash, "#"));
+            return true;
+        default:
+            return false;
+    }
+}
+
 std::vector<Token> Tokenizer::tokenize() {
     std::vector<Token> tokens;
+    tokens.reserve(m_input.size() + 1);
     while (!eof()) {
         skip_whitespace();
         if (eof()) break;
+        if (consume_simple_token(tokens)) continue;
         char c = peek();
-        switch (c) {
-            case '{':
-                tokens.push_back({TokenType::LBrace, "{"});
-                advance();
-                break;
-            case '}':
-                tokens.push_back({TokenType::RBrace, "}"});
-                advance();
-                break;
-            case ':':
-                tokens.push_back({TokenType::Colon, ":"});
-                advance();
-                break;
-            case ';':
-                tokens.push_back({TokenType::Semicolon, ";"});
-                advance();
-                break;
-            case '.':
-                tokens.push_back({TokenType::Dot, "."});
-                advance();
-                break;
-            case '#':
-                tokens.push_back({TokenType::Hash, "#"});
-                advance();
-                break;
-            default:
-                if (std::isalpha(static_cast<unsigned char>(c)) || c == '_' || c == '-') {
-                    tokens.push_back(identifier());
-                } else if (std::isdigit(static_cast<unsigned char>(c))) {
-                    tokens.push_back(number());
-                } else {
-                    // Unknown character; skip it.
-                    advance();
-                }
-                break;
+        if (is_identifier_start(c)) {
+            tokens.push_back(identifier());
+        } else if (std::isdigit(static_cast<unsigned char>(c))) {
+            tokens.push_back(number());
+        } else {
+            // Unknown character; skip it.
+            advance();
         }
     }
     tokens.push_back({TokenType::End, ""});

@@ -7,7 +7,7 @@
 #include <thread>
 #include <vector>
 
-#include "core/INetwork.h"
+#include "core/platform_api/INetwork.h"
 
 class CurlNetwork : public INetwork {
 public:
@@ -16,7 +16,9 @@ public:
 
     void get(const std::string& url, std::function<void(std::string)> callback) override;
 
-    void shutdown();
+    void shutdown() override;
+
+    static constexpr const char* accept_encoding() { return kAcceptEncoding; }
 
     bool ok() const { return m_initialized.load(std::memory_order_relaxed); }
 
@@ -33,4 +35,6 @@ private:
     // libcurl global lifetime management (process-wide)
     static std::atomic<int> s_instances;
     static std::mutex s_global_mutex;
+
+    static constexpr const char* kAcceptEncoding = "";
 };

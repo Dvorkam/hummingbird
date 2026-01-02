@@ -48,15 +48,16 @@ size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
         if (peek_char() == '/' || peek_char() == '>') {
             break;
         }
-        if (count >= attrs.size()) {
-            break;  // ignore extras
-        }
         size_t name_start = m_pos;
-        while (!eof() &&
-               (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == '-' || peek_char() == '_')) {
+        while (!eof() && (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == '-' ||
+                          peek_char() == '_' || peek_char() == ':')) {
             consume_char();
         }
         std::string_view name = m_input.substr(name_start, m_pos - name_start);
+        if (name.empty()) {
+            consume_char();
+            continue;
+        }
         skip_whitespace();
         std::string_view value;
         if (peek_char() == '=') {
@@ -75,7 +76,9 @@ size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
             value = m_input.substr(val_start, m_pos - val_start);
             if (quote && peek_char() == quote) consume_char();
         }
-        attrs[count++] = Attribute{name, value};
+        if (count < attrs.size()) {
+            attrs[count++] = Attribute{name, value};
+        }
     }
     return count;
 }
@@ -101,73 +104,98 @@ Token Tokenizer::emit_character_data() {
     return Token{TokenType::CharacterData, CharacterDataToken{m_input.substr(start, m_pos - start)}};
 }
 
+bool Tokenizer::handle_data_state(Token& out) {
+    if (peek_char() == '<') {
+        consume_char();
+        if (peek_char() == '/') {
+            consume_char();
+            m_state = State::EndTagOpen;
+        } else {
+            m_state = State::TagOpen;
+        }
+        return false;
+    }
+    out = emit_character_data();
+    return true;
+}
+
+bool Tokenizer::handle_tag_open_state(Token& out) {
+    if (peek_char() == '!') {
+        skip_directive_or_comment();
+        m_state = State::Data;
+        return false;
+    }
+    if (peek_char() == '?') {
+        skip_until('>');
+        m_state = State::Data;
+        return false;
+    }
+    std::string_view tag_name;
+    parse_tag_name(tag_name);
+    std::array<Attribute, 8> attrs{};
+    size_t attr_count = parse_attributes(attrs);
+    bool self_closing = false;
+    skip_whitespace();
+    if (peek_char() == '/') {
+        self_closing = true;
+        consume_char();
+    }
+    if (peek_char() == '>') consume_char();
+    m_state = State::Data;
+    out = emit_tag(false, self_closing, tag_name, attrs, attr_count);
+    return true;
+}
+
+bool Tokenizer::handle_end_tag_open_state(Token& out) {
+    std::string_view tag_name;
+    parse_tag_name(tag_name);
+    skip_until('>');
+    m_state = State::Data;
+    out = emit_tag(true, false, tag_name, {}, 0);
+    return true;
+}
+
+void Tokenizer::skip_directive_or_comment() {
+    if (peek_char(1) == '-' && peek_char(2) == '-') {
+        consume_char();  // '!'
+        consume_char();  // '-'
+        consume_char();  // '-'
+        while (!eof()) {
+            if (peek_char() == '-' && peek_char(1) == '-' && peek_char(2) == '>') {
+                consume_char();
+                consume_char();
+                consume_char();
+                break;
+            }
+            consume_char();
+        }
+        return;
+    }
+    skip_until('>');
+}
+
+void Tokenizer::skip_until(char terminal) {
+    while (!eof() && consume_char() != terminal) {
+    }
+}
+
 Token Tokenizer::next_token() {
     while (!eof()) {
-        char c = peek_char();
         switch (m_state) {
-            case State::Data:
-                if (c == '<') {
-                    consume_char();
-                    if (peek_char() == '/') {
-                        consume_char();
-                        m_state = State::EndTagOpen;
-                    } else {
-                        m_state = State::TagOpen;
-                    }
-                    break;
-                }
-                return emit_character_data();
+            case State::Data: {
+                Token token;
+                if (handle_data_state(token)) return token;
+                break;
+            }
             case State::TagOpen: {
-                if (peek_char() == '!') {
-                    // Skip directives/doctype/comments.
-                    if (peek_char(1) == '-' && peek_char(2) == '-') {
-                        // Comment: consume until '-->'
-                        consume_char();  // '!'
-                        consume_char();  // '-'
-                        consume_char();  // '-'
-                        while (!eof()) {
-                            if (peek_char() == '-' && peek_char(1) == '-' && peek_char(2) == '>') {
-                                consume_char();
-                                consume_char();
-                                consume_char();
-                                break;
-                            }
-                            consume_char();
-                        }
-                    } else {
-                        while (!eof() && consume_char() != '>') {
-                        }
-                    }
-                    m_state = State::Data;
-                    break;
-                }
-                if (peek_char() == '?') {
-                    while (!eof() && consume_char() != '>') {
-                    }
-                    m_state = State::Data;
-                    break;
-                }
-                std::string_view tag_name;
-                parse_tag_name(tag_name);
-                std::array<Attribute, 8> attrs{};
-                size_t attr_count = parse_attributes(attrs);
-                bool self_closing = false;
-                skip_whitespace();
-                if (peek_char() == '/') {
-                    self_closing = true;
-                    consume_char();
-                }
-                if (peek_char() == '>') consume_char();
-                m_state = State::Data;
-                return emit_tag(false, self_closing, tag_name, attrs, attr_count);
+                Token token;
+                if (handle_tag_open_state(token)) return token;
+                break;
             }
             case State::EndTagOpen: {
-                std::string_view tag_name;
-                parse_tag_name(tag_name);
-                while (!eof() && peek_char() != '>') consume_char();
-                if (peek_char() == '>') consume_char();
-                m_state = State::Data;
-                return emit_tag(true, false, tag_name, {}, 0);
+                Token token;
+                if (handle_end_tag_open_state(token)) return token;
+                break;
             }
             default:
                 m_state = State::Data;
