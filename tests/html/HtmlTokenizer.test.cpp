@@ -2,10 +2,12 @@
 
 #include <gtest/gtest.h>
 
+#include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 
 using namespace Hummingbird::Html;
 namespace TagNames = Hummingbird::Html::TagNames;
+namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(HtmlTokenizerTest, EmitsTagsAndText) {
     Tokenizer tokenizer("<html>Hello</html>");
@@ -33,9 +35,9 @@ TEST(HtmlTokenizerTest, ParsesAttributes) {
     EXPECT_EQ(start.name, TagNames::Div);
     EXPECT_FALSE(start.self_closing);
     ASSERT_EQ(start.attribute_count, 2u);
-    EXPECT_EQ(start.attributes[0].name, "id");
+    EXPECT_EQ(start.attributes[0].name, Attr::Id);
     EXPECT_EQ(start.attributes[0].value, "main");
-    EXPECT_EQ(start.attributes[1].name, "class");
+    EXPECT_EQ(start.attributes[1].name, Attr::Class);
     EXPECT_EQ(start.attributes[1].value, "hero");
 }
 

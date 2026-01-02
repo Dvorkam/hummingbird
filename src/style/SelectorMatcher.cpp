@@ -4,6 +4,7 @@
 #include <string_view>
 
 #include "core/dom/Element.h"
+#include "html/HtmlAttributeNames.h"
 
 namespace Hummingbird::Css {
 
@@ -16,7 +17,7 @@ const std::string* find_attribute_value(const DOM::Element& element, std::string
 }
 
 bool has_class(const DOM::Element& element, const std::string& expected) {
-    const auto* value = find_attribute_value(element, "class");
+    const auto* value = find_attribute_value(element, Hummingbird::Html::AttributeNames::Class);
     if (!value) return false;
     std::istringstream ss(*value);
     std::string cls;
@@ -27,7 +28,7 @@ bool has_class(const DOM::Element& element, const std::string& expected) {
 }
 
 bool has_id(const DOM::Element& element, const std::string& expected) {
-    const auto* value = find_attribute_value(element, "id");
+    const auto* value = find_attribute_value(element, Hummingbird::Html::AttributeNames::Id);
     return value && *value == expected;
 }
 }  // namespace

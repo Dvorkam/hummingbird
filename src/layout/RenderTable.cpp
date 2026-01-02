@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "core/dom/Element.h"
+#include "html/HtmlAttributeNames.h"
 
 namespace Hummingbird::Layout {
 
@@ -93,7 +94,7 @@ size_t cell_colspan(const RenderTableCell& cell) {
     if (!element) {
         return 1;
     }
-    auto attr = find_attribute_value(*element, "colspan");
+    auto attr = find_attribute_value(*element, Hummingbird::Html::AttributeNames::ColSpan);
     if (!attr) {
         return 1;
     }
@@ -134,7 +135,7 @@ float resolve_table_target_width(const DOM::Element& element, const Css::Compute
     if (style && style->width.has_value()) {
         return std::max(0.0f, *style->width);
     }
-    auto attr = find_attribute_value(element, "width");
+    auto attr = find_attribute_value(element, Hummingbird::Html::AttributeNames::Width);
     if (!attr) {
         return 0.0f;
     }
@@ -158,7 +159,7 @@ size_t count_cells(const RenderTableRow& row) {
     return count;
 }
 
-void collect_rows(RenderObject& node, std::vector<RenderTableRow*>& rows) {
+void collect_rows(const RenderObject& node, std::vector<RenderTableRow*>& rows) {
     for (const auto& child : node.get_children()) {
         if (auto* row = dynamic_cast<RenderTableRow*>(child.get())) {
             rows.push_back(row);
@@ -173,24 +174,47 @@ void collect_rows(RenderObject& node, std::vector<RenderTableRow*>& rows) {
 float sum_widths(const std::vector<float>& widths) {
     return std::accumulate(widths.begin(), widths.end(), 0.0f);
 }
-}  // namespace
 
-void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
-    const auto* style = get_computed_style();
-    Insets insets = compute_insets(style);
+float compute_available_width(const Rect& bounds, const Insets& insets) {
     float available_width = bounds.width - insets.left - insets.right;
-    if (available_width < 0.0f) {
-        available_width = 0.0f;
-    }
+    return std::max(0.0f, available_width);
+}
 
+std::vector<RenderTableRow*> collect_table_rows(RenderTable& table) {
     std::vector<RenderTableRow*> rows;
-    collect_rows(*this, rows);
+    collect_rows(table, rows);
+    return rows;
+}
 
+size_t compute_column_count(const std::vector<RenderTableRow*>& rows) {
     size_t column_count = 0;
     for (const auto* row : rows) {
         column_count = std::max(column_count, count_cells(*row));
     }
+    return column_count;
+}
 
+void distribute_cell_width(std::vector<float>& column_widths, size_t col, size_t span, float width) {
+    if (column_widths.empty() || col >= column_widths.size() || span == 0) {
+        return;
+    }
+    size_t limit = std::min(column_widths.size(), col + span);
+    float current_width = 0.0f;
+    for (size_t i = col; i < limit; ++i) {
+        current_width += column_widths[i];
+    }
+    if (width <= current_width) {
+        return;
+    }
+    float extra = width - current_width;
+    float per_column = extra / static_cast<float>(limit - col);
+    for (size_t i = col; i < limit; ++i) {
+        column_widths[i] += per_column;
+    }
+}
+
+std::vector<float> compute_column_widths(IGraphicsContext& context, const std::vector<RenderTableRow*>& rows,
+                                         size_t column_count) {
     std::vector<float> column_widths(column_count, 0.0f);
     for (auto* row : rows) {
         size_t col = 0;
@@ -204,46 +228,31 @@ void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
                 span = 1;
             }
             float width = cell->measure_intrinsic_width(context);
-            if (col < column_widths.size()) {
-                float current_width = 0.0f;
-                size_t limit = std::min(column_widths.size(), col + span);
-                for (size_t i = col; i < limit; ++i) {
-                    current_width += column_widths[i];
-                }
-                if (width > current_width && span > 0) {
-                    float extra = width - current_width;
-                    float per_column = extra / static_cast<float>(span);
-                    for (size_t i = col; i < limit; ++i) {
-                        column_widths[i] += per_column;
-                    }
-                }
-            }
+            distribute_cell_width(column_widths, col, span, width);
             col += span;
         }
     }
+    return column_widths;
+}
 
-    float content_width = sum_widths(column_widths);
-    auto* element = static_cast<const DOM::Element*>(get_dom_node());
-    float target_width = resolve_table_target_width(*element, style, available_width);
-    if (target_width > content_width) {
-        if (!column_widths.empty()) {
-            float extra = target_width - content_width;
-            float per_column = extra / static_cast<float>(column_widths.size());
-            for (auto& width : column_widths) {
-                width += per_column;
-            }
-        }
-        content_width = target_width;
-    } else if (target_width > 0.0f) {
-        content_width = std::max(content_width, target_width);
+float apply_target_width(std::vector<float>& column_widths, float content_width, float target_width) {
+    if (target_width <= 0.0f || target_width <= content_width) {
+        return content_width;
     }
+    if (!column_widths.empty()) {
+        float extra = target_width - content_width;
+        float per_column = extra / static_cast<float>(column_widths.size());
+        for (auto& width : column_widths) {
+            width += per_column;
+        }
+    }
+    return target_width;
+}
 
-    m_rect.x = bounds.x;
-    m_rect.y = bounds.y;
-    m_rect.width = insets.left + content_width + insets.right;
-
+float layout_table_children(RenderTable& table, IGraphicsContext& context, const Insets& insets, float content_width,
+                            const std::vector<float>& column_widths) {
     float cursor_y = insets.top;
-    for (const auto& child : m_children) {
+    for (const auto& child : table.get_children()) {
         if (auto* section = dynamic_cast<RenderTableSection*>(child.get())) {
             Rect section_bounds{insets.left, cursor_y, content_width, 0.0f};
             section->layout_rows(context, section_bounds, column_widths);
@@ -256,8 +265,26 @@ void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
             cursor_y += row->get_rect().height;
         }
     }
+    return cursor_y + insets.bottom;
+}
+}  // namespace
 
-    m_rect.height = cursor_y + insets.bottom;
+void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
+    const auto* style = get_computed_style();
+    Insets insets = compute_insets(style);
+    float available_width = compute_available_width(bounds, insets);
+    auto rows = collect_table_rows(*this);
+    size_t column_count = compute_column_count(rows);
+    auto column_widths = compute_column_widths(context, rows, column_count);
+    float content_width = sum_widths(column_widths);
+    auto* element = static_cast<const DOM::Element*>(get_dom_node());
+    float target_width = resolve_table_target_width(*element, style, available_width);
+    content_width = apply_target_width(column_widths, content_width, target_width);
+
+    m_rect.x = bounds.x;
+    m_rect.y = bounds.y;
+    m_rect.width = insets.left + content_width + insets.right;
+    m_rect.height = layout_table_children(*this, context, insets, content_width, column_widths);
 }
 
 void RenderTableSection::layout_rows(IGraphicsContext& context, const Rect& bounds,

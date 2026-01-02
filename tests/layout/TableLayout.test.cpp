@@ -5,6 +5,7 @@
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderTable.h"
 #include "layout/TreeBuilder.h"
@@ -14,6 +15,7 @@ using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
 namespace TagNames = Hummingbird::Html::TagNames;
+namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(TableLayoutTest, AlignsCellsIntoColumns) {
     ArenaAllocator arena(4096);
@@ -84,7 +86,7 @@ TEST(TableLayoutTest, ExpandsColumnsWhenTableIsPercentWidth) {
     ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
-    table->set_attribute("width", "100%");
+    table->set_attribute(Attr::Width, "100%");
     auto row1 = DomFactory::create_element(arena, TagNames::Tr);
     auto cell11 = DomFactory::create_element(arena, TagNames::Td);
     cell11->append_child(DomFactory::create_text(arena, "AAA"));
@@ -158,7 +160,7 @@ TEST(TableLayoutTest, ColspanExpandsColumnWidths) {
 
     auto row2 = DomFactory::create_element(arena, TagNames::Tr);
     auto cell21 = DomFactory::create_element(arena, TagNames::Td);
-    cell21->set_attribute("colspan", "3");
+    cell21->set_attribute(Attr::ColSpan, "3");
     cell21->append_child(DomFactory::create_text(arena, "WIDE TEXT"));
     row2->append_child(std::move(cell21));
     table->append_child(std::move(row2));
@@ -204,7 +206,7 @@ TEST(TableLayoutTest, AlignDoesNotInflateIntrinsicWidths) {
     auto table = DomFactory::create_element(arena, TagNames::Table);
     auto row = DomFactory::create_element(arena, TagNames::Tr);
     auto cell1 = DomFactory::create_element(arena, TagNames::Td);
-    cell1->set_attribute("align", "center");
+    cell1->set_attribute(Attr::Align, "center");
     cell1->append_child(DomFactory::create_text(arena, "HELLO"));
     auto cell2 = DomFactory::create_element(arena, TagNames::Td);
     cell2->append_child(DomFactory::create_text(arena, "B"));

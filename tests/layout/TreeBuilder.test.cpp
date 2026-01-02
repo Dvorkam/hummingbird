@@ -6,6 +6,7 @@
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderBreak.h"
 #include "layout/RenderRule.h"
@@ -18,6 +19,7 @@ using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
 namespace TagNames = Hummingbird::Html::TagNames;
+namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(TreeBuilderTest, SimpleTree) {
     ArenaAllocator arena(1024);
@@ -91,7 +93,7 @@ TEST(TreeBuilderTest, SkipsDisplayNoneElements) {
     auto dom_root = DomFactory::create_element(arena, TagNames::Body);
     auto visible = DomFactory::create_element(arena, TagNames::Div);
     auto hidden = DomFactory::create_element(arena, TagNames::Div);
-    hidden->set_attribute("class", "hidden");
+    hidden->set_attribute(Attr::Class, "hidden");
     dom_root->append_child(std::move(visible));
     dom_root->append_child(std::move(hidden));
 

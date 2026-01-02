@@ -8,10 +8,12 @@
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "html/HtmlAttributeNames.h"
 #include "layout/TreeBuilder.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
+namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(BlockBoxLayoutTest, SimpleStacking) {
     // Create a DOM tree: <body><p/><p/></body>
@@ -21,8 +23,8 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
     auto p2 = DomFactory::create_element(arena, "p");
     // Give the paragraphs some fake height for testing layout
     // In a real scenario, this would come from child text nodes or CSS
-    p1->set_attribute("height", "10");
-    p2->set_attribute("height", "20");
+    p1->set_attribute(Attr::Height, "10");
+    p2->set_attribute(Attr::Height, "20");
     dom_root->append_child(std::move(p1));
     dom_root->append_child(std::move(p2));
 
@@ -40,7 +42,7 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
             const auto* element_node = dynamic_cast<const Hummingbird::DOM::Element*>(get_dom_node());
             if (element_node) {
                 const auto& attributes = element_node->get_attributes();
-                auto it = attributes.find("height");
+                auto it = attributes.find(std::string(Attr::Height));
                 if (it != attributes.end()) {
                     m_rect.height = std::stof(it->second);
                 }

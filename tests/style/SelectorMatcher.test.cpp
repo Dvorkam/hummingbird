@@ -5,16 +5,18 @@
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
+#include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
+namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(SelectorMatcherTest, MatchesTagClassId) {
     ArenaAllocator arena(1024);
     auto elem = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
-    elem->set_attribute("class", "foo bar");
-    elem->set_attribute("id", "main");
+    elem->set_attribute(Attr::Class, "foo bar");
+    elem->set_attribute(Attr::Id, "main");
 
     EXPECT_TRUE(matches_selector(elem.get(), Selector{SelectorType::Tag, Hummingbird::Html::TagNames::Div}));
     EXPECT_FALSE(matches_selector(elem.get(), Selector{SelectorType::Tag, Hummingbird::Html::TagNames::Span}));

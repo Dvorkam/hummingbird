@@ -6,18 +6,20 @@
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "style/CssParser.h"
 
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
+namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(StyleEngineTest, AppliesRulesAndCascade) {
     // DOM: <div class="box" id="main"><span></span></div>
     ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
-    root->set_attribute("class", "box");
-    root->set_attribute("id", "main");
+    root->set_attribute(Attr::Class, "box");
+    root->set_attribute(Attr::Id, "main");
     root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
 
     // CSS: tag rule then id rule overriding width
@@ -105,8 +107,8 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
 TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
     ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
-    root->set_attribute("class", "text");
-    root->set_attribute("id", "main");
+    root->set_attribute(Attr::Class, "text");
+    root->set_attribute(Attr::Id, "main");
 
     std::string css = R"(
         p { color: blue; margin: 1px; }
@@ -150,7 +152,7 @@ TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
 TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
     ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
-    root->set_attribute("class", "box");
+    root->set_attribute(Attr::Class, "box");
 
     std::string css = R"(
         .box { margin: 4px; }
@@ -263,7 +265,7 @@ TEST(StyleEngineTest, EmInheritsHeadingTypography) {
 TEST(StyleEngineTest, AlignAttributeMapsToTextAlign) {
     ArenaAllocator arena(2048);
     auto cell = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
-    cell->set_attribute("align", "center");
+    cell->set_attribute(Attr::Align, "center");
     auto span = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
     span->append_child(DomFactory::create_text(arena, "Text"));
     cell->append_child(std::move(span));
@@ -284,7 +286,7 @@ TEST(StyleEngineTest, AlignAttributeMapsToTextAlign) {
 TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
     ArenaAllocator arena(2048);
     auto cell = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
-    cell->set_attribute("nowrap", "");
+    cell->set_attribute(Attr::NoWrap, "");
     cell->append_child(DomFactory::create_text(arena, "Text"));
 
     StyleEngine engine;
@@ -303,8 +305,8 @@ TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
 TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
     ArenaAllocator arena(2048);
     auto img = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Img);
-    img->set_attribute("width", "120");
-    img->set_attribute("height", "80");
+    img->set_attribute(Attr::Width, "120");
+    img->set_attribute(Attr::Height, "80");
 
     StyleEngine engine;
     Stylesheet empty_sheet;
@@ -321,8 +323,8 @@ TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
 TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
     ArenaAllocator arena(2048);
     auto font = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Font);
-    font->set_attribute("size", "6");
-    font->set_attribute("face", "Sans-Serif");
+    font->set_attribute(Attr::Size, "6");
+    font->set_attribute(Attr::Face, "Sans-Serif");
     font->append_child(DomFactory::create_text(arena, "Hello"));
 
     StyleEngine engine;

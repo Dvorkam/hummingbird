@@ -5,6 +5,7 @@
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "html/HtmlAttributeNames.h"
 #include "layout/TreeBuilder.h"
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
@@ -12,6 +13,7 @@
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
+namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
     ArenaAllocator arena(4096);
@@ -219,8 +221,8 @@ TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_text(arena, "Hi"));
     auto img = DomFactory::create_element(arena, "img");
-    img->set_attribute("width", "64");
-    img->set_attribute("height", "32");
+    img->set_attribute(Attr::Width, "64");
+    img->set_attribute(Attr::Height, "32");
     p->append_child(std::move(img));
     p->append_child(DomFactory::create_text(arena, "!"));
     body->append_child(std::move(p));
@@ -281,7 +283,7 @@ TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
     ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
-    p->set_attribute("align", "center");
+    p->set_attribute(Attr::Align, "center");
     p->append_child(DomFactory::create_text(arena, "Hi"));
     body->append_child(std::move(p));
 
@@ -309,7 +311,7 @@ TEST(InlineLayoutTest, NoWrapAttributeKeepsSingleLine) {
     ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
-    p->set_attribute("nowrap", "");
+    p->set_attribute(Attr::NoWrap, "");
     p->append_child(DomFactory::create_text(arena, "Hello Hello"));
     body->append_child(std::move(p));
 

@@ -5,6 +5,7 @@
 
 #include "core/dom/DomFactory.h"
 #include "core/utils/Log.h"
+#include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 
 namespace Hummingbird::Html {
@@ -136,8 +137,8 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
     DOM::Node* appended = parent->get_children().back().get();
     track_unsupported_tag(lowered_name);
     if (lowered_name == Hummingbird::Html::TagNames::Link) {
-        auto rel = to_lower(find_attribute(tag_data, "rel"));
-        auto href = find_attribute(tag_data, "href");
+        auto rel = to_lower(find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
+        auto href = find_attribute(tag_data, Hummingbird::Html::AttributeNames::Href);
         if (rel == "stylesheet" && !href.empty()) {
             m_stylesheet_links.emplace_back(href);
         }

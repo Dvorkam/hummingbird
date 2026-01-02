@@ -8,6 +8,7 @@
 #include <string_view>
 
 #include "core/utils/AssetPath.h"
+#include "html/HtmlAttributeNames.h"
 #include "layout/inline/InlineTypes.h"
 
 namespace Hummingbird::Layout {
@@ -86,7 +87,7 @@ float resolve_width(const DOM::Element& element, const Css::ComputedStyle* style
     if (style && style->width.has_value()) {
         return std::max(0.0f, *style->width);
     }
-    if (auto attr = find_attribute_dimension(element, "width")) {
+    if (auto attr = find_attribute_dimension(element, Hummingbird::Html::AttributeNames::Width)) {
         return std::max(0.0f, *attr);
     }
     return kDefaultImageWidth;
@@ -96,7 +97,7 @@ float resolve_height(const DOM::Element& element, const Css::ComputedStyle* styl
     if (style && style->height.has_value()) {
         return std::max(0.0f, *style->height);
     }
-    if (auto attr = find_attribute_dimension(element, "height")) {
+    if (auto attr = find_attribute_dimension(element, Hummingbird::Html::AttributeNames::Height)) {
         return std::max(0.0f, *attr);
     }
     return kDefaultImageHeight;
@@ -168,7 +169,7 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
     }
     draw_outline(context, content, kPlaceholderStroke);
 
-    std::string alt_text = find_attribute_value(*element, "alt");
+    std::string alt_text = find_attribute_value(*element, Hummingbird::Html::AttributeNames::Alt);
     if (alt_text.empty()) {
         return;
     }
