@@ -160,6 +160,45 @@ TEST(EngineTabTest, FetchesLinkedStylesheet) {
               network_ptr->requested().end());
 }
 
+TEST(EngineTabTest, FetchesLinkedImage) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <img src="images/logo.png" alt="logo">
+  </body>
+</html>
+)HTML";
+
+    auto provider = create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    auto* network_ptr = network.get();
+    network->set_response("https://acme.test", html);
+    network->set_response("https://acme.test/images/logo.png", "PNGDATA");
+
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    Hummingbird::Engine::Tab tab(std::move(network), std::move(fallback), std::move(provider));
+
+    TestGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 800, 600};
+
+    tab.navigate("https://acme.test");
+    tab.tick(context, viewport);
+    tab.tick(context, viewport);
+
+    auto view = tab.resource_view("https://acme.test/images/logo.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_EQ(view->body, "PNGDATA");
+
+    EXPECT_NE(std::find(network_ptr->requested().begin(), network_ptr->requested().end(),
+                        "https://acme.test/images/logo.png"),
+              network_ptr->requested().end());
+}
+
 TEST(EngineTabTest, RebuildsWhenStylesheetArrives) {
     const std::string html = R"HTML(
 <!doctype html>

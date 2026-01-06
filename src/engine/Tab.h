@@ -71,8 +71,9 @@ private:
     void reset_document_state();
 
     bool parse_html(const std::string& html, std::vector<std::string>& style_blocks,
-                    std::vector<std::string>& stylesheet_links);
+                    std::vector<std::string>& stylesheet_links, std::vector<std::string>& image_links);
     void request_stylesheets(const std::vector<std::string>& stylesheet_links);
+    void request_images(const std::vector<std::string>& image_links);
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport);
     std::string build_css_source(const std::vector<std::string>& style_blocks,
                                  const std::vector<std::string>& stylesheet_links) const;
@@ -109,6 +110,7 @@ private:
     std::string requested_url_;
     std::vector<std::string> style_blocks_;
     std::vector<std::string> stylesheet_links_;
+    std::vector<std::string> image_links_;
     float scroll_y_ = 0.0f;
     float content_height_ = 0.0f;
     Layout::Rect last_viewport_{0, 0, 0, 0};

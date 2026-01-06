@@ -3,11 +3,14 @@
 #include <algorithm>
 #include <utility>
 
+#include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "core/utils/Url.h"
+#include "html/HtmlAttributeNames.h"
 #include "html/HtmlParser.h"
+#include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
 #include "style/CssParser.h"
 #include "style/StylesheetSource.h"
@@ -22,6 +25,22 @@ size_t count_nodes_recursive(const DOM::Node* node) {
         total += count_nodes_recursive(child.get());
     }
     return total;
+}
+
+void collect_image_sources(const DOM::Node* node, std::vector<std::string>& out) {
+    if (!node) return;
+    if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
+        if (element->get_tag_name() == Hummingbird::Html::TagNames::Img) {
+            const auto& attrs = element->get_attributes();
+            auto it = attrs.find(std::string(Hummingbird::Html::AttributeNames::Src));
+            if (it != attrs.end() && !it->second.empty()) {
+                out.push_back(it->second);
+            }
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        collect_image_sources(child.get(), out);
+    }
 }
 }  // namespace
 
@@ -215,16 +234,22 @@ void Tab::rebuild_from_html(IGraphicsContext& graphics, const Layout::Rect& view
 
     std::vector<std::string> style_blocks;
     std::vector<std::string> stylesheet_links;
-    if (!parse_html(html, style_blocks, stylesheet_links)) {
+    std::vector<std::string> image_links;
+    if (!parse_html(html, style_blocks, stylesheet_links, image_links)) {
         return;
     }
     style_blocks_ = std::move(style_blocks);
     stylesheet_links_ = std::move(stylesheet_links);
+    image_links_ = std::move(image_links);
     if (!stylesheet_links.empty()) {
         HB_LOG_INFO("[pipeline] discovered stylesheet links: " << stylesheet_links.size());
     }
+    if (!image_links_.empty()) {
+        HB_LOG_INFO("[pipeline] discovered image sources: " << image_links_.size());
+    }
 
     request_stylesheets(stylesheet_links_);
+    request_images(image_links_);
     apply_styles_and_layout(graphics, viewport);
     HB_LOG_INFO("[pipeline] render tree root children: " << render_tree_->get_children().size());
     dirty_ = true;
@@ -241,10 +266,11 @@ void Tab::reset_document_state() {
     resource_store_.clear();
     style_blocks_.clear();
     stylesheet_links_.clear();
+    image_links_.clear();
 }
 
 bool Tab::parse_html(const std::string& html, std::vector<std::string>& style_blocks,
-                     std::vector<std::string>& stylesheet_links) {
+                     std::vector<std::string>& stylesheet_links, std::vector<std::string>& image_links) {
     const auto parse_start = Core::Clock::now();
     Html::Parser parser(dom_arena_, html);
     auto parse_result = parser.parse();
@@ -262,6 +288,9 @@ bool Tab::parse_html(const std::string& html, std::vector<std::string>& style_bl
     HB_LOG_INFO("[pipeline] parsed DOM children: " << dom_tree_->get_children().size()
                                                    << " total nodes: " << count_nodes_recursive(dom_tree_.get()));
     HB_LOG_INFO("[perf] html parse ms=" << Core::duration_ms(parse_start, parse_end));
+
+    image_links.clear();
+    collect_image_sources(dom_tree_.get(), image_links);
     return true;
 }
 
@@ -308,6 +337,52 @@ void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) 
                 HB_LOG_WARN("[resource] stylesheet fetch failed: " << url);
             }
             enqueue_resource_update(ResourceType::Stylesheet, url, std::move(body), success);
+        });
+    }
+}
+
+void Tab::request_images(const std::vector<std::string>& image_links) {
+    if (image_links.empty()) return;
+
+    const uint64_t nav_id = active_nav_.load(std::memory_order_acquire);
+
+    for (const auto& src : image_links) {
+        std::string resolved = Core::resolve_url(requested_url_, src);
+        std::string url = resolved.empty() ? src : resolved;
+        if (url.empty()) continue;
+
+        if (!resource_store_.begin_request(url, ResourceType::Image)) {
+            continue;
+        }
+
+        if (resource_provider_) {
+            auto data = resource_provider_->load_text(src);
+            if (!data && !resolved.empty() && resolved != src) {
+                data = resource_provider_->load_text(resolved);
+            }
+            if (data) {
+                resource_store_.mark_ready(url, ResourceType::Image, std::move(*data));
+                continue;
+            }
+        }
+
+        INetwork* fetcher = network_.get();
+        if (!fetcher) {
+            fetcher = fallback_network_.get();
+        }
+        if (!fetcher) {
+            HB_LOG_WARN("[resource] no network for image: " << url);
+            resource_store_.mark_failed(url, ResourceType::Image);
+            continue;
+        }
+
+        fetcher->get(url, [this, nav_id, url](std::string body) {
+            if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
+            bool success = !body.empty();
+            if (!success) {
+                HB_LOG_WARN("[resource] image fetch failed: " << url);
+            }
+            enqueue_resource_update(ResourceType::Image, url, std::move(body), success);
         });
     }
 }
