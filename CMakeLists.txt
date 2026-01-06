@@ -63,6 +63,8 @@ add_library(Platform STATIC
     src/platform/CurlNetwork.cpp
     src/platform/StubNetwork.cpp
     src/platform/NetworkFactory.cpp
+    src/platform/Blend2DImageDecoder.cpp
+    src/platform/ImageDecoderFactory.cpp
     src/platform/FileResourceProvider.cpp
     src/platform/ResourceProviderFactory.cpp
     src/platform/SDLWindowFactory.cpp

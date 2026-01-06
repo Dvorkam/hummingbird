@@ -44,15 +44,20 @@ void collect_image_sources(const DOM::Node* node, std::vector<std::string>& out)
 }
 }  // namespace
 
-Tab::Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider)
+Tab::Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
+         ImageDecoderPtr image_decoder)
     : network_(std::move(network)),
       fallback_network_(std::move(fallback_network)),
-      resource_provider_(std::move(resource_provider)) {
+      resource_provider_(std::move(resource_provider)),
+      image_decoder_(std::move(image_decoder)) {
     if (!network_ || !fallback_network_) {
         HB_LOG_ERROR("[network] failed to create network backend(s)");
     }
     if (!resource_provider_) {
         HB_LOG_WARN("[resource] no resource provider available");
+    }
+    if (!image_decoder_) {
+        HB_LOG_WARN("[image] no decoder available");
     }
 }
 
@@ -189,15 +194,32 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     bool document_ready = false;
     std::string document_url;
     bool stylesheet_ready = false;
+    bool image_ready = false;
 
     for (auto& update : pending) {
         if (update.success) {
-            resource_store_.mark_ready(update.url, update.type, std::move(update.body));
             if (update.type == ResourceType::Document) {
+                resource_store_.mark_ready(update.url, update.type, std::move(update.body));
                 document_ready = true;
                 document_url = update.url;
             } else if (update.type == ResourceType::Stylesheet) {
+                resource_store_.mark_ready(update.url, update.type, std::move(update.body));
                 stylesheet_ready = true;
+            } else if (update.type == ResourceType::Image) {
+                if (!image_decoder_) {
+                    HB_LOG_WARN("[image] decode skipped (no decoder): " << update.url);
+                    resource_store_.mark_failed(update.url, update.type);
+                    continue;
+                }
+                auto decoded = image_decoder_->decode(update.body);
+                if (!decoded) {
+                    HB_LOG_WARN("[image] decode failed: " << update.url);
+                    resource_store_.mark_failed(update.url, update.type);
+                    continue;
+                }
+                resource_store_.mark_ready(update.url, update.type, std::move(update.body));
+                resource_store_.set_image(update.url, update.type, std::move(*decoded));
+                image_ready = true;
             }
         } else {
             resource_store_.mark_failed(update.url, update.type);
@@ -214,6 +236,8 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
         }
     } else if (stylesheet_ready && dom_tree_) {
         apply_styles_and_layout(graphics, viewport);
+    } else if (image_ready && render_tree_) {
+        dirty_ = true;
     }
 }
 
@@ -361,7 +385,7 @@ void Tab::request_images(const std::vector<std::string>& image_links) {
                 data = resource_provider_->load_text(resolved);
             }
             if (data) {
-                resource_store_.mark_ready(url, ResourceType::Image, std::move(*data));
+                enqueue_resource_update(ResourceType::Image, url, std::move(*data), true);
                 continue;
             }
         }

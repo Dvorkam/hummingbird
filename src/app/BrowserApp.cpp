@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <utility>
 
+#include "core/platform_api/ImageDecoderFactory.h"
 #include "core/platform_api/NetworkFactory.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/utils/AssetPath.h"
@@ -18,7 +19,8 @@ constexpr Color kOverlayText{0, 0, 0, 255};
 BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     : window_(std::move(window)),
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
-      tab_(create_network(NetworkBackend::Curl), create_network(NetworkBackend::Stub), create_resource_provider()) {
+      tab_(create_network(NetworkBackend::Curl), create_network(NetworkBackend::Stub), create_resource_provider(),
+           create_image_decoder()) {
     url_bar_text_.reserve(2048);
     url_bar_render_text_.reserve(2049);
 

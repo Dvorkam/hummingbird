@@ -11,6 +11,7 @@
 
 #include "core/ArenaAllocator.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
 #include "engine/ResourceStore.h"
@@ -27,7 +28,8 @@ namespace Hummingbird::Engine {
 
 class Tab {
 public:
-    Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider);
+    Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
+        ImageDecoderPtr image_decoder);
     ~Tab();
 
     Tab(const Tab&) = delete;
@@ -92,6 +94,7 @@ private:
     NetworkPtr network_;
     NetworkPtr fallback_network_;
     ResourceProviderPtr resource_provider_;
+    ImageDecoderPtr image_decoder_;
 
     Css::StyleEngine style_engine_;
     Layout::TreeBuilder tree_builder_;

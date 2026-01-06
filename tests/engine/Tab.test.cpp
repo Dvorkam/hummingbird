@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "core/platform_api/INetwork.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "layout/TestGraphicsContext.h"
 
@@ -80,6 +81,22 @@ private:
     std::vector<std::string> requested_;
 };
 
+class InlineImageDecoder final : public IImageDecoder {
+public:
+    std::optional<ImageBitmap> decode(std::string_view bytes) override {
+        if (bytes.empty()) {
+            return std::nullopt;
+        }
+        ImageBitmap bitmap;
+        bitmap.width = 2;
+        bitmap.height = 2;
+        bitmap.stride = 8;
+        bitmap.format = PixelFormat::PRGB32;
+        bitmap.pixels.assign(static_cast<size_t>(bitmap.stride) * bitmap.height, 0xFF);
+        return bitmap;
+    }
+};
+
 }  // namespace
 
 TEST(EngineTabTest, NavigateAndBuildsDocument) {
@@ -104,7 +121,7 @@ TEST(EngineTabTest, NavigateAndBuildsDocument) {
     ASSERT_NE(provider, nullptr);
 
     Hummingbird::Engine::Tab tab(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
-                                 std::move(provider));
+                                 std::move(provider), nullptr);
 
     TestGraphicsContext context;
     Hummingbird::Layout::Rect viewport{0, 0, 800, 600};
@@ -141,7 +158,7 @@ TEST(EngineTabTest, FetchesLinkedStylesheet) {
 
     auto fallback = std::make_unique<RoutingNetwork>();
 
-    Hummingbird::Engine::Tab tab(std::move(network), std::move(fallback), std::move(provider));
+    Hummingbird::Engine::Tab tab(std::move(network), std::move(fallback), std::move(provider), nullptr);
 
     TestGraphicsContext context;
     Hummingbird::Layout::Rect viewport{0, 0, 800, 600};
@@ -180,7 +197,8 @@ TEST(EngineTabTest, FetchesLinkedImage) {
 
     auto fallback = std::make_unique<RoutingNetwork>();
 
-    Hummingbird::Engine::Tab tab(std::move(network), std::move(fallback), std::move(provider));
+    Hummingbird::Engine::Tab tab(std::move(network), std::move(fallback), std::move(provider),
+                                 std::make_unique<InlineImageDecoder>());
 
     TestGraphicsContext context;
     Hummingbird::Layout::Rect viewport{0, 0, 800, 600};
@@ -193,6 +211,9 @@ TEST(EngineTabTest, FetchesLinkedImage) {
     ASSERT_TRUE(view.has_value());
     EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
     EXPECT_EQ(view->body, "PNGDATA");
+    ASSERT_NE(view->image, nullptr);
+    EXPECT_EQ(view->image->width, 2);
+    EXPECT_EQ(view->image->height, 2);
 
     EXPECT_NE(std::find(network_ptr->requested().begin(), network_ptr->requested().end(),
                         "https://acme.test/images/logo.png"),
@@ -222,7 +243,7 @@ TEST(EngineTabTest, RebuildsWhenStylesheetArrives) {
 
     auto fallback = std::make_unique<DeferredNetwork>();
 
-    Hummingbird::Engine::Tab tab(std::move(network), std::move(fallback), std::move(provider));
+    Hummingbird::Engine::Tab tab(std::move(network), std::move(fallback), std::move(provider), nullptr);
 
     TestGraphicsContext context;
     Hummingbird::Layout::Rect viewport{0, 0, 800, 600};

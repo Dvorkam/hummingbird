@@ -42,12 +42,20 @@ bool ResourceStore::mark_failed(std::string_view url, ResourceType type) {
     if (it == resources_.end()) return false;
     it->second.state = ResourceState::Failed;
     it->second.body.clear();
+    it->second.image.reset();
     return true;
 }
 
 bool ResourceStore::begin_request(std::string_view url, ResourceType type) {
     request(url, type);
     return mark_loading(url, type);
+}
+
+bool ResourceStore::set_image(std::string_view url, ResourceType type, ImageBitmap image) {
+    auto it = resources_.find(ResourceKey{type, std::string(url)});
+    if (it == resources_.end()) return false;
+    it->second.image = std::move(image);
+    return true;
 }
 
 const ResourceEntry* ResourceStore::find(std::string_view url, ResourceType type) const {
@@ -60,7 +68,7 @@ std::optional<ResourceView> ResourceStore::view(std::string_view url, ResourceTy
     auto it = resources_.find(ResourceKey{type, std::string(url)});
     if (it == resources_.end()) return std::nullopt;
     const ResourceEntry& entry = it->second;
-    return ResourceView{entry.type, entry.state, entry.url, entry.body};
+    return ResourceView{entry.type, entry.state, entry.url, entry.body, entry.image ? &(*entry.image) : nullptr};
 }
 
 void ResourceStore::clear() {

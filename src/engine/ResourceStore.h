@@ -6,6 +6,8 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "core/platform_api/IImageDecoder.h"
+
 namespace Hummingbird::Engine {
 
 enum class ResourceType : uint8_t {
@@ -26,6 +28,7 @@ struct ResourceEntry {
     std::string url;
     ResourceState state;
     std::string body;
+    std::optional<ImageBitmap> image;
 };
 
 struct ResourceView {
@@ -33,6 +36,7 @@ struct ResourceView {
     ResourceState state;
     std::string_view url;
     std::string_view body;
+    const ImageBitmap* image;
 };
 
 class ResourceStore {
@@ -42,6 +46,7 @@ public:
     bool mark_ready(std::string_view url, ResourceType type, std::string body);
     bool mark_failed(std::string_view url, ResourceType type);
     bool begin_request(std::string_view url, ResourceType type);
+    bool set_image(std::string_view url, ResourceType type, ImageBitmap image);
 
     const ResourceEntry* find(std::string_view url, ResourceType type) const;
     std::optional<ResourceView> view(std::string_view url, ResourceType type) const;
