@@ -50,7 +50,7 @@ void Tab::shutdown() {
 
     {
         std::lock_guard<std::mutex> lg(pending_mutex_);
-        pending_html_.reset();
+        pending_resources_.clear();
     }
 }
 
@@ -62,13 +62,17 @@ void Tab::navigate(std::string_view url) {
     std::string url_copy(url);
     requested_url_ = url_copy;
     reset_document_state();
+    resource_store_.request(url_copy, ResourceType::Document);
+    if (!resource_store_.mark_loading(url_copy, ResourceType::Document)) {
+        HB_LOG_WARN("[resource] failed to register document request: " << url_copy);
+    }
 
     // Built-in demo URL: keep startup deterministic and avoid network timeouts.
     if ((url == "http://example.dev" || url == "https://example.dev") && fallback_network_) {
-        fallback_network_->get(url_copy, [this, id](std::string body) {
+        fallback_network_->get(url_copy, [this, id, url_copy](std::string body) {
             if (id != active_nav_.load(std::memory_order_acquire)) return;
-            std::lock_guard<std::mutex> lg(pending_mutex_);
-            pending_html_ = std::move(body);
+            bool success = !body.empty();
+            enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), success);
         });
         return;
     }
@@ -76,11 +80,13 @@ void Tab::navigate(std::string_view url) {
     if (!network_) {
         HB_LOG_ERROR("[network] no backend available for " << url);
         if (fallback_network_) {
-            fallback_network_->get(url_copy, [this, id](std::string body) {
+            fallback_network_->get(url_copy, [this, id, url_copy](std::string body) {
                 if (id != active_nav_.load(std::memory_order_acquire)) return;
-                std::lock_guard<std::mutex> lg(pending_mutex_);
-                pending_html_ = std::move(body);
+                bool success = !body.empty();
+                enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), success);
             });
+        } else {
+            enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
         }
         return;
     }
@@ -91,24 +97,23 @@ void Tab::navigate(std::string_view url) {
         if (body.empty()) {
             HB_LOG_WARN("[network] curl returned empty for " << url_copy << ", using stub");
             if (!fallback_network_) return;
-            fallback_network_->get(url_copy, [this, id](std::string fallback) {
+            fallback_network_->get(url_copy, [this, id, url_copy](std::string fallback) {
                 if (id != active_nav_.load(std::memory_order_acquire)) return;
-                std::lock_guard<std::mutex> lg(pending_mutex_);
-                pending_html_ = std::move(fallback);
+                bool success = !fallback.empty();
+                enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback), success);
             });
             return;
         }
 
         HB_LOG_INFO("[network] fetched " << body.size() << " bytes from " << url_copy);
-        std::lock_guard<std::mutex> lg(pending_mutex_);
-        pending_html_ = std::move(body);
+        enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), true);
     });
 }
 
 bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (shutting_down_.load(std::memory_order_relaxed)) return false;
 
-    consume_pending_html_and_rebuild(graphics, viewport);
+    consume_pending_resources(graphics, viewport);
 
     if (render_tree_) {
         bool viewport_changed = !has_viewport_ || viewport.x != last_viewport_.x || viewport.y != last_viewport_.y ||
@@ -137,7 +142,7 @@ void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool d
     painter_.paint(*render_tree_, graphics, opts);
     const auto paint_end = Core::Clock::now();
     static int paint_log_counter = 0;
-    if (++paint_log_counter % 120 == 0) {
+    if (++paint_log_counter % 5 == 0) {
         HB_LOG_DEBUG("[perf] paint ms=" << Core::duration_ms(paint_start, paint_end) << " scroll_y=" << scroll_y_);
     }
 }
@@ -153,20 +158,38 @@ void Tab::clamp_scroll(float viewport_height) {
     scroll_y_ = std::clamp(scroll_y_, 0.0f, max_scroll);
 }
 
-void Tab::consume_pending_html_and_rebuild(IGraphicsContext& graphics, const Layout::Rect& viewport) {
-    auto html = take_pending_html();
-    if (!html) return;
-    rebuild_from_html(graphics, viewport, *html);
+void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    auto pending = take_pending_resources();
+    if (pending.empty()) return;
+
+    for (auto& update : pending) {
+        if (update.success) {
+            resource_store_.mark_ready(update.url, update.type, std::move(update.body));
+            if (update.type == ResourceType::Document) {
+                const auto* entry = resource_store_.find(update.url, update.type);
+                if (entry) {
+                    rebuild_from_html(graphics, viewport, entry->body);
+                }
+            }
+        } else {
+            resource_store_.mark_failed(update.url, update.type);
+            if (update.type == ResourceType::Document) {
+                HB_LOG_WARN("[resource] document failed to load: " << update.url);
+            }
+        }
+    }
 }
 
-std::optional<std::string> Tab::take_pending_html() {
-    std::optional<std::string> html;
+void Tab::enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success) {
     std::lock_guard<std::mutex> lg(pending_mutex_);
-    if (pending_html_) {
-        html = std::move(pending_html_);
-        pending_html_.reset();
-    }
-    return html;
+    pending_resources_.push_back({type, std::move(url), std::move(body), success});
+}
+
+std::vector<Tab::PendingResourceUpdate> Tab::take_pending_resources() {
+    std::vector<PendingResourceUpdate> pending;
+    std::lock_guard<std::mutex> lg(pending_mutex_);
+    pending.swap(pending_resources_);
+    return pending;
 }
 
 void Tab::rebuild_from_html(IGraphicsContext& graphics, const Layout::Rect& viewport, const std::string& html) {
@@ -201,6 +224,7 @@ void Tab::reset_document_state() {
     content_height_ = 0.0f;
     has_viewport_ = false;
     dirty_ = true;
+    resource_store_.clear();
 }
 
 bool Tab::parse_html(const std::string& html, std::vector<std::string>& style_blocks,

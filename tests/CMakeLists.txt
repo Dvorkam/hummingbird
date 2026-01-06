@@ -7,6 +7,7 @@ add_executable(HummingbirdTests
     ../src/app/BrowserApp.cpp
     ../src/app/BrowserApp.h
     engine/Tab.test.cpp
+    engine/ResourceStore.test.cpp
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp
     core/Timing.test.cpp

@@ -17,6 +17,7 @@
 # IDE-specific files
 .vs/
 .vscode/
+*.override.*
 
 # vcpkg
 /vcpkg_installed/

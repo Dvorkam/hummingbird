@@ -13,6 +13,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
+#include "engine/ResourceStore.h"
 #include "layout/Geometry.h"
 #include "layout/TreeBuilder.h"
 #include "renderer/Painter.h"
@@ -52,10 +53,18 @@ public:
     std::string_view requested_url() const { return requested_url_; }
 
 private:
+    struct PendingResourceUpdate {
+        ResourceType type;
+        std::string url;
+        std::string body;
+        bool success;
+    };
+
     void clamp_scroll(float viewport_height);
 
-    void consume_pending_html_and_rebuild(IGraphicsContext& graphics, const Layout::Rect& viewport);
-    std::optional<std::string> take_pending_html();
+    void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success);
+    std::vector<PendingResourceUpdate> take_pending_resources();
 
     void rebuild_from_html(IGraphicsContext& graphics, const Layout::Rect& viewport, const std::string& html);
     void reset_document_state();
@@ -73,7 +82,7 @@ private:
 
     // Async HTML handoff (network thread -> main thread)
     std::mutex pending_mutex_;
-    std::optional<std::string> pending_html_;
+    std::vector<PendingResourceUpdate> pending_resources_;
 
     // Deps / subsystems
     NetworkPtr network_;
@@ -83,6 +92,7 @@ private:
     Css::StyleEngine style_engine_;
     Layout::TreeBuilder tree_builder_;
     Renderer::Painter painter_;
+    ResourceStore resource_store_;
 
     // Navigation race protection
     std::atomic<uint64_t> nav_counter_{0};
