@@ -9,6 +9,7 @@
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "style/CssParser.h"
+#include "style/StylesheetSource.h"
 
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
@@ -167,6 +168,50 @@ TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
     EXPECT_FLOAT_EQ(style->margin.top, 9.0f);
+}
+
+TEST(StyleEngineTest, LinkSourcesApplyInDocumentOrder) {
+    ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string ua = "p { color: red; }";
+    std::vector<std::string> links = {"p { color: blue; }", "p { color: black; }"};
+    std::vector<std::string> blocks;
+
+    auto merged = Hummingbird::Css::merge_css_sources(ua, links, blocks);
+    Parser parser(merged);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 0);
+}
+
+TEST(StyleEngineTest, StyleBlocksOverrideLinksInOrder) {
+    ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string ua = "p { color: red; }";
+    std::vector<std::string> links = {"p { color: blue; }", "p { color: black; }"};
+    std::vector<std::string> blocks = {"p { color: white; }", "p { color: blue; }"};
+
+    auto merged = Hummingbird::Css::merge_css_sources(ua, links, blocks);
+    Parser parser(merged);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 255);
 }
 
 TEST(StyleEngineTest, AppliesBorderProperties) {
