@@ -167,14 +167,18 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     auto pending = take_pending_resources();
     if (pending.empty()) return;
 
+    bool document_ready = false;
+    std::string document_url;
+    bool stylesheet_ready = false;
+
     for (auto& update : pending) {
         if (update.success) {
             resource_store_.mark_ready(update.url, update.type, std::move(update.body));
             if (update.type == ResourceType::Document) {
-                const auto* entry = resource_store_.find(update.url, update.type);
-                if (entry) {
-                    rebuild_from_html(graphics, viewport, entry->body);
-                }
+                document_ready = true;
+                document_url = update.url;
+            } else if (update.type == ResourceType::Stylesheet) {
+                stylesheet_ready = true;
             }
         } else {
             resource_store_.mark_failed(update.url, update.type);
@@ -182,6 +186,15 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
                 HB_LOG_WARN("[resource] document failed to load: " << update.url);
             }
         }
+    }
+
+    if (document_ready) {
+        const auto* entry = resource_store_.find(document_url, ResourceType::Document);
+        if (entry) {
+            rebuild_from_html(graphics, viewport, entry->body);
+        }
+    } else if (stylesheet_ready && dom_tree_) {
+        apply_styles_and_layout(graphics, viewport);
     }
 }
 
@@ -205,19 +218,14 @@ void Tab::rebuild_from_html(IGraphicsContext& graphics, const Layout::Rect& view
     if (!parse_html(html, style_blocks, stylesheet_links)) {
         return;
     }
+    style_blocks_ = std::move(style_blocks);
+    stylesheet_links_ = std::move(stylesheet_links);
     if (!stylesheet_links.empty()) {
         HB_LOG_INFO("[pipeline] discovered stylesheet links: " << stylesheet_links.size());
     }
 
-    request_stylesheets(stylesheet_links);
-    std::string css = build_css_source(style_blocks, stylesheet_links);
-    parse_and_apply_css(css);
-
-    if (!build_render_tree()) {
-        return;
-    }
-
-    relayout(graphics, viewport);
+    request_stylesheets(stylesheet_links_);
+    apply_styles_and_layout(graphics, viewport);
     HB_LOG_INFO("[pipeline] render tree root children: " << render_tree_->get_children().size());
     dirty_ = true;
 }
@@ -231,6 +239,8 @@ void Tab::reset_document_state() {
     has_viewport_ = false;
     dirty_ = true;
     resource_store_.clear();
+    style_blocks_.clear();
+    stylesheet_links_.clear();
 }
 
 bool Tab::parse_html(const std::string& html, std::vector<std::string>& style_blocks,
@@ -295,6 +305,17 @@ void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) 
             enqueue_resource_update(ResourceType::Stylesheet, url, std::move(body), success);
         });
     }
+}
+
+void Tab::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    std::string css = build_css_source(style_blocks_, stylesheet_links_);
+    parse_and_apply_css(css);
+
+    if (!build_render_tree()) {
+        return;
+    }
+
+    relayout(graphics, viewport);
 }
 
 std::string Tab::build_css_source(const std::vector<std::string>& style_blocks,

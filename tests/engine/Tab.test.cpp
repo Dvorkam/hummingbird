@@ -46,6 +46,40 @@ private:
     std::vector<std::string> requested_;
 };
 
+class DeferredNetwork final : public INetwork {
+public:
+    void set_response(const std::string& url, std::string body) { responses_[url] = std::move(body); }
+    void defer_response(const std::string& url, std::string body) { deferred_[url] = std::move(body); }
+
+    void get(const std::string& url, std::function<void(std::string)> callback) override {
+        requested_.push_back(url);
+        if (deferred_.find(url) != deferred_.end()) {
+            pending_[url] = std::move(callback);
+            return;
+        }
+        auto it = responses_.find(url);
+        if (callback) callback(it == responses_.end() ? std::string{} : it->second);
+    }
+
+    void complete(const std::string& url) {
+        auto pending_it = pending_.find(url);
+        if (pending_it == pending_.end()) return;
+        auto deferred_it = deferred_.find(url);
+        std::string body = deferred_it == deferred_.end() ? std::string{} : deferred_it->second;
+        auto callback = std::move(pending_it->second);
+        pending_.erase(pending_it);
+        if (callback) callback(std::move(body));
+    }
+
+    void shutdown() override {}
+
+private:
+    std::unordered_map<std::string, std::string> responses_;
+    std::unordered_map<std::string, std::string> deferred_;
+    std::unordered_map<std::string, std::function<void(std::string)>> pending_;
+    std::vector<std::string> requested_;
+};
+
 }  // namespace
 
 TEST(EngineTabTest, NavigateAndBuildsDocument) {
@@ -124,4 +158,44 @@ TEST(EngineTabTest, FetchesLinkedStylesheet) {
     EXPECT_NE(std::find(network_ptr->requested().begin(), network_ptr->requested().end(),
                         "https://acme.test/styles/main.css"),
               network_ptr->requested().end());
+}
+
+TEST(EngineTabTest, RebuildsWhenStylesheetArrives) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="styles/main.css">
+  </head>
+  <body>
+    <p>Styled text</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<DeferredNetwork>();
+    auto* network_ptr = network.get();
+    network->set_response("https://acme.test", html);
+    network->defer_response("https://acme.test/styles/main.css", "p { color: blue; }");
+
+    auto fallback = std::make_unique<DeferredNetwork>();
+
+    Hummingbird::Engine::Tab tab(std::move(network), std::move(fallback), std::move(provider));
+
+    TestGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 800, 600};
+
+    tab.navigate("https://acme.test");
+    EXPECT_TRUE(tab.tick(context, viewport));
+    EXPECT_FALSE(tab.tick(context, viewport));
+
+    auto view = tab.resource_view("https://acme.test/styles/main.css", Hummingbird::Engine::ResourceType::Stylesheet);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Loading);
+
+    network_ptr->complete("https://acme.test/styles/main.css");
+    EXPECT_TRUE(tab.tick(context, viewport));
 }
