@@ -9,6 +9,9 @@ std::optional<std::string> FileResourceProvider::load_text(std::string_view reso
     if (resource_id.empty()) {
         return std::nullopt;
     }
+    if (resource_id.find("://") != std::string_view::npos) {
+        return std::nullopt;
+    }
 
     auto path = Hummingbird::resolve_asset_path(resource_id);
     std::ifstream file(path, std::ios::in | std::ios::binary);
