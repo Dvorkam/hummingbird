@@ -41,6 +41,7 @@ public:
     bool mark_loading(std::string_view url, ResourceType type);
     bool mark_ready(std::string_view url, ResourceType type, std::string body);
     bool mark_failed(std::string_view url, ResourceType type);
+    bool begin_request(std::string_view url, ResourceType type);
 
     const ResourceEntry* find(std::string_view url, ResourceType type) const;
     std::optional<ResourceView> view(std::string_view url, ResourceType type) const;

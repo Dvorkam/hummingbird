@@ -12,7 +12,7 @@ TEST(ResourceStoreTest, TracksStateTransitions) {
     auto& entry = store.request("https://example.dev", ResourceType::Document);
     EXPECT_EQ(entry.state, ResourceState::Requested);
 
-    EXPECT_TRUE(store.mark_loading("https://example.dev", ResourceType::Document));
+    EXPECT_TRUE(store.begin_request("https://example.dev", ResourceType::Document));
     auto view = store.view("https://example.dev", ResourceType::Document);
     ASSERT_TRUE(view.has_value());
     EXPECT_EQ(view->state, ResourceState::Loading);
@@ -28,4 +28,17 @@ TEST(ResourceStoreTest, TracksStateTransitions) {
     ASSERT_TRUE(view.has_value());
     EXPECT_EQ(view->state, ResourceState::Failed);
     EXPECT_TRUE(view->body.empty());
+}
+
+TEST(ResourceStoreTest, DedupesRequestsByUrlAndType) {
+    ResourceStore store;
+
+    auto& entry = store.request("https://example.dev/style.css", ResourceType::Stylesheet);
+    EXPECT_EQ(entry.state, ResourceState::Requested);
+
+    EXPECT_TRUE(store.begin_request("https://example.dev/style.css", ResourceType::Stylesheet));
+    EXPECT_FALSE(store.begin_request("https://example.dev/style.css", ResourceType::Stylesheet));
+
+    EXPECT_TRUE(store.mark_failed("https://example.dev/style.css", ResourceType::Stylesheet));
+    EXPECT_TRUE(store.begin_request("https://example.dev/style.css", ResourceType::Stylesheet));
 }

@@ -22,6 +22,9 @@ ResourceEntry& ResourceStore::request(std::string_view url, ResourceType type) {
 bool ResourceStore::mark_loading(std::string_view url, ResourceType type) {
     auto it = resources_.find(ResourceKey{type, std::string(url)});
     if (it == resources_.end()) return false;
+    if (it->second.state == ResourceState::Loading || it->second.state == ResourceState::Ready) {
+        return false;
+    }
     it->second.state = ResourceState::Loading;
     return true;
 }
@@ -40,6 +43,11 @@ bool ResourceStore::mark_failed(std::string_view url, ResourceType type) {
     it->second.state = ResourceState::Failed;
     it->second.body.clear();
     return true;
+}
+
+bool ResourceStore::begin_request(std::string_view url, ResourceType type) {
+    request(url, type);
+    return mark_loading(url, type);
 }
 
 const ResourceEntry* ResourceStore::find(std::string_view url, ResourceType type) const {

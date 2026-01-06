@@ -62,8 +62,7 @@ void Tab::navigate(std::string_view url) {
     std::string url_copy(url);
     requested_url_ = url_copy;
     reset_document_state();
-    resource_store_.request(url_copy, ResourceType::Document);
-    if (!resource_store_.mark_loading(url_copy, ResourceType::Document)) {
+    if (!resource_store_.begin_request(url_copy, ResourceType::Document)) {
         HB_LOG_WARN("[resource] failed to register document request: " << url_copy);
     }
 
