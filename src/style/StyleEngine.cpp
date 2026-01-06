@@ -43,6 +43,7 @@ struct StyleOverrides {
     bool font_face = false;
     bool text_align = false;
     bool background = false;
+    bool line_height = false;
 };
 
 struct StyleResult {
@@ -93,6 +94,21 @@ void apply_optional_length_if_present(const PropertyMap& properties, Property pr
     if (it != properties.end()) {
         target = value_to_length(it->second.value, target.value_or(0.0f));
     }
+}
+
+void apply_margin_if_present(const PropertyMap& properties, Property property, float& target, bool& auto_flag) {
+    auto it = properties.find(property);
+    if (it == properties.end()) {
+        return;
+    }
+    const auto& value = it->second.value;
+    if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
+        auto_flag = true;
+        target = 0.0f;
+        return;
+    }
+    auto_flag = false;
+    target = value_to_length(value, target);
 }
 
 void apply_border_style(ComputedStyle& style, const Value& value) {
@@ -154,9 +170,9 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
     }
 
     apply_length_if_present(properties, Property::MarginTop, style.margin.top);
-    apply_length_if_present(properties, Property::MarginRight, style.margin.right);
+    apply_margin_if_present(properties, Property::MarginRight, style.margin.right, style.margin_right_auto);
     apply_length_if_present(properties, Property::MarginBottom, style.margin.bottom);
-    apply_length_if_present(properties, Property::MarginLeft, style.margin.left);
+    apply_margin_if_present(properties, Property::MarginLeft, style.margin.left, style.margin_left_auto);
 
     apply_length_if_present(properties, Property::PaddingTop, style.padding.top);
     apply_length_if_present(properties, Property::PaddingRight, style.padding.right);
@@ -178,6 +194,28 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
 
     apply_optional_length_if_present(properties, Property::Width, style.width);
     apply_optional_length_if_present(properties, Property::Height, style.height);
+    apply_optional_length_if_present(properties, Property::MaxWidth, style.max_width);
+
+    auto font_size_it = properties.find(Property::FontSize);
+    if (font_size_it != properties.end()) {
+        if (font_size_it->second.value.type == Value::Type::Length &&
+            font_size_it->second.value.length.unit == Unit::Px) {
+            style.font_size = font_size_it->second.value.length.value;
+            overrides.font_size = true;
+        }
+    }
+
+    auto line_height_it = properties.find(Property::LineHeight);
+    if (line_height_it != properties.end()) {
+        const auto& value = line_height_it->second.value;
+        if (value.type == Value::Type::Length && value.length.unit == Unit::Px) {
+            style.line_height = value.length.value;
+            overrides.line_height = true;
+        } else if (value.type == Value::Type::Number) {
+            style.line_height = value.number * style.font_size;
+            overrides.line_height = true;
+        }
+    }
 
     apply_color_property(properties, style, overrides);
     apply_background_property(properties, style, overrides);
@@ -407,9 +445,12 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
 
 void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.margin = source.margin;
+    target.margin_left_auto = source.margin_left_auto;
+    target.margin_right_auto = source.margin_right_auto;
     target.padding = source.padding;
     target.width = source.width;
     target.height = source.height;
+    target.max_width = source.max_width;
     target.display = source.display;
     target.border_width = source.border_width;
     target.border_color = source.border_color;
@@ -428,6 +469,7 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
     if (overrides.font_face) target.font_face = source.font_face;
     if (overrides.text_align) target.text_align = source.text_align;
     if (overrides.background) target.background = source.background;
+    if (overrides.line_height) target.line_height = source.line_height;
 }
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).

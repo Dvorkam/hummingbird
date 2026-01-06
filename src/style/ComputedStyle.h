@@ -24,9 +24,12 @@ struct ComputedStyle {
     EdgeSizes border_width;
     Color border_color{0, 0, 0, 255};
     EdgeSizes margin;
+    bool margin_left_auto = false;
+    bool margin_right_auto = false;
     EdgeSizes padding;
     std::optional<float> width;
     std::optional<float> height;
+    std::optional<float> max_width;
     Color color{0, 0, 0, 255};
     bool underline = false;
     bool font_monospace = false;
@@ -36,7 +39,8 @@ struct ComputedStyle {
     enum class FontStyle { Normal, Italic };
     FontWeight weight = FontWeight::Normal;
     FontStyle style = FontStyle::Normal;
-    float font_size = 16.0f;  // px
+    float font_size = 16.0f;   // px
+    float line_height = 0.0f;  // px, 0 means use font metrics
     std::string font_face;
     std::optional<Color> background;
     // Future: background, font family, etc.

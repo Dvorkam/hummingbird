@@ -26,6 +26,8 @@ struct ChildMargins {
     float right;
     float top;
     float bottom;
+    bool left_auto;
+    bool right_auto;
 };
 
 struct InlineLayoutMetrics {
@@ -51,13 +53,21 @@ LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bound
     float inset_bottom = padding_bottom + border_bottom;
 
     float target_width = bounds.width;
-    if (style && style->width.has_value()) {
-        target_width = std::min(bounds.width, *style->width);
+    bool constrained = false;
+    if (style) {
+        if (style->width.has_value()) {
+            target_width = std::min(target_width, *style->width);
+            constrained = true;
+        }
+        if (style->max_width.has_value()) {
+            target_width = std::min(target_width, *style->max_width);
+            constrained = true;
+        }
     }
 
     rect.x = bounds.x;
     rect.y = bounds.y;
-    if (style && style->width.has_value()) {
+    if (constrained) {
         rect.width = target_width + inset_left + inset_right;
     } else {
         rect.width = bounds.width;
@@ -68,8 +78,9 @@ LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bound
 }
 
 ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
-    return {style ? style->margin.left : 0.0f, style ? style->margin.right : 0.0f, style ? style->margin.top : 0.0f,
-            style ? style->margin.bottom : 0.0f};
+    return {style ? style->margin.left : 0.0f,       style ? style->margin.right : 0.0f,
+            style ? style->margin.top : 0.0f,        style ? style->margin.bottom : 0.0f,
+            style ? style->margin_left_auto : false, style ? style->margin_right_auto : false};
 }
 
 void flush_line(LineCursor& cursor, float inset_left) {
@@ -86,9 +97,27 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
     flush_line(cursor, metrics.inset_left);
     float child_x = metrics.inset_left + margins.left;
     float child_y = cursor.y;
-    float available_width = metrics.content_width - margins.left - margins.right;
+    float available_width =
+        metrics.content_width - (margins.left_auto ? 0.0f : margins.left) - (margins.right_auto ? 0.0f : margins.right);
     Rect child_bounds = {child_x, child_y, available_width, 0.0f};
     child.layout(context, child_bounds);
+    if (margins.left_auto || margins.right_auto) {
+        float remaining = metrics.content_width - child.get_rect().width - (margins.left_auto ? 0.0f : margins.left) -
+                          (margins.right_auto ? 0.0f : margins.right);
+        if (remaining < 0.0f) remaining = 0.0f;
+        float left_margin = margins.left;
+        float right_margin = margins.right;
+        if (margins.left_auto && margins.right_auto) {
+            left_margin = remaining * 0.5f;
+            right_margin = remaining * 0.5f;
+        } else if (margins.left_auto) {
+            left_margin = remaining;
+        } else if (margins.right_auto) {
+            right_margin = remaining;
+        }
+        child_x = metrics.inset_left + left_margin;
+        child.set_rect({child_x, child.get_rect().y, child.get_rect().width, child.get_rect().height});
+    }
     cursor.y = child_y + child.get_rect().height + margins.bottom;
 }
 

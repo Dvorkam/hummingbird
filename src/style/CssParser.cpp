@@ -120,6 +120,19 @@ Value Parser::parse_value() {
     return Value::identifier("");
 }
 
+std::vector<Value> Parser::parse_value_list() {
+    std::vector<Value> values;
+    while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+        if (peek().type == TokenType::Hash || peek().type == TokenType::Identifier ||
+            peek().type == TokenType::Number) {
+            values.push_back(parse_value());
+            continue;
+        }
+        advance();
+    }
+    return values;
+}
+
 std::vector<Declaration> Parser::parse_declarations() {
     std::vector<Declaration> decls;
     while (!eof() && peek().type != TokenType::RBrace) {
@@ -134,6 +147,8 @@ std::vector<Declaration> Parser::parse_declarations() {
 
 Property Parser::parse_property_name(std::string_view name) const {
     if (name == PropertyNames::Display) return Property::Display;
+    if (name == PropertyNames::Background) return Property::Background;
+    if (name == PropertyNames::Border) return Property::Border;
     if (name == PropertyNames::BorderWidth) return Property::BorderWidth;
     if (name == PropertyNames::BorderColor) return Property::BorderColor;
     if (name == PropertyNames::BorderStyle) return Property::BorderStyle;
@@ -200,12 +215,65 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     if (!match(TokenType::Colon)) {
         return false;
     }
-    Value value = parse_value();
-    // Skip remaining value tokens we don't model yet.
-    while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
-        advance();
-    }
+    std::vector<Value> values = parse_value_list();
     match(TokenType::Semicolon);  // consume if present
+
+    auto emit_edges = [&](Property top, Property right, Property bottom, Property left) {
+        if (values.empty()) {
+            return;
+        }
+        const size_t count = values.size();
+        const Value& top_value = values[0];
+        const Value& right_value = count > 1 ? values[1] : values[0];
+        const Value& bottom_value = count > 2 ? values[2] : values[0];
+        const Value& left_value = count > 3 ? values[3] : (count > 1 ? values[1] : values[0]);
+        decls.push_back({top, top_value});
+        decls.push_back({right, right_value});
+        decls.push_back({bottom, bottom_value});
+        decls.push_back({left, left_value});
+    };
+
+    if (property == Property::Margin) {
+        emit_edges(Property::MarginTop, Property::MarginRight, Property::MarginBottom, Property::MarginLeft);
+        return true;
+    }
+    if (property == Property::Padding) {
+        emit_edges(Property::PaddingTop, Property::PaddingRight, Property::PaddingBottom, Property::PaddingLeft);
+        return true;
+    }
+    if (property == Property::Border) {
+        std::optional<Value> border_width;
+        std::optional<Value> border_style;
+        std::optional<Value> border_color;
+        for (const auto& value : values) {
+            if (!border_width && value.type == Value::Type::Length) {
+                border_width = value;
+                continue;
+            }
+            if (!border_color && value.type == Value::Type::Color) {
+                border_color = value;
+                continue;
+            }
+            if (!border_style && value.type == Value::Type::Identifier && value.ident == ValueNames::Solid) {
+                border_style = value;
+            }
+        }
+        if (border_width) decls.push_back({Property::BorderWidth, *border_width});
+        if (border_style) decls.push_back({Property::BorderStyle, *border_style});
+        if (border_color) decls.push_back({Property::BorderColor, *border_color});
+        return true;
+    }
+    if (property == Property::Background) {
+        for (const auto& value : values) {
+            if (value.type == Value::Type::Color) {
+                decls.push_back({Property::BackgroundColor, value});
+                break;
+            }
+        }
+        return true;
+    }
+
+    Value value = values.empty() ? Value::identifier("") : values.front();
     decls.push_back({property, value});
     return true;
 }

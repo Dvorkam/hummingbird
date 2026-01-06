@@ -237,6 +237,9 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         }
     }
     float line_height = measure_text_block(context, m_rendered_text, text_style, m_last_metrics);
+    if (style && style->line_height > 0.0f) {
+        line_height = style->line_height;
+    }
     m_line_height = line_height;
 
     float content_width = 0.0f;
@@ -291,6 +294,9 @@ void TextBox::measure_inline(IGraphicsContext& context) {
     auto tokens = tokenize_text(m_rendered_text);
     TextStyle text_style = build_text_style(style);
     float line_height = context.measure_text("A", text_style).height;
+    if (style && style->line_height > 0.0f) {
+        line_height = style->line_height;
+    }
     m_line_height = line_height;
     m_fragments.clear();
     m_fragments.resize(tokens.size());

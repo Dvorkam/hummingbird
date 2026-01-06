@@ -24,6 +24,7 @@ private:
     std::vector<Selector> parse_selectors();
     Property parse_property();
     Value parse_value();
+    std::vector<Value> parse_value_list();
     std::vector<Declaration> parse_declarations();
     Property parse_property_name(std::string_view name) const;
     Value parse_hash_value();

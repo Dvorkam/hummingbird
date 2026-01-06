@@ -23,6 +23,7 @@ public:
 
     const DOM::Node* get_dom_node() const { return m_dom_node; }
     const Rect& get_rect() const { return m_rect; }
+    void set_rect(const Rect& rect) { m_rect = rect; }
     const Css::ComputedStyle* get_computed_style() const {
         auto style = m_dom_node ? m_dom_node->get_computed_style() : nullptr;
         return style ? style.get() : nullptr;

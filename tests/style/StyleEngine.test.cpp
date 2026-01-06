@@ -170,6 +170,72 @@ TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
     EXPECT_FLOAT_EQ(style->margin.top, 9.0f);
 }
 
+TEST(StyleEngineTest, ExpandsBackgroundAndBorderShorthand) {
+    ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background: #ff0000; border: 2px solid #000; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->background.has_value());
+    EXPECT_EQ(style->background->r, 255);
+    EXPECT_EQ(style->background->g, 0);
+    EXPECT_EQ(style->background->b, 0);
+
+    EXPECT_EQ(style->border_style, ComputedStyle::BorderStyle::Solid);
+    EXPECT_FLOAT_EQ(style->border_width.top, 2.0f);
+    EXPECT_FLOAT_EQ(style->border_width.right, 2.0f);
+    EXPECT_FLOAT_EQ(style->border_width.bottom, 2.0f);
+    EXPECT_FLOAT_EQ(style->border_width.left, 2.0f);
+    EXPECT_EQ(style->border_color.r, 0);
+    EXPECT_EQ(style->border_color.g, 0);
+    EXPECT_EQ(style->border_color.b, 0);
+}
+
+TEST(StyleEngineTest, SupportsMarginAutoAndMaxWidth) {
+    ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { margin: 8px auto; max-width: 200px; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->margin.top, 8.0f);
+    EXPECT_FLOAT_EQ(style->margin.bottom, 8.0f);
+    EXPECT_TRUE(style->margin_left_auto);
+    EXPECT_TRUE(style->margin_right_auto);
+    ASSERT_TRUE(style->max_width.has_value());
+    EXPECT_FLOAT_EQ(style->max_width.value(), 200.0f);
+}
+
+TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
+    ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font-size: 20px; line-height: 1.5; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->font_size, 20.0f);
+    EXPECT_FLOAT_EQ(style->line_height, 30.0f);
+}
+
 TEST(StyleEngineTest, LinkSourcesApplyInDocumentOrder) {
     ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
