@@ -12,6 +12,7 @@ public:
     // Implementations may complete synchronously or asynchronously.
     virtual void get(const std::string& url, std::function<void(std::string)> callback) = 0;
     // Release any background resources (threads, handles, etc).
+    // Implementations must ensure no callbacks run after shutdown() returns.
     virtual void shutdown() = 0;
 };
 

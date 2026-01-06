@@ -113,6 +113,17 @@ target_include_directories(Renderer
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+# --- Engine Library ---
+# This library owns document lifecycle and orchestration (parsing/style/layout/paint) without platform headers.
+add_library(Engine STATIC
+    src/engine/Tab.cpp
+)
+target_include_directories(Engine
+    PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(Engine PUBLIC Core Html Layout Renderer Style)
+
 # --- App Executable ---
 # This is the main application that brings everything together.
 add_executable(Hummingbird
@@ -125,7 +136,7 @@ add_executable(Hummingbird
 target_include_directories(Hummingbird PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(Hummingbird PRIVATE Platform Html Layout Renderer Style SDL2::SDL2main)
+target_link_libraries(Hummingbird PRIVATE Platform Engine SDL2::SDL2main)
 
 # --- Unit Testing ---
 enable_testing()

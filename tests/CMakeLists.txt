@@ -6,6 +6,7 @@ add_executable(HummingbirdTests
     app/SmokeMain.test.cpp
     ../src/app/BrowserApp.cpp
     ../src/app/BrowserApp.h
+    engine/Tab.test.cpp
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp
     core/Timing.test.cpp
@@ -38,12 +39,14 @@ target_link_libraries(HummingbirdTests PRIVATE
     Layout
     Renderer
     Style
+    Engine
     Platform
 )
 
 # Add the root src directory to the include path so tests can find headers
 target_include_directories(HummingbirdTests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Add the test executable to the list of tests
