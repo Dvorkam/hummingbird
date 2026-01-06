@@ -61,6 +61,7 @@ void Tab::navigate(std::string_view url) {
     active_nav_.store(id, std::memory_order_release);
     std::string url_copy(url);
     requested_url_ = url_copy;
+    reset_document_state();
 
     // Built-in demo URL: keep startup deterministic and avoid network timeouts.
     if ((url == "http://example.dev" || url == "https://example.dev") && fallback_network_) {
@@ -169,7 +170,6 @@ std::optional<std::string> Tab::take_pending_html() {
 }
 
 void Tab::rebuild_from_html(IGraphicsContext& graphics, const Layout::Rect& viewport, const std::string& html) {
-    reset_document_state();
     HB_LOG_INFO("[pipeline] html size: " << html.size());
 
     std::vector<std::string> style_blocks;
@@ -200,6 +200,7 @@ void Tab::reset_document_state() {
     scroll_y_ = 0.0f;
     content_height_ = 0.0f;
     has_viewport_ = false;
+    dirty_ = true;
 }
 
 bool Tab::parse_html(const std::string& html, std::vector<std::string>& style_blocks,
