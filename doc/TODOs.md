@@ -10,6 +10,12 @@
 
 - **Font Face Mapping:** Expand `ComputedStyle::font_face` beyond the current Roboto-only mapping (proper fallback chain + real monospace fonts).
 
+## HTML Tag Coverage
+
+- **Semantic Blocks:** `main`, `section`, `article`, `noscript`
+- **Controls:** `button`
+- **SVG Core:** `svg`, `g`, `defs`, `path`, `rect`, `circle`, `clippath`
+
 ## CSS Coverage Backlog
 
 - **P2: Selector Coverage:** Add universal selector `*`, descendant combinators, and compound selectors (tag+class/id).

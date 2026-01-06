@@ -2,6 +2,7 @@
 
 #include <optional>
 
+#include "core/utils/Log.h"
 #include "style/CssPropertyNames.h"
 #include "style/CssValueNames.h"
 
@@ -211,12 +212,23 @@ Value Parser::parse_number_value() {
 }
 
 bool Parser::consume_declaration(std::vector<Declaration>& decls) {
+    std::string_view property_name;
+    if (peek().type == TokenType::Identifier) {
+        property_name = peek().lexeme;
+    }
     Property property = parse_property();
     if (!match(TokenType::Colon)) {
         return false;
     }
     std::vector<Value> values = parse_value_list();
     match(TokenType::Semicolon);  // consume if present
+
+    if (property == Property::Unknown && !property_name.empty()) {
+        std::string name(property_name);
+        if (m_unknown_properties.insert(name).second) {
+            HB_LOG_WARN("[parser] Unsupported CSS property encountered: " << name);
+        }
+    }
 
     auto emit_edges = [&](Property top, Property right, Property bottom, Property left) {
         if (values.empty()) {
