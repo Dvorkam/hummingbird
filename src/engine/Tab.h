@@ -51,6 +51,7 @@ public:
     float scroll_y() const { return scroll_y_; }
     float content_height() const { return content_height_; }
     std::string_view requested_url() const { return requested_url_; }
+    std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
 
 private:
     struct PendingResourceUpdate {
@@ -71,6 +72,7 @@ private:
 
     bool parse_html(const std::string& html, std::vector<std::string>& style_blocks,
                     std::vector<std::string>& stylesheet_links);
+    void request_stylesheets(const std::vector<std::string>& stylesheet_links);
     std::string build_css_source(const std::vector<std::string>& style_blocks,
                                  const std::vector<std::string>& stylesheet_links) const;
     void parse_and_apply_css(const std::string& css);

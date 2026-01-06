@@ -2,6 +2,11 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "layout/TestGraphicsContext.h"
@@ -20,6 +25,25 @@ public:
 
 private:
     std::string body_;
+};
+
+class RoutingNetwork final : public INetwork {
+public:
+    void set_response(const std::string& url, std::string body) { responses_[url] = std::move(body); }
+
+    void get(const std::string& url, std::function<void(std::string)> callback) override {
+        requested_.push_back(url);
+        auto it = responses_.find(url);
+        if (callback) callback(it == responses_.end() ? std::string{} : it->second);
+    }
+
+    void shutdown() override {}
+
+    const std::vector<std::string>& requested() const { return requested_; }
+
+private:
+    std::unordered_map<std::string, std::string> responses_;
+    std::vector<std::string> requested_;
 };
 
 }  // namespace
@@ -58,4 +82,46 @@ TEST(EngineTabTest, NavigateAndBuildsDocument) {
 
     EXPECT_FALSE(tab.tick(context, viewport));
     EXPECT_EQ(tab.requested_url(), "https://example.dev");
+}
+
+TEST(EngineTabTest, FetchesLinkedStylesheet) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="styles/main.css">
+  </head>
+  <body>
+    <p>Styled text</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    auto* network_ptr = network.get();
+    network->set_response("https://acme.test", html);
+    network->set_response("https://acme.test/styles/main.css", "p { color: #cc0000; }");
+
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    Hummingbird::Engine::Tab tab(std::move(network), std::move(fallback), std::move(provider));
+
+    TestGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 800, 600};
+
+    tab.navigate("https://acme.test");
+    tab.tick(context, viewport);
+    tab.tick(context, viewport);
+
+    auto view = tab.resource_view("https://acme.test/styles/main.css", Hummingbird::Engine::ResourceType::Stylesheet);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_EQ(view->body, "p { color: #cc0000; }");
+
+    EXPECT_NE(std::find(network_ptr->requested().begin(), network_ptr->requested().end(),
+                        "https://acme.test/styles/main.css"),
+              network_ptr->requested().end());
 }

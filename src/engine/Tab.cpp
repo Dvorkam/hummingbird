@@ -148,6 +148,10 @@ void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool d
     }
 }
 
+std::optional<ResourceView> Tab::resource_view(std::string_view url, ResourceType type) const {
+    return resource_store_.view(url, type);
+}
+
 void Tab::scroll_by(float delta_px, float viewport_height) {
     scroll_y_ -= delta_px;
     clamp_scroll(viewport_height);
@@ -205,6 +209,7 @@ void Tab::rebuild_from_html(IGraphicsContext& graphics, const Layout::Rect& view
         HB_LOG_INFO("[pipeline] discovered stylesheet links: " << stylesheet_links.size());
     }
 
+    request_stylesheets(stylesheet_links);
     std::string css = build_css_source(style_blocks, stylesheet_links);
     parse_and_apply_css(css);
 
@@ -250,6 +255,48 @@ bool Tab::parse_html(const std::string& html, std::vector<std::string>& style_bl
     return true;
 }
 
+void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) {
+    if (stylesheet_links.empty()) return;
+
+    const uint64_t nav_id = active_nav_.load(std::memory_order_acquire);
+
+    for (const auto& href : stylesheet_links) {
+        std::string resolved = Core::resolve_url(requested_url_, href);
+        std::string url = resolved.empty() ? href : resolved;
+        if (url.empty()) continue;
+
+        if (!resource_store_.begin_request(url, ResourceType::Stylesheet)) {
+            continue;
+        }
+
+        if (resource_provider_) {
+            auto text = resource_provider_->load_text(href);
+            if (!text && !resolved.empty() && resolved != href) {
+                text = resource_provider_->load_text(resolved);
+            }
+            if (text) {
+                resource_store_.mark_ready(url, ResourceType::Stylesheet, std::move(*text));
+                continue;
+            }
+        }
+
+        if (!network_) {
+            HB_LOG_WARN("[resource] no network for stylesheet: " << url);
+            resource_store_.mark_failed(url, ResourceType::Stylesheet);
+            continue;
+        }
+
+        network_->get(url, [this, nav_id, url](std::string body) {
+            if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
+            bool success = !body.empty();
+            if (!success) {
+                HB_LOG_WARN("[resource] stylesheet fetch failed: " << url);
+            }
+            enqueue_resource_update(ResourceType::Stylesheet, url, std::move(body), success);
+        });
+    }
+}
+
 std::string Tab::build_css_source(const std::vector<std::string>& style_blocks,
                                   const std::vector<std::string>& stylesheet_links) const {
     std::string ua_css;
@@ -263,21 +310,16 @@ std::string Tab::build_css_source(const std::vector<std::string>& style_blocks,
     }
 
     std::vector<std::string> link_sources;
-    if (resource_provider_) {
-        link_sources.reserve(stylesheet_links.size());
-        for (const auto& href : stylesheet_links) {
-            std::string resolved = Core::resolve_url(requested_url_, href);
-            auto text = resource_provider_->load_text(href);
-            if (!text) {
-                if (!resolved.empty() && resolved != href) {
-                    text = resource_provider_->load_text(resolved);
-                }
-            }
-            if (!text) {
-                HB_LOG_WARN("[resource] missing stylesheet: " << href);
-                continue;
-            }
-            link_sources.push_back(std::move(*text));
+    link_sources.reserve(stylesheet_links.size());
+    for (const auto& href : stylesheet_links) {
+        std::string resolved = Core::resolve_url(requested_url_, href);
+        std::string_view key = resolved.empty() ? std::string_view(href) : std::string_view(resolved);
+        auto view = resource_store_.view(key, ResourceType::Stylesheet);
+        if (!view) continue;
+        if (view->state == ResourceState::Ready) {
+            link_sources.emplace_back(view->body);
+        } else if (view->state == ResourceState::Failed) {
+            HB_LOG_WARN("[resource] missing stylesheet: " << key);
         }
     }
 

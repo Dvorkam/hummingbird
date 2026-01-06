@@ -24,20 +24,14 @@ TEST(UrlTest, ParseAbsoluteUrlSplitsParts) {
 
 TEST(UrlTest, ResolveUrlHandlesRelativePaths) {
     std::string_view base = "https://example.com/dir/page.html";
-    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "styles/main.css"),
-              "https://example.com/dir/styles/main.css");
-    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "../img/logo.png"),
-              "https://example.com/img/logo.png");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "styles/main.css"), "https://example.com/dir/styles/main.css");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "../img/logo.png"), "https://example.com/img/logo.png");
 }
 
 TEST(UrlTest, ResolveUrlHandlesSpecialForms) {
     std::string_view base = "https://example.com:8080/dir/page.html";
-    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "//cdn.example.com/a.css"),
-              "https://cdn.example.com/a.css");
-    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "/styles/main.css"),
-              "https://example.com:8080/styles/main.css");
-    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "?q=1"),
-              "https://example.com:8080/dir/page.html?q=1");
-    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "#top"),
-              "https://example.com:8080/dir/page.html#top");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "//cdn.example.com/a.css"), "https://cdn.example.com/a.css");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "/styles/main.css"), "https://example.com:8080/styles/main.css");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "?q=1"), "https://example.com:8080/dir/page.html?q=1");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "#top"), "https://example.com:8080/dir/page.html#top");
 }
