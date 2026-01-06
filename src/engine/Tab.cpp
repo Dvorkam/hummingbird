@@ -6,6 +6,7 @@
 #include "core/dom/Node.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
+#include "core/utils/Url.h"
 #include "html/HtmlParser.h"
 #include "layout/RenderObject.h"
 #include "style/CssParser.h"
@@ -59,15 +60,16 @@ void Tab::navigate(std::string_view url) {
 
     const uint64_t id = ++nav_counter_;
     active_nav_.store(id, std::memory_order_release);
-    std::string url_copy(url);
-    requested_url_ = url_copy;
+    std::string normalized = Core::normalize_input_url(url);
+    std::string url_copy = normalized;
+    requested_url_ = std::move(normalized);
     reset_document_state();
     if (!resource_store_.begin_request(url_copy, ResourceType::Document)) {
         HB_LOG_WARN("[resource] failed to register document request: " << url_copy);
     }
 
     // Built-in demo URL: keep startup deterministic and avoid network timeouts.
-    if ((url == "http://example.dev" || url == "https://example.dev") && fallback_network_) {
+    if ((url_copy == "http://example.dev" || url_copy == "https://example.dev") && fallback_network_) {
         fallback_network_->get(url_copy, [this, id, url_copy](std::string body) {
             if (id != active_nav_.load(std::memory_order_acquire)) return;
             bool success = !body.empty();
@@ -264,7 +266,13 @@ std::string Tab::build_css_source(const std::vector<std::string>& style_blocks,
     if (resource_provider_) {
         link_sources.reserve(stylesheet_links.size());
         for (const auto& href : stylesheet_links) {
+            std::string resolved = Core::resolve_url(requested_url_, href);
             auto text = resource_provider_->load_text(href);
+            if (!text) {
+                if (!resolved.empty() && resolved != href) {
+                    text = resource_provider_->load_text(resolved);
+                }
+            }
             if (!text) {
                 HB_LOG_WARN("[resource] missing stylesheet: " << href);
                 continue;

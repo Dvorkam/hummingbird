@@ -48,6 +48,7 @@ add_library(Core STATIC
     src/core/ArenaAllocator.cpp
     src/core/dom/DomFactory.cpp
     src/core/utils/AssetPath.cpp
+    src/core/utils/Url.cpp
 )
 target_include_directories(Core
     PUBLIC
