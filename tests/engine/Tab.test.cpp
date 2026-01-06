@@ -1,8 +1,9 @@
+#include "engine/Tab.h"
+
 #include <gtest/gtest.h>
 
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/ResourceProviderFactory.h"
-#include "engine/Tab.h"
 #include "layout/TestGraphicsContext.h"
 
 namespace {
@@ -58,4 +59,3 @@ TEST(EngineTabTest, NavigateAndBuildsDocument) {
     EXPECT_FALSE(tab.tick(context, viewport));
     EXPECT_EQ(tab.requested_url(), "https://example.dev");
 }
-
