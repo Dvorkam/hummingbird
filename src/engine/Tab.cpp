@@ -276,8 +276,11 @@ void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) 
         if (url.empty()) continue;
 
         if (!resource_store_.begin_request(url, ResourceType::Stylesheet)) {
+            HB_LOG_DEBUG("[resource] stylesheet already requested: " << url);
             continue;
         }
+
+        HB_LOG_DEBUG("[resource] stylesheet link: href=" << href << " resolved=" << url);
 
         if (resource_provider_) {
             auto text = resource_provider_->load_text(href);
@@ -285,6 +288,7 @@ void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) 
                 text = resource_provider_->load_text(resolved);
             }
             if (text) {
+                HB_LOG_DEBUG("[resource] stylesheet loaded from assets: " << url << " bytes=" << text->size());
                 resource_store_.mark_ready(url, ResourceType::Stylesheet, std::move(*text));
                 continue;
             }
@@ -296,6 +300,7 @@ void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) 
             continue;
         }
 
+        HB_LOG_DEBUG("[resource] fetching stylesheet: " << url);
         network_->get(url, [this, nav_id, url](std::string body) {
             if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
             bool success = !body.empty();
@@ -332,16 +337,33 @@ std::string Tab::build_css_source(const std::vector<std::string>& style_blocks,
 
     std::vector<std::string> link_sources;
     link_sources.reserve(stylesheet_links.size());
+    size_t ready_count = 0;
+    size_t loading_count = 0;
+    size_t missing_count = 0;
+    size_t failed_count = 0;
     for (const auto& href : stylesheet_links) {
         std::string resolved = Core::resolve_url(requested_url_, href);
         std::string_view key = resolved.empty() ? std::string_view(href) : std::string_view(resolved);
         auto view = resource_store_.view(key, ResourceType::Stylesheet);
-        if (!view) continue;
+        if (!view) {
+            ++missing_count;
+            HB_LOG_DEBUG("[resource] stylesheet not in store: " << key);
+            continue;
+        }
         if (view->state == ResourceState::Ready) {
             link_sources.emplace_back(view->body);
+            ++ready_count;
+        } else if (view->state == ResourceState::Loading || view->state == ResourceState::Requested) {
+            ++loading_count;
+            HB_LOG_DEBUG("[resource] stylesheet pending: " << key);
         } else if (view->state == ResourceState::Failed) {
+            ++failed_count;
             HB_LOG_WARN("[resource] missing stylesheet: " << key);
         }
+    }
+    if (!stylesheet_links.empty()) {
+        HB_LOG_DEBUG("[style] link stylesheets ready=" << ready_count << " loading=" << loading_count
+                                                       << " failed=" << failed_count << " missing=" << missing_count);
     }
 
     return Css::merge_css_sources(ua_css, link_sources, style_blocks);
