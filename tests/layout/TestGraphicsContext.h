@@ -10,6 +10,7 @@ public:
     void clear(const Color& /*color*/) override {}
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& /*rect*/, const Color& /*color*/) override {}
+    void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
 
     TextMetrics measure_text(const std::string& text, const TextStyle& /*style*/) override {
         // Approximate metrics based on character count to keep tests deterministic.

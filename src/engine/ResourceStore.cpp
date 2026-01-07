@@ -12,7 +12,7 @@ size_t ResourceStore::ResourceKeyHash::operator()(const ResourceKey& key) const 
 
 ResourceEntry& ResourceStore::request(std::string_view url, ResourceType type) {
     ResourceKey key{type, std::string(url)};
-    auto [it, inserted] = resources_.try_emplace(key, ResourceEntry{type, key.url, ResourceState::Requested, {}});
+    auto [it, inserted] = resources_.try_emplace(key, ResourceEntry{type, key.url, ResourceState::Requested, {}, {}});
     if (inserted) {
         return it->second;
     }
@@ -54,7 +54,7 @@ bool ResourceStore::begin_request(std::string_view url, ResourceType type) {
 bool ResourceStore::set_image(std::string_view url, ResourceType type, ImageBitmap image) {
     auto it = resources_.find(ResourceKey{type, std::string(url)});
     if (it == resources_.end()) return false;
-    it->second.image = std::move(image);
+    it->second.image = std::make_unique<ImageBitmap>(std::move(image));
     return true;
 }
 
@@ -68,7 +68,7 @@ std::optional<ResourceView> ResourceStore::view(std::string_view url, ResourceTy
     auto it = resources_.find(ResourceKey{type, std::string(url)});
     if (it == resources_.end()) return std::nullopt;
     const ResourceEntry& entry = it->second;
-    return ResourceView{entry.type, entry.state, entry.url, entry.body, entry.image ? &(*entry.image) : nullptr};
+    return ResourceView{entry.type, entry.state, entry.url, entry.body, entry.image.get()};
 }
 
 void ResourceStore::clear() {

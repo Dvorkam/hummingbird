@@ -6,6 +6,8 @@
 #include "layout/RenderObject.h"
 #include "layout/inline/IInlineParticipant.h"
 
+struct ImageBitmap;
+
 namespace Hummingbird::Layout {
 
 class RenderImage : public RenderObject, public IInlineParticipant {
@@ -16,6 +18,9 @@ public:
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
     void paint_self(IGraphicsContext& context, const Point& offset) const override;
+
+    bool set_image(const ImageBitmap* image);
+    const ImageBitmap* image() const { return m_image; }
 
     IInlineParticipant* as_inline_participant() override;
     const IInlineParticipant* as_inline_participant() const override;
@@ -37,6 +42,7 @@ private:
     bool should_inline() const;
     float m_inline_measured_width = 0.0f;
     float m_inline_measured_height = 0.0f;
+    const ImageBitmap* m_image = nullptr;
 };
 
 }  // namespace Hummingbird::Layout

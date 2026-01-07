@@ -2,10 +2,12 @@
 
 #include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/RenderImage.h"
 #include "layout/TreeBuilder.h"
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
@@ -277,6 +279,44 @@ TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
 
     EXPECT_FLOAT_EQ(image_rect.width, 300.0f);
     EXPECT_FLOAT_EQ(image_rect.height, 150.0f);
+}
+
+TEST(InlineLayoutTest, InlineImageUsesIntrinsicSizeWhenAvailable) {
+    ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_element(arena, "img"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    auto* image = dynamic_cast<RenderImage*>(para->get_children()[0].get());
+    ASSERT_NE(image, nullptr);
+
+    ImageBitmap bitmap;
+    bitmap.width = 40;
+    bitmap.height = 20;
+    bitmap.stride = 160;
+    bitmap.format = PixelFormat::PRGB32;
+    bitmap.pixels.resize(static_cast<size_t>(bitmap.stride) * bitmap.height);
+
+    image->set_image(&bitmap);
+
+    TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    const auto& image_rect = image->get_rect();
+    EXPECT_FLOAT_EQ(image_rect.width, 40.0f);
+    EXPECT_FLOAT_EQ(image_rect.height, 20.0f);
 }
 
 TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {

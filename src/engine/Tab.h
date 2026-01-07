@@ -81,6 +81,7 @@ private:
                                  const std::vector<std::string>& stylesheet_links) const;
     void parse_and_apply_css(const std::string& css);
     bool build_render_tree();
+    bool update_image_resources();
     void relayout(IGraphicsContext& graphics, const Layout::Rect& viewport);
 
 private:

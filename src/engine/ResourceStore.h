@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -28,7 +29,7 @@ struct ResourceEntry {
     std::string url;
     ResourceState state;
     std::string body;
-    std::optional<ImageBitmap> image;
+    std::unique_ptr<ImageBitmap> image;
 };
 
 struct ResourceView {

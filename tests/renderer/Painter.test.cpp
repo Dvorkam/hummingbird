@@ -24,6 +24,9 @@ public:
     void clear(const Color&) override {}
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& rect, const Color&) override { fill_calls.push_back(rect); }
+    void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {
+        ++image_calls;
+    }
 
     TextMetrics measure_text(const std::string& text, const TextStyle&) override {
         return {static_cast<float>(text.size()) * 8.0f, 16.0f};
@@ -35,6 +38,7 @@ public:
     }
 
     int draw_calls = 0;
+    int image_calls = 0;
     std::string last_text;
     std::vector<Hummingbird::Layout::Rect> fill_calls;
     Hummingbird::Layout::Rect viewport_{0, 0, 0, 0};

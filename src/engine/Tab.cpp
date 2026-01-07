@@ -11,6 +11,7 @@
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
+#include "layout/RenderImage.h"
 #include "layout/RenderObject.h"
 #include "style/CssParser.h"
 #include "style/StylesheetSource.h"
@@ -32,7 +33,8 @@ void collect_image_sources(const DOM::Node* node, std::vector<std::string>& out)
     if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
         if (element->get_tag_name() == Hummingbird::Html::TagNames::Img) {
             const auto& attrs = element->get_attributes();
-            auto it = attrs.find(std::string(Hummingbird::Html::AttributeNames::Src));
+            static const std::string kSrcKey = std::string(Hummingbird::Html::AttributeNames::Src);
+            auto it = attrs.find(kSrcKey);
             if (it != attrs.end() && !it->second.empty()) {
                 out.push_back(it->second);
             }
@@ -237,6 +239,10 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     } else if (stylesheet_ready && dom_tree_) {
         apply_styles_and_layout(graphics, viewport);
     } else if (image_ready && render_tree_) {
+        bool updated = update_image_resources();
+        if (updated) {
+            relayout(graphics, viewport);
+        }
         dirty_ = true;
     }
 }
@@ -419,6 +425,7 @@ void Tab::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect
         return;
     }
 
+    update_image_resources();
     relayout(graphics, viewport);
 }
 
@@ -493,6 +500,46 @@ bool Tab::build_render_tree() {
     }
     HB_LOG_INFO("[perf] render tree build ms=" << Core::duration_ms(render_start, render_end));
     return true;
+}
+
+bool Tab::update_image_resources() {
+    if (!render_tree_) {
+        return false;
+    }
+
+    bool changed = false;
+    std::vector<Layout::RenderObject*> stack;
+    stack.push_back(render_tree_.get());
+
+    while (!stack.empty()) {
+        Layout::RenderObject* current = stack.back();
+        stack.pop_back();
+
+        if (auto* image = dynamic_cast<Layout::RenderImage*>(current)) {
+            const auto* element = static_cast<const DOM::Element*>(image->get_dom_node());
+            const auto& attrs = element->get_attributes();
+            static const std::string kSrcKey = std::string(Hummingbird::Html::AttributeNames::Src);
+            auto it = attrs.find(kSrcKey);
+            const ImageBitmap* bitmap = nullptr;
+            if (it != attrs.end() && !it->second.empty()) {
+                std::string resolved = Core::resolve_url(requested_url_, it->second);
+                std::string_view key = resolved.empty() ? std::string_view(it->second) : std::string_view(resolved);
+                auto view = resource_store_.view(key, ResourceType::Image);
+                if (view && view->state == ResourceState::Ready) {
+                    bitmap = view->image;
+                }
+            }
+            if (image->set_image(bitmap)) {
+                changed = true;
+            }
+        }
+
+        for (const auto& child : current->get_children()) {
+            stack.push_back(child.get());
+        }
+    }
+
+    return changed;
 }
 
 void Tab::relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {

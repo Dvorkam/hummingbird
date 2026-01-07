@@ -6,6 +6,7 @@
 #include <cmath>
 #include <span>
 
+#include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 
@@ -155,6 +156,43 @@ void SDLGraphicsContext::fill_rect(const Hummingbird::Layout::Rect& rect, const 
         SDL_Rect sdl_rect = {(int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height};
         SDL_RenderFillRect(m_renderer, &sdl_rect);
     }
+}
+
+void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest) {
+    if (!m_renderer) {
+        return;
+    }
+    if (image.width <= 0 || image.height <= 0 || image.pixels.empty()) {
+        return;
+    }
+    if (dest.width <= 0.0f || dest.height <= 0.0f) {
+        return;
+    }
+    if (is_outside_viewport(m_viewport, dest.x, dest.y, dest.width, dest.height)) {
+        return;
+    }
+
+    SDL_Surface* surface =
+        SDL_CreateRGBSurfaceWithFormatFrom(const_cast<std::uint8_t*>(image.pixels.data()), image.width, image.height,
+                                           32, image.stride, SDL_PIXELFORMAT_BGRA32);
+    if (!surface) {
+        HB_LOG_ERROR("[platform] Failed to create SDL_Surface from image");
+        return;
+    }
+
+    SDL_Texture* texture = SDL_CreateTextureFromSurface(m_renderer, surface);
+    SDL_FreeSurface(surface);
+    if (!texture) {
+        HB_LOG_ERROR("[platform] Failed to create SDL_Texture from image");
+        return;
+    }
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+
+    SDL_Rect dest_rect = {static_cast<int>(dest.x), static_cast<int>(dest.y), static_cast<int>(dest.width),
+                          static_cast<int>(dest.height)};
+    SDL_RenderCopy(m_renderer, texture, nullptr, &dest_rect);
+    SDL_DestroyTexture(texture);
 }
 
 void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const TextStyle& style) {
