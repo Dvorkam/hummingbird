@@ -16,6 +16,13 @@
 - **Controls:** `button`
 - **SVG Core:** `svg`, `g`, `defs`, `path`, `rect`, `circle`, `clippath`
 
+## Legacy HTML Attributes (Stories)
+
+* **Story T-HTML-1: Body Color Attributes**
+* **As a** reader of classic HTML pages,
+* **I want** `<body bgcolor/text/link/vlink>` to map to background and text/link colors.
+* **Acceptance:** Body background + base text/link colors reflect legacy attributes when present.
+
 ## CSS Coverage Backlog
 
 - **P2: Selector Coverage:** Add universal selector `*`, descendant combinators, and compound selectors (tag+class/id).
