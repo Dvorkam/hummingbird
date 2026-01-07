@@ -28,6 +28,7 @@ add_executable(HummingbirdTests
     style/StylesheetSource.test.cpp
     layout/LayoutStyleIntegration.test.cpp
     platform/ResourceProvider.test.cpp
+    platform/ImageDecoder.test.cpp
     network/StubNetwork.test.cpp
     network/CurlNetwork.test.cpp
     network/NetworkFactory.test.cpp
