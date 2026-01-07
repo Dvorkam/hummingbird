@@ -262,10 +262,14 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     auto pending = take_pending_resources();
     if (pending.empty()) return;
 
+    const auto process_start = Core::Clock::now();
+    const size_t pending_count = pending.size();
     bool document_ready = false;
     std::string document_url;
     bool stylesheet_ready = false;
     bool image_ready = false;
+    size_t image_decode_count = 0;
+    double image_decode_ms = 0.0;
 
     for (auto& update : pending) {
         if (update.success) {
@@ -285,7 +289,11 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
                     resource_store_.mark_failed(update.url, update.type);
                     continue;
                 }
+                const auto decode_start = Core::Clock::now();
                 auto decoded = image_decoder_->decode(update.body);
+                const auto decode_end = Core::Clock::now();
+                image_decode_ms += Core::duration_ms(decode_start, decode_end);
+                ++image_decode_count;
                 if (!decoded) {
                     HB_LOG_WARN("[image] decode failed: " << update.url);
                     resource_store_.mark_failed(update.url, update.type);
@@ -303,18 +311,35 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
         }
     }
 
+    const auto process_end = Core::Clock::now();
+    HB_LOG_INFO("[perf] resource batch ms="
+                << Core::duration_ms(process_start, process_end) << " pending=" << pending_count
+                << " doc=" << static_cast<int>(document_ready) << " styles=" << static_cast<int>(stylesheet_ready)
+                << " images=" << static_cast<int>(image_ready) << " decode_ms=" << image_decode_ms
+                << " decoded_images=" << image_decode_count);
+
     if (document_ready) {
         const auto* entry = resource_store_.find(document_url, ResourceType::Document);
         if (entry) {
+            const auto rebuild_start = Core::Clock::now();
             rebuild_from_html(graphics, viewport, entry->body);
+            const auto rebuild_end = Core::Clock::now();
+            HB_LOG_INFO("[perf] document rebuild ms=" << Core::duration_ms(rebuild_start, rebuild_end));
         }
     } else if (stylesheet_ready && dom_tree_) {
+        const auto style_update_start = Core::Clock::now();
         apply_styles_and_layout(graphics, viewport);
+        const auto style_update_end = Core::Clock::now();
+        HB_LOG_INFO("[perf] stylesheet update ms=" << Core::duration_ms(style_update_start, style_update_end));
     } else if (image_ready && render_tree_) {
+        const auto image_update_start = Core::Clock::now();
         bool updated = update_image_resources();
         if (updated) {
             relayout(graphics, viewport);
         }
+        const auto image_update_end = Core::Clock::now();
+        HB_LOG_INFO("[perf] image update ms=" << Core::duration_ms(image_update_start, image_update_end)
+                                              << " updated=" << updated);
         dirty_ = true;
     }
 }
