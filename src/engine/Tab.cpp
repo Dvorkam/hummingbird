@@ -1,6 +1,7 @@
 #include "engine/Tab.h"
 
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 #include "core/dom/Element.h"
@@ -43,6 +44,59 @@ void collect_image_sources(const DOM::Node* node, std::vector<std::string>& out)
     for (const auto& child : node->get_children()) {
         collect_image_sources(child.get(), out);
     }
+}
+
+bool point_in_rect(const Layout::Rect& rect, const Layout::Point& point) {
+    if (rect.width <= 0.0f || rect.height <= 0.0f) return false;
+    return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
+}
+
+bool intersects(const Layout::Rect& a, const Layout::Rect& b) {
+    if (a.width <= 0.0f || a.height <= 0.0f) return false;
+    if (b.width <= 0.0f || b.height <= 0.0f) return false;
+    return !(a.x + a.width <= b.x || a.x >= b.x + b.width || a.y + a.height <= b.y || a.y >= b.y + b.height);
+}
+
+std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::string_view base_url) {
+    static const std::string kHrefKey = std::string(Hummingbird::Html::AttributeNames::Href);
+    const DOM::Node* current = node;
+    while (current) {
+        auto* element = dynamic_cast<const DOM::Element*>(current);
+        if (element && element->get_tag_name() == Hummingbird::Html::TagNames::A) {
+            const auto& attrs = element->get_attributes();
+            auto it = attrs.find(kHrefKey);
+            if (it == attrs.end() || it->second.empty()) {
+                return std::nullopt;
+            }
+            std::string resolved = Core::resolve_url(base_url, it->second);
+            return resolved.empty() ? it->second : std::move(resolved);
+        }
+        current = current->get_parent();
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> hit_test_link_recursive(const Layout::RenderObject& node, const Layout::Point& offset,
+                                                   const Layout::Point& point, const Layout::Rect& viewport,
+                                                   std::string_view base_url) {
+    const auto& rect = node.get_rect();
+    Layout::Rect absolute{offset.x + rect.x, offset.y + rect.y, rect.width, rect.height};
+    if (!intersects(absolute, viewport)) {
+        return std::nullopt;
+    }
+    if (!point_in_rect(absolute, point)) {
+        return std::nullopt;
+    }
+
+    const auto& children = node.get_children();
+    for (auto it = children.rbegin(); it != children.rend(); ++it) {
+        Layout::Point child_offset{absolute.x, absolute.y};
+        if (auto hit = hit_test_link_recursive(**it, child_offset, point, viewport, base_url)) {
+            return hit;
+        }
+    }
+
+    return resolve_anchor_href(node.get_dom_node(), base_url);
 }
 }  // namespace
 
@@ -172,6 +226,17 @@ void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool d
     if (++paint_log_counter % 5 == 0) {
         HB_LOG_DEBUG("[perf] paint ms=" << Core::duration_ms(paint_start, paint_end) << " scroll_y=" << scroll_y_);
     }
+}
+
+std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const {
+    if (!render_tree_) {
+        return std::nullopt;
+    }
+    if (!point_in_rect(viewport, point)) {
+        return std::nullopt;
+    }
+    Layout::Point offset{0.0f, -scroll_y_};
+    return hit_test_link_recursive(*render_tree_, offset, point, viewport, requested_url_);
 }
 
 std::optional<ResourceView> Tab::resource_view(std::string_view url, ResourceType type) const {

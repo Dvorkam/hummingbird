@@ -48,6 +48,9 @@ public:
     // Paints the current document into the given viewport using the current scroll offset.
     void paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool debug_outlines);
 
+    // Returns a resolved link URL for the render node under the window-space point.
+    std::optional<std::string> hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const;
+
     void scroll_by(float delta_px, float viewport_height);
 
     float scroll_y() const { return scroll_y_; }

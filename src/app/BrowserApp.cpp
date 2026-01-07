@@ -169,8 +169,26 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     const int y = event.mouse_button.y;
     if (y < url_bar_height_) {
         set_url_bar_active(true, "[ui] URL bar focused (mouse)");
-    } else {
-        set_url_bar_active(false, nullptr);
+        needs_repaint_ = true;
+        return;
+    }
+
+    set_url_bar_active(false, nullptr);
+
+    if (!graphics_ || !window_) {
+        needs_repaint_ = true;
+        return;
+    }
+
+    auto [win_w, win_h] = window_->get_size();
+    const auto viewport = compute_content_viewport(win_w, win_h);
+    Hummingbird::Layout::Point point{static_cast<float>(event.mouse_button.x),
+                                     static_cast<float>(event.mouse_button.y)};
+    auto link = tab_.hit_test_link(point, viewport);
+    if (link) {
+        url_bar_text_ = *link;
+        refresh_url_bar_render_text();
+        tab_.navigate(*link);
     }
     needs_repaint_ = true;
 }

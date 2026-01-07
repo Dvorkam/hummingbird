@@ -259,3 +259,31 @@ TEST(EngineTabTest, RebuildsWhenStylesheetArrives) {
     network_ptr->complete("https://acme.test/styles/main.css");
     EXPECT_TRUE(tab.tick(context, viewport));
 }
+
+TEST(EngineTabTest, HitTestResolvesLink) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <a href="/next">Next</a>
+  </body>
+</html>
+)HTML";
+
+    auto provider = create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    Hummingbird::Engine::Tab tab(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                                 std::move(provider), nullptr);
+
+    TestGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+
+    tab.navigate("https://example.dev");
+    EXPECT_TRUE(tab.tick(context, viewport));
+
+    Hummingbird::Layout::Point point{10.0f, 12.0f};
+    auto link = tab.hit_test_link(point, viewport);
+    ASSERT_TRUE(link.has_value());
+    EXPECT_EQ(*link, "https://example.dev/next");
+}
