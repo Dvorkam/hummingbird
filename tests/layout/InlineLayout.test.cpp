@@ -2,10 +2,10 @@
 
 #include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
-#include "core/platform_api/IImageDecoder.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/RenderImage.h"
 #include "layout/TreeBuilder.h"

@@ -7,8 +7,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "core/platform_api/INetwork.h"
 #include "core/platform_api/IImageDecoder.h"
+#include "core/platform_api/INetwork.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "layout/TestGraphicsContext.h"
 
