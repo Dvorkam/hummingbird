@@ -148,14 +148,24 @@ void BrowserApp::handle_quit_event() {
 
 void BrowserApp::handle_text_input_event(const InputEvent& event) {
     if (!url_bar_active_) return;
-    url_bar_caret_ = clamp_caret(url_bar_caret_, url_bar_text_);
-    url_bar_text_.insert(url_bar_caret_, event.text.text);
-    url_bar_caret_ += event.text.text.size();
-    refresh_url_bar_render_text();
-    needs_repaint_ = true;
+    insert_url_bar_text(event.text.text);
 }
 
 void BrowserApp::handle_key_down_event(const InputEvent& event) {
+    if (url_bar_active_ && !event.key.repeat) {
+        const bool paste_ctrl_v = event.mods.ctrl && event.key.key == Key::V;
+        const bool paste_shift_insert = event.mods.shift && event.key.key == Key::Insert;
+        if (paste_ctrl_v || paste_shift_insert) {
+            if (window_) {
+                const auto clipboard_text = window_->get_clipboard_text();
+                if (!clipboard_text.empty()) {
+                    insert_url_bar_text(clipboard_text);
+                }
+            }
+            return;
+        }
+    }
+
     if (event.key.key == Key::Backspace && url_bar_active_ && !url_bar_text_.empty()) {
         url_bar_caret_ = clamp_caret(url_bar_caret_, url_bar_text_);
         if (url_bar_caret_ > 0) {
@@ -310,6 +320,15 @@ void BrowserApp::refresh_url_bar_render_text() {
         url_bar_caret_ = clamp_caret(url_bar_caret_, url_bar_text_);
         url_bar_render_text_.insert(url_bar_caret_, "|");
     }
+}
+
+void BrowserApp::insert_url_bar_text(std::string_view text) {
+    if (text.empty()) return;
+    url_bar_caret_ = clamp_caret(url_bar_caret_, url_bar_text_);
+    url_bar_text_.insert(url_bar_caret_, text);
+    url_bar_caret_ += text.size();
+    refresh_url_bar_render_text();
+    needs_repaint_ = true;
 }
 
 void BrowserApp::render_if_needed() {

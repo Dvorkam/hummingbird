@@ -3,6 +3,7 @@
 #include <atomic>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IWindow.h"
@@ -27,6 +28,7 @@ private:
     void render_if_needed();
     Hummingbird::Layout::Rect compute_content_viewport(int win_w, int win_h) const;
     void refresh_url_bar_render_text();
+    void insert_url_bar_text(std::string_view text);
 
     // --- event handling ---
     void handle_event(const InputEvent& e);

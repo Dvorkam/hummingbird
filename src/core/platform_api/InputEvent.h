@@ -47,6 +47,7 @@ enum class Key : uint8_t {
 
     Backspace,
     Delete,
+    Insert,
     Home,
     End,
     Left,

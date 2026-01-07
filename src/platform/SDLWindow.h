@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include "core/platform_api/IWindow.h"
 
@@ -23,6 +24,7 @@ public:
     bool poll_event(InputEvent& out) override;
     void start_text_input() override;
     void stop_text_input() override;
+    std::string get_clipboard_text() const override;
 
     std::unique_ptr<IGraphicsContext> get_graphics_context() override;
     std::pair<int, int> get_size() const override;

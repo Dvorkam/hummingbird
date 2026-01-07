@@ -87,6 +87,8 @@ static Key to_key(SDL_Keycode kc) {
             return Key::Backspace;
         case SDLK_DELETE:
             return Key::Delete;
+        case SDLK_INSERT:
+            return Key::Insert;
         case SDLK_HOME:
             return Key::Home;
         case SDLK_END:
@@ -219,4 +221,17 @@ void SDLWindow::start_text_input() {
 }
 void SDLWindow::stop_text_input() {
     SDL_StopTextInput();
+}
+
+std::string SDLWindow::get_clipboard_text() const {
+    if (!SDL_HasClipboardText()) return {};
+
+    char* text = SDL_GetClipboardText();
+    if (!text) {
+        return {};
+    }
+
+    std::string out = text;
+    SDL_free(text);
+    return out;
 }
