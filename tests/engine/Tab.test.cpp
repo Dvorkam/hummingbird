@@ -210,7 +210,7 @@ TEST(EngineTabTest, FetchesLinkedImage) {
 <!doctype html>
 <html>
   <body>
-    <img src="images/logo.png" alt="logo">
+    <img SRC="images/logo.png" alt="logo">
   </body>
 </html>
 )HTML";
@@ -293,7 +293,7 @@ TEST(EngineTabTest, HitTestResolvesLink) {
 <!doctype html>
 <html>
   <body>
-    <a href="/next">Next</a>
+    <a HREF="/next">Next</a>
   </body>
 </html>
 )HTML";
