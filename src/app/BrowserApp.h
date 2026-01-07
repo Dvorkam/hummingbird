@@ -49,6 +49,7 @@ private:
     // UI state
     std::string url_bar_text_ = "https://example.dev";
     std::string url_bar_render_text_;
+    std::string::size_type url_bar_caret_ = 0;
     std::string url_font_path_;
     TextStyle url_style_;
     bool url_bar_active_ = true;

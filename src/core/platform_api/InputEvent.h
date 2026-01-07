@@ -46,6 +46,11 @@ enum class Key : uint8_t {
     Z,
 
     Backspace,
+    Delete,
+    Home,
+    End,
+    Left,
+    Right,
     Enter,
     Escape,
     F1,

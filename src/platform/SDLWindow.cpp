@@ -85,6 +85,16 @@ static Key to_key(SDL_Keycode kc) {
     switch (kc) {
         case SDLK_BACKSPACE:
             return Key::Backspace;
+        case SDLK_DELETE:
+            return Key::Delete;
+        case SDLK_HOME:
+            return Key::Home;
+        case SDLK_END:
+            return Key::End;
+        case SDLK_LEFT:
+            return Key::Left;
+        case SDLK_RIGHT:
+            return Key::Right;
         case SDLK_RETURN:
             return Key::Enter;
         case SDLK_ESCAPE:
