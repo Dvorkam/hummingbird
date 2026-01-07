@@ -7,6 +7,7 @@
 #include <vector>
 
 enum class PixelFormat {
+    BGRA32,
     PRGB32,
 };
 
@@ -14,7 +15,7 @@ struct ImageBitmap {
     int width = 0;
     int height = 0;
     int stride = 0;
-    PixelFormat format = PixelFormat::PRGB32;
+    PixelFormat format = PixelFormat::BGRA32;
     std::vector<std::uint8_t> pixels;
 };
 

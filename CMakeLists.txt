@@ -26,6 +26,7 @@ endif()
 add_compile_definitions(HB_LOG_LEVEL=${HB_LOG_LEVEL_NUM})
 
 find_package(SDL2 REQUIRED)
+find_package(SDL2_image CONFIG REQUIRED)
 find_package(blend2d REQUIRED)
 find_package(CURL REQUIRED)
 
@@ -63,7 +64,7 @@ add_library(Platform STATIC
     src/platform/CurlNetwork.cpp
     src/platform/StubNetwork.cpp
     src/platform/NetworkFactory.cpp
-    src/platform/Blend2DImageDecoder.cpp
+    src/platform/SDLImageDecoder.cpp
     src/platform/ImageDecoderFactory.cpp
     src/platform/FileResourceProvider.cpp
     src/platform/ResourceProviderFactory.cpp
@@ -73,7 +74,9 @@ target_include_directories(Platform
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(Platform PUBLIC Core SDL2::SDL2 blend2d::blend2d CURL::libcurl)
+target_link_libraries(Platform PUBLIC Core SDL2::SDL2
+    $<IF:$<TARGET_EXISTS:SDL2_image::SDL2_image>,SDL2_image::SDL2_image,SDL2_image::SDL2_image-static>
+    blend2d::blend2d CURL::libcurl)
 
 # --- HTML Parser Library ---
 add_library(Html STATIC

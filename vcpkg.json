@@ -4,6 +4,13 @@
   "builtin-baseline": "00807e89724847a866033a2f042c38fafae3c534",
   "dependencies": [
     "sdl2",
+    {
+      "name": "sdl2-image",
+      "features": [
+        "libjpeg-turbo",
+        "libwebp"
+      ]
+    },
     "blend2d",
     "gtest",
     "curl"
