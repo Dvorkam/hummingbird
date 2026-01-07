@@ -217,14 +217,14 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         return;
     }
 
-    if (event.key.key == Key::Enter) {
+    if (event.key.key == Key::Enter && url_bar_active_) {
         set_url_bar_active(false, nullptr);
         tab_.navigate(url_bar_text_);
         needs_repaint_ = true;
         return;
     }
 
-    if (event.key.key == Key::Escape) {
+    if (event.key.key == Key::Escape && url_bar_active_) {
         set_url_bar_active(false, nullptr);
         needs_repaint_ = true;
         return;
