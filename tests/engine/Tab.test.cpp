@@ -1,10 +1,11 @@
-#include "engine/HeadlessTabHarness.h"
-
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <iterator>
+#include <string>
 
 #include "core/platform_api/ResourceProviderFactory.h"
+#include "engine/HeadlessTabHarness.h"
 
 namespace {
 using Hummingbird::Test::DeferredNetwork;
@@ -76,7 +77,8 @@ TEST(EngineTabTest, FetchesLinkedStylesheet) {
     harness.tick();
     harness.tick();
 
-    auto view = harness.resource_view("https://acme.test/styles/main.css", Hummingbird::Engine::ResourceType::Stylesheet);
+    auto view =
+        harness.resource_view("https://acme.test/styles/main.css", Hummingbird::Engine::ResourceType::Stylesheet);
     ASSERT_TRUE(view.has_value());
     EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
     EXPECT_EQ(view->body, "p { color: #cc0000; }");
@@ -155,7 +157,8 @@ TEST(EngineTabTest, RebuildsWhenStylesheetArrives) {
     EXPECT_TRUE(harness.tick());
     EXPECT_FALSE(harness.tick());
 
-    auto view = harness.resource_view("https://acme.test/styles/main.css", Hummingbird::Engine::ResourceType::Stylesheet);
+    auto view =
+        harness.resource_view("https://acme.test/styles/main.css", Hummingbird::Engine::ResourceType::Stylesheet);
     ASSERT_TRUE(view.has_value());
     EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Loading);
 
@@ -211,4 +214,167 @@ TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {
     EXPECT_TRUE(harness.tick());
 
     EXPECT_EQ(harness.tab().requested_url(), effective_url);
+}
+
+TEST(EngineTabTest, ResolvesRelativeResourcesFromNormalizedUrl) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="styles/site.css">
+  </head>
+  <body>
+    <img src="../img/logo.png" alt="logo">
+  </body>
+</html>
+)HTML";
+
+    auto provider = create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    auto* network_ptr = network.get();
+    network->set_response("https://acme.test/dir/page.html", html);
+    network->set_response("https://acme.test/dir/styles/site.css", "body { color: red; }");
+    network->set_response("https://acme.test/img/logo.png", "PNGDATA");
+
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider),
+                               std::make_unique<InlineImageDecoder>());
+
+    harness.navigate("acme.test/dir/page.html");
+    EXPECT_TRUE(harness.tick());
+    EXPECT_TRUE(harness.tick());
+
+    const auto& requested = network_ptr->requested();
+    EXPECT_NE(std::find(requested.begin(), requested.end(), "https://acme.test/dir/page.html"), requested.end());
+    EXPECT_NE(std::find(requested.begin(), requested.end(), "https://acme.test/dir/styles/site.css"),
+              requested.end());
+    EXPECT_NE(std::find(requested.begin(), requested.end(), "https://acme.test/img/logo.png"), requested.end());
+    EXPECT_EQ(harness.tab().requested_url(), "https://acme.test/dir/page.html");
+}
+
+TEST(EngineTabTest, MarksResourcesFailedWhenFetchReturnsEmpty) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <img src="missing.png" alt="missing">
+  </body>
+</html>
+)HTML";
+
+    auto provider = create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test/page.html", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test/page.html");
+    EXPECT_TRUE(harness.tick());
+
+    auto view = harness.resource_view("https://acme.test/missing.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Loading);
+
+    EXPECT_FALSE(harness.tick());
+    view = harness.resource_view("https://acme.test/missing.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Failed);
+}
+
+TEST(EngineTabTest, ClearsResourcesOnNavigationSwap) {
+    const std::string html_first = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <img src="first.png" alt="first">
+  </body>
+</html>
+)HTML";
+
+    const std::string html_second = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <img src="second.png" alt="second">
+  </body>
+</html>
+)HTML";
+
+    auto provider = create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test/first.html", html_first);
+    network->set_response("https://acme.test/second.html", html_second);
+    network->set_response("https://acme.test/first.png", "FIRSTPNG");
+    network->set_response("https://acme.test/second.png", "SECONDPING");
+
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider),
+                               std::make_unique<InlineImageDecoder>());
+
+    harness.navigate("https://acme.test/first.html");
+    EXPECT_TRUE(harness.tick());
+    EXPECT_TRUE(harness.tick());
+
+    auto first_view = harness.resource_view("https://acme.test/first.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(first_view.has_value());
+    EXPECT_EQ(first_view->state, Hummingbird::Engine::ResourceState::Ready);
+
+    harness.navigate("https://acme.test/second.html");
+    EXPECT_TRUE(harness.tick());
+
+    first_view = harness.resource_view("https://acme.test/first.png", Hummingbird::Engine::ResourceType::Image);
+    EXPECT_FALSE(first_view.has_value());
+
+    EXPECT_TRUE(harness.tick());
+    auto second_view =
+        harness.resource_view("https://acme.test/second.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(second_view.has_value());
+    EXPECT_EQ(second_view->state, Hummingbird::Engine::ResourceState::Ready);
+}
+
+TEST(EngineTabTest, RequestsStylesheetsInDocumentOrder) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <link rel="stylesheet" href="a.css">
+    <link rel="stylesheet" href="b.css">
+  </head>
+  <body>
+    <p>Order</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    auto* network_ptr = network.get();
+    network->set_response("https://acme.test/page.html", html);
+    network->set_response("https://acme.test/a.css", "p { color: red; }");
+    network->set_response("https://acme.test/b.css", "p { color: blue; }");
+
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test/page.html");
+    EXPECT_TRUE(harness.tick());
+
+    const auto& requested = network_ptr->requested();
+    auto it_a = std::find(requested.begin(), requested.end(), "https://acme.test/a.css");
+    auto it_b = std::find(requested.begin(), requested.end(), "https://acme.test/b.css");
+    ASSERT_NE(it_a, requested.end());
+    ASSERT_NE(it_b, requested.end());
+    EXPECT_LT(std::distance(requested.begin(), it_a), std::distance(requested.begin(), it_b));
 }
