@@ -412,7 +412,10 @@ void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) 
             continue;
         }
 
-        HB_LOG_DEBUG("[resource] stylesheet link: href=" << href << " resolved=" << url);
+        HB_LOG_DEBUG("[resource] stylesheet link: href=" << href << " base=" << requested_url_ << " resolved=" << url);
+        if (url.find("://") == std::string::npos) {
+            HB_LOG_WARN("[resource] stylesheet resolved to non-absolute url: " << url << " base=" << requested_url_);
+        }
 
         if (resource_provider_) {
             auto text = resource_provider_->load_text(href);
@@ -458,6 +461,11 @@ void Tab::request_images(const std::vector<std::string>& image_links) {
             continue;
         }
 
+        HB_LOG_DEBUG("[resource] image link: src=" << src << " base=" << requested_url_ << " resolved=" << url);
+        if (url.find("://") == std::string::npos) {
+            HB_LOG_WARN("[resource] image resolved to non-absolute url: " << url << " base=" << requested_url_);
+        }
+
         if (resource_provider_) {
             auto data = resource_provider_->load_text(src);
             if (!data && !resolved.empty() && resolved != src) {
@@ -479,6 +487,7 @@ void Tab::request_images(const std::vector<std::string>& image_links) {
             continue;
         }
 
+        HB_LOG_DEBUG("[resource] fetching image: " << url);
         fetcher->get(url, [this, nav_id, url](NetworkResponse response) {
             if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
             bool success = !response.body.empty();
