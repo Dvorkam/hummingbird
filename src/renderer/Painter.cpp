@@ -40,7 +40,7 @@ void traverse_tree(const Layout::RenderObject& node, const Layout::Point& offset
 }
 
 void paint_tree_culled(const Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
-                       const Layout::Rect& viewport) {
+                       const Layout::Rect& viewport, bool debug_outlines) {
     traverse_tree(
         node, offset,
         [&](const Layout::RenderObject& current, const Layout::Rect& absolute, const Layout::Point& local_offset) {
@@ -48,6 +48,10 @@ void paint_tree_culled(const Layout::RenderObject& node, IGraphicsContext& conte
                 return false;
             }
             current.paint_self(context, local_offset);
+            if (debug_outlines) {
+                Color outline{255, 0, 0, 100};
+                draw_outline(context, absolute, outline);
+            }
             return true;
         });
 }
@@ -70,10 +74,10 @@ void Painter::paint(const Layout::RenderObject& root, IGraphicsContext& context,
     Layout::Point offset{0, -options.scroll_y};
     if (options.viewport.width <= 0.0f || options.viewport.height <= 0.0f) {
         root.paint(context, offset);
-    } else {
-        paint_tree_culled(root, context, offset, options.viewport);
     }
-    if (options.debug_outlines) {
+    if (options.viewport.width > 0.0f && options.viewport.height > 0.0f) {
+        paint_tree_culled(root, context, offset, options.viewport, options.debug_outlines);
+    } else if (options.debug_outlines) {
         Color outline{255, 0, 0, 100};
         paint_debug_outlines(root, context, offset, outline);
     }
