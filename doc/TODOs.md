@@ -21,6 +21,28 @@
 - **P2: Selector Coverage:** Add universal selector `*`, descendant combinators, and compound selectors (tag+class/id).
 - **P2: Typography + Box Model Extras:** Implement `font-family`, `box-sizing`, and `outline` support (no images/gradients yet).
 
+## CSS/Layout Follow-Ups (Stories)
+
+* **Story T-CSS-1: Length Units (em)**
+* **As a** user,
+* **I want** CSS `em` lengths to resolve against font size so rules like `width: 10em` apply.
+* **Acceptance:** `em` values resolve to pixels for width/height/margins/padding where supported.
+
+* **Story T-CSS-2: Border Styles Beyond Solid**
+* **As a** user,
+* **I want** `border-style: outset` (and related styles) to render so classic HTML rules look correct.
+* **Acceptance:** `outset` renders with visible borders (can map to solid for MVP).
+
+* **Story T-LAYOUT-1: HR Width/Border Rendering**
+* **As a** user,
+* **I want** `<hr>` to honor width/height/border styles so separators match their CSS.
+* **Acceptance:** RenderRule uses computed width/height and border paint (or equivalent) instead of fixed defaults.
+
+* **Story T-LAYOUT-2: Float Layout (Right/Left)**
+* **As a** user,
+* **I want** `float: right/left` to position images like validator badges correctly.
+* **Acceptance:** Floats affect inline flow and can place an image on the right edge of its container.
+
 ## Image Pipeline Follow-Ups (Stories)
 
 * **Story T-IMG-1: Animated GIF/WebP Playback**
