@@ -4,6 +4,8 @@
 
 #include <utility>
 
+#include "core/utils/Log.h"
+
 std::atomic<int> CurlNetwork::s_instances{0};
 std::mutex CurlNetwork::s_global_mutex;
 
@@ -80,6 +82,7 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
         response.url = url;
         CURL* curl = curl_easy_init();
         if (!curl) {
+            HB_LOG_WARN("[network] curl init failed: url=" << url);
             if (cb) cb(std::move(response));
             return;
         }
@@ -96,14 +99,32 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
 
         CURLcode res = curl_easy_perform(curl);
         long status = 0;
+        long ssl_verify_result = 0;
         std::string effective_url;
+        std::string content_type;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+        curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT, &ssl_verify_result);
+        char* content_type_ptr = nullptr;
+        curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type_ptr);
+        if (content_type_ptr) {
+            content_type = content_type_ptr;
+        }
         char* effective = nullptr;
         curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective);
         if (effective) {
             effective_url = effective;
         }
         curl_easy_cleanup(curl);
+
+        if (res != CURLE_OK) {
+            HB_LOG_WARN("[network] curl failed: url=" << url << " code=" << res << " err=" << curl_easy_strerror(res)
+                                                      << " status=" << status << " ssl_verify=" << ssl_verify_result
+                                                      << " effective=" << effective_url
+                                                      << " content_type=" << content_type << " bytes=" << body.size());
+        } else if (status >= 400) {
+            HB_LOG_WARN("[network] http error: url=" << url << " status=" << status << " effective=" << effective_url
+                                                     << " content_type=" << content_type << " bytes=" << body.size());
+        }
 
         if (res == CURLE_OK || !body.empty()) {
             response.body = std::move(body);
