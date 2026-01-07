@@ -21,6 +21,13 @@
 - **P2: Selector Coverage:** Add universal selector `*`, descendant combinators, and compound selectors (tag+class/id).
 - **P2: Typography + Box Model Extras:** Implement `font-family`, `box-sizing`, and `outline` support (no images/gradients yet).
 
+## Image Pipeline Follow-Ups (Stories)
+
+* **Story T-IMG-1: GIF/WebP Animation Playback**
+* **As a** user,
+* **I want** animated GIF/WebP images to play so pages render as intended.
+* **Acceptance:** Decoder returns frames + timing, renderer schedules frame swaps without blocking the main thread.
+
 ## Table/Layout Follow-Ups
 
 - **Table Cell Block Alignment:** `text-align` only offsets inline runs; add centering/right alignment for block-level children inside table cells (ACME header mismatch).

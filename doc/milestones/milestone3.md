@@ -99,6 +99,21 @@
 * **I want** images to reserve space early using intrinsic/declared dimensions so the layout doesn’t jump unpredictably.
 * **Acceptance:** If size is known (attrs or decoded), the box reserves it; pixels swap in when ready.
 
+* **Story 3.5.4: WebP + GIF Dependencies**
+* **As a** platform maintainer,
+* **I want** WebP and GIF decode libraries wired into the build so the decoder can support more formats.
+* **Acceptance:** `vcpkg.json` and CMake link libwebp + giflib; binaries build on CI.
+
+* **Story 3.5.5: Multi-Format Decode Routing**
+* **As a** user,
+* **I want** `.webp` and `.gif` images to decode (GIF first frame only) so more pages render correctly.
+* **Acceptance:** Image decoder detects WebP/GIF (header sniffing or extension) and returns an `ImageBitmap` for both.
+
+* **Story 3.5.6: Image Decode Tests**
+* **As a** maintainer,
+* **I want** small format samples covered by tests so regressions are caught early.
+* **Acceptance:** Tests decode tiny `.webp` and `.gif` assets and validate dimensions/pixels.
+
 ---
 
 #### **Epic 3.6: Networking Concurrency Model (IO Thread) + Main-Thread Handoff**
@@ -187,4 +202,3 @@
   * Stylesheet discovery + merge order
   * Resource state machine (`Requested/Loading/Ready/Failed`)
   * Navigation swapping (old arena freed/reset, new document created)
-
