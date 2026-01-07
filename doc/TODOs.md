@@ -10,6 +10,13 @@
 
 - **Font Face Mapping:** Expand `ComputedStyle::font_face` beyond the current Roboto-only mapping (proper fallback chain + real monospace fonts).
 
+## Code/Pre Formatting (Stories)
+
+* **Story T-CODE-1: Code Background Blocks**
+* **As a** reader,
+* **I want** `<code>` (and `pre > code`) backgrounds to render consistently so code blocks remain readable.
+* **Acceptance:** Code blocks render with their computed background color across inline and block contexts.
+
 ## HTML Tag Coverage
 
 - **Semantic Blocks:** `main`, `section`, `article`, `noscript`
