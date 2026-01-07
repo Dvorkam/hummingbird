@@ -89,6 +89,7 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
         curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, accept_encoding());
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Hummingbird/0.2");
 
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
@@ -96,17 +97,15 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
         CURLcode res = curl_easy_perform(curl);
         long status = 0;
         std::string effective_url;
-        if (res == CURLE_OK) {
-            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-            char* effective = nullptr;
-            curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective);
-            if (effective) {
-                effective_url = effective;
-            }
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+        char* effective = nullptr;
+        curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective);
+        if (effective) {
+            effective_url = effective;
         }
         curl_easy_cleanup(curl);
 
-        if (res == CURLE_OK) {
+        if (res == CURLE_OK || !body.empty()) {
             response.body = std::move(body);
             response.status = status;
             response.effective_url = std::move(effective_url);
