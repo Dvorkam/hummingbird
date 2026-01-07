@@ -99,20 +99,20 @@
 * **I want** images to reserve space early using intrinsic/declared dimensions so the layout doesn’t jump unpredictably.
 * **Acceptance:** If size is known (attrs or decoded), the box reserves it; pixels swap in when ready.
 
-* **Story 3.5.4: WebP + GIF Dependencies**
+* **Story 3.5.4: SDL2_image Decoder Backend**
 * **As a** platform maintainer,
-* **I want** WebP and GIF decode libraries wired into the build so the decoder can support more formats.
-* **Acceptance:** `vcpkg.json` and CMake link libwebp + giflib; binaries build on CI.
+* **I want** image decoding implemented via SDL2_image behind `IImageDecoder` so the platform adapter proves out cleanly.
+* **Acceptance:** The decoder uses SDL2_image (not Blend2D) to produce `ImageBitmap` for common formats.
 
-* **Story 3.5.5: Multi-Format Decode Routing**
+* **Story 3.5.5: WebP + GIF First-Frame Support**
 * **As a** user,
-* **I want** `.webp` and `.gif` images to decode (GIF first frame only) so more pages render correctly.
-* **Acceptance:** Image decoder detects WebP/GIF (header sniffing or extension) and returns an `ImageBitmap` for both.
+* **I want** WebP and GIF images to render (first frame only) so more pages display correctly.
+* **Acceptance:** `.webp` and `.gif` decode to `ImageBitmap`; GIF returns the first frame with no animation.
 
-* **Story 3.5.6: Image Decode Tests**
+* **Story 3.5.6: Image Decoder Coverage**
 * **As a** maintainer,
-* **I want** small format samples covered by tests so regressions are caught early.
-* **Acceptance:** Tests decode tiny `.webp` and `.gif` assets and validate dimensions/pixels.
+* **I want** small decode tests for PNG/JPEG/WebP/GIF so regressions are caught early.
+* **Acceptance:** Tests decode tiny fixtures and validate dimensions/pixels.
 
 ---
 

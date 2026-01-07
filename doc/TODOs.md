@@ -23,10 +23,10 @@
 
 ## Image Pipeline Follow-Ups (Stories)
 
-* **Story T-IMG-1: GIF/WebP Animation Playback**
+* **Story T-IMG-1: Animated GIF/WebP Playback**
 * **As a** user,
-* **I want** animated GIF/WebP images to play so pages render as intended.
-* **Acceptance:** Decoder returns frames + timing, renderer schedules frame swaps without blocking the main thread.
+* **I want** animated GIF/WebP frames to play so pages render as intended.
+* **Acceptance:** Decoder exposes frames + timing; renderer schedules frame swaps without blocking the main thread.
 
 ## Table/Layout Follow-Ups
 
