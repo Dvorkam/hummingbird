@@ -150,10 +150,11 @@ void Tab::navigate(std::string_view url) {
 
     // Built-in demo URL: keep startup deterministic and avoid network timeouts.
     if ((url_copy == "http://example.dev" || url_copy == "https://example.dev") && fallback_network_) {
-        fallback_network_->get(url_copy, [this, id, url_copy](std::string body) {
+        fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse response) {
             if (id != active_nav_.load(std::memory_order_acquire)) return;
-            bool success = !body.empty();
-            enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), success);
+            bool success = !response.body.empty();
+            enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
+                                    std::move(response.effective_url));
         });
         return;
     }
@@ -161,10 +162,11 @@ void Tab::navigate(std::string_view url) {
     if (!network_) {
         HB_LOG_ERROR("[network] no backend available for " << url);
         if (fallback_network_) {
-            fallback_network_->get(url_copy, [this, id, url_copy](std::string body) {
+            fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse response) {
                 if (id != active_nav_.load(std::memory_order_acquire)) return;
-                bool success = !body.empty();
-                enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), success);
+                bool success = !response.body.empty();
+                enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
+                                        std::move(response.effective_url));
             });
         } else {
             enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
@@ -172,22 +174,24 @@ void Tab::navigate(std::string_view url) {
         return;
     }
 
-    network_->get(url_copy, [this, id, url_copy](std::string body) {
+    network_->get(url_copy, [this, id, url_copy](NetworkResponse response) {
         if (id != active_nav_.load(std::memory_order_acquire)) return;
 
-        if (body.empty()) {
+        if (response.body.empty()) {
             HB_LOG_WARN("[network] curl returned empty for " << url_copy << ", using stub");
             if (!fallback_network_) return;
-            fallback_network_->get(url_copy, [this, id, url_copy](std::string fallback) {
+            fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse fallback) {
                 if (id != active_nav_.load(std::memory_order_acquire)) return;
-                bool success = !fallback.empty();
-                enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback), success);
+                bool success = !fallback.body.empty();
+                enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
+                                        std::move(fallback.effective_url));
             });
             return;
         }
 
-        HB_LOG_INFO("[network] fetched " << body.size() << " bytes from " << url_copy);
-        enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), true);
+        HB_LOG_INFO("[network] fetched " << response.body.size() << " bytes from " << url_copy);
+        enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), true,
+                                std::move(response.effective_url));
     });
 }
 
@@ -266,6 +270,9 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     for (auto& update : pending) {
         if (update.success) {
             if (update.type == ResourceType::Document) {
+                if (!update.effective_url.empty()) {
+                    requested_url_ = update.effective_url;
+                }
                 resource_store_.mark_ready(update.url, update.type, std::move(update.body));
                 document_ready = true;
                 document_url = update.url;
@@ -312,9 +319,10 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     }
 }
 
-void Tab::enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success) {
+void Tab::enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success,
+                                  std::string effective_url) {
     std::lock_guard<std::mutex> lg(pending_mutex_);
-    pending_resources_.push_back({type, std::move(url), std::move(body), success});
+    pending_resources_.push_back({type, std::move(url), std::move(effective_url), std::move(body), success});
 }
 
 std::vector<Tab::PendingResourceUpdate> Tab::take_pending_resources() {
@@ -425,13 +433,13 @@ void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) 
         }
 
         HB_LOG_DEBUG("[resource] fetching stylesheet: " << url);
-        network_->get(url, [this, nav_id, url](std::string body) {
+        network_->get(url, [this, nav_id, url](NetworkResponse response) {
             if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
-            bool success = !body.empty();
+            bool success = !response.body.empty();
             if (!success) {
                 HB_LOG_WARN("[resource] stylesheet fetch failed: " << url);
             }
-            enqueue_resource_update(ResourceType::Stylesheet, url, std::move(body), success);
+            enqueue_resource_update(ResourceType::Stylesheet, url, std::move(response.body), success);
         });
     }
 }
@@ -471,13 +479,13 @@ void Tab::request_images(const std::vector<std::string>& image_links) {
             continue;
         }
 
-        fetcher->get(url, [this, nav_id, url](std::string body) {
+        fetcher->get(url, [this, nav_id, url](NetworkResponse response) {
             if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
-            bool success = !body.empty();
+            bool success = !response.body.empty();
             if (!success) {
                 HB_LOG_WARN("[resource] image fetch failed: " << url);
             }
-            enqueue_resource_update(ResourceType::Image, url, std::move(body), success);
+            enqueue_resource_update(ResourceType::Image, url, std::move(response.body), success);
         });
     }
 }

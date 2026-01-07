@@ -8,7 +8,7 @@ TEST(StubNetworkTest, ReturnsExampleBody) {
     StubNetwork net;
     std::promise<std::string> p;
     auto fut = p.get_future();
-    net.get("http://example.dev", [&](std::string body) { p.set_value(body); });
+    net.get("http://example.dev", [&](NetworkResponse response) { p.set_value(std::move(response.body)); });
     auto body = fut.get();
     EXPECT_NE(body.find("Example Domain"), std::string::npos);
     EXPECT_NE(body.find("<link rel=\"stylesheet\" href=\"assets/stub.css\">"), std::string::npos);

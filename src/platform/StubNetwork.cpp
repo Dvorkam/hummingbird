@@ -46,14 +46,19 @@ std::string build_stub_body(const std::string& url) {
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
 }
 
-void run_stub_request(const std::string& url, std::function<void(std::string)> cb, std::atomic<bool>& stopping) {
+void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb, std::atomic<bool>& stopping) {
     if (stopping.load(std::memory_order_relaxed)) {
-        if (cb) cb({});
+        if (cb) cb(NetworkResponse{.url = url});
         return;
     }
 
     std::string body = build_stub_body(url);
-    if (cb) cb(std::move(body));
+    NetworkResponse response;
+    response.url = url;
+    response.effective_url = url;
+    response.status = 200;
+    response.body = std::move(body);
+    if (cb) cb(std::move(response));
 }
 }  // namespace
 
@@ -73,9 +78,9 @@ void StubNetwork::join_all() {
     }
 }
 
-void StubNetwork::get(const std::string& url, std::function<void(std::string)> callback) {
+void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
     if (m_stopping.load(std::memory_order_relaxed)) {
-        if (callback) callback({});
+        if (callback) callback(NetworkResponse{.url = url});
         return;
     }
 

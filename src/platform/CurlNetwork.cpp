@@ -60,9 +60,9 @@ void CurlNetwork::join_all() {
     }
 }
 
-void CurlNetwork::get(const std::string& url, std::function<void(std::string)> callback) {
+void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
     if (!ok() || m_stopping.load(std::memory_order_relaxed)) {
-        if (callback) callback({});
+        if (callback) callback(NetworkResponse{.url = url});
         return;
     }
 
@@ -71,14 +71,16 @@ void CurlNetwork::get(const std::string& url, std::function<void(std::string)> c
 
     std::thread worker([url, cb = std::move(cb), this]() mutable {
         if (m_stopping.load(std::memory_order_relaxed)) {
-            if (cb) cb({});
+            if (cb) cb(NetworkResponse{.url = url});
             return;
         }
 
         std::string body;
+        NetworkResponse response;
+        response.url = url;
         CURL* curl = curl_easy_init();
         if (!curl) {
-            if (cb) cb({});
+            if (cb) cb(std::move(response));
             return;
         }
 
@@ -92,10 +94,22 @@ void CurlNetwork::get(const std::string& url, std::function<void(std::string)> c
         curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
 
         CURLcode res = curl_easy_perform(curl);
+        long status = 0;
+        char* effective = nullptr;
+        if (res == CURLE_OK) {
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+            curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective);
+        }
         curl_easy_cleanup(curl);
 
-        if (res != CURLE_OK) body.clear();
-        if (cb) cb(std::move(body));
+        if (res == CURLE_OK) {
+            response.body = std::move(body);
+            response.status = status;
+            if (effective) {
+                response.effective_url = effective;
+            }
+        }
+        if (cb) cb(std::move(response));
     });
 
     {

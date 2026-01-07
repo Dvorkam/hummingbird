@@ -62,6 +62,7 @@ private:
     struct PendingResourceUpdate {
         ResourceType type;
         std::string url;
+        std::string effective_url;
         std::string body;
         bool success;
     };
@@ -69,7 +70,8 @@ private:
     void clamp_scroll(float viewport_height);
 
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
-    void enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success);
+    void enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success,
+                                 std::string effective_url = {});
     std::vector<PendingResourceUpdate> take_pending_resources();
 
     void rebuild_from_html(IGraphicsContext& graphics, const Layout::Rect& viewport, const std::string& html);

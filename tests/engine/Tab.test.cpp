@@ -16,26 +16,40 @@ namespace {
 
 class InlineNetwork final : public INetwork {
 public:
-    explicit InlineNetwork(std::string body) : body_(std::move(body)) {}
+    InlineNetwork(std::string body, std::string effective_url = {})
+        : body_(std::move(body)), effective_url_(std::move(effective_url)) {}
 
-    void get(const std::string& /*url*/, std::function<void(std::string)> callback) override {
-        if (callback) callback(body_);
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback) override {
+        NetworkResponse response;
+        response.url = url;
+        response.effective_url = effective_url_.empty() ? url : effective_url_;
+        response.status = 200;
+        response.body = body_;
+        if (callback) callback(std::move(response));
     }
 
     void shutdown() override {}
 
 private:
     std::string body_;
+    std::string effective_url_;
 };
 
 class RoutingNetwork final : public INetwork {
 public:
     void set_response(const std::string& url, std::string body) { responses_[url] = std::move(body); }
 
-    void get(const std::string& url, std::function<void(std::string)> callback) override {
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback) override {
         requested_.push_back(url);
         auto it = responses_.find(url);
-        if (callback) callback(it == responses_.end() ? std::string{} : it->second);
+        NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        if (it != responses_.end()) {
+            response.status = 200;
+            response.body = it->second;
+        }
+        if (callback) callback(std::move(response));
     }
 
     void shutdown() override {}
@@ -52,14 +66,21 @@ public:
     void set_response(const std::string& url, std::string body) { responses_[url] = std::move(body); }
     void defer_response(const std::string& url, std::string body) { deferred_[url] = std::move(body); }
 
-    void get(const std::string& url, std::function<void(std::string)> callback) override {
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback) override {
         requested_.push_back(url);
         if (deferred_.find(url) != deferred_.end()) {
             pending_[url] = std::move(callback);
             return;
         }
         auto it = responses_.find(url);
-        if (callback) callback(it == responses_.end() ? std::string{} : it->second);
+        NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        if (it != responses_.end()) {
+            response.status = 200;
+            response.body = it->second;
+        }
+        if (callback) callback(std::move(response));
     }
 
     void complete(const std::string& url) {
@@ -69,7 +90,14 @@ public:
         std::string body = deferred_it == deferred_.end() ? std::string{} : deferred_it->second;
         auto callback = std::move(pending_it->second);
         pending_.erase(pending_it);
-        if (callback) callback(std::move(body));
+        NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        if (!body.empty()) {
+            response.status = 200;
+            response.body = std::move(body);
+        }
+        if (callback) callback(std::move(response));
     }
 
     void shutdown() override {}
@@ -77,7 +105,7 @@ public:
 private:
     std::unordered_map<std::string, std::string> responses_;
     std::unordered_map<std::string, std::string> deferred_;
-    std::unordered_map<std::string, std::function<void(std::string)>> pending_;
+    std::unordered_map<std::string, std::function<void(NetworkResponse)>> pending_;
     std::vector<std::string> requested_;
 };
 
@@ -286,4 +314,30 @@ TEST(EngineTabTest, HitTestResolvesLink) {
     auto link = tab.hit_test_link(point, viewport);
     ASSERT_TRUE(link.has_value());
     EXPECT_EQ(*link, "https://example.dev/next");
+}
+
+TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Redirected</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    const std::string effective_url = "https://www.acme.com/software/thttpd/";
+    Hummingbird::Engine::Tab tab(std::make_unique<InlineNetwork>(html, effective_url),
+                                 std::make_unique<InlineNetwork>(html, effective_url), std::move(provider), nullptr);
+
+    TestGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+
+    tab.navigate("http://acme.com/software/thttpd");
+    EXPECT_TRUE(tab.tick(context, viewport));
+
+    EXPECT_EQ(tab.requested_url(), effective_url);
 }
