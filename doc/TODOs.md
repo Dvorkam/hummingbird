@@ -28,6 +28,11 @@
 * **I want** animated GIF/WebP frames to play so pages render as intended.
 * **Acceptance:** Decoder exposes frames + timing; renderer schedules frame swaps without blocking the main thread.
 
+* **Story T-IMG-2: SVG Image Decode (Raster)**
+* **As a** user,
+* **I want** SVG referenced from `<img>` to render as pixels so logos and icons show up.
+* **Acceptance:** SVG rasterization is handled behind `IImageDecoder` (via a dedicated SVG library), producing `ImageBitmap` output.
+
 ## Table/Layout Follow-Ups
 
 - **Table Cell Block Alignment:** `text-align` only offsets inline runs; add centering/right alignment for block-level children inside table cells (ACME header mismatch).
