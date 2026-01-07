@@ -73,6 +73,18 @@
 
 - **Table Cell Block Alignment:** `text-align` only offsets inline runs; add centering/right alignment for block-level children inside table cells (ACME header mismatch).
 
+## Networking Follow-Ups (Stories)
+
+* **Story T-NET-1: TLS Trust Store / Insecure Toggle**
+* **As a** user navigating HTTPS sites,
+* **I want** curl to trust the system CA bundle (and optionally allow an explicit "insecure" mode for dev) so pages load without manual `-k`.
+* **Acceptance:** HTTPS requests succeed with valid cert chains; a debug-only flag can bypass verification when needed.
+
+* **Story T-NET-2: Compressed Response Handling**
+* **As a** user visiting modern sites,
+* **I want** curl to transparently decode gzip/br/zstd responses so HTML arrives as text.
+* **Acceptance:** Enable curl features (brotli/zstd) in vcpkg and verify `Content-Encoding` responses are decoded into plain HTML.
+
 ## Engine / App Split Follow-Ups
 
 - Tracked in `doc/milestones/milestone3.md` (Epic 3.1, Epic 3.6, Epic 3.10).
