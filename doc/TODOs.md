@@ -88,3 +88,43 @@
 ## Engine / App Split Follow-Ups
 
 - Tracked in `doc/milestones/milestone3.md` (Epic 3.1, Epic 3.6, Epic 3.10).
+
+## Refactor Plan (Checklist)
+
+- [ ] **Phase 0: Scope + Guardrails**
+- [ ] Confirm which subsystems are in-scope for the first pass (engine, layout, renderer, platform, app).
+- [ ] Define constraints (no behavior changes, tests must pass, keep public APIs stable unless agreed).
+- [ ] Decide review cadence (one slice per commit).
+- [ ] Subsystem roster (track progress):
+- [ ] Core
+- [ ] Html
+- [ ] Style
+- [ ] Layout
+- [ ] Renderer
+- [ ] Engine
+- [ ] Platform
+- [ ] App
+- [ ] Tests/Utilities
+
+- [ ] **Phase 1: Inventory + Baseline**
+- [ ] Map module responsibilities + public surfaces (top-level summary per folder).
+- [ ] Capture a dependency sketch (Core → Html/Style/Layout/Renderer → Engine → Platform).
+- [ ] List known pain points + hotspots from recent work (Tab pipeline, resource store, graphics context).
+
+- [ ] **Phase 2: Candidate Discovery**
+- [ ] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
+- [ ] Scan for dead/unused code (unused functions, unused headers, obsolete files).
+- [ ] Flag spaghetti risk (large functions, cross-layer leakage, unbounded ownership).
+- [ ] Produce a ranked candidate list (quick wins, medium refactors, risky changes).
+
+- [ ] **Phase 3: Refactor Slices**
+- [ ] Write a short refactor brief for each slice (goal, scope, acceptance, test impact).
+- [ ] Execute one slice at a time with a clean commit.
+- [ ] Run format/build/tests per slice (per AGENTS.override.md).
+- [ ] Record any follow-up tasks in TODOs.
+
+- [ ] **Phase 4: Cleanup + Verification**
+- [ ] Remove dead code identified in Phase 2.
+- [ ] Consolidate utilities and update include paths.
+- [ ] Update docs/README where behavior or structure changed.
+- [ ] Re-run full test suite and note skips.
