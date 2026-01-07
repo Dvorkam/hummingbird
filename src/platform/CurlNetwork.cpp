@@ -95,19 +95,21 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
 
         CURLcode res = curl_easy_perform(curl);
         long status = 0;
-        char* effective = nullptr;
+        std::string effective_url;
         if (res == CURLE_OK) {
             curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+            char* effective = nullptr;
             curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective);
+            if (effective) {
+                effective_url = effective;
+            }
         }
         curl_easy_cleanup(curl);
 
         if (res == CURLE_OK) {
             response.body = std::move(body);
             response.status = status;
-            if (effective) {
-                response.effective_url = effective;
-            }
+            response.effective_url = std::move(effective_url);
         }
         if (cb) cb(std::move(response));
     });
