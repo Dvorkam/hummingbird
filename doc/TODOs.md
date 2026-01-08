@@ -103,7 +103,7 @@
 - [x] Renderer
 - [x] Engine
 - [x] Platform
-- [ ] App
+- [x] App
 - [ ] Tests/Utilities
 
 - [ ] Phase 0 notes (internal):
@@ -148,6 +148,9 @@
 - [x] Url.cpp has its own to_lower/trim/iequals logic separate from Html/CSS helpers; consider shared string utilities.
 - [x] AssetPath resolve behavior is duplicated in multiple call sites (resolve + .string); consider caching or returning string to reduce repeated resolve.
 - [x] ArenaAllocator throws bad_alloc; consider a consistent error path or logging to avoid silent crashes.
+- [x] App inventory captured (BrowserApp + main).
+- [x] BrowserApp mixes input handling, rendering, and UI state; consider extracting a URLBar component for clarity.
+- [x] main.cpp checks graphics context then discards it; consider moving gfx creation into BrowserApp or removing redundant check.
 
 - [ ] **Phase 2: Candidate Discovery**
 - [ ] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
