@@ -104,7 +104,7 @@
 - [x] Engine
 - [x] Platform
 - [x] App
-- [ ] Tests/Utilities
+- [x] Tests/Utilities
 
 - [ ] Phase 0 notes (internal):
 - [ ] Scope: Core, Html, Style, Layout, Renderer, Engine, Platform, App, Tests/Utilities.
@@ -151,6 +151,9 @@
 - [x] App inventory captured (BrowserApp + main).
 - [x] BrowserApp mixes input handling, rendering, and UI state; consider extracting a URLBar component for clarity.
 - [x] main.cpp checks graphics context then discards it; consider moving gfx creation into BrowserApp or removing redundant check.
+- [x] Tests/Utilities inventory captured (GTest suite + TestGraphicsContext + HeadlessTabHarness).
+- [x] TestGraphicsContext duplicates simple geometry/metrics logic; consider shared test utilities folder for harness + graphics mock.
+- [x] tests/CMakeLists.txt includes app sources directly; consider a separate test-support target to avoid pulling app into unit suite.
 
 - [ ] **Phase 2: Candidate Discovery**
 - [ ] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
