@@ -96,7 +96,7 @@
 - [x] Define constraints (no behavior changes, tests must pass, keep public APIs stable unless agreed).
 - [x] Decide review cadence (one slice per commit).
 - [x] Subsystem roster (track progress):
-- [ ] Core
+- [x] Core
 - [x] Html
 - [x] Style
 - [x] Layout
@@ -144,6 +144,10 @@
 - [x] Renderer inventory captured (Painter).
 - [x] Painter duplicates rect intersection logic already present in Layout/Tab; consider centralizing geometry helpers.
 - [x] Painter::paint calls root.paint then also does culled traversal when viewport is set (double paint); consider conditional path or removal if redundant.
+- [x] Core inventory captured (utils, arena allocator, DOM, platform_api).
+- [x] Url.cpp has its own to_lower/trim/iequals logic separate from Html/CSS helpers; consider shared string utilities.
+- [x] AssetPath resolve behavior is duplicated in multiple call sites (resolve + .string); consider caching or returning string to reduce repeated resolve.
+- [x] ArenaAllocator throws bad_alloc; consider a consistent error path or logging to avoid silent crashes.
 
 - [ ] **Phase 2: Candidate Discovery**
 - [ ] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
