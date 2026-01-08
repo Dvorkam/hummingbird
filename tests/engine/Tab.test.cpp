@@ -249,8 +249,7 @@ TEST(EngineTabTest, ResolvesRelativeResourcesFromNormalizedUrl) {
 
     const auto& requested = network_ptr->requested();
     EXPECT_NE(std::find(requested.begin(), requested.end(), "https://acme.test/dir/page.html"), requested.end());
-    EXPECT_NE(std::find(requested.begin(), requested.end(), "https://acme.test/dir/styles/site.css"),
-              requested.end());
+    EXPECT_NE(std::find(requested.begin(), requested.end(), "https://acme.test/dir/styles/site.css"), requested.end());
     EXPECT_NE(std::find(requested.begin(), requested.end(), "https://acme.test/img/logo.png"), requested.end());
     EXPECT_EQ(harness.tab().requested_url(), "https://acme.test/dir/page.html");
 }
@@ -335,8 +334,7 @@ TEST(EngineTabTest, ClearsResourcesOnNavigationSwap) {
     EXPECT_FALSE(first_view.has_value());
 
     EXPECT_TRUE(harness.tick());
-    auto second_view =
-        harness.resource_view("https://acme.test/second.png", Hummingbird::Engine::ResourceType::Image);
+    auto second_view = harness.resource_view("https://acme.test/second.png", Hummingbird::Engine::ResourceType::Image);
     ASSERT_TRUE(second_view.has_value());
     EXPECT_EQ(second_view->state, Hummingbird::Engine::ResourceState::Ready);
 }
