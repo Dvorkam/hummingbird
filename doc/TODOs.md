@@ -99,7 +99,7 @@
 - [ ] Core
 - [x] Html
 - [x] Style
-- [ ] Layout
+- [x] Layout
 - [ ] Renderer
 - [x] Engine
 - [x] Platform
@@ -137,6 +137,10 @@
 - [x] StyleEngine.cpp houses UA defaults + legacy HTML attribute parsing; consider splitting UA defaults into dedicated module.
 - [x] SelectorMatcher only supports tag/class/id; consider centralizing selector parsing/matching table as it grows.
 - [x] CSS Parser uses manual property name mapping; consider table-driven map or enum lookup to reduce long if-chain.
+- [x] Layout inventory captured (RenderObject + Block/Inline/Text/Image/List/Table + TreeBuilder + InlineLineBuilder).
+- [x] BlockBox + RenderListItem duplicate inline layout helpers (metrics, inline runs, alignment); consider shared inline layout utility.
+- [x] compute_metrics/insets helpers duplicated across BlockBox/InlineBox/RenderListItem/RenderImage/RenderTable/TextBox.
+- [x] TreeBuilder mixes tag routing + style display logic; consider extracting tag→render mapping table.
 
 - [ ] **Phase 2: Candidate Discovery**
 - [ ] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
