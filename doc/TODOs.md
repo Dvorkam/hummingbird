@@ -97,8 +97,8 @@
 - [x] Decide review cadence (one slice per commit).
 - [x] Subsystem roster (track progress):
 - [ ] Core
-- [ ] Html
-- [ ] Style
+- [x] Html
+- [x] Style
 - [ ] Layout
 - [ ] Renderer
 - [x] Engine
@@ -129,6 +129,14 @@
 - [x] Network worker setup + callback patterns duplicated (response init, stop checks); consider shared utility for consistent behavior/logs.
 - [x] FileResourceProvider only offers load_text but is used for binary image bytes; add load_bytes or split providers.
 - [x] SDLWindow event translation helpers are static in cpp; if this grows, extract to a platform/input translation helper.
+- [x] Html inventory captured (Tokenizer + Parser + TagNames/AttributeNames).
+- [x] Parser has local to_lower/iequals/find_attribute helpers; consider centralizing shared HTML string utils.
+- [x] is_void_element/is_known_element embed tag lists separate from TagNames; centralize tag metadata to avoid drift.
+- [x] Tokenizer stores attributes in fixed array of 8; consider dynamic storage or explicit limit handling.
+- [x] Style inventory captured (Tokenizer/Parser/SelectorMatcher/StyleEngine/ComputedStyle).
+- [x] StyleEngine.cpp houses UA defaults + legacy HTML attribute parsing; consider splitting UA defaults into dedicated module.
+- [x] SelectorMatcher only supports tag/class/id; consider centralizing selector parsing/matching table as it grows.
+- [x] CSS Parser uses manual property name mapping; consider table-driven map or enum lookup to reduce long if-chain.
 
 - [ ] **Phase 2: Candidate Discovery**
 - [ ] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
