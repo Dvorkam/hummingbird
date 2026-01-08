@@ -100,7 +100,7 @@
 - [x] Html
 - [x] Style
 - [x] Layout
-- [ ] Renderer
+- [x] Renderer
 - [x] Engine
 - [x] Platform
 - [ ] App
@@ -141,6 +141,9 @@
 - [x] BlockBox + RenderListItem duplicate inline layout helpers (metrics, inline runs, alignment); consider shared inline layout utility.
 - [x] compute_metrics/insets helpers duplicated across BlockBox/InlineBox/RenderListItem/RenderImage/RenderTable/TextBox.
 - [x] TreeBuilder mixes tag routing + style display logic; consider extracting tag→render mapping table.
+- [x] Renderer inventory captured (Painter).
+- [x] Painter duplicates rect intersection logic already present in Layout/Tab; consider centralizing geometry helpers.
+- [x] Painter::paint calls root.paint then also does culled traversal when viewport is set (double paint); consider conditional path or removal if redundant.
 
 - [ ] **Phase 2: Candidate Discovery**
 - [ ] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
