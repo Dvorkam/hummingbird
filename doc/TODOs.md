@@ -160,6 +160,34 @@
 - [ ] Scan for dead/unused code (unused functions, unused headers, obsolete files).
 - [ ] Flag spaghetti risk (large functions, cross-layer leakage, unbounded ownership).
 - [ ] Produce a ranked candidate list (quick wins, medium refactors, risky changes).
+- [ ] Phase 2 candidate list (triage with tags):
+- [ ] P2-C1: Centralize URL resolution + keying helper used by Tab resource flow. (scope=Engine/Core, risk=low, deps=none, touch=2-3 files)
+- [ ] P2-C2: Extract shared request helper for stylesheet/image fetch (begin_request + provider + network). (scope=Engine, risk=low, deps=P2-C1, touch=1-2 files)
+- [ ] P2-C3: Fold ResourceStore::request/mark_loading into begin_request or make private. (scope=Engine, risk=low, deps=none, touch=2 files)
+- [ ] P2-C4: Split Tab pipeline into DocumentPipeline + ResourceLoader. (scope=Engine, risk=high, deps=P2-C1/P2-C2, touch=3-5 files)
+- [ ] P2-C5: Replace DOM image traversal with parser output or shared DOM visitor. (scope=Engine/Html, risk=med, deps=none, touch=2-3 files)
+- [ ] P2-C6: Add load_bytes to IResourceProvider (text vs binary) and update FileResourceProvider + call sites. (scope=Core/Platform/Engine, risk=med, deps=none, touch=4-6 files)
+- [ ] P2-C7: Extract network worker/thread manager for CurlNetwork + StubNetwork. (scope=Platform, risk=med, deps=none, touch=2-3 files)
+- [ ] P2-C8: Share Curl/Stub response init + stop checks utility. (scope=Platform, risk=med, deps=P2-C7, touch=2-3 files)
+- [ ] P2-C9: Extract SDLWindow input translation helpers into platform/input util. (scope=Platform, risk=low, deps=none, touch=2 files)
+- [ ] P2-C10: Centralize HTML string utils (to_lower/iequals/find_attribute) used in parser. (scope=Html/Core, risk=low, deps=none, touch=2-3 files)
+- [ ] P2-C11: Centralize tag metadata (known/void tags) to avoid drift with TagNames. (scope=Html, risk=med, deps=none, touch=2 files)
+- [ ] P2-C12: Replace fixed 8-attr array in HtmlTokenizer with dynamic storage or explicit overflow handling. (scope=Html, risk=med, deps=none, touch=2 files)
+- [ ] P2-C13: Split UA defaults + legacy attribute parsing into dedicated style module. (scope=Style, risk=med, deps=none, touch=2-3 files)
+- [ ] P2-C14: Make selector parsing/matching extensible (table-driven or composite selectors). (scope=Style, risk=med, deps=none, touch=2-3 files)
+- [ ] P2-C15: Replace CSS property name if-chain with table/map lookup. (scope=Style, risk=low, deps=none, touch=1-2 files)
+- [ ] P2-C16: Deduplicate inline layout helpers between BlockBox and RenderListItem. (scope=Layout, risk=med-high, deps=none, touch=3-4 files)
+- [ ] P2-C17: Factor shared compute_metrics/insets helpers across layout renderers. (scope=Layout, risk=med, deps=none, touch=4-6 files)
+- [ ] P2-C18: Extract tag→render mapping table from TreeBuilder. (scope=Layout, risk=low-med, deps=none, touch=2 files)
+- [ ] P2-C19: Centralize geometry helpers (intersects/point-in-rect) used in Painter/Tab/Layout. (scope=Renderer/Layout/Core, risk=low, deps=none, touch=2-4 files)
+- [ ] P2-C20: Remove double paint path in Painter (avoid root.paint + culled traverse). (scope=Renderer, risk=med, deps=P2-C19, touch=1-2 files)
+- [ ] P2-C21: Consolidate string/iequals/to_lower helpers across Core/Html/Style. (scope=Core/Html/Style, risk=low, deps=none, touch=3-5 files)
+- [ ] P2-C22: Reduce repeated AssetPath resolve + .string churn (cache or helper). (scope=Core/App/Layout/Platform, risk=low, deps=none, touch=2-4 files)
+- [ ] P2-C23: Align ArenaAllocator error path (log or fail-fast strategy). (scope=Core, risk=low, deps=none, touch=1-2 files)
+- [ ] P2-C24: Extract URL bar component from BrowserApp (state + input + render). (scope=App, risk=med, deps=none, touch=2-3 files)
+- [ ] P2-C25: Remove redundant gfx creation in main.cpp (move into BrowserApp or drop). (scope=App, risk=low, deps=none, touch=1-2 files)
+- [ ] P2-C26: Create shared test utilities module (TestGraphicsContext + harness). (scope=Tests/Utilities, risk=low, deps=none, touch=2-3 files)
+- [ ] P2-C27: Split tests target to avoid pulling app sources directly. (scope=Tests/Build, risk=med, deps=none, touch=2-3 files)
 
 - [ ] **Phase 3: Refactor Slices**
 - [ ] Write a short refactor brief for each slice (goal, scope, acceptance, test impact).
