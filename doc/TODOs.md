@@ -92,24 +92,43 @@
 ## Refactor Plan (Checklist)
 
 - [ ] **Phase 0: Scope + Guardrails**
-- [ ] Confirm which subsystems are in-scope for the first pass (engine, layout, renderer, platform, app).
-- [ ] Define constraints (no behavior changes, tests must pass, keep public APIs stable unless agreed).
-- [ ] Decide review cadence (one slice per commit).
-- [ ] Subsystem roster (track progress):
+- [x] Confirm which subsystems are in-scope for the first pass (engine, layout, renderer, platform, app).
+- [x] Define constraints (no behavior changes, tests must pass, keep public APIs stable unless agreed).
+- [x] Decide review cadence (one slice per commit).
+- [x] Subsystem roster (track progress):
 - [ ] Core
 - [ ] Html
 - [ ] Style
 - [ ] Layout
 - [ ] Renderer
-- [ ] Engine
-- [ ] Platform
+- [x] Engine
+- [x] Platform
 - [ ] App
 - [ ] Tests/Utilities
+
+- [ ] Phase 0 notes (internal):
+- [ ] Scope: Core, Html, Style, Layout, Renderer, Engine, Platform, App, Tests/Utilities.
+- [ ] Constraints: refactor-only; no behavior changes; tests must pass; public APIs stable unless agreed.
+- [ ] Cadence: one self-contained slice per commit (format/build/tests each slice).
 
 - [ ] **Phase 1: Inventory + Baseline**
 - [ ] Map module responsibilities + public surfaces (top-level summary per folder).
 - [ ] Capture a dependency sketch (Core → Html/Style/Layout/Renderer → Engine → Platform).
 - [ ] List known pain points + hotspots from recent work (Tab pipeline, resource store, graphics context).
+
+- [ ] Phase 1 notes (internal):
+- [x] Engine inventory captured (Tab + ResourceStore).
+- [x] Tab owns navigation/resource fetch/parse/layout/paint/hit-test; candidate to split into DocumentPipeline + ResourceLoader.
+- [x] request_stylesheets/request_images duplicate URL resolve + fetch flow; extract shared helper.
+- [x] URL resolution repeated in request_stylesheets/request_images/update_image_resources/build_css_source; centralize helper for consistent keys.
+- [x] ResourceStore::request/mark_loading used only by begin_request; consider making private or folding.
+- [x] IResourceProvider::load_text used for binary images; consider load_bytes API to clarify intent.
+- [x] Image source discovery does extra DOM traversal; consider parser output or shared DOM visitor.
+- [x] Platform inventory captured (SDLWindow/GraphicsContext/ImageDecoder, CurlNetwork/StubNetwork, FileResourceProvider).
+- [x] CurlNetwork + StubNetwork duplicate thread lifecycle + stop/join code; extract a small worker manager helper.
+- [x] Network worker setup + callback patterns duplicated (response init, stop checks); consider shared utility for consistent behavior/logs.
+- [x] FileResourceProvider only offers load_text but is used for binary image bytes; add load_bytes or split providers.
+- [x] SDLWindow event translation helpers are static in cpp; if this grows, extract to a platform/input translation helper.
 
 - [ ] **Phase 2: Candidate Discovery**
 - [ ] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
