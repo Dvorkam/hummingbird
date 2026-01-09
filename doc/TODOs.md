@@ -157,12 +157,12 @@
 - [x] TestGraphicsContext duplicates simple geometry/metrics logic; consider shared test utilities folder for harness + graphics mock.
 - [x] tests/CMakeLists.txt includes app sources directly; consider a separate test-support target to avoid pulling app into unit suite.
 
-- [ ] **Phase 2: Candidate Discovery**
-- [ ] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
-- [ ] Scan for dead/unused code (unused functions, unused headers, obsolete files).
-- [ ] Flag spaghetti risk (large functions, cross-layer leakage, unbounded ownership).
-- [ ] Produce a ranked candidate list (quick wins, medium refactors, risky changes).
-- [ ] Phase 2 candidate list (triage with tags):
+- [x] **Phase 2: Candidate Discovery**
+- [x] Scan for duplication (helpers, URL handling, resource logging, render tree traversal).
+- [x] Scan for dead/unused code (unused functions, unused headers, obsolete files).
+- [x] Flag spaghetti risk (large functions, cross-layer leakage, unbounded ownership).
+- [x] Produce a ranked candidate list (quick wins, medium refactors, risky changes).
+- [x] Phase 2 candidate list (triage with tags):
 - [ ] P2-C1: Centralize URL resolution + keying helper used by Tab resource flow. (scope=Engine/Core, risk=low, deps=none, touch=2-3 files)
 - [ ] P2-C2: Extract shared request helper for stylesheet/image fetch (begin_request + provider + network). (scope=Engine, risk=low, deps=P2-C1, touch=1-2 files)
 - [ ] P2-C3: Fold ResourceStore::request/mark_loading into begin_request or make private. (scope=Engine, risk=low, deps=none, touch=2 files)
@@ -190,6 +190,11 @@
 - [ ] P2-C25: Remove redundant gfx creation in main.cpp (move into BrowserApp or drop). (scope=App, risk=low, deps=none, touch=1-2 files)
 - [ ] P2-C26: Create shared test utilities module (TestGraphicsContext + harness). (scope=Tests/Utilities, risk=low, deps=none, touch=2-3 files)
 - [ ] P2-C27: Split tests target to avoid pulling app sources directly. (scope=Tests/Build, risk=med, deps=none, touch=2-3 files)
+- [ ] P2-C28: Extract render tree traversal helper (visitor/DFS) and reuse in Painter culling, Tab hit-test, and image updates. (scope=Layout/Renderer/Engine, risk=med, deps=none, touch=3-5 files)
+- [ ] P2-C29: Split Tab::consume_pending_resources into per-type handlers to reduce branching and centralize logs. (scope=Engine, risk=low-med, deps=none, touch=1-2 files)
+- [ ] P2-C30: Add Element attribute lookup helper (string_view key) to avoid repeated attrs.find + std::string key setup. (scope=Core/Html/Engine, risk=low, deps=none, touch=2-4 files)
+
+- Phase 2 ranking (proposed order): P2-C1, P2-C3, P2-C10, P2-C15, P2-C19, P2-C28, P2-C22, P2-C25, P2-C6, P2-C7, P2-C8, P2-C16, P2-C17, P2-C13, P2-C14, P2-C4, P2-C27, P2-C24.
 
 - [ ] **Phase 3: Refactor Slices**
 - [ ] Write a short refactor brief for each slice (goal, scope, acceptance, test impact).
