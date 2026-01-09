@@ -122,6 +122,8 @@ target_include_directories(Renderer
 # --- Engine Library ---
 # This library owns document lifecycle and orchestration (parsing/style/layout/paint) without platform headers.
 add_library(Engine STATIC
+    src/engine/DocumentPipeline.cpp
+    src/engine/ResourceLoader.cpp
     src/engine/Tab.cpp
     src/engine/ResourceStore.cpp
 )
