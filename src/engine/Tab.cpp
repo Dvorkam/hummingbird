@@ -57,6 +57,18 @@ bool intersects(const Layout::Rect& a, const Layout::Rect& b) {
     return !(a.x + a.width <= b.x || a.x >= b.x + b.width || a.y + a.height <= b.y || a.y >= b.y + b.height);
 }
 
+struct ResolvedUrl {
+    std::string resolved;
+    std::string_view key;
+};
+
+ResolvedUrl resolve_resource_url(std::string_view base_url, std::string_view raw_url) {
+    ResolvedUrl result;
+    result.resolved = Core::resolve_url(base_url, raw_url);
+    result.key = result.resolved.empty() ? raw_url : std::string_view(result.resolved);
+    return result;
+}
+
 std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::string_view base_url) {
     static const std::string kHrefKey = std::string(Hummingbird::Html::AttributeNames::Href);
     const DOM::Node* current = node;
@@ -68,8 +80,9 @@ std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::strin
             if (it == attrs.end() || it->second.empty()) {
                 return std::nullopt;
             }
-            std::string resolved = Core::resolve_url(base_url, it->second);
-            return resolved.empty() ? it->second : std::move(resolved);
+            auto resolved = resolve_resource_url(base_url, it->second);
+            return resolved.resolved.empty() ? std::optional<std::string>(it->second)
+                                             : std::optional<std::string>(std::move(resolved.resolved));
         }
         current = current->get_parent();
     }
@@ -428,8 +441,8 @@ void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) 
     const uint64_t nav_id = active_nav_.load(std::memory_order_acquire);
 
     for (const auto& href : stylesheet_links) {
-        std::string resolved = Core::resolve_url(requested_url_, href);
-        std::string url = resolved.empty() ? href : resolved;
+        auto resolved = resolve_resource_url(requested_url_, href);
+        std::string url(resolved.key);
         if (url.empty()) continue;
 
         if (!resource_store_.begin_request(url, ResourceType::Stylesheet)) {
@@ -444,8 +457,8 @@ void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) 
 
         if (resource_provider_) {
             auto text = resource_provider_->load_text(href);
-            if (!text && !resolved.empty() && resolved != href) {
-                text = resource_provider_->load_text(resolved);
+            if (!text && !resolved.resolved.empty() && resolved.resolved != href) {
+                text = resource_provider_->load_text(resolved.resolved);
             }
             if (text) {
                 HB_LOG_DEBUG("[resource] stylesheet loaded from assets: " << url << " bytes=" << text->size());
@@ -478,8 +491,8 @@ void Tab::request_images(const std::vector<std::string>& image_links) {
     const uint64_t nav_id = active_nav_.load(std::memory_order_acquire);
 
     for (const auto& src : image_links) {
-        std::string resolved = Core::resolve_url(requested_url_, src);
-        std::string url = resolved.empty() ? src : resolved;
+        auto resolved = resolve_resource_url(requested_url_, src);
+        std::string url(resolved.key);
         if (url.empty()) continue;
 
         if (!resource_store_.begin_request(url, ResourceType::Image)) {
@@ -493,8 +506,8 @@ void Tab::request_images(const std::vector<std::string>& image_links) {
 
         if (resource_provider_) {
             auto data = resource_provider_->load_text(src);
-            if (!data && !resolved.empty() && resolved != src) {
-                data = resource_provider_->load_text(resolved);
+            if (!data && !resolved.resolved.empty() && resolved.resolved != src) {
+                data = resource_provider_->load_text(resolved.resolved);
             }
             if (data) {
                 enqueue_resource_update(ResourceType::Image, url, std::move(*data), true);
@@ -555,8 +568,8 @@ std::string Tab::build_css_source(const std::vector<std::string>& style_blocks,
     size_t missing_count = 0;
     size_t failed_count = 0;
     for (const auto& href : stylesheet_links) {
-        std::string resolved = Core::resolve_url(requested_url_, href);
-        std::string_view key = resolved.empty() ? std::string_view(href) : std::string_view(resolved);
+        auto resolved = resolve_resource_url(requested_url_, href);
+        std::string_view key = resolved.key;
         auto view = resource_store_.view(key, ResourceType::Stylesheet);
         if (!view) {
             ++missing_count;
@@ -629,8 +642,8 @@ bool Tab::update_image_resources() {
             auto it = attrs.find(kSrcKey);
             const ImageBitmap* bitmap = nullptr;
             if (it != attrs.end() && !it->second.empty()) {
-                std::string resolved = Core::resolve_url(requested_url_, it->second);
-                std::string_view key = resolved.empty() ? std::string_view(it->second) : std::string_view(resolved);
+                auto resolved = resolve_resource_url(requested_url_, it->second);
+                std::string_view key = resolved.key;
                 auto view = resource_store_.view(key, ResourceType::Image);
                 if (view && view->state == ResourceState::Ready) {
                     bitmap = view->image;
