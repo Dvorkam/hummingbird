@@ -82,6 +82,7 @@ bool is_known_element(std::string_view name) {
 Parser::Result Parser::parse() {
     m_style_blocks.clear();
     m_stylesheet_links.clear();
+    m_image_links.clear();
     m_unsupported_tags.clear();
     auto root = DOM::DomFactory::create_element(m_arena, Hummingbird::Html::TagNames::Root);
     ParseState state;
@@ -119,6 +120,7 @@ Parser::Result Parser::parse() {
     result.dom = ArenaPtr<DOM::Node>(root.release());
     result.style_blocks = std::move(m_style_blocks);
     result.stylesheet_links = std::move(m_stylesheet_links);
+    result.image_links = std::move(m_image_links);
     result.unsupported_tags = std::move(m_unsupported_tags);
     return result;
 }
@@ -140,6 +142,12 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
         auto href = find_attribute(tag_data, Hummingbird::Html::AttributeNames::Href);
         if (rel == "stylesheet" && !href.empty()) {
             m_stylesheet_links.emplace_back(href);
+        }
+    }
+    if (lowered_name == Hummingbird::Html::TagNames::Img) {
+        auto src = find_attribute(tag_data, Hummingbird::Html::AttributeNames::Src);
+        if (!src.empty()) {
+            m_image_links.emplace_back(src);
         }
     }
 

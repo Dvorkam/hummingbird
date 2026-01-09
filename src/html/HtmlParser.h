@@ -21,6 +21,7 @@ public:
         ArenaPtr<DOM::Node> dom;
         std::vector<std::string> style_blocks;
         std::vector<std::string> stylesheet_links;
+        std::vector<std::string> image_links;
         std::unordered_set<std::string> unsupported_tags;
     };
 
@@ -48,6 +49,7 @@ private:
     std::unordered_set<std::string> m_unsupported_tags;
     std::vector<std::string> m_style_blocks;
     std::vector<std::string> m_stylesheet_links;
+    std::vector<std::string> m_image_links;
 };
 
 }  // namespace Hummingbird::Html

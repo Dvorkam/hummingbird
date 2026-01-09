@@ -147,6 +147,16 @@ TEST(HtmlParserTest, DiscoversStylesheetLinks) {
     EXPECT_EQ(result.stylesheet_links[1], "print.css");
 }
 
+TEST(HtmlParserTest, DiscoversImageLinks) {
+    std::string_view html = "<body><img src='images/a.png'><img SRC=\"/b.jpg\"></body>";
+    ArenaAllocator arena(2048);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_EQ(result.image_links.size(), 2u);
+    EXPECT_EQ(result.image_links[0], "images/a.png");
+    EXPECT_EQ(result.image_links[1], "/b.jpg");
+}
+
 TEST(HtmlParserTest, AutoClosesListItems) {
     std::string_view html = "<ul><li>One<li>Two</ul>";
     ArenaAllocator arena(2048);

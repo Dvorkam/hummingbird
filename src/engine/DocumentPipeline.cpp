@@ -29,23 +29,6 @@ size_t count_nodes_recursive(const DOM::Node* node) {
     return total;
 }
 
-void collect_image_sources(const DOM::Node* node, std::vector<std::string>& out) {
-    if (!node) return;
-    if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
-        if (element->get_tag_name() == Hummingbird::Html::TagNames::Img) {
-            const auto& attrs = element->get_attributes();
-            static const std::string kSrcKey = std::string(Hummingbird::Html::AttributeNames::Src);
-            auto it = attrs.find(kSrcKey);
-            if (it != attrs.end() && !it->second.empty()) {
-                out.push_back(it->second);
-            }
-        }
-    }
-    for (const auto& child : node->get_children()) {
-        collect_image_sources(child.get(), out);
-    }
-}
-
 bool point_in_rect(const Layout::Rect& rect, const Layout::Point& point) {
     if (rect.width <= 0.0f || rect.height <= 0.0f) return false;
     return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
@@ -125,6 +108,7 @@ bool DocumentPipeline::parse_html(std::string_view html) {
     dom_tree_ = std::move(parse_result.dom);
     style_blocks_ = std::move(parse_result.style_blocks);
     stylesheet_links_ = std::move(parse_result.stylesheet_links);
+    image_links_ = std::move(parse_result.image_links);
 
     if (!dom_tree_) {
         HB_LOG_WARN("[pipeline] parsed empty DOM");
@@ -135,8 +119,6 @@ bool DocumentPipeline::parse_html(std::string_view html) {
                                                    << " total nodes: " << count_nodes_recursive(dom_tree_.get()));
     HB_LOG_INFO("[perf] html parse ms=" << Core::duration_ms(parse_start, parse_end));
 
-    image_links_.clear();
-    collect_image_sources(dom_tree_.get(), image_links_);
     return true;
 }
 
