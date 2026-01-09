@@ -163,8 +163,8 @@
 - [x] Flag spaghetti risk (large functions, cross-layer leakage, unbounded ownership).
 - [x] Produce a ranked candidate list (quick wins, medium refactors, risky changes).
 - [x] Phase 2 candidate list (triage with tags):
-- [ ] P2-C1: Centralize URL resolution + keying helper used by Tab resource flow. (scope=Engine/Core, risk=low, deps=none, touch=2-3 files)
-- [ ] P2-C2: Extract shared request helper for stylesheet/image fetch (begin_request + provider + network). (scope=Engine, risk=low, deps=P2-C1, touch=1-2 files)
+- [x] P2-C1: Centralize URL resolution + keying helper used by Tab resource flow. (scope=Engine/Core, risk=low, deps=none, touch=2-3 files)
+- [x] P2-C2: Extract shared request helper for stylesheet/image fetch (begin_request + provider + network). (scope=Engine, risk=low, deps=P2-C1, touch=1-2 files)
 - [ ] P2-C3: Fold ResourceStore::request/mark_loading into begin_request or make private. (scope=Engine, risk=low, deps=none, touch=2 files)
 - [ ] P2-C4: Split Tab pipeline into DocumentPipeline + ResourceLoader. (scope=Engine, risk=high, deps=P2-C1/P2-C2, touch=3-5 files)
 - [ ] P2-C5: Replace DOM image traversal with parser output or shared DOM visitor. (scope=Engine/Html, risk=med, deps=none, touch=2-3 files)

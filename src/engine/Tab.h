@@ -59,6 +59,16 @@ public:
     std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
 
 private:
+    struct ResourceRequestOptions {
+        ResourceType type;
+        std::string_view type_label;
+        std::string_view attr_label;
+        bool allow_fallback_network;
+        bool log_duplicates;
+        bool log_asset_load;
+        bool mark_ready_on_asset;
+    };
+
     struct PendingResourceUpdate {
         ResourceType type;
         std::string url;
@@ -81,6 +91,7 @@ private:
                     std::vector<std::string>& stylesheet_links, std::vector<std::string>& image_links);
     void request_stylesheets(const std::vector<std::string>& stylesheet_links);
     void request_images(const std::vector<std::string>& image_links);
+    void request_resources(const std::vector<std::string>& links, const ResourceRequestOptions& options);
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport);
     std::string build_css_source(const std::vector<std::string>& style_blocks,
                                  const std::vector<std::string>& stylesheet_links) const;

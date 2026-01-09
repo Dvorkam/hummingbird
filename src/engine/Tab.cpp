@@ -436,103 +436,93 @@ bool Tab::parse_html(const std::string& html, std::vector<std::string>& style_bl
 }
 
 void Tab::request_stylesheets(const std::vector<std::string>& stylesheet_links) {
-    if (stylesheet_links.empty()) return;
+    ResourceRequestOptions options{};
+    options.type = ResourceType::Stylesheet;
+    options.type_label = "stylesheet";
+    options.attr_label = "href";
+    options.allow_fallback_network = false;
+    options.log_duplicates = true;
+    options.log_asset_load = true;
+    options.mark_ready_on_asset = true;
 
-    const uint64_t nav_id = active_nav_.load(std::memory_order_acquire);
-
-    for (const auto& href : stylesheet_links) {
-        auto resolved = resolve_resource_url(requested_url_, href);
-        std::string url(resolved.key);
-        if (url.empty()) continue;
-
-        if (!resource_store_.begin_request(url, ResourceType::Stylesheet)) {
-            HB_LOG_DEBUG("[resource] stylesheet already requested: " << url);
-            continue;
-        }
-
-        HB_LOG_DEBUG("[resource] stylesheet link: href=" << href << " base=" << requested_url_ << " resolved=" << url);
-        if (url.find("://") == std::string::npos) {
-            HB_LOG_WARN("[resource] stylesheet resolved to non-absolute url: " << url << " base=" << requested_url_);
-        }
-
-        if (resource_provider_) {
-            auto text = resource_provider_->load_text(href);
-            if (!text && !resolved.resolved.empty() && resolved.resolved != href) {
-                text = resource_provider_->load_text(resolved.resolved);
-            }
-            if (text) {
-                HB_LOG_DEBUG("[resource] stylesheet loaded from assets: " << url << " bytes=" << text->size());
-                resource_store_.mark_ready(url, ResourceType::Stylesheet, std::move(*text));
-                continue;
-            }
-        }
-
-        if (!network_) {
-            HB_LOG_WARN("[resource] no network for stylesheet: " << url);
-            resource_store_.mark_failed(url, ResourceType::Stylesheet);
-            continue;
-        }
-
-        HB_LOG_DEBUG("[resource] fetching stylesheet: " << url);
-        network_->get(url, [this, nav_id, url](NetworkResponse response) {
-            if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
-            bool success = !response.body.empty();
-            if (!success) {
-                HB_LOG_WARN("[resource] stylesheet fetch failed: " << url);
-            }
-            enqueue_resource_update(ResourceType::Stylesheet, url, std::move(response.body), success);
-        });
-    }
+    request_resources(stylesheet_links, options);
 }
 
 void Tab::request_images(const std::vector<std::string>& image_links) {
-    if (image_links.empty()) return;
+    ResourceRequestOptions options{};
+    options.type = ResourceType::Image;
+    options.type_label = "image";
+    options.attr_label = "src";
+    options.allow_fallback_network = true;
+    options.log_duplicates = false;
+    options.log_asset_load = false;
+    options.mark_ready_on_asset = false;
+
+    request_resources(image_links, options);
+}
+
+void Tab::request_resources(const std::vector<std::string>& links, const ResourceRequestOptions& options) {
+    if (links.empty()) return;
 
     const uint64_t nav_id = active_nav_.load(std::memory_order_acquire);
+    const std::string type_label(options.type_label);
 
-    for (const auto& src : image_links) {
-        auto resolved = resolve_resource_url(requested_url_, src);
+    for (const auto& raw_url : links) {
+        auto resolved = resolve_resource_url(requested_url_, raw_url);
         std::string url(resolved.key);
         if (url.empty()) continue;
 
-        if (!resource_store_.begin_request(url, ResourceType::Image)) {
+        if (!resource_store_.begin_request(url, options.type)) {
+            if (options.log_duplicates) {
+                HB_LOG_DEBUG("[resource] " << options.type_label << " already requested: " << url);
+            }
             continue;
         }
 
-        HB_LOG_DEBUG("[resource] image link: src=" << src << " base=" << requested_url_ << " resolved=" << url);
+        HB_LOG_DEBUG("[resource] " << options.type_label << " link: " << options.attr_label << "=" << raw_url
+                                   << " base=" << requested_url_ << " resolved=" << url);
         if (url.find("://") == std::string::npos) {
-            HB_LOG_WARN("[resource] image resolved to non-absolute url: " << url << " base=" << requested_url_);
+            HB_LOG_WARN("[resource] " << options.type_label << " resolved to non-absolute url: " << url
+                                      << " base=" << requested_url_);
         }
 
         if (resource_provider_) {
-            auto data = resource_provider_->load_text(src);
-            if (!data && !resolved.resolved.empty() && resolved.resolved != src) {
+            auto data = resource_provider_->load_text(raw_url);
+            if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
                 data = resource_provider_->load_text(resolved.resolved);
             }
             if (data) {
-                enqueue_resource_update(ResourceType::Image, url, std::move(*data), true);
+                if (options.log_asset_load) {
+                    HB_LOG_DEBUG("[resource] " << options.type_label << " loaded from assets: " << url
+                                               << " bytes=" << data->size());
+                }
+                if (options.mark_ready_on_asset) {
+                    resource_store_.mark_ready(url, options.type, std::move(*data));
+                } else {
+                    enqueue_resource_update(options.type, url, std::move(*data), true);
+                }
                 continue;
             }
         }
 
         INetwork* fetcher = network_.get();
-        if (!fetcher) {
+        if (!fetcher && options.allow_fallback_network) {
             fetcher = fallback_network_.get();
         }
         if (!fetcher) {
-            HB_LOG_WARN("[resource] no network for image: " << url);
-            resource_store_.mark_failed(url, ResourceType::Image);
+            HB_LOG_WARN("[resource] no network for " << options.type_label << ": " << url);
+            resource_store_.mark_failed(url, options.type);
             continue;
         }
 
-        HB_LOG_DEBUG("[resource] fetching image: " << url);
-        fetcher->get(url, [this, nav_id, url](NetworkResponse response) {
+        HB_LOG_DEBUG("[resource] fetching " << options.type_label << ": " << url);
+        fetcher->get(url, [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
             if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
             bool success = !response.body.empty();
             if (!success) {
-                HB_LOG_WARN("[resource] image fetch failed: " << url);
+                HB_LOG_WARN("[resource] " << type_label << " fetch failed: " << url);
             }
-            enqueue_resource_update(ResourceType::Image, url, std::move(response.body), success);
+            enqueue_resource_update(type, url, std::move(response.body), success);
         });
     }
 }
