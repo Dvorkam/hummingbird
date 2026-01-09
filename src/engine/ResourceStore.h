@@ -42,8 +42,6 @@ struct ResourceView {
 
 class ResourceStore {
 public:
-    ResourceEntry& request(std::string_view url, ResourceType type);
-    bool mark_loading(std::string_view url, ResourceType type);
     bool mark_ready(std::string_view url, ResourceType type, std::string body);
     bool mark_failed(std::string_view url, ResourceType type);
     bool begin_request(std::string_view url, ResourceType type);
@@ -66,6 +64,9 @@ private:
     struct ResourceKeyHash {
         size_t operator()(const ResourceKey& key) const;
     };
+
+    ResourceEntry& request(std::string_view url, ResourceType type);
+    bool mark_loading(std::string_view url, ResourceType type);
 
     std::unordered_map<ResourceKey, ResourceEntry, ResourceKeyHash> resources_;
 };
