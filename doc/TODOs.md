@@ -91,7 +91,7 @@
 
 ## Refactor Plan (Checklist)
 
-- [ ] **Phase 0: Scope + Guardrails**
+- [x] **Phase 0: Scope + Guardrails**
 - [x] Confirm which subsystems are in-scope for the first pass (engine, layout, renderer, platform, app).
 - [x] Define constraints (no behavior changes, tests must pass, keep public APIs stable unless agreed).
 - [x] Decide review cadence (one slice per commit).
@@ -106,17 +106,19 @@
 - [x] App
 - [x] Tests/Utilities
 
-- [ ] Phase 0 notes (internal):
-- [ ] Scope: Core, Html, Style, Layout, Renderer, Engine, Platform, App, Tests/Utilities.
-- [ ] Constraints: refactor-only; no behavior changes; tests must pass; public APIs stable unless agreed.
-- [ ] Cadence: one self-contained slice per commit (format/build/tests each slice).
+- [x] Phase 0 notes (internal):
+- [x] Scope: Core, Html, Style, Layout, Renderer, Engine, Platform, App, Tests/Utilities.
+- [x] Constraints: refactor-only; no behavior changes; tests must pass; public APIs stable unless agreed.
+- [x] Cadence: one self-contained slice per commit (format/build/tests each slice).
 
-- [ ] **Phase 1: Inventory + Baseline**
-- [ ] Map module responsibilities + public surfaces (top-level summary per folder).
-- [ ] Capture a dependency sketch (Core → Html/Style/Layout/Renderer → Engine → Platform).
-- [ ] List known pain points + hotspots from recent work (Tab pipeline, resource store, graphics context).
+- [x] **Phase 1: Inventory + Baseline**
+- [x] Map module responsibilities + public surfaces (top-level summary per folder).
+- [x] Capture a dependency sketch (Core → Html/Style/Layout/Renderer → Engine → Platform).
+- [x] List known pain points + hotspots from recent work (Tab pipeline, resource store, graphics context).
 
-- [ ] Phase 1 notes (internal):
+- [x] Phase 1 notes (internal):
+- [x] Module responsibilities summary: Core (arena, DOM, utils, platform_api), Html (tokenizer/parser/tag+attr tables), Style (CSS tokenizer/parser, selector match, UA/defaults), Layout (render tree + layout boxes), Renderer (Painter), Engine (Tab/ResourceStore pipeline), Platform (SDL/Curl adapters, decoders), App (BrowserApp + main), Tests/Utilities (GTest, mocks, headless harness).
+- [x] Dependency sketch: Core ← Html/Style/Layout/Renderer; Engine coordinates those; Platform implements Core platform_api; App wires Engine + Platform; Tests depend on module under test + test harness.
 - [x] Engine inventory captured (Tab + ResourceStore).
 - [x] Tab owns navigation/resource fetch/parse/layout/paint/hit-test; candidate to split into DocumentPipeline + ResourceLoader.
 - [x] request_stylesheets/request_images duplicate URL resolve + fetch flow; extract shared helper.
