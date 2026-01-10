@@ -30,6 +30,13 @@
 * **I want** `<body bgcolor/text/link/vlink>` to map to background and text/link colors.
 * **Acceptance:** Body background + base text/link colors reflect legacy attributes when present.
 
+## HTML Parsing Follow-Ups (Stories)
+
+* **Story T-HTML-2: Decode Named Entities**
+* **As a** reader of legacy HTML,
+* **I want** named entities like `&mdash;` to decode into their Unicode characters so text renders correctly.
+* **Acceptance:** Common named entities (`&mdash;`, `&nbsp;`, `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`) decode in text nodes.
+
 ## CSS Coverage Backlog
 
 - **P2: Selector Coverage:** Add universal selector `*`, descendant combinators, and compound selectors (tag+class/id).
@@ -40,7 +47,7 @@
 * **Story T-CSS-1: Length Units (em)**
 * **As a** user,
 * **I want** CSS `em` lengths to resolve against font size so rules like `width: 10em` apply.
-* **Acceptance:** `em` values resolve to pixels for width/height/margins/padding where supported.
+* **Acceptance:** `em` values resolve to pixels for width/height/max/min/margins/padding where supported.
 
 * **Story T-CSS-2: Border Styles Beyond Solid**
 * **As a** user,
@@ -188,7 +195,7 @@
 - [x] P2-C17: Factor shared compute_metrics/insets helpers across layout renderers. (scope=Layout, risk=med, deps=none, touch=4-6 files)
 - [x] P2-C18: Extract tag→render mapping table from TreeBuilder. (scope=Layout, risk=low-med, deps=none, touch=2 files)
 - [ ] P2-C19: Centralize geometry helpers (intersects/point-in-rect) used in Painter/Tab/Layout. (scope=Renderer/Layout/Core, risk=low, deps=none, touch=2-4 files)
-- [ ] P2-C20: Remove double paint path in Painter (avoid root.paint + culled traverse). (scope=Renderer, risk=med, deps=P2-C19, touch=1-2 files)
+- [x] P2-C20: Remove double paint path in Painter (avoid root.paint + culled traverse). (scope=Renderer, risk=med, deps=P2-C19, touch=1-2 files)
 - [ ] P2-C21: Consolidate string/iequals/to_lower helpers across Core/Html/Style. (scope=Core/Html/Style, risk=low, deps=none, touch=3-5 files)
 - [ ] P2-C22: Reduce repeated AssetPath resolve + .string churn (cache or helper). (scope=Core/App/Layout/Platform, risk=low, deps=none, touch=2-4 files)
 - [ ] P2-C23: Align ArenaAllocator error path (log or fail-fast strategy). (scope=Core, risk=low, deps=none, touch=1-2 files)
