@@ -66,6 +66,7 @@ private:
         bool log_duplicates;
         bool log_asset_load;
         bool mark_ready_on_asset;
+        bool use_binary;
     };
 
     void request_resources(const std::vector<std::string>& links, std::string_view base_url,

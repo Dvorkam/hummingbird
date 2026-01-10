@@ -106,6 +106,7 @@ void ResourceLoader::request_stylesheets(const std::vector<std::string>& links, 
     options.log_duplicates = true;
     options.log_asset_load = true;
     options.mark_ready_on_asset = true;
+    options.use_binary = false;
 
     request_resources(links, base_url, options);
 }
@@ -119,6 +120,7 @@ void ResourceLoader::request_images(const std::vector<std::string>& links, std::
     options.log_duplicates = false;
     options.log_asset_load = false;
     options.mark_ready_on_asset = false;
+    options.use_binary = true;
 
     request_resources(links, base_url, options);
 }
@@ -224,9 +226,17 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         }
 
         if (resource_provider_) {
-            auto data = resource_provider_->load_text(raw_url);
-            if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
-                data = resource_provider_->load_text(resolved.resolved);
+            std::optional<std::string> data;
+            if (options.use_binary) {
+                data = resource_provider_->load_bytes(raw_url);
+                if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
+                    data = resource_provider_->load_bytes(resolved.resolved);
+                }
+            } else {
+                data = resource_provider_->load_text(raw_url);
+                if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
+                    data = resource_provider_->load_text(resolved.resolved);
+                }
             }
             if (data) {
                 if (options.log_asset_load) {

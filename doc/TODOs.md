@@ -85,6 +85,11 @@
 * **I want** curl to transparently decode gzip/br/zstd responses so HTML arrives as text.
 * **Acceptance:** Enable curl features (brotli/zstd) in vcpkg and verify `Content-Encoding` responses are decoded into plain HTML.
 
+## Branding / Packaging Follow-Ups
+
+- **Windows ICO Sizes:** Add 48/64/128 sizes into `assets/logos/hummingbird.ico` for better Windows scaling.
+- **Runtime Icon Layout:** Move runtime PNG/ICO into `assets/icons/` and keep SVGs in `assets/logos/` (update references).
+
 ## Engine / App Split Follow-Ups
 
 - Tracked in `doc/milestones/milestone3.md` (Epic 3.1, Epic 3.6, Epic 3.10).
@@ -168,7 +173,7 @@
 - [x] P2-C3: Fold ResourceStore::request/mark_loading into begin_request or make private. (scope=Engine, risk=low, deps=none, touch=2 files)
 - [x] P2-C4: Split Tab pipeline into DocumentPipeline + ResourceLoader. (scope=Engine, risk=high, deps=P2-C1/P2-C2, touch=3-5 files)
 - [x] P2-C5: Replace DOM image traversal with parser output or shared DOM visitor. (scope=Engine/Html, risk=med, deps=none, touch=2-3 files)
-- [ ] P2-C6: Add load_bytes to IResourceProvider (text vs binary) and update FileResourceProvider + call sites. (scope=Core/Platform/Engine, risk=med, deps=none, touch=4-6 files)
+- [x] P2-C6: Add load_bytes to IResourceProvider (text vs binary) and update FileResourceProvider + call sites. (scope=Core/Platform/Engine, risk=med, deps=none, touch=4-6 files)
 - [ ] P2-C7: Extract network worker/thread manager for CurlNetwork + StubNetwork. (scope=Platform, risk=med, deps=none, touch=2-3 files)
 - [ ] P2-C8: Share Curl/Stub response init + stop checks utility. (scope=Platform, risk=med, deps=P2-C7, touch=2-3 files)
 - [ ] P2-C9: Extract SDLWindow input translation helpers into platform/input util. (scope=Platform, risk=low, deps=none, touch=2 files)
