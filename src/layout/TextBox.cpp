@@ -8,6 +8,7 @@
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "layout/InlineLineBuilder.h"
+#include "layout/LayoutMetricsUtils.h"
 
 namespace Hummingbird::Layout {
 
@@ -19,25 +20,7 @@ constexpr float kDefaultFontSizePx = 16.0f;
 constexpr float kUnderlineOffsetPx = 2.0f;
 constexpr float kUnderlineThicknessPx = 1.0f;
 
-struct Insets {
-    float left;
-    float right;
-    float top;
-    float bottom;
-};
-
-Insets compute_insets(const Css::ComputedStyle* style) {
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-    return {padding_left + border_left, padding_right + border_right, padding_top + border_top,
-            padding_bottom + border_bottom};
-}
+using Metrics::Insets;
 
 // Collapse runs of whitespace to a single space; convert newlines/tabs to spaces.
 std::string collapse_whitespace(const std::string& text) {
@@ -213,7 +196,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.y = bounds.y;
 
     const auto* style = get_computed_style();
-    Insets insets = compute_insets(style);
+    Insets insets = Metrics::compute_insets(style);
 
     m_rendered_text = build_rendered_text(get_dom_node()->get_text(), style);
 
@@ -358,7 +341,7 @@ void TextBox::finalize_inline_layout() {
 void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
     // The absolute position to draw the text is the parent's offset plus our own relative position.
     const auto* style = get_computed_style();
-    Insets insets = compute_insets(style);
+    Insets insets = Metrics::compute_insets(style);
 
     float absolute_x = offset.x + m_rect.x + insets.left;
     float absolute_y = offset.y + m_rect.y + insets.top;

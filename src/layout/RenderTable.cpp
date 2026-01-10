@@ -10,36 +10,17 @@
 
 #include "core/dom/Element.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/LayoutMetricsUtils.h"
 
 namespace Hummingbird::Layout {
 
 namespace {
 constexpr float kTableMeasureWidth = 100000.0f;
 
-struct Insets {
-    float left;
-    float right;
-    float top;
-    float bottom;
-};
-
 struct ParsedWidth {
     float value;
     bool is_percent;
 };
-
-Insets compute_insets(const Css::ComputedStyle* style) {
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-    return {padding_left + border_left, padding_right + border_right, padding_top + border_top,
-            padding_bottom + border_bottom};
-}
 
 bool iequals(std::string_view a, std::string_view b) {
     if (a.size() != b.size()) {
@@ -174,7 +155,7 @@ float sum_widths(const std::vector<float>& widths) {
     return std::accumulate(widths.begin(), widths.end(), 0.0f);
 }
 
-float compute_available_width(const Rect& bounds, const Insets& insets) {
+float compute_available_width(const Rect& bounds, const Metrics::Insets& insets) {
     float available_width = bounds.width - insets.left - insets.right;
     return std::max(0.0f, available_width);
 }
@@ -248,8 +229,8 @@ float apply_target_width(std::vector<float>& column_widths, float content_width,
     return target_width;
 }
 
-float layout_table_children(RenderTable& table, IGraphicsContext& context, const Insets& insets, float content_width,
-                            const std::vector<float>& column_widths) {
+float layout_table_children(RenderTable& table, IGraphicsContext& context, const Metrics::Insets& insets,
+                            float content_width, const std::vector<float>& column_widths) {
     float cursor_y = insets.top;
     for (const auto& child : table.get_children()) {
         if (auto* section = dynamic_cast<RenderTableSection*>(child.get())) {
@@ -270,7 +251,7 @@ float layout_table_children(RenderTable& table, IGraphicsContext& context, const
 
 void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
-    Insets insets = compute_insets(style);
+    Metrics::Insets insets = Metrics::compute_insets(style);
     float available_width = compute_available_width(bounds, insets);
     auto rows = collect_table_rows(*this);
     size_t column_count = compute_column_count(rows);

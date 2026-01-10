@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "layout/InlineLineBuilder.h"
+#include "layout/LayoutMetricsUtils.h"
 #include "layout/inline/InlineLayoutUtils.h"
 
 namespace Hummingbird::Layout {
@@ -34,19 +35,11 @@ struct ChildMargins {
 constexpr float kInlineAtomicLayoutWidth = 100000.0f;
 
 LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect) {
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-
-    float inset_left = padding_left + border_left;
-    float inset_right = padding_right + border_right;
-    float inset_top = padding_top + border_top;
-    float inset_bottom = padding_bottom + border_bottom;
+    Metrics::Insets insets = Metrics::compute_insets(style);
+    float inset_left = insets.left;
+    float inset_right = insets.right;
+    float inset_top = insets.top;
+    float inset_bottom = insets.bottom;
 
     float target_width = bounds.width;
     bool constrained = false;
@@ -69,7 +62,7 @@ LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bound
         rect.width = bounds.width;
     }
 
-    float content_width = rect.width - inset_left - inset_right;
+    float content_width = Metrics::content_width(rect.width, insets);
     return {inset_left, inset_right, inset_top, inset_bottom, content_width};
 }
 
@@ -234,12 +227,9 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         return;
     }
 
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float inset_left = padding_left + border_left;
-    float inset_right = padding_right + border_right;
+    Metrics::Insets insets = Metrics::compute_insets(style);
+    float inset_left = insets.left;
+    float inset_right = insets.right;
 
     float content_right = inset_left;
     for (const auto& child : m_children) {

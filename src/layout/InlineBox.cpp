@@ -4,6 +4,7 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/InlineLineBuilder.h"
+#include "layout/LayoutMetricsUtils.h"
 
 namespace Hummingbird::Layout {
 
@@ -28,32 +29,19 @@ struct ChildMargins {
 LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect) {
     rect.x = bounds.x;
     rect.y = bounds.y;
-
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-
-    float inset_left = padding_left + border_left;
-    float inset_right = padding_right + border_right;
-    float inset_top = padding_top + border_top;
-    float inset_bottom = padding_bottom + border_bottom;
-
-    float content_width = bounds.width - inset_left - inset_right;
-    if (content_width < 0.0f) content_width = 0.0f;
+    Metrics::Insets insets = Metrics::compute_insets(style);
+    float inset_left = insets.left;
+    float inset_right = insets.right;
+    float inset_top = insets.top;
+    float inset_bottom = insets.bottom;
+    float content_width = Metrics::content_width(bounds.width, insets);
 
     return {inset_left, inset_right, inset_top, inset_bottom, content_width};
 }
 
 bool has_insets(const Css::ComputedStyle* style) {
-    if (!style) return false;
-    return style->padding.left > 0.0f || style->padding.right > 0.0f || style->padding.top > 0.0f ||
-           style->padding.bottom > 0.0f || style->border_width.left > 0.0f || style->border_width.right > 0.0f ||
-           style->border_width.top > 0.0f || style->border_width.bottom > 0.0f;
+    Metrics::Insets insets = Metrics::compute_insets(style);
+    return insets.left > 0.0f || insets.right > 0.0f || insets.top > 0.0f || insets.bottom > 0.0f;
 }
 
 ChildMargins compute_child_margins(const Css::ComputedStyle* style) {

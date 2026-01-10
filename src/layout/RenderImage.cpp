@@ -10,6 +10,7 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/LayoutMetricsUtils.h"
 #include "layout/inline/InlineTypes.h"
 
 namespace Hummingbird::Layout {
@@ -22,30 +23,10 @@ constexpr float kAltTextPadding = 4.0f;
 const Color kPlaceholderFill{230, 230, 230, 255};
 const Color kPlaceholderStroke{150, 150, 150, 255};
 
-struct Insets {
-    float left;
-    float right;
-    float top;
-    float bottom;
-};
-
 struct LayoutSize {
     float width;
     float height;
 };
-
-Insets compute_insets(const Css::ComputedStyle* style) {
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-    return {padding_left + border_left, padding_right + border_right, padding_top + border_top,
-            padding_bottom + border_bottom};
-}
 
 bool iequals(std::string_view a, std::string_view b) {
     if (a.size() != b.size()) {
@@ -111,7 +92,7 @@ float resolve_height(const DOM::Element& element, const Css::ComputedStyle* styl
 }
 
 LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedStyle* style, const ImageBitmap* image) {
-    Insets insets = compute_insets(style);
+    Metrics::Insets insets = Metrics::compute_insets(style);
     float content_width = resolve_width(element, style, image);
     float content_height = resolve_height(element, style, image);
     return {content_width + insets.left + insets.right, content_height + insets.top + insets.bottom};
@@ -159,7 +140,7 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
 
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
-    Insets insets = compute_insets(style);
+    Metrics::Insets insets = Metrics::compute_insets(style);
 
     Rect content{offset.x + m_rect.x + insets.left, offset.y + m_rect.y + insets.top,
                  m_rect.width - insets.left - insets.right, m_rect.height - insets.top - insets.bottom};
