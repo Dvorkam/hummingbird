@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "core/utils/Log.h"
+#include "platform/NetworkRequestUtils.h"
 
 std::atomic<int> CurlNetwork::s_instances{0};
 std::mutex CurlNetwork::s_global_mutex;
@@ -50,23 +51,19 @@ void CurlNetwork::shutdown() {
 }
 
 void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
-    if (!ok() || thread_pool_.stopping()) {
-        if (callback) callback(NetworkResponse{.url = url});
+    if (!ok()) {
+        if (callback) callback(make_response(url));
         return;
     }
+    if (respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     // Move callback once, and never touch the moved-from original again.
     auto cb = std::move(callback);
 
     thread_pool_.submit([url, cb = std::move(cb), this]() mutable {
-        if (thread_pool_.stopping()) {
-            if (cb) cb(NetworkResponse{.url = url});
-            return;
-        }
-
+        if (respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         std::string body;
-        NetworkResponse response;
-        response.url = url;
+        NetworkResponse response = make_response(url);
         CURL* curl = curl_easy_init();
         if (!curl) {
             HB_LOG_WARN("[network] curl init failed: url=" << url);
