@@ -120,7 +120,7 @@ void draw_outline(IGraphicsContext& context, const Rect& rect, const Color& colo
 }
 
 std::string resolve_default_font_path() {
-    return Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
+    return Hummingbird::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
 }
 }  // namespace
 

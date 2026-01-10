@@ -49,7 +49,7 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     url_bar_text_.reserve(2048);
     url_bar_render_text_.reserve(2049);
 
-    url_font_path_ = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
+    url_font_path_ = Hummingbird::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
     url_style_.font_path = url_font_path_;
     url_style_.font_size = 16.0f;
     url_style_.color = kOverlayText;

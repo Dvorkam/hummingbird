@@ -160,7 +160,6 @@
 - [x] Painter::paint calls root.paint then also does culled traversal when viewport is set (double paint); consider conditional path or removal if redundant.
 - [x] Core inventory captured (utils, arena allocator, DOM, platform_api).
 - [x] Url.cpp has its own to_lower/trim/iequals logic separate from Html/CSS helpers; consider shared string utilities.
-- [x] AssetPath resolve behavior is duplicated in multiple call sites (resolve + .string); consider caching or returning string to reduce repeated resolve.
 - [x] ArenaAllocator throws bad_alloc; consider a consistent error path or logging to avoid silent crashes.
 - [x] App inventory captured (BrowserApp + main).
 - [x] BrowserApp mixes input handling, rendering, and UI state; consider extracting a URLBar component for clarity.
@@ -197,7 +196,7 @@
 - [x] P2-C19: Centralize geometry helpers (intersects/point-in-rect) used in Painter/Tab/Layout. (scope=Renderer/Layout/Core, risk=low, deps=none, touch=2-4 files)
 - [x] P2-C20: Remove double paint path in Painter (avoid root.paint + culled traverse). (scope=Renderer, risk=med, deps=P2-C19, touch=1-2 files)
 - [x] P2-C21: Consolidate string/iequals/to_lower helpers across Core/Html/Style. (scope=Core/Html/Style, risk=low, deps=none, touch=3-5 files)
-- [ ] P2-C22: Reduce repeated AssetPath resolve + .string churn (cache or helper). (scope=Core/App/Layout/Platform, risk=low, deps=none, touch=2-4 files)
+- [x] P2-C22: Reduce repeated AssetPath resolve + .string churn (cache or helper). (scope=Core/App/Layout/Platform, risk=low, deps=none, touch=2-4 files)
 - [ ] P2-C23: Align ArenaAllocator error path (log or fail-fast strategy). (scope=Core, risk=low, deps=none, touch=1-2 files)
 - [ ] P2-C24: Extract URL bar component from BrowserApp (state + input + render). (scope=App, risk=med, deps=none, touch=2-3 files)
 - [ ] P2-C25: Remove redundant gfx creation in main.cpp (move into BrowserApp or drop). (scope=App, risk=low, deps=none, touch=1-2 files)

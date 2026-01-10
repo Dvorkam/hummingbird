@@ -60,7 +60,7 @@ std::string resolve_text_font_path(const Css::ComputedStyle* style) {
     } else if (italic) {
         font_path = "assets/fonts/Roboto-Italic.ttf";
     }
-    return Hummingbird::resolve_asset_path(font_path).string();
+    return Hummingbird::resolve_asset_path_string(font_path);
 }
 
 TextStyle build_text_style(const Css::ComputedStyle* style) {
