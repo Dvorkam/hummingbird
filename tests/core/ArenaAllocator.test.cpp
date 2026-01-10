@@ -11,7 +11,7 @@ TEST(ArenaAllocatorTest, SimpleAllocation) {
 TEST(ArenaAllocatorTest, AllocationExceedsCapacity) {
     ArenaAllocator allocator(100);
     allocator.allocate(50);
-    EXPECT_THROW(allocator.allocate(60), std::bad_alloc);
+    EXPECT_DEATH_IF_SUPPORTED(allocator.allocate(60), "out of memory");
 }
 
 TEST(ArenaAllocatorTest, Reset) {

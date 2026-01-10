@@ -11,7 +11,7 @@ public:
     explicit ArenaAllocator(size_t bytes);
     ~ArenaAllocator();
 
-    // Allocate memory from the arena
+    // Allocate memory from the arena. Terminates on out-of-memory.
     void* allocate(size_t size, size_t alignment = alignof(std::max_align_t));
 
     // No deallocation of individual objects, only reset the whole arena
