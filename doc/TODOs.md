@@ -183,6 +183,7 @@
 - [x] P2-C13: Split UA defaults + legacy attribute parsing into dedicated style module. (scope=Style, risk=med, deps=none, touch=2-3 files)
 - [x] P2-C14: Make selector parsing/matching extensible (table-driven or composite selectors). (scope=Style, risk=med, deps=none, touch=2-3 files)
 - [x] P2-C15: Replace CSS property name if-chain with table/map lookup. (scope=Style, risk=low, deps=none, touch=1-2 files)
+- [ ] (Conditional) If CSS property list grows beyond ~50 entries, replace linear scan with sorted array + binary search in CssParser. (scope=Style, risk=low, deps=none, touch=1 file)
 - [ ] P2-C16: Deduplicate inline layout helpers between BlockBox and RenderListItem. (scope=Layout, risk=med-high, deps=none, touch=3-4 files)
 - [ ] P2-C17: Factor shared compute_metrics/insets helpers across layout renderers. (scope=Layout, risk=med, deps=none, touch=4-6 files)
 - [ ] P2-C18: Extract tag→render mapping table from TreeBuilder. (scope=Layout, risk=low-med, deps=none, touch=2 files)
