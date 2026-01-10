@@ -1,5 +1,7 @@
 #include "platform/SDLInputTranslation.h"
 
+namespace Hummingbird::Platform::SDLInput {
+
 namespace {
 Modifiers to_mods(SDL_Keymod mod) {
     Modifiers m;
@@ -136,3 +138,5 @@ bool translate_event(const SDL_Event& e, InputEvent& out) {
             return false;
     }
 }
+
+}  // namespace Hummingbird::Platform::SDLInput

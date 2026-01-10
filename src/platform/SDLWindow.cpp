@@ -110,13 +110,13 @@ std::pair<int, int> SDLWindow::get_size() const {
 bool SDLWindow::wait_event(InputEvent& out, int timeout_ms) {
     SDL_Event e;
     if (!SDL_WaitEventTimeout(&e, timeout_ms)) return false;
-    return translate_event(e, out);
+    return Hummingbird::Platform::SDLInput::translate_event(e, out);
 }
 
 bool SDLWindow::poll_event(InputEvent& out) {
     SDL_Event e;
     if (!SDL_PollEvent(&e)) return false;
-    return translate_event(e, out);
+    return Hummingbird::Platform::SDLInput::translate_event(e, out);
 }
 
 void SDLWindow::start_text_input() {
