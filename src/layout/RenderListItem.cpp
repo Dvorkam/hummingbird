@@ -4,6 +4,7 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/InlineLineBuilder.h"
+#include "layout/inline/InlineLayoutUtils.h"
 
 namespace Hummingbird::Layout {
 
@@ -90,134 +91,20 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
     cursor.y = child_y + child.get_rect().height + margins.bottom;
 }
 
-struct InlineLayoutResult {
-    std::vector<InlineFragment> fragments;
-    std::vector<float> heights;
-    float last_line_width = 0.0f;
-};
-
-void measure_inline_participants(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
-                                 size_t& i) {
-    while (i < children.size()) {
-        auto p = children[i]->Inline();
-        if (!p) break;
-
-        p.get().reset_inline_layout();
-        p.get().measure_inline(context);
-        ++i;
-    }
-}
-
-void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
-                         std::vector<InlineRun>& runs) {
-    while (i < children.size()) {
-        auto p = children[i]->Inline();
-        if (!p) break;
-
-        p.get().collect_inline_runs(context, runs);
-        ++i;
-    }
-}
-
-void align_inline_lines(std::vector<InlineLine>& lines, float available_width, Css::ComputedStyle::TextAlign align) {
-    if (align == Css::ComputedStyle::TextAlign::Left || available_width <= 0.0f) {
-        return;
-    }
-
-    for (auto& line : lines) {
-        if (line.fragments.empty()) {
-            continue;
-        }
-        float min_x = line.fragments.front().rect.x;
-        float max_x = line.fragments.front().rect.x + line.fragments.front().rect.width;
-        for (const auto& fragment : line.fragments) {
-            min_x = std::min(min_x, fragment.rect.x);
-            max_x = std::max(max_x, fragment.rect.x + fragment.rect.width);
-        }
-        float line_width = max_x - min_x;
-        if (line_width <= 0.0f || line_width >= available_width) {
-            continue;
-        }
-
-        float desired_start = 0.0f;
-        if (align == Css::ComputedStyle::TextAlign::Center) {
-            desired_start = (available_width - line_width) * 0.5f;
-        } else if (align == Css::ComputedStyle::TextAlign::Right) {
-            desired_start = available_width - line_width;
-        }
-        float shift = desired_start - min_x;
-        if (shift == 0.0f) {
-            continue;
-        }
-        for (auto& fragment : line.fragments) {
-            fragment.rect.x += shift;
-        }
-    }
-}
-
-InlineLayoutResult apply_inline_fragments(const std::vector<InlineLine>& lines, const std::vector<InlineRun>& runs,
-                                          float base_x, float base_y) {
-    InlineLayoutResult result;
-    if (lines.empty()) {
-        return result;
-    }
-
-    result.fragments.reserve(runs.size());
-    result.heights.reserve(lines.size());
-    size_t last_line = lines.size() - 1;
-
-    for (const auto& line : lines) {
-        result.heights.push_back(line.height);
-        for (const auto& fragment : line.fragments) {
-            InlineFragment resolved = fragment;
-            resolved.rect.x += base_x;
-            resolved.rect.y += base_y;
-            result.fragments.push_back(resolved);
-            auto& run = runs[resolved.run_index];
-            if (run.owner) {
-                if (auto p = run.owner->Inline()) {
-                    p.get().apply_inline_fragment(run.local_index, resolved, run);
-                }
-            }
-            if (resolved.line_index == last_line) {
-                float extent = resolved.rect.x + resolved.rect.width - base_x;
-                result.last_line_width = std::max(result.last_line_width, extent);
-            }
-        }
-    }
-
-    return result;
-}
-
-void update_cursor_for_inline(LineCursor& cursor, const LayoutMetrics& metrics, float base_y,
-                              const InlineLayoutResult& result) {
-    if (result.heights.empty()) {
-        return;
-    }
-
-    float total_height = 0.0f;
-    for (float h : result.heights) {
-        total_height += h;
-    }
-    float last_height = result.heights.back();
-    cursor.y = base_y + (total_height - last_height);
-    cursor.x = metrics.inset_left + metrics.marker_offset + result.last_line_width;
-    cursor.line_height = std::max(cursor.line_height, last_height);
-}
-
-InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
-                                       size_t& i, const LayoutMetrics& metrics, LineCursor& cursor,
-                                       Css::ComputedStyle::TextAlign text_align, float wrap_width) {
-    InlineLayoutResult result;
+InlineLayout::InlineLayoutResult layout_inline_group(IGraphicsContext& context,
+                                                     std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
+                                                     const LayoutMetrics& metrics, LineCursor& cursor,
+                                                     Css::ComputedStyle::TextAlign text_align, float wrap_width) {
+    InlineLayout::InlineLayoutResult result;
     InlineLineBuilder builder;
     builder.reset();
     std::vector<InlineRun> runs;
     size_t group_start = i;
     size_t group_end = i;
 
-    measure_inline_participants(context, children, group_end);
+    InlineLayout::measure_inline_participants(context, children, group_end);
     i = group_start;
-    collect_inline_runs(context, children, i, runs);
+    InlineLayout::collect_inline_runs(context, children, i, runs);
 
     if (runs.empty()) {
         return result;
@@ -232,11 +119,11 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
     if (lines.empty()) {
         return result;
     }
-    align_inline_lines(lines, metrics.content_width, text_align);
+    InlineLayout::align_inline_lines(lines, metrics.content_width, text_align);
 
     float base_x = metrics.inset_left + metrics.marker_offset;
     float base_y = cursor.y;
-    result = apply_inline_fragments(lines, runs, base_x, base_y);
+    result = InlineLayout::apply_inline_fragments(lines, runs, base_x, base_y, true);
 
     for (size_t j = group_start; j < group_end; ++j) {
         if (auto p = children[j]->Inline()) {
@@ -244,7 +131,7 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
         }
     }
 
-    update_cursor_for_inline(cursor, metrics, base_y, result);
+    InlineLayout::update_cursor_for_inline(cursor.x, cursor.y, cursor.line_height, base_x, base_y, result);
     return result;
 }
 
@@ -256,8 +143,8 @@ void update_marker_for_block(bool& marker_y_set, float& marker_y, float inset_to
     marker_y_set = true;
 }
 
-void update_marker_for_inline(const InlineLayoutResult& inline_layout, bool& marker_y_set, float& marker_y,
-                              float inset_top) {
+void update_marker_for_inline(const InlineLayout::InlineLayoutResult& inline_layout, bool& marker_y_set,
+                              float& marker_y, float inset_top) {
     if (marker_y_set || inline_layout.heights.empty()) {
         return;
     }
@@ -297,7 +184,7 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         auto align = style ? style->text_align : Css::ComputedStyle::TextAlign::Left;
         float wrap_width =
             (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) ? 0.0f : metrics.content_width;
-        InlineLayoutResult inline_layout =
+        InlineLayout::InlineLayoutResult inline_layout =
             layout_inline_group(context, m_children, i, metrics, cursor, align, wrap_width);
         update_marker_for_inline(inline_layout, marker_y_set, marker_y, metrics.inset_top);
     }
