@@ -212,3 +212,260 @@
 - [ ] Consolidate utilities and update include paths.
 - [ ] Update docs/README where behavior or structure changed.
 - [ ] Re-run full test suite and note skips.
+
+
+## Milestone 4 (Scripting milestone, but these are “pre-req polish”)
+
+### **P0 (do first, kills lots of bogus warnings)**
+
+* **Story T-HTML-ROBUST-1: Malformed Tag Handling**
+
+* **As a** parser maintainer,
+
+* **I want** malformed tags like `<>` and empty tag names to be treated as text (with graceful recovery),
+
+* **So that** we don’t create bogus DOM nodes and spam warnings.
+
+* **Acceptance:** Inputs containing `<>`, `< >`, `</>`, `<\n>` don’t create elements; parser continues; warning is deduped.
+
+* **Story T-CSS-ROBUST-1: CSS Declaration Recovery**
+
+* **As a** user visiting modern sites,
+
+* **I want** CSS parsing to recover from malformed/unknown declarations,
+
+* **So that** one bad rule doesn’t poison the whole block (and we don’t “invent” properties like `http`, `ribbon`, `bottom-top`, `e_aG`).
+
+* **Acceptance:** In declaration blocks, only `ident ':' value` becomes a declaration; otherwise skip to `;` or `}`; bogus “properties” disappear from logs.
+
+---
+
+### **P1 (high impact page correctness with low scope risk)**
+
+* **Story T-HTML-SEM-1: Semantic Block Tags Map to BlockBox**
+
+* **As a** reader,
+
+* **I want** semantic container tags to behave like `<div>` by default,
+
+* **So that** modern documents produce a sane block structure.
+
+* **Scope:** `header`, `footer`, `nav`, `main`, `section`, `article`, `aside`, `figure`, `figcaption`, `time`
+
+* **Acceptance:** No “unsupported tag” warnings for these; layout matches `<div>` equivalent.
+
+* **Story T-HTML-CUSTOM-1: Custom Elements as Generic Elements**
+
+* **As a** reader,
+
+* **I want** unknown/custom elements (tag names containing `-`) to parse and render as generic elements,
+
+* **So that** sites using web components (without JS) still lay out.
+
+* **Acceptance:** No warnings for `seznam-*` tags; they produce normal nodes; render as block by default (unless CSS later changes display).
+
+* **Story T-CSS-VAR-1: Custom Properties Storage**
+
+* **As a** user,
+
+* **I want** CSS custom properties (`--*`) to be stored and inherited,
+
+* **So that** stylesheets that rely on variables don’t collapse.
+
+* **Acceptance:** `--*` properties are stored on computed style; inheritance works; no unsupported-property warnings for `--*`.
+
+* **Story T-CSS-VAR-2: Minimal var() Resolution for Colors**
+
+* **As a** user,
+
+* **I want** `var(--x)` to resolve at least for `color` and `background-color`,
+
+* **So that** pages using design tokens are readable.
+
+* **Acceptance:** `color/background-color` accept `var(--x)`; fallback in `var(--x, fallback)` works for these two properties.
+
+* **Story T-CSS-TEXT-1: text-align**
+
+* **As a** user,
+
+* **I want** `text-align` to affect inline content,
+
+* **So that** headers and nav rows align correctly.
+
+* **Acceptance:** left/center/right alignment applies to inline runs (existing table follow-up can extend block child alignment later).
+
+* **Story T-CSS-TEXT-2: white-space (nowrap)**
+
+* **As a** user,
+
+* **I want** `white-space: nowrap` to be respected,
+
+* **So that** nav items and badges don’t wrap into nonsense.
+
+* **Acceptance:** `nowrap` prevents line breaking for inline layout; default behavior unchanged.
+
+* **Story T-CSS-TEXT-3: text-decoration (underline/none)**
+
+* **As a** user,
+
+* **I want** `text-decoration` underline to render for links,
+
+* **So that** pages remain navigable and recognizable.
+
+* **Acceptance:** underline draws for inline text (simple line under baseline); `none` disables.
+
+---
+
+### **P2 (still M4, but after the above)**
+
+* **Story T-FORM-1: Button Element Rendering**
+
+* **As a** reader,
+
+* **I want** `<button>` to render with a basic UA style,
+
+* **So that** controls are visible even without JS.
+
+* **Acceptance:** `<button>` produces a box with padding/border/background; inherits font; participates in layout predictably.
+
+* **Story T-FORM-2: Basic Hit-Test + Click Signal**
+
+* **As a** user,
+
+* **I want** buttons to be clickable (even if action is a stub),
+
+* **So that** we can wire scripting/events later.
+
+* **Acceptance:** click hit-test returns target element; engine logs a click event (no navigation required).
+
+* **Story T-SVG-0: SVG Placeholder Box**
+
+* **As a** user,
+
+* **I want** `<svg>` to occupy space even if we don’t render vector content yet,
+
+* **So that** layouts don’t collapse where icons/logos should be.
+
+* **Acceptance:** `<svg>` renders as placeholder rect; width/height attributes respected; child SVG tags don’t produce warnings.
+
+* **Story T-CSS-TYPO-1: font-family Fallback Chain**
+
+* **As a** reader,
+
+* **I want** `font-family` to select a reasonable fallback chain,
+
+* **So that** typography isn’t Roboto-or-bust.
+
+* **Acceptance:** comma-separated families parsed; generic families (`serif/sans-serif/monospace`) map to actual fonts; first available wins.
+
+* **Story T-CSS-TYPO-2: font-style + font-weight**
+
+* **As a** reader,
+
+* **I want** `font-style` and `font-weight` to affect font selection,
+
+* **So that** emphasis/bold are visible.
+
+* **Acceptance:** normal/italic and weight (at least 400/700) reflected in chosen font face (or best-effort simulation if the font lacks variants).
+
+---
+
+## Milestone 5 (post-scripting start, heavier layout/paint correctness)
+
+### **P1**
+
+* **Story T-CSS-POS-1: position:absolute (basic)**
+
+* **As a** user,
+
+* **I want** `position: absolute` with `top/left/right/bottom` to work,
+
+* **So that** overlays/badges/icons appear where intended.
+
+* **Acceptance:** absolutely positioned elements are out-of-flow and positioned relative to a containing block (MVP: nearest positioned ancestor, fallback viewport).
+
+* **Story T-CSS-VIS-1: opacity (paint-only)**
+
+* **As a** user,
+
+* **I want** `opacity` to affect painting,
+
+* **So that** UI elements using fades look correct.
+
+* **Acceptance:** opacity multiplies paint alpha for element subtree (best-effort if backend lacks stackable alpha).
+
+### **P2**
+
+* **Story T-CSS-BOX-1: box-sizing**
+
+* **As a** developer,
+
+* **I want** `box-sizing: border-box` support,
+
+* **So that** width/height behave predictably for modern UI.
+
+* **Acceptance:** border-box sizing affects layout calculations for width/height.
+
+* **Story T-CSS-BORDER-1: border-radius (paint)**
+
+* **As a** user,
+
+* **I want** `border-radius` to round corners,
+
+* **So that** UI doesn’t look like 1997.
+
+* **Acceptance:** rounded rect paint for background/border (MVP: clip or approximate).
+
+* **Story T-CSS-DECOR-1: outline + outline-offset**
+
+* **As a** user,
+
+* **I want** `outline` to render,
+
+* **So that** focus rings and accessibility visuals appear.
+
+* **Acceptance:** outline draws outside border; outline-offset shifts it.
+
+---
+
+## Milestone 6+ (big rocks; schedule only if you want to expand layout scope)
+
+### **P1**
+
+* **Story T-LAYOUT-FLEX-1: Flexbox Layout MVP**
+* **As a** user,
+* **I want** basic `display:flex` + `flex-direction` + `justify-content` + `align-items` to work,
+* **So that** modern navbars and header layouts render.
+* **Acceptance:** common flex rows/columns lay out children correctly (no wrap/ordering required at first).
+
+### **P2**
+
+* **Story T-LAYOUT-GRID-1: Grid Layout MVP**
+
+* **As a** user,
+
+* **I want** minimal CSS Grid support (`grid-template-columns/rows`, `grid-row/column`),
+
+* **So that** structured app-like layouts appear.
+
+* **Acceptance:** fixed-track grids render; auto-placement can be deferred.
+
+* **Story T-ANIM-1: transition + transform (no timing engine)**
+
+* **As a** user,
+
+* **I want** transforms/transitions to parse and apply statically,
+
+* **So that** elements at least appear in their final state (even if not animated yet).
+
+* **Acceptance:** `transform` affects paint transform matrix; `transition*` parses but may be ignored until animation system exists.
+
+---
+
+## “Logging sanity” (optional, but I strongly recommend it)
+
+* **Story T-SUPPORT-REG-1: Supported Feature Registry + Deduped Warnings**
+* **As a** developer,
+* **I want** a centralized registry for supported HTML tags + CSS properties (and deduped logs),
+* **So that** we avoid drift and warning spam.
+* **Acceptance:** one table drives “known/supported”; warnings are once-per-(tag/property) per document.
