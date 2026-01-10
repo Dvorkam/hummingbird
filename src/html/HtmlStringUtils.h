@@ -27,8 +27,7 @@ inline bool iequals(std::string_view a, std::string_view b) {
 }
 
 inline std::string_view find_attribute(const StartTagToken& tag_data, std::string_view name) {
-    for (size_t i = 0; i < tag_data.attribute_count; ++i) {
-        const auto& attr = tag_data.attributes[i];
+    for (const auto& attr : tag_data.attributes) {
         if (iequals(attr.name, name)) {
             return attr.value;
         }

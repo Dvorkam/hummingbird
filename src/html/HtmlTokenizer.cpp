@@ -41,8 +41,7 @@ void Tokenizer::parse_tag_name(std::string_view& out_name) {
     out_name = m_input.substr(start, m_pos - start);
 }
 
-size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
-    size_t count = 0;
+void Tokenizer::parse_attributes(std::vector<Attribute>& attrs) {
     while (!eof()) {
         skip_whitespace();
         if (peek_char() == '/' || peek_char() == '>') {
@@ -76,23 +75,18 @@ size_t Tokenizer::parse_attributes(std::array<Attribute, 8>& attrs) {
             value = m_input.substr(val_start, m_pos - val_start);
             if (quote && peek_char() == quote) consume_char();
         }
-        if (count < attrs.size()) {
-            attrs[count++] = Attribute{name, value};
-        }
+        attrs.emplace_back(Attribute{name, value});
     }
-    return count;
 }
 
-Token Tokenizer::emit_tag(bool is_end_tag, bool self_closing, std::string_view tag_name,
-                          const std::array<Attribute, 8>& attrs, size_t attr_count) {
+Token Tokenizer::emit_tag(bool is_end_tag, bool self_closing, std::string_view tag_name, std::vector<Attribute> attrs) {
     if (is_end_tag) {
         return Token{TokenType::EndTag, EndTagToken{tag_name}};
     }
     StartTagToken start;
     start.name = tag_name;
-    start.attribute_count = attr_count;
+    start.attributes = std::move(attrs);
     start.self_closing = self_closing;
-    for (size_t i = 0; i < attr_count; ++i) start.attributes[i] = attrs[i];
     return Token{TokenType::StartTag, start};
 }
 
@@ -132,8 +126,9 @@ bool Tokenizer::handle_tag_open_state(Token& out) {
     }
     std::string_view tag_name;
     parse_tag_name(tag_name);
-    std::array<Attribute, 8> attrs{};
-    size_t attr_count = parse_attributes(attrs);
+    std::vector<Attribute> attrs;
+    attrs.reserve(8);
+    parse_attributes(attrs);
     bool self_closing = false;
     skip_whitespace();
     if (peek_char() == '/') {
@@ -142,7 +137,7 @@ bool Tokenizer::handle_tag_open_state(Token& out) {
     }
     if (peek_char() == '>') consume_char();
     m_state = State::Data;
-    out = emit_tag(false, self_closing, tag_name, attrs, attr_count);
+    out = emit_tag(false, self_closing, tag_name, std::move(attrs));
     return true;
 }
 
@@ -151,7 +146,7 @@ bool Tokenizer::handle_end_tag_open_state(Token& out) {
     parse_tag_name(tag_name);
     skip_until('>');
     m_state = State::Data;
-    out = emit_tag(true, false, tag_name, {}, 0);
+    out = emit_tag(true, false, tag_name, {});
     return true;
 }
 

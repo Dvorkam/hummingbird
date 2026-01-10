@@ -179,7 +179,7 @@
 - [x] P2-C9: Extract SDLWindow input translation helpers into platform/input util. (scope=Platform, risk=low, deps=none, touch=2 files)
 - [x] P2-C10: Centralize HTML string utils (to_lower/iequals/find_attribute) used in parser. (scope=Html/Core, risk=low, deps=none, touch=2-3 files)
 - [x] P2-C11: Centralize tag metadata (known/void tags) to avoid drift with TagNames. (scope=Html, risk=med, deps=none, touch=2 files)
-- [ ] P2-C12: Replace fixed 8-attr array in HtmlTokenizer with dynamic storage or explicit overflow handling. (scope=Html, risk=med, deps=none, touch=2 files)
+- [x] P2-C12: Replace fixed 8-attr array in HtmlTokenizer with dynamic storage or explicit overflow handling. (scope=Html, risk=med, deps=none, touch=2 files)
 - [ ] P2-C13: Split UA defaults + legacy attribute parsing into dedicated style module. (scope=Style, risk=med, deps=none, touch=2-3 files)
 - [ ] P2-C14: Make selector parsing/matching extensible (table-driven or composite selectors). (scope=Style, risk=med, deps=none, touch=2-3 files)
 - [ ] P2-C15: Replace CSS property name if-chain with table/map lookup. (scope=Style, risk=low, deps=none, touch=1-2 files)
