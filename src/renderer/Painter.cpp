@@ -1,6 +1,7 @@
 #include "renderer/Painter.h"
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/GeometryUtils.h"
 #include "layout/RenderObject.h"
 
 namespace Hummingbird::Renderer {
@@ -17,12 +18,6 @@ void draw_outline(IGraphicsContext& context, const Layout::Rect& rect, const Col
     context.fill_rect(bottom, color);
     context.fill_rect(left, color);
     context.fill_rect(right, color);
-}
-
-bool intersects(const Layout::Rect& a, const Layout::Rect& b) {
-    if (a.width <= 0.0f || a.height <= 0.0f) return false;
-    if (b.width <= 0.0f || b.height <= 0.0f) return false;
-    return !(a.x + a.width <= b.x || a.x >= b.x + b.width || a.y + a.height <= b.y || a.y >= b.y + b.height);
 }
 
 template <typename Visitor>
@@ -45,7 +40,7 @@ void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, con
     traverse_tree(
         node, offset,
         [&](const Layout::RenderObject& current, const Layout::Rect& absolute, const Layout::Point& local_offset) {
-            if (viewport && !intersects(absolute, *viewport)) {
+            if (viewport && !Layout::rect_intersects(absolute, *viewport)) {
                 return false;
             }
             current.paint_self(context, local_offset);

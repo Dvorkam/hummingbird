@@ -12,6 +12,7 @@
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
+#include "layout/GeometryUtils.h"
 #include "layout/RenderImage.h"
 #include "layout/RenderObject.h"
 #include "style/CssParser.h"
@@ -27,17 +28,6 @@ size_t count_nodes_recursive(const DOM::Node* node) {
         total += count_nodes_recursive(child.get());
     }
     return total;
-}
-
-bool point_in_rect(const Layout::Rect& rect, const Layout::Point& point) {
-    if (rect.width <= 0.0f || rect.height <= 0.0f) return false;
-    return point.x >= rect.x && point.x <= rect.x + rect.width && point.y >= rect.y && point.y <= rect.y + rect.height;
-}
-
-bool intersects(const Layout::Rect& a, const Layout::Rect& b) {
-    if (a.width <= 0.0f || a.height <= 0.0f) return false;
-    if (b.width <= 0.0f || b.height <= 0.0f) return false;
-    return !(a.x + a.width <= b.x || a.x >= b.x + b.width || a.y + a.height <= b.y || a.y >= b.y + b.height);
 }
 
 std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::string_view base_url) {
@@ -65,10 +55,10 @@ std::optional<std::string> hit_test_link_recursive(const Layout::RenderObject& n
                                                    std::string_view base_url) {
     const auto& rect = node.get_rect();
     Layout::Rect absolute{offset.x + rect.x, offset.y + rect.y, rect.width, rect.height};
-    if (!intersects(absolute, viewport)) {
+    if (!Layout::rect_intersects(absolute, viewport)) {
         return std::nullopt;
     }
-    if (!point_in_rect(absolute, point)) {
+    if (!Layout::rect_contains_point(absolute, point)) {
         return std::nullopt;
     }
 
@@ -210,7 +200,7 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
     if (!render_tree_) {
         return std::nullopt;
     }
-    if (!point_in_rect(context.viewport, context.point)) {
+    if (!Layout::rect_contains_point(context.viewport, context.point)) {
         return std::nullopt;
     }
     Layout::Point offset{0.0f, -context.scroll_y};
