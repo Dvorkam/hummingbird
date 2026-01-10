@@ -2,8 +2,8 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
-#include "html/HtmlTagNames.h"
 #include "layout/RenderFactory.h"
+#include "layout/TagRenderMap.h"
 #include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
@@ -16,11 +16,6 @@ bool is_whitespace_only(const std::string& text) {
         }
     }
     return true;
-}
-
-bool is_non_visual_tag(std::string_view tag) {
-    return tag == Hummingbird::Html::TagNames::Head || tag == Hummingbird::Html::TagNames::Style ||
-           tag == Hummingbird::Html::TagNames::Title || tag == Hummingbird::Html::TagNames::Script;
 }
 
 std::unique_ptr<RenderObject> render_for_display(const DOM::Element* element, Css::ComputedStyle::Display display) {
@@ -56,30 +51,11 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
     if (auto element_node = dynamic_cast<const DOM::Element*>(node)) {
         // Skip non-visual elements for now.
         const auto& tag = element_node->get_tag_name();
-        if (is_non_visual_tag(tag)) {
+        if (TagRenderMap::is_non_visual_tag(tag)) {
             return nullptr;
         }
-        if (tag == Hummingbird::Html::TagNames::Br) {
-            return RenderFactory::create_break(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Hr) {
-            return RenderFactory::create_rule(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Img) {
-            return RenderFactory::create_image(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Table) {
-            return RenderFactory::create_table(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Thead || tag == Hummingbird::Html::TagNames::Tbody ||
-            tag == Hummingbird::Html::TagNames::Tfoot) {
-            return RenderFactory::create_table_section(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Tr) {
-            return RenderFactory::create_table_row(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Td || tag == Hummingbird::Html::TagNames::Th) {
-            return RenderFactory::create_table_cell(element_node);
+        if (auto special = TagRenderMap::create_special_render_object(element_node)) {
+            return special;
         }
         auto style = element_node->get_computed_style();
         if (style) {
