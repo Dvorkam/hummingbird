@@ -35,6 +35,7 @@ add_library(Style STATIC
     src/style/CssTokenizer.cpp
     src/style/CssParser.cpp
     src/style/SelectorMatcher.cpp
+    src/style/StyleDefaults.cpp
     src/style/StyleEngine.cpp
     src/style/StylesheetSource.cpp
 )
