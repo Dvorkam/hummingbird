@@ -61,6 +61,7 @@ target_include_directories(Core
 add_library(Platform STATIC
     src/platform/SDLWindow.cpp
     src/platform/SDLGraphicsContext.cpp
+    src/platform/SDLInputTranslation.cpp
     src/platform/CurlNetwork.cpp
     src/platform/StubNetwork.cpp
     src/platform/NetworkFactory.cpp
