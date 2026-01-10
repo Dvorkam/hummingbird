@@ -174,7 +174,7 @@
 - [x] P2-C4: Split Tab pipeline into DocumentPipeline + ResourceLoader. (scope=Engine, risk=high, deps=P2-C1/P2-C2, touch=3-5 files)
 - [x] P2-C5: Replace DOM image traversal with parser output or shared DOM visitor. (scope=Engine/Html, risk=med, deps=none, touch=2-3 files)
 - [x] P2-C6: Add load_bytes to IResourceProvider (text vs binary) and update FileResourceProvider + call sites. (scope=Core/Platform/Engine, risk=med, deps=none, touch=4-6 files)
-- [ ] P2-C7: Extract network worker/thread manager for CurlNetwork + StubNetwork. (scope=Platform, risk=med, deps=none, touch=2-3 files)
+- [x] P2-C7: Extract network worker/thread manager for CurlNetwork + StubNetwork. (scope=Platform, risk=med, deps=none, touch=2-3 files)
 - [ ] P2-C8: Share Curl/Stub response init + stop checks utility. (scope=Platform, risk=med, deps=P2-C7, touch=2-3 files)
 - [ ] P2-C9: Extract SDLWindow input translation helpers into platform/input util. (scope=Platform, risk=low, deps=none, touch=2 files)
 - [ ] P2-C10: Centralize HTML string utils (to_lower/iequals/find_attribute) used in parser. (scope=Html/Core, risk=low, deps=none, touch=2-3 files)

@@ -46,12 +46,7 @@ std::string build_stub_body(const std::string& url) {
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
 }
 
-void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb, std::atomic<bool>& stopping) {
-    if (stopping.load(std::memory_order_relaxed)) {
-        if (cb) cb(NetworkResponse{.url = url});
-        return;
-    }
-
+void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb) {
     std::string body = build_stub_body(url);
     NetworkResponse response;
     response.url = url;
@@ -63,37 +58,22 @@ void run_stub_request(const std::string& url, std::function<void(NetworkResponse
 }  // namespace
 
 void StubNetwork::shutdown() {
-    if (m_stopping.exchange(true, std::memory_order_relaxed)) return;
-    join_all();
-}
-
-void StubNetwork::join_all() {
-    std::vector<std::thread> threads;
-    {
-        std::lock_guard<std::mutex> lg(m_threads_mutex);
-        threads.swap(m_threads);
-    }
-    for (auto& t : threads) {
-        if (t.joinable()) t.join();
-    }
+    thread_pool_.shutdown();
 }
 
 void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
-    if (m_stopping.load(std::memory_order_relaxed)) {
+    if (thread_pool_.stopping()) {
         if (callback) callback(NetworkResponse{.url = url});
         return;
     }
 
     auto cb = std::move(callback);
 
-    std::thread worker([url, cb = std::move(cb), this]() mutable { run_stub_request(url, std::move(cb), m_stopping); });
-
-    {
-        std::lock_guard<std::mutex> lg(m_threads_mutex);
-        if (m_stopping.load(std::memory_order_relaxed)) {
-            if (worker.joinable()) worker.join();
+    thread_pool_.submit([url, cb = std::move(cb), this]() mutable {
+        if (thread_pool_.stopping()) {
+            if (cb) cb(NetworkResponse{.url = url});
             return;
         }
-        m_threads.emplace_back(std::move(worker));
-    }
+        run_stub_request(url, std::move(cb));
+    });
 }
