@@ -18,7 +18,8 @@ bool is_whitespace_only(const std::string& text) {
     return true;
 }
 
-std::unique_ptr<RenderObject> render_for_display(const DOM::Element* element, Css::ComputedStyle::Display display) {
+std::unique_ptr<RenderObject> create_render_for_display(const DOM::Element* element,
+                                                        Css::ComputedStyle::Display display) {
     switch (display) {
         case Css::ComputedStyle::Display::Inline:
             return RenderFactory::create_inline_box(element);
@@ -54,12 +55,12 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
         if (TagRenderMap::is_non_visual_tag(tag)) {
             return nullptr;
         }
-        if (auto special = TagRenderMap::create_special_render_object(element_node)) {
-            return special;
+        if (TagRenderMap::is_special_tag(tag)) {
+            return TagRenderMap::create_special_render_object(element_node);
         }
         auto style = element_node->get_computed_style();
         if (style) {
-            return render_for_display(element_node, style->display);
+            return create_render_for_display(element_node, style->display);
         }
         return RenderFactory::create_block_box(element_node);
     } else if (auto text_node = dynamic_cast<const DOM::Text*>(node)) {

@@ -51,26 +51,35 @@ struct Mapping {
     CreateFn create;
 };
 
+inline constexpr Mapping kSpecialMappings[] = {
+    {Hummingbird::Html::TagNames::Br, &create_break_render},
+    {Hummingbird::Html::TagNames::Hr, &create_rule_render},
+    {Hummingbird::Html::TagNames::Img, &RenderFactory::create_image},
+    {Hummingbird::Html::TagNames::Table, &create_table_render},
+    {Hummingbird::Html::TagNames::Thead, &create_table_section_render},
+    {Hummingbird::Html::TagNames::Tbody, &create_table_section_render},
+    {Hummingbird::Html::TagNames::Tfoot, &create_table_section_render},
+    {Hummingbird::Html::TagNames::Tr, &create_table_row_render},
+    {Hummingbird::Html::TagNames::Td, &create_table_cell_render},
+    {Hummingbird::Html::TagNames::Th, &create_table_cell_render},
+};
+
+inline bool is_special_tag(std::string_view tag) {
+    for (const auto& mapping : kSpecialMappings) {
+        if (tag == mapping.tag) {
+            return true;
+        }
+    }
+    return false;
+}
+
 inline std::unique_ptr<RenderObject> create_special_render_object(const DOM::Element* element) {
     if (!element) {
         return nullptr;
     }
 
-    static constexpr Mapping kMappings[] = {
-        {Hummingbird::Html::TagNames::Br, &create_break_render},
-        {Hummingbird::Html::TagNames::Hr, &create_rule_render},
-        {Hummingbird::Html::TagNames::Img, &RenderFactory::create_image},
-        {Hummingbird::Html::TagNames::Table, &create_table_render},
-        {Hummingbird::Html::TagNames::Thead, &create_table_section_render},
-        {Hummingbird::Html::TagNames::Tbody, &create_table_section_render},
-        {Hummingbird::Html::TagNames::Tfoot, &create_table_section_render},
-        {Hummingbird::Html::TagNames::Tr, &create_table_row_render},
-        {Hummingbird::Html::TagNames::Td, &create_table_cell_render},
-        {Hummingbird::Html::TagNames::Th, &create_table_cell_render},
-    };
-
     const auto& tag = element->get_tag_name();
-    for (const auto& mapping : kMappings) {
+    for (const auto& mapping : kSpecialMappings) {
         if (tag == mapping.tag) {
             return mapping.create(element);
         }
