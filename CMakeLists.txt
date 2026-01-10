@@ -140,6 +140,9 @@ add_executable(Hummingbird
     src/app/BrowserApp.cpp
     src/app/BrowserApp.h
 )
+if(WIN32)
+    target_sources(Hummingbird PRIVATE src/app/hummingbird.rc)
+endif()
 
 # The App needs to know about the Core interfaces and the Platform implementation.
 target_include_directories(Hummingbird PRIVATE

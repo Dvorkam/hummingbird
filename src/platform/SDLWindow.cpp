@@ -1,9 +1,41 @@
 #include "platform/SDLWindow.h"
 
 #include <SDL.h>
+#include <SDL_image.h>
 
+#include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "platform/SDLGraphicsContext.h"
+
+namespace {
+SDL_Surface* load_window_icon_surface() {
+    static bool sdl_image_ready = false;
+    if (!sdl_image_ready) {
+        int initted = IMG_Init(IMG_INIT_PNG);
+        if ((initted & IMG_INIT_PNG) != IMG_INIT_PNG) {
+            HB_LOG_WARN("[platform] SDL2_image PNG support not available: " << IMG_GetError());
+        }
+        sdl_image_ready = true;
+    }
+
+    static const char* kCandidates[] = {
+        "assets/logos/hummingbird-32.png",
+        "assets/logos/hummingbird-16.png",
+        "assets/logos/hummingbird-256.png",
+    };
+
+    for (const char* candidate : kCandidates) {
+        auto path = Hummingbird::resolve_asset_path(candidate);
+        SDL_Surface* icon = IMG_Load(path.string().c_str());
+        if (icon) {
+            return icon;
+        }
+    }
+
+    HB_LOG_WARN("[platform] Failed to load window icon from assets/logos");
+    return nullptr;
+}
+}  // namespace
 
 SDLWindow::SDLWindow() {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -21,6 +53,11 @@ void SDLWindow::open() {
     if (m_window == nullptr) {
         HB_LOG_ERROR("[platform] SDL_CreateWindow failed: " << SDL_GetError());
         return;
+    }
+
+    if (SDL_Surface* icon = load_window_icon_surface()) {
+        SDL_SetWindowIcon(m_window, icon);
+        SDL_FreeSurface(icon);
     }
 
     m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
