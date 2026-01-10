@@ -6,51 +6,12 @@
 #include "core/utils/Log.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlStringUtils.h"
+#include "html/HtmlTagMetadata.h"
 #include "html/HtmlTagNames.h"
 
 namespace Hummingbird::Html {
 
 Parser::Parser(ArenaAllocator& arena, std::string_view html) : m_tokenizer(html), m_arena(arena) {}
-
-namespace {
-bool is_void_element(std::string_view name) {
-    static constexpr std::string_view kVoidElements[] = {
-        Hummingbird::Html::TagNames::Meta, Hummingbird::Html::TagNames::Link,  Hummingbird::Html::TagNames::Br,
-        Hummingbird::Html::TagNames::Img,  Hummingbird::Html::TagNames::Input, Hummingbird::Html::TagNames::Hr};
-    for (auto tag : kVoidElements) {
-        if (tag == name) return true;
-    }
-    return false;
-}
-
-bool is_known_element(std::string_view name) {
-    static constexpr std::string_view kKnown[] = {
-        Hummingbird::Html::TagNames::Html,   Hummingbird::Html::TagNames::Head,
-        Hummingbird::Html::TagNames::Body,   Hummingbird::Html::TagNames::Title,
-        Hummingbird::Html::TagNames::Style,  Hummingbird::Html::TagNames::Script,
-        Hummingbird::Html::TagNames::Div,    Hummingbird::Html::TagNames::P,
-        Hummingbird::Html::TagNames::Span,   Hummingbird::Html::TagNames::H1,
-        Hummingbird::Html::TagNames::H2,     Hummingbird::Html::TagNames::H3,
-        Hummingbird::Html::TagNames::H4,     Hummingbird::Html::TagNames::H5,
-        Hummingbird::Html::TagNames::H6,     Hummingbird::Html::TagNames::B,
-        Hummingbird::Html::TagNames::Strong, Hummingbird::Html::TagNames::I,
-        Hummingbird::Html::TagNames::Em,     Hummingbird::Html::TagNames::Img,
-        Hummingbird::Html::TagNames::Br,     Hummingbird::Html::TagNames::Hr,
-        Hummingbird::Html::TagNames::Input,  Hummingbird::Html::TagNames::Ul,
-        Hummingbird::Html::TagNames::Ol,     Hummingbird::Html::TagNames::Li,
-        Hummingbird::Html::TagNames::Pre,    Hummingbird::Html::TagNames::Code,
-        Hummingbird::Html::TagNames::A,      Hummingbird::Html::TagNames::Blockquote,
-        Hummingbird::Html::TagNames::Font,   Hummingbird::Html::TagNames::Meta,
-        Hummingbird::Html::TagNames::Link,   Hummingbird::Html::TagNames::Table,
-        Hummingbird::Html::TagNames::Thead,  Hummingbird::Html::TagNames::Tbody,
-        Hummingbird::Html::TagNames::Tfoot,  Hummingbird::Html::TagNames::Tr,
-        Hummingbird::Html::TagNames::Td,     Hummingbird::Html::TagNames::Th};
-    for (auto tag : kKnown) {
-        if (tag == name) return true;
-    }
-    return false;
-}
-}  // namespace
 
 Parser::Result Parser::parse() {
     m_style_blocks.clear();
@@ -124,7 +85,7 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
         }
     }
 
-    bool should_push = !is_void_element(lowered_name) && !tag_data.self_closing;
+    bool should_push = !TagMetadata::is_void_tag(lowered_name) && !tag_data.self_closing;
     if (should_push) {
         state.open_elements.push_back(appended);
     }
@@ -182,7 +143,7 @@ void Parser::append_text_node(DOM::Node* parent, std::string_view text) {
 }
 
 void Parser::track_unsupported_tag(std::string_view tag_name) {
-    if (is_known_element(tag_name)) return;
+    if (TagMetadata::is_known_tag(tag_name)) return;
     std::string name(tag_name);
     if (m_unsupported_tags.insert(name).second) {
         HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << name << ">");
