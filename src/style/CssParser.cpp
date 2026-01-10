@@ -39,17 +39,28 @@ static bool is_selector_start(TokenType type) {
 }
 
 Selector Parser::parse_selector() {
-    SelectorType type = SelectorType::Tag;
-    if (match(TokenType::Dot)) {
-        type = SelectorType::Class;
-    } else if (match(TokenType::Hash)) {
-        type = SelectorType::Id;
-    }
-    std::string value;
+    Selector selector;
     if (peek().type == TokenType::Identifier) {
-        value = advance().lexeme;
+        selector.tag = advance().lexeme;
     }
-    return Selector{type, value};
+    while (true) {
+        if (match(TokenType::Dot)) {
+            if (peek().type == TokenType::Identifier) {
+                selector.classes.emplace_back(advance().lexeme);
+                continue;
+            }
+            break;
+        }
+        if (match(TokenType::Hash)) {
+            if (peek().type == TokenType::Identifier) {
+                selector.id = advance().lexeme;
+                continue;
+            }
+            break;
+        }
+        break;
+    }
+    return selector;
 }
 
 std::vector<Selector> Parser::parse_selectors() {

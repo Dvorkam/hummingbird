@@ -18,11 +18,37 @@ TEST(SelectorMatcherTest, MatchesTagClassId) {
     elem->set_attribute(Attr::Class, "foo bar");
     elem->set_attribute(Attr::Id, "main");
 
-    EXPECT_TRUE(matches_selector(elem.get(), Selector{SelectorType::Tag, Hummingbird::Html::TagNames::Div}));
-    EXPECT_FALSE(matches_selector(elem.get(), Selector{SelectorType::Tag, Hummingbird::Html::TagNames::Span}));
-    EXPECT_TRUE(matches_selector(elem.get(), Selector{SelectorType::Class, "foo"}));
-    EXPECT_TRUE(matches_selector(elem.get(), Selector{SelectorType::Class, "bar"}));
-    EXPECT_FALSE(matches_selector(elem.get(), Selector{SelectorType::Class, "baz"}));
-    EXPECT_TRUE(matches_selector(elem.get(), Selector{SelectorType::Id, "main"}));
-    EXPECT_FALSE(matches_selector(elem.get(), Selector{SelectorType::Id, "other"}));
+    Selector tag_selector;
+    tag_selector.tag = Hummingbird::Html::TagNames::Div;
+    EXPECT_TRUE(matches_selector(elem.get(), tag_selector));
+
+    Selector wrong_tag;
+    wrong_tag.tag = Hummingbird::Html::TagNames::Span;
+    EXPECT_FALSE(matches_selector(elem.get(), wrong_tag));
+
+    Selector class_selector;
+    class_selector.classes = {"foo"};
+    EXPECT_TRUE(matches_selector(elem.get(), class_selector));
+
+    Selector class_selector_two;
+    class_selector_two.classes = {"bar"};
+    EXPECT_TRUE(matches_selector(elem.get(), class_selector_two));
+
+    Selector missing_class;
+    missing_class.classes = {"baz"};
+    EXPECT_FALSE(matches_selector(elem.get(), missing_class));
+
+    Selector id_selector;
+    id_selector.id = "main";
+    EXPECT_TRUE(matches_selector(elem.get(), id_selector));
+
+    Selector wrong_id;
+    wrong_id.id = "other";
+    EXPECT_FALSE(matches_selector(elem.get(), wrong_id));
+
+    Selector compound;
+    compound.tag = Hummingbird::Html::TagNames::Div;
+    compound.id = "main";
+    compound.classes = {"foo", "bar"};
+    EXPECT_TRUE(matches_selector(elem.get(), compound));
 }

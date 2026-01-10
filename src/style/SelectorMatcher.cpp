@@ -39,17 +39,18 @@ bool matches_selector(const DOM::Node* node, const Selector& selector) {
         return false;
     }
 
-    switch (selector.type) {
-        case SelectorType::Tag:
-            return element->get_tag_name() == selector.value;
-        case SelectorType::Class: {
-            return has_class(*element, selector.value);
-        }
-        case SelectorType::Id: {
-            return has_id(*element, selector.value);
+    if (!selector.tag.empty() && element->get_tag_name() != selector.tag) {
+        return false;
+    }
+    if (!selector.id.empty() && !has_id(*element, selector.id)) {
+        return false;
+    }
+    for (const auto& cls : selector.classes) {
+        if (!has_class(*element, cls)) {
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 }  // namespace Hummingbird::Css
