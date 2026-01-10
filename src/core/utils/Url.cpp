@@ -76,7 +76,7 @@ std::optional<UrlParts> parse_absolute_url(std::string_view url) {
     if (scheme_pos == std::string_view::npos) return std::nullopt;
 
     UrlParts out;
-    out.scheme = to_lower(url.substr(0, scheme_pos));
+    out.scheme = Utils::to_lower(url.substr(0, scheme_pos));
     std::string_view rest = url.substr(scheme_pos + 3);
     if (rest.empty()) return std::nullopt;
 
@@ -86,9 +86,9 @@ std::optional<UrlParts> parse_absolute_url(std::string_view url) {
 
     size_t port_pos = authority.find(':');
     if (port_pos == std::string_view::npos) {
-        out.host = to_lower(authority);
+        out.host = Utils::to_lower(authority);
     } else {
-        out.host = to_lower(authority.substr(0, port_pos));
+        out.host = Utils::to_lower(authority.substr(0, port_pos));
         std::string_view port_str = authority.substr(port_pos + 1);
         if (!port_str.empty()) {
             try {

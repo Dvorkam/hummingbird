@@ -176,12 +176,12 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
                                     (trimmed.front() == '\'' && trimmed.back() == '\''))) {
             trimmed = trimmed.substr(1, trimmed.size() - 2);
         }
-        return Core::to_lower(trimmed);
+        return Core::Utils::to_lower(trimmed);
     };
 
     for (const auto& [key, value] : element.get_attributes()) {
-        if (Core::iequals(key, Hummingbird::Html::AttributeNames::Align)) {
-            std::string normalized = Core::to_lower(value);
+        if (Core::Utils::iequals(key, Hummingbird::Html::AttributeNames::Align)) {
+            std::string normalized = Core::Utils::to_lower(value);
             if (normalized == "left") {
                 style.text_align = ComputedStyle::TextAlign::Left;
                 overrides.text_align = true;
@@ -192,23 +192,23 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
                 style.text_align = ComputedStyle::TextAlign::Right;
                 overrides.text_align = true;
             }
-        } else if (Core::iequals(key, Hummingbird::Html::AttributeNames::NoWrap)) {
+        } else if (Core::Utils::iequals(key, Hummingbird::Html::AttributeNames::NoWrap)) {
             style.whitespace = ComputedStyle::WhiteSpace::NoWrap;
             overrides.whitespace = true;
-        } else if (Core::iequals(key, Hummingbird::Html::AttributeNames::Width) && !style.width.has_value()) {
+        } else if (Core::Utils::iequals(key, Hummingbird::Html::AttributeNames::Width) && !style.width.has_value()) {
             if (auto parsed = parse_length_value(value)) {
                 style.width = *parsed;
             }
-        } else if (Core::iequals(key, Hummingbird::Html::AttributeNames::Height) && !style.height.has_value()) {
+        } else if (Core::Utils::iequals(key, Hummingbird::Html::AttributeNames::Height) && !style.height.has_value()) {
             if (auto parsed = parse_length_value(value)) {
                 style.height = *parsed;
             }
-        } else if (Core::iequals(key, Hummingbird::Html::AttributeNames::Size)) {
+        } else if (Core::Utils::iequals(key, Hummingbird::Html::AttributeNames::Size)) {
             if (auto parsed = parse_font_size_value(value)) {
                 style.font_size = *parsed;
                 overrides.font_size = true;
             }
-        } else if (Core::iequals(key, Hummingbird::Html::AttributeNames::Face)) {
+        } else if (Core::Utils::iequals(key, Hummingbird::Html::AttributeNames::Face)) {
             std::string face = parse_font_face_value(value);
             if (!face.empty()) {
                 style.font_face = std::move(face);

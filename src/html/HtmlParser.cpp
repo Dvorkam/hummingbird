@@ -61,7 +61,7 @@ Parser::Result Parser::parse() {
 }
 
 void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) {
-    std::string lowered_name = Core::to_lower(tag_data.name);
+    std::string lowered_name = Core::Utils::to_lower(tag_data.name);
     maybe_close_list_item(state, lowered_name);
 
     auto new_element = DOM::DomFactory::create_element(m_arena, lowered_name);
@@ -73,7 +73,7 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
     DOM::Node* appended = parent->get_children().back().get();
     track_unsupported_tag(lowered_name);
     if (lowered_name == Hummingbird::Html::TagNames::Link) {
-        auto rel = Core::to_lower(Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
+        auto rel = Core::Utils::to_lower(Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
         auto href = Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Href);
         if (rel == "stylesheet" && !href.empty()) {
             m_stylesheet_links.emplace_back(href);
@@ -97,7 +97,7 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
 }
 
 void Parser::handle_end_tag(const EndTagToken& end_data, ParseState& state) {
-    std::string lowered_end = Core::to_lower(end_data.name);
+    std::string lowered_end = Core::Utils::to_lower(end_data.name);
     if (lowered_end == Hummingbird::Html::TagNames::Style) {
         state.in_style = false;
     }
@@ -126,7 +126,7 @@ DOM::Node* Parser::select_parent(const ParseState& state, std::string_view tag_n
 
 void Parser::apply_attributes(DOM::Element& element, const StartTagToken& tag_data) {
     for (const auto& attr : tag_data.attributes) {
-        element.set_attribute(Core::to_lower(attr.name), attr.value);
+        element.set_attribute(Core::Utils::to_lower(attr.name), attr.value);
     }
 }
 

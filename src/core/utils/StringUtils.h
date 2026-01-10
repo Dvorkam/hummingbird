@@ -5,7 +5,7 @@
 #include <string>
 #include <string_view>
 
-namespace Hummingbird::Core {
+namespace Hummingbird::Core::Utils {
 
 inline std::string to_lower(std::string_view input) {
     std::string out(input);
@@ -24,4 +24,4 @@ inline bool iequals(std::string_view a, std::string_view b) {
     return true;
 }
 
-}  // namespace Hummingbird::Core
+}  // namespace Hummingbird::Core::Utils
