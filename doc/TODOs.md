@@ -196,7 +196,7 @@
 - [x] P2-C18: Extract tag→render mapping table from TreeBuilder. (scope=Layout, risk=low-med, deps=none, touch=2 files)
 - [x] P2-C19: Centralize geometry helpers (intersects/point-in-rect) used in Painter/Tab/Layout. (scope=Renderer/Layout/Core, risk=low, deps=none, touch=2-4 files)
 - [x] P2-C20: Remove double paint path in Painter (avoid root.paint + culled traverse). (scope=Renderer, risk=med, deps=P2-C19, touch=1-2 files)
-- [ ] P2-C21: Consolidate string/iequals/to_lower helpers across Core/Html/Style. (scope=Core/Html/Style, risk=low, deps=none, touch=3-5 files)
+- [x] P2-C21: Consolidate string/iequals/to_lower helpers across Core/Html/Style. (scope=Core/Html/Style, risk=low, deps=none, touch=3-5 files)
 - [ ] P2-C22: Reduce repeated AssetPath resolve + .string churn (cache or helper). (scope=Core/App/Layout/Platform, risk=low, deps=none, touch=2-4 files)
 - [ ] P2-C23: Align ArenaAllocator error path (log or fail-fast strategy). (scope=Core, risk=low, deps=none, touch=1-2 files)
 - [ ] P2-C24: Extract URL bar component from BrowserApp (state + input + render). (scope=App, risk=med, deps=none, touch=2-3 files)

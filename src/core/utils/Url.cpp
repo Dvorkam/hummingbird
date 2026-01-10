@@ -1,7 +1,8 @@
 #include "core/utils/Url.h"
 
-#include <algorithm>
 #include <cctype>
+
+#include "core/utils/StringUtils.h"
 
 namespace Hummingbird::Core {
 
@@ -22,13 +23,6 @@ std::string_view trim_ws(std::string_view input) {
 
 bool has_scheme(std::string_view url) {
     return url.find("://") != std::string_view::npos;
-}
-
-std::string to_lower(std::string_view input) {
-    std::string out(input);
-    std::transform(out.begin(), out.end(), out.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return out;
 }
 
 std::string normalize_path(std::string_view path) {
