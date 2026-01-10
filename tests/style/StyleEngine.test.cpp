@@ -219,6 +219,22 @@ TEST(StyleEngineTest, SupportsMarginAutoAndMaxWidth) {
     EXPECT_FLOAT_EQ(style->max_width.value(), 200.0f);
 }
 
+TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
+    ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { max-width: 40em; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FALSE(style->max_width.has_value());
+}
+
 TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
     ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);

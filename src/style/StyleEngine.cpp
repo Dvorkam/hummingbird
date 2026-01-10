@@ -74,9 +74,14 @@ void apply_length_if_present(const PropertyMap& properties, Property property, f
 
 void apply_optional_length_if_present(const PropertyMap& properties, Property property, std::optional<float>& target) {
     auto it = properties.find(property);
-    if (it != properties.end()) {
-        target = value_to_length(it->second.value, target.value_or(0.0f));
+    if (it == properties.end()) {
+        return;
     }
+    const auto& value = it->second.value;
+    if (value.type != Value::Type::Length || value.length.unit != Unit::Px) {
+        return;
+    }
+    target = value.length.value;
 }
 
 void apply_margin_if_present(const PropertyMap& properties, Property property, float& target, bool& auto_flag) {
