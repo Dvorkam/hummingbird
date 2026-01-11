@@ -199,7 +199,7 @@
 - [x] P2-C22: Reduce repeated AssetPath resolve + .string churn (cache or helper). (scope=Core/App/Layout/Platform, risk=low, deps=none, touch=2-4 files)
 - [x] P2-C23: Align ArenaAllocator error path (log or fail-fast strategy). (scope=Core, risk=low, deps=none, touch=1-2 files)
 - [x] P2-C24: Extract URL bar component from BrowserApp (state + input + render). (scope=App, risk=med, deps=none, touch=2-3 files)
-- [ ] P2-C25: Remove redundant gfx creation in main.cpp (move into BrowserApp or drop). (scope=App, risk=low, deps=none, touch=1-2 files)
+- [x] P2-C25: Remove redundant gfx creation in main.cpp (move into BrowserApp or drop). (scope=App, risk=low, deps=none, touch=1-2 files)
 - [ ] P2-C26: Create shared test utilities module (TestGraphicsContext + harness). (scope=Tests/Utilities, risk=low, deps=none, touch=2-3 files)
 - [ ] P2-C27: Split tests target to avoid pulling app sources directly. (scope=Tests/Build, risk=med, deps=none, touch=2-3 files)
 - [ ] P2-C28: Extract render tree traversal helper (visitor/DFS) and reuse in Painter culling, Tab hit-test, and image updates. (scope=Layout/Renderer/Engine, risk=med, deps=none, touch=3-5 files)
