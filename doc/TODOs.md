@@ -200,6 +200,12 @@
 - [ ] Run format/build/tests per slice (per AGENTS.override.md).
 - [ ] Record any follow-up tasks in TODOs.
 
+- [x] **Phase 3 Slice: Engine (ResourceLoader batch handling)**
+- **Goal:** Make resource batch processing easier to follow without changing behavior.
+- **Scope:** `ResourceLoader::consume_pending_updates` and helpers.
+- **Acceptance:** Same logging/state transitions; decoding stats unchanged.
+- **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
+
 - [ ] **Phase 4: Cleanup + Verification**
 - [ ] Remove dead code identified in Phase 2.
 - [ ] Consolidate utilities and update include paths.

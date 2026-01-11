@@ -74,6 +74,11 @@ private:
     void enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success,
                                  std::string effective_url = {});
     std::vector<PendingResourceUpdate> take_pending_resources();
+    void handle_document_update(PendingResourceUpdate& update, BatchResult& result, bool& document_ready);
+    void handle_stylesheet_update(PendingResourceUpdate& update, bool& stylesheet_ready);
+    void handle_image_update(PendingResourceUpdate& update, bool& image_ready, size_t& image_decode_count,
+                             double& image_decode_ms);
+    void handle_failed_update(const PendingResourceUpdate& update);
 
     std::atomic<uint64_t> nav_counter_{0};
     std::atomic<uint64_t> active_nav_{0};

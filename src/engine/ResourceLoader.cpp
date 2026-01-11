@@ -143,38 +143,14 @@ ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
     for (auto& update : pending) {
         if (update.success) {
             if (update.type == ResourceType::Document) {
-                resource_store_.mark_ready(update.url, update.type, std::move(update.body));
-                document_ready = true;
-                result.document_url = update.url;
-                result.effective_url = update.effective_url;
+                handle_document_update(update, result, document_ready);
             } else if (update.type == ResourceType::Stylesheet) {
-                resource_store_.mark_ready(update.url, update.type, std::move(update.body));
-                stylesheet_ready = true;
+                handle_stylesheet_update(update, stylesheet_ready);
             } else if (update.type == ResourceType::Image) {
-                if (!image_decoder_) {
-                    HB_LOG_WARN("[image] decode skipped (no decoder): " << update.url);
-                    resource_store_.mark_failed(update.url, update.type);
-                    continue;
-                }
-                const auto decode_start = Core::Clock::now();
-                auto decoded = image_decoder_->decode(update.body);
-                const auto decode_end = Core::Clock::now();
-                image_decode_ms += Core::duration_ms(decode_start, decode_end);
-                ++image_decode_count;
-                if (!decoded) {
-                    HB_LOG_WARN("[image] decode failed: " << update.url);
-                    resource_store_.mark_failed(update.url, update.type);
-                    continue;
-                }
-                resource_store_.mark_ready(update.url, update.type, std::move(update.body));
-                resource_store_.set_image(update.url, update.type, std::move(*decoded));
-                image_ready = true;
+                handle_image_update(update, image_ready, image_decode_count, image_decode_ms);
             }
         } else {
-            resource_store_.mark_failed(update.url, update.type);
-            if (update.type == ResourceType::Document) {
-                HB_LOG_WARN("[resource] document failed to load: " << update.url);
-            }
+            handle_failed_update(update);
         }
     }
 
@@ -189,6 +165,47 @@ ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
     result.stylesheet_ready = stylesheet_ready;
     result.image_ready = image_ready;
     return result;
+}
+
+void ResourceLoader::handle_document_update(PendingResourceUpdate& update, BatchResult& result, bool& document_ready) {
+    resource_store_.mark_ready(update.url, update.type, std::move(update.body));
+    document_ready = true;
+    result.document_url = update.url;
+    result.effective_url = update.effective_url;
+}
+
+void ResourceLoader::handle_stylesheet_update(PendingResourceUpdate& update, bool& stylesheet_ready) {
+    resource_store_.mark_ready(update.url, update.type, std::move(update.body));
+    stylesheet_ready = true;
+}
+
+void ResourceLoader::handle_image_update(PendingResourceUpdate& update, bool& image_ready, size_t& image_decode_count,
+                                         double& image_decode_ms) {
+    if (!image_decoder_) {
+        HB_LOG_WARN("[image] decode skipped (no decoder): " << update.url);
+        resource_store_.mark_failed(update.url, update.type);
+        return;
+    }
+    const auto decode_start = Core::Clock::now();
+    auto decoded = image_decoder_->decode(update.body);
+    const auto decode_end = Core::Clock::now();
+    image_decode_ms += Core::duration_ms(decode_start, decode_end);
+    ++image_decode_count;
+    if (!decoded) {
+        HB_LOG_WARN("[image] decode failed: " << update.url);
+        resource_store_.mark_failed(update.url, update.type);
+        return;
+    }
+    resource_store_.mark_ready(update.url, update.type, std::move(update.body));
+    resource_store_.set_image(update.url, update.type, std::move(*decoded));
+    image_ready = true;
+}
+
+void ResourceLoader::handle_failed_update(const PendingResourceUpdate& update) {
+    resource_store_.mark_failed(update.url, update.type);
+    if (update.type == ResourceType::Document) {
+        HB_LOG_WARN("[resource] document failed to load: " << update.url);
+    }
 }
 
 std::optional<ResourceView> ResourceLoader::view(std::string_view url, ResourceType type) const {
