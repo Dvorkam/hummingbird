@@ -143,6 +143,8 @@ add_executable(Hummingbird
     src/app/main.cpp
     src/app/BrowserApp.cpp
     src/app/BrowserApp.h
+    src/app/UrlBar.cpp
+    src/app/UrlBar.h
 )
 if(WIN32)
     target_sources(Hummingbird PRIVATE src/app/hummingbird.rc)

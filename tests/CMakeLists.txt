@@ -6,6 +6,8 @@ add_executable(HummingbirdTests
     app/SmokeMain.test.cpp
     ../src/app/BrowserApp.cpp
     ../src/app/BrowserApp.h
+    ../src/app/UrlBar.cpp
+    ../src/app/UrlBar.h
     engine/Tab.test.cpp
     engine/ResourceStore.test.cpp
     core/ArenaAllocator.test.cpp
