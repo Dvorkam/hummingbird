@@ -174,39 +174,25 @@
 - [x] Flag spaghetti risk (large functions, cross-layer leakage, unbounded ownership).
 - [x] Produce a ranked candidate list (quick wins, medium refactors, risky changes).
 - [x] Phase 2 candidate list (triage with tags):
-- [x] P2-C1: Centralize URL resolution + keying helper used by Tab resource flow. (scope=Engine/Core, risk=low, deps=none, touch=2-3 files)
-- [x] P2-C2: Extract shared request helper for stylesheet/image fetch (begin_request + provider + network). (scope=Engine, risk=low, deps=P2-C1, touch=1-2 files)
-- [x] P2-C3: Fold ResourceStore::request/mark_loading into begin_request or make private. (scope=Engine, risk=low, deps=none, touch=2 files)
-- [x] P2-C4: Split Tab pipeline into DocumentPipeline + ResourceLoader. (scope=Engine, risk=high, deps=P2-C1/P2-C2, touch=3-5 files)
-- [x] P2-C5: Replace DOM image traversal with parser output or shared DOM visitor. (scope=Engine/Html, risk=med, deps=none, touch=2-3 files)
-- [x] P2-C6: Add load_bytes to IResourceProvider (text vs binary) and update FileResourceProvider + call sites. (scope=Core/Platform/Engine, risk=med, deps=none, touch=4-6 files)
-- [x] P2-C7: Extract network worker/thread manager for CurlNetwork + StubNetwork. (scope=Platform, risk=med, deps=none, touch=2-3 files)
-- [x] P2-C8: Share Curl/Stub response init + stop checks utility. (scope=Platform, risk=med, deps=P2-C7, touch=2-3 files)
-- [x] P2-C9: Extract SDLWindow input translation helpers into platform/input util. (scope=Platform, risk=low, deps=none, touch=2 files)
-- [x] P2-C10: Centralize HTML string utils (to_lower/iequals/find_attribute) used in parser. (scope=Html/Core, risk=low, deps=none, touch=2-3 files)
-- [x] P2-C11: Centralize tag metadata (known/void tags) to avoid drift with TagNames. (scope=Html, risk=med, deps=none, touch=2 files)
-- [x] P2-C12: Replace fixed 8-attr array in HtmlTokenizer with dynamic storage or explicit overflow handling. (scope=Html, risk=med, deps=none, touch=2 files)
-- [x] P2-C13: Split UA defaults + legacy attribute parsing into dedicated style module. (scope=Style, risk=med, deps=none, touch=2-3 files)
-- [x] P2-C14: Make selector parsing/matching extensible (table-driven or composite selectors). (scope=Style, risk=med, deps=none, touch=2-3 files)
-- [x] P2-C15: Replace CSS property name if-chain with table/map lookup. (scope=Style, risk=low, deps=none, touch=1-2 files)
 - [ ] (Conditional) If CSS property list grows beyond ~50 entries, replace linear scan with sorted array + binary search in CssParser. (scope=Style, risk=low, deps=none, touch=1 file)
-- [x] P2-C16: Deduplicate inline layout helpers between BlockBox and RenderListItem. (scope=Layout, risk=med-high, deps=none, touch=3-4 files)
-- [x] P2-C17: Factor shared compute_metrics/insets helpers across layout renderers. (scope=Layout, risk=med, deps=none, touch=4-6 files)
-- [x] P2-C18: Extract tag→render mapping table from TreeBuilder. (scope=Layout, risk=low-med, deps=none, touch=2 files)
-- [x] P2-C19: Centralize geometry helpers (intersects/point-in-rect) used in Painter/Tab/Layout. (scope=Renderer/Layout/Core, risk=low, deps=none, touch=2-4 files)
-- [x] P2-C20: Remove double paint path in Painter (avoid root.paint + culled traverse). (scope=Renderer, risk=med, deps=P2-C19, touch=1-2 files)
-- [x] P2-C21: Consolidate string/iequals/to_lower helpers across Core/Html/Style. (scope=Core/Html/Style, risk=low, deps=none, touch=3-5 files)
-- [x] P2-C22: Reduce repeated AssetPath resolve + .string churn (cache or helper). (scope=Core/App/Layout/Platform, risk=low, deps=none, touch=2-4 files)
-- [x] P2-C23: Align ArenaAllocator error path (log or fail-fast strategy). (scope=Core, risk=low, deps=none, touch=1-2 files)
-- [x] P2-C24: Extract URL bar component from BrowserApp (state + input + render). (scope=App, risk=med, deps=none, touch=2-3 files)
-- [x] P2-C25: Remove redundant gfx creation in main.cpp (move into BrowserApp or drop). (scope=App, risk=low, deps=none, touch=1-2 files)
-- [x] P2-C26: Create shared test utilities module (TestGraphicsContext + harness). (scope=Tests/Utilities, risk=low, deps=none, touch=2-3 files)
-- [x] P2-C27: Split tests target to avoid pulling app sources directly. (scope=Tests/Build, risk=med, deps=none, touch=2-3 files)
-- [x] P2-C28: Extract render tree traversal helper (visitor/DFS) and reuse in Painter culling, Tab hit-test, and image updates. (scope=Layout/Renderer/Engine, risk=med, deps=none, touch=3-5 files)
-- [x] P2-C29: Split Tab::consume_pending_resources into per-type handlers to reduce branching and centralize logs. (scope=Engine, risk=low-med, deps=none, touch=1-2 files)
-- [x] P2-C30: Add Element attribute lookup helper (string_view key) to avoid repeated attrs.find + std::string key setup. (scope=Core/Html/Engine, risk=low, deps=none, touch=2-4 files)
+- [ ] **Refactor Follow-Ups (Edge Cases)**
+- [ ] **Story T-REFAC-1: Guard Navigation Reset vs Pending Updates**
+- **As a** maintainer,
+- **I want** old navigation callbacks to be ignored once reset starts,
+- **So that** stale updates can’t apply between `reset_document_state()` and `navigate()`.
+- **Acceptance:** `active_nav_` is invalidated before reset (or pending updates are cleared), and a test/assert confirms old callbacks are ignored.
 
-- Phase 2 ranking (proposed order): P2-C1, P2-C3, P2-C10, P2-C15, P2-C19, P2-C28, P2-C22, P2-C25, P2-C6, P2-C7, P2-C8, P2-C16, P2-C17, P2-C13, P2-C14, P2-C4, P2-C27, P2-C24.
+- [ ] **Story T-REFAC-2: Render Tree Traversal Skip Semantics**
+- **As a** maintainer,
+- **I want** `TraverseAction::SkipChildren` behavior documented and tested,
+- **So that** future users don’t assume `exit` callbacks fire after skipping.
+- **Acceptance:** add a traversal test covering `SkipChildren` and `Stop`, and document whether `exit` runs.
+
+- [ ] **Story T-REFAC-3: Attribute Lookup Normalization**
+- **As a** maintainer,
+- **I want** attribute lookup to tolerate case differences,
+- **So that** mixed-case attribute keys don’t silently miss.
+- **Acceptance:** either normalize keys on `set_attribute` or add a case-insensitive lookup helper, with a test.
 
 - [ ] **Phase 3: Refactor Slices**
 - [ ] Write a short refactor brief for each slice (goal, scope, acceptance, test impact).
