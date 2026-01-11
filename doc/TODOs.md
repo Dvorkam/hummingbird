@@ -202,7 +202,7 @@
 - [x] P2-C25: Remove redundant gfx creation in main.cpp (move into BrowserApp or drop). (scope=App, risk=low, deps=none, touch=1-2 files)
 - [x] P2-C26: Create shared test utilities module (TestGraphicsContext + harness). (scope=Tests/Utilities, risk=low, deps=none, touch=2-3 files)
 - [x] P2-C27: Split tests target to avoid pulling app sources directly. (scope=Tests/Build, risk=med, deps=none, touch=2-3 files)
-- [ ] P2-C28: Extract render tree traversal helper (visitor/DFS) and reuse in Painter culling, Tab hit-test, and image updates. (scope=Layout/Renderer/Engine, risk=med, deps=none, touch=3-5 files)
+- [x] P2-C28: Extract render tree traversal helper (visitor/DFS) and reuse in Painter culling, Tab hit-test, and image updates. (scope=Layout/Renderer/Engine, risk=med, deps=none, touch=3-5 files)
 - [ ] P2-C29: Split Tab::consume_pending_resources into per-type handlers to reduce branching and centralize logs. (scope=Engine, risk=low-med, deps=none, touch=1-2 files)
 - [ ] P2-C30: Add Element attribute lookup helper (string_view key) to avoid repeated attrs.find + std::string key setup. (scope=Core/Html/Engine, risk=low, deps=none, touch=2-4 files)
 

@@ -15,6 +15,7 @@
 #include "layout/GeometryUtils.h"
 #include "layout/RenderImage.h"
 #include "layout/RenderObject.h"
+#include "layout/RenderTreeTraversal.h"
 #include "style/CssParser.h"
 #include "style/StylesheetSource.h"
 
@@ -50,28 +51,6 @@ std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::strin
     return std::nullopt;
 }
 
-std::optional<std::string> hit_test_link_recursive(const Layout::RenderObject& node, const Layout::Point& offset,
-                                                   const Layout::Point& point, const Layout::Rect& viewport,
-                                                   std::string_view base_url) {
-    const auto& rect = node.get_rect();
-    Layout::Rect absolute{offset.x + rect.x, offset.y + rect.y, rect.width, rect.height};
-    if (!Layout::rect_intersects(absolute, viewport)) {
-        return std::nullopt;
-    }
-    if (!Layout::rect_contains_point(absolute, point)) {
-        return std::nullopt;
-    }
-
-    const auto& children = node.get_children();
-    for (auto it = children.rbegin(); it != children.rend(); ++it) {
-        Layout::Point child_offset{absolute.x, absolute.y};
-        if (auto hit = hit_test_link_recursive(**it, child_offset, point, viewport, base_url)) {
-            return hit;
-        }
-    }
-
-    return resolve_anchor_href(node.get_dom_node(), base_url);
-}
 }  // namespace
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider)
@@ -131,36 +110,30 @@ bool DocumentPipeline::update_image_resources(std::string_view base_url) {
     }
 
     bool changed = false;
-    std::vector<Layout::RenderObject*> stack;
-    stack.push_back(render_tree_.get());
-
-    while (!stack.empty()) {
-        Layout::RenderObject* current = stack.back();
-        stack.pop_back();
-
-        if (auto* image = dynamic_cast<Layout::RenderImage*>(current)) {
-            const auto* element = static_cast<const DOM::Element*>(image->get_dom_node());
-            const auto& attrs = element->get_attributes();
-            static const std::string kSrcKey = std::string(Hummingbird::Html::AttributeNames::Src);
-            auto it = attrs.find(kSrcKey);
-            const ImageBitmap* bitmap = nullptr;
-            if (it != attrs.end() && !it->second.empty()) {
-                auto resolved = resolve_resource_url(base_url, it->second);
-                std::string_view key = resolved.key;
-                auto view = resource_store_->view(key, ResourceType::Image);
-                if (view && view->state == ResourceState::Ready) {
-                    bitmap = view->image;
+    Layout::Point offset{0.0f, 0.0f};
+    Layout::Traversal::traverse_render_tree(
+        *render_tree_, offset,
+        [&](Layout::RenderObject& current, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+            if (auto* image = dynamic_cast<Layout::RenderImage*>(&current)) {
+                const auto* element = static_cast<const DOM::Element*>(image->get_dom_node());
+                const auto& attrs = element->get_attributes();
+                static const std::string kSrcKey = std::string(Hummingbird::Html::AttributeNames::Src);
+                auto it = attrs.find(kSrcKey);
+                const ImageBitmap* bitmap = nullptr;
+                if (it != attrs.end() && !it->second.empty()) {
+                    auto resolved = resolve_resource_url(base_url, it->second);
+                    std::string_view key = resolved.key;
+                    auto view = resource_store_->view(key, ResourceType::Image);
+                    if (view && view->state == ResourceState::Ready) {
+                        bitmap = view->image;
+                    }
+                }
+                if (image->set_image(bitmap)) {
+                    changed = true;
                 }
             }
-            if (image->set_image(bitmap)) {
-                changed = true;
-            }
-        }
-
-        for (const auto& child : current->get_children()) {
-            stack.push_back(child.get());
-        }
-    }
+            return Layout::Traversal::TraverseAction::Continue;
+        });
 
     return changed;
 }
@@ -204,7 +177,28 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
         return std::nullopt;
     }
     Layout::Point offset{0.0f, -context.scroll_y};
-    return hit_test_link_recursive(*render_tree_, offset, context.point, context.viewport, context.base_url);
+    std::optional<std::string> result;
+
+    Layout::Traversal::traverse_render_tree(
+        *render_tree_, offset,
+        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+            if (!Layout::rect_intersects(absolute, context.viewport) ||
+                !Layout::rect_contains_point(absolute, context.point)) {
+                return Layout::Traversal::TraverseAction::SkipChildren;
+            }
+            return Layout::Traversal::TraverseAction::Continue;
+        },
+        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+            auto hit = resolve_anchor_href(node.get_dom_node(), context.base_url);
+            if (hit) {
+                result = std::move(*hit);
+                return Layout::Traversal::TraverseAction::Stop;
+            }
+            return Layout::Traversal::TraverseAction::Continue;
+        },
+        Layout::Traversal::ChildOrder::Reverse);
+
+    return result;
 }
 
 size_t DocumentPipeline::render_tree_children() const {
