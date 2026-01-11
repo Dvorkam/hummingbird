@@ -8,6 +8,8 @@ add_executable(HummingbirdTests
     ../src/app/BrowserApp.h
     ../src/app/UrlBar.cpp
     ../src/app/UrlBar.h
+    test_utils/HeadlessTabHarness.h
+    test_utils/TestGraphicsContext.h
     engine/Tab.test.cpp
     engine/ResourceStore.test.cpp
     core/ArenaAllocator.test.cpp

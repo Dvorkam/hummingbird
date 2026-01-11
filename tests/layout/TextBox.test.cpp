@@ -4,11 +4,11 @@
 
 #include <string>
 
-#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Text.h"
 #include "style/ComputedStyle.h"
+#include "test_utils/TestGraphicsContext.h"
 
 class FontCaptureContext : public IGraphicsContext {
 public:

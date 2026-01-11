@@ -9,7 +9,7 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "engine/Tab.h"
-#include "layout/TestGraphicsContext.h"
+#include "test_utils/TestGraphicsContext.h"
 
 namespace Hummingbird::Test {
 

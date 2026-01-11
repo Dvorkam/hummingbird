@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
@@ -11,6 +10,7 @@
 #include "layout/TreeBuilder.h"
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
+#include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;

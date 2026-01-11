@@ -5,7 +5,7 @@
 #include <string>
 
 #include "core/platform_api/ResourceProviderFactory.h"
-#include "engine/HeadlessTabHarness.h"
+#include "test_utils/HeadlessTabHarness.h"
 
 namespace {
 using Hummingbird::Test::DeferredNetwork;
