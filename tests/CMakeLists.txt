@@ -4,10 +4,6 @@ find_package(GTest REQUIRED)
 # Create the test executable
 add_executable(HummingbirdTests
     app/SmokeMain.test.cpp
-    ../src/app/BrowserApp.cpp
-    ../src/app/BrowserApp.h
-    ../src/app/UrlBar.cpp
-    ../src/app/UrlBar.h
     test_utils/HeadlessTabHarness.h
     test_utils/TestGraphicsContext.h
     engine/Tab.test.cpp
@@ -41,6 +37,7 @@ add_executable(HummingbirdTests
 # Link the test executable against GTest and our libraries
 target_link_libraries(HummingbirdTests PRIVATE
     GTest::gtest_main
+    App
     Core
     Html
     Layout

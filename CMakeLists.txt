@@ -137,24 +137,28 @@ target_include_directories(Engine
 )
 target_link_libraries(Engine PUBLIC Core Html Layout Renderer Style)
 
-# --- App Executable ---
-# This is the main application that brings everything together.
-add_executable(Hummingbird
-    src/app/main.cpp
+# --- App Library ---
+add_library(App
     src/app/BrowserApp.cpp
     src/app/BrowserApp.h
     src/app/UrlBar.cpp
     src/app/UrlBar.h
 )
+target_include_directories(App PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(App PUBLIC Platform Engine)
+
+# --- App Executable ---
+# This is the main application that brings everything together.
+add_executable(Hummingbird
+    src/app/main.cpp
+)
 if(WIN32)
     target_sources(Hummingbird PRIVATE src/app/hummingbird.rc)
 endif()
 
-# The App needs to know about the Core interfaces and the Platform implementation.
-target_include_directories(Hummingbird PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(Hummingbird PRIVATE Platform Engine SDL2::SDL2main)
+target_link_libraries(Hummingbird PRIVATE App SDL2::SDL2main)
 
 # --- Unit Testing ---
 enable_testing()
