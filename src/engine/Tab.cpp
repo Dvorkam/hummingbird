@@ -88,7 +88,6 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     }
     if (result.stylesheet_ready && document_pipeline_.has_dom_tree()) {
         handle_stylesheet_ready(graphics, viewport);
-        return;
     }
     if (result.image_ready && document_pipeline_.has_render_tree()) {
         handle_image_ready(graphics, viewport);
