@@ -83,55 +83,74 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     if (result.pending_count == 0) return;
 
     if (result.document_ready) {
-        if (!result.effective_url.empty()) {
-            requested_url_ = result.effective_url;
-        }
-        const auto* entry = resource_loader_.find(result.document_url, ResourceType::Document);
-        if (entry) {
-            const auto rebuild_start = Core::Clock::now();
-            HB_LOG_INFO("[pipeline] html size: " << entry->body.size());
-            if (!document_pipeline_.parse_html(entry->body)) {
-                return;
-            }
-            if (!document_pipeline_.stylesheet_links().empty()) {
-                HB_LOG_INFO("[pipeline] discovered stylesheet links: " << document_pipeline_.stylesheet_links().size());
-            }
-            if (!document_pipeline_.image_links().empty()) {
-                HB_LOG_INFO("[pipeline] discovered image sources: " << document_pipeline_.image_links().size());
-            }
-
-            resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), requested_url_);
-            resource_loader_.request_images(document_pipeline_.image_links(), requested_url_);
-            document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
-            if (document_pipeline_.has_render_tree()) {
-                update_layout_state(viewport);
-            }
-            HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_.render_tree_children());
-            dirty_ = true;
-            const auto rebuild_end = Core::Clock::now();
-            HB_LOG_INFO("[perf] document rebuild ms=" << Core::duration_ms(rebuild_start, rebuild_end));
-        }
-    } else if (result.stylesheet_ready && document_pipeline_.has_dom_tree()) {
-        const auto style_update_start = Core::Clock::now();
-        document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
-        if (document_pipeline_.has_render_tree()) {
-            update_layout_state(viewport);
-        }
-        const auto style_update_end = Core::Clock::now();
-        HB_LOG_INFO("[perf] stylesheet update ms=" << Core::duration_ms(style_update_start, style_update_end));
-        dirty_ = true;
-    } else if (result.image_ready && document_pipeline_.has_render_tree()) {
-        const auto image_update_start = Core::Clock::now();
-        bool updated = document_pipeline_.update_image_resources(requested_url_);
-        if (updated) {
-            document_pipeline_.relayout(graphics, viewport);
-            update_layout_state(viewport);
-        }
-        const auto image_update_end = Core::Clock::now();
-        HB_LOG_INFO("[perf] image update ms=" << Core::duration_ms(image_update_start, image_update_end)
-                                              << " updated=" << updated);
-        dirty_ = true;
+        handle_document_ready(result, graphics, viewport);
+        return;
     }
+    if (result.stylesheet_ready && document_pipeline_.has_dom_tree()) {
+        handle_stylesheet_ready(graphics, viewport);
+        return;
+    }
+    if (result.image_ready && document_pipeline_.has_render_tree()) {
+        handle_image_ready(graphics, viewport);
+    }
+}
+
+void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
+                                const Layout::Rect& viewport) {
+    if (!result.effective_url.empty()) {
+        requested_url_ = result.effective_url;
+    }
+    const auto* entry = resource_loader_.find(result.document_url, ResourceType::Document);
+    if (!entry) {
+        return;
+    }
+
+    const auto rebuild_start = Core::Clock::now();
+    HB_LOG_INFO("[pipeline] html size: " << entry->body.size());
+    if (!document_pipeline_.parse_html(entry->body)) {
+        return;
+    }
+    if (!document_pipeline_.stylesheet_links().empty()) {
+        HB_LOG_INFO("[pipeline] discovered stylesheet links: " << document_pipeline_.stylesheet_links().size());
+    }
+    if (!document_pipeline_.image_links().empty()) {
+        HB_LOG_INFO("[pipeline] discovered image sources: " << document_pipeline_.image_links().size());
+    }
+
+    resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), requested_url_);
+    resource_loader_.request_images(document_pipeline_.image_links(), requested_url_);
+    document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
+    if (document_pipeline_.has_render_tree()) {
+        update_layout_state(viewport);
+    }
+    HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_.render_tree_children());
+    dirty_ = true;
+    const auto rebuild_end = Core::Clock::now();
+    HB_LOG_INFO("[perf] document rebuild ms=" << Core::duration_ms(rebuild_start, rebuild_end));
+}
+
+void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    const auto style_update_start = Core::Clock::now();
+    document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
+    if (document_pipeline_.has_render_tree()) {
+        update_layout_state(viewport);
+    }
+    const auto style_update_end = Core::Clock::now();
+    HB_LOG_INFO("[perf] stylesheet update ms=" << Core::duration_ms(style_update_start, style_update_end));
+    dirty_ = true;
+}
+
+void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    const auto image_update_start = Core::Clock::now();
+    bool updated = document_pipeline_.update_image_resources(requested_url_);
+    if (updated) {
+        document_pipeline_.relayout(graphics, viewport);
+        update_layout_state(viewport);
+    }
+    const auto image_update_end = Core::Clock::now();
+    HB_LOG_INFO("[perf] image update ms=" << Core::duration_ms(image_update_start, image_update_end)
+                                          << " updated=" << updated);
+    dirty_ = true;
 }
 
 void Tab::reset_document_state() {

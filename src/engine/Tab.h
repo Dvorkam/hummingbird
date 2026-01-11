@@ -59,6 +59,10 @@ private:
     void clamp_scroll(float viewport_height);
 
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void handle_document_ready(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
+                               const Layout::Rect& viewport);
+    void handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void reset_document_state();
     void update_layout_state(const Layout::Rect& viewport);
 
