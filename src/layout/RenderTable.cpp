@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "core/dom/Element.h"
+#include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/LayoutMetricsUtils.h"
 
@@ -22,18 +23,6 @@ struct ParsedWidth {
     bool is_percent;
 };
 
-bool iequals(std::string_view a, std::string_view b) {
-    if (a.size() != b.size()) {
-        return false;
-    }
-    for (size_t i = 0; i < a.size(); ++i) {
-        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
-            return false;
-        }
-    }
-    return true;
-}
-
 std::string_view trim(std::string_view view) {
     while (!view.empty() && std::isspace(static_cast<unsigned char>(view.front()))) {
         view.remove_prefix(1);
@@ -45,8 +34,11 @@ std::string_view trim(std::string_view view) {
 }
 
 std::optional<std::string_view> find_attribute_value(const DOM::Element& element, std::string_view name) {
+    if (const auto* value = element.find_attribute(name)) {
+        return std::string_view(*value);
+    }
     for (const auto& [key, value] : element.get_attributes()) {
-        if (iequals(key, name)) {
+        if (Core::Utils::iequals(key, name)) {
             return std::string_view(value);
         }
     }

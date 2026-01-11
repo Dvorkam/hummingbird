@@ -206,6 +206,12 @@
 - **Acceptance:** Same logging/state transitions; decoding stats unchanged.
 - **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
 
+- [x] **Phase 3 Slice: Layout (table attribute lookup)**
+- **Goal:** Reduce attribute lookup churn while preserving case-insensitive behavior.
+- **Scope:** `RenderTable` attribute parsing helpers.
+- **Acceptance:** Same table layout outputs; direct lookup used when available, fallback remains case-insensitive.
+- **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
+
 - [ ] **Phase 4: Cleanup + Verification**
 - [ ] Remove dead code identified in Phase 2.
 - [ ] Consolidate utilities and update include paths.
