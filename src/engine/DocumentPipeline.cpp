@@ -32,18 +32,16 @@ size_t count_nodes_recursive(const DOM::Node* node) {
 }
 
 std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::string_view base_url) {
-    static const std::string kHrefKey = std::string(Hummingbird::Html::AttributeNames::Href);
     const DOM::Node* current = node;
     while (current) {
         auto* element = dynamic_cast<const DOM::Element*>(current);
         if (element && element->get_tag_name() == Hummingbird::Html::TagNames::A) {
-            const auto& attrs = element->get_attributes();
-            auto it = attrs.find(kHrefKey);
-            if (it == attrs.end() || it->second.empty()) {
+            const auto* href = element->find_attribute(Hummingbird::Html::AttributeNames::Href);
+            if (!href || href->empty()) {
                 return std::nullopt;
             }
-            auto resolved = resolve_resource_url(base_url, it->second);
-            return resolved.resolved.empty() ? std::optional<std::string>(it->second)
+            auto resolved = resolve_resource_url(base_url, *href);
+            return resolved.resolved.empty() ? std::optional<std::string>(*href)
                                              : std::optional<std::string>(std::move(resolved.resolved));
         }
         current = current->get_parent();
@@ -116,12 +114,10 @@ bool DocumentPipeline::update_image_resources(std::string_view base_url) {
         [&](Layout::RenderObject& current, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
             if (auto* image = dynamic_cast<Layout::RenderImage*>(&current)) {
                 const auto* element = static_cast<const DOM::Element*>(image->get_dom_node());
-                const auto& attrs = element->get_attributes();
-                static const std::string kSrcKey = std::string(Hummingbird::Html::AttributeNames::Src);
-                auto it = attrs.find(kSrcKey);
                 const ImageBitmap* bitmap = nullptr;
-                if (it != attrs.end() && !it->second.empty()) {
-                    auto resolved = resolve_resource_url(base_url, it->second);
+                if (const auto* src = element->find_attribute(Hummingbird::Html::AttributeNames::Src);
+                    src && !src->empty()) {
+                    auto resolved = resolve_resource_url(base_url, *src);
                     std::string_view key = resolved.key;
                     auto view = resource_store_->view(key, ResourceType::Image);
                     if (view && view->state == ResourceState::Ready) {

@@ -9,15 +9,8 @@
 namespace Hummingbird::Css {
 
 namespace {
-const std::string* find_attribute_value(const DOM::Element& element, std::string_view key) {
-    const auto& attrs = element.get_attributes();
-    auto it = attrs.find(std::string(key));
-    if (it == attrs.end()) return nullptr;
-    return &it->second;
-}
-
 bool has_class(const DOM::Element& element, const std::string& expected) {
-    const auto* value = find_attribute_value(element, Hummingbird::Html::AttributeNames::Class);
+    const auto* value = element.find_attribute(Hummingbird::Html::AttributeNames::Class);
     if (!value) return false;
     std::istringstream ss(*value);
     std::string cls;
@@ -28,7 +21,7 @@ bool has_class(const DOM::Element& element, const std::string& expected) {
 }
 
 bool has_id(const DOM::Element& element, const std::string& expected) {
-    const auto* value = find_attribute_value(element, Hummingbird::Html::AttributeNames::Id);
+    const auto* value = element.find_attribute(Hummingbird::Html::AttributeNames::Id);
     return value && *value == expected;
 }
 }  // namespace
