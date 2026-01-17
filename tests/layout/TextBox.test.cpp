@@ -41,7 +41,7 @@ TEST(TextBoxLayoutTest, SimpleTextMeasurement) {
 
     // 3. Layout the text box
     Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     text_box->layout(context, bounds);
 
     // 4. Assert dimensions
@@ -58,7 +58,7 @@ TEST(TextBoxLayoutTest, CollapsesWhitespaceInNormalMode) {
     auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Hello   \n   world");
     auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
     Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     text_box->layout(context, bounds);
 
     EXPECT_EQ(text_box->rendered_text(), "Hello world");
@@ -74,7 +74,7 @@ TEST(TextBoxLayoutTest, PreservesWhitespaceInPreMode) {
 
     auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
     Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
 
     text_box->layout(context, bounds);
     EXPECT_EQ(text_box->rendered_text(), "Line1\n  Line2");
@@ -125,7 +125,7 @@ TEST(TextBoxLayoutTest, IncludesPaddingAndBorderInSize) {
 
     auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
     Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
 
     text_box->layout(context, bounds);
 

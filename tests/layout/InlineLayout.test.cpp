@@ -37,7 +37,7 @@ TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
     ASSERT_NE(render_root, nullptr);
     ASSERT_EQ(render_root->get_children().size(), 1u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 300, 200};
     render_root->layout(context, viewport);
 
@@ -73,7 +73,7 @@ TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
     ASSERT_NE(render_root, nullptr);
     ASSERT_EQ(render_root->get_children().size(), 2u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 400, 300};
     render_root->layout(context, viewport);
 
@@ -102,7 +102,7 @@ TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 60, 200};
     render_root->layout(context, viewport);
 
@@ -136,7 +136,7 @@ TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
     const auto& para = render_root->get_children()[0];
     ASSERT_EQ(para->get_children().size(), 3u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 
@@ -168,7 +168,7 @@ TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 120, 200};
     render_root->layout(context, viewport);
 
@@ -202,7 +202,7 @@ TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 300, 200};
     render_root->layout(context, viewport);
 
@@ -237,7 +237,7 @@ TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 400, 200};
     render_root->layout(context, viewport);
 
@@ -269,7 +269,7 @@ TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 500, 400};
     render_root->layout(context, viewport);
 
@@ -310,7 +310,7 @@ TEST(InlineLayoutTest, InlineImageUsesIntrinsicSizeWhenAvailable) {
 
     image->set_image(&bitmap);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 400, 200};
     render_root->layout(context, viewport);
 
@@ -335,7 +335,7 @@ TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 
@@ -363,7 +363,7 @@ TEST(InlineLayoutTest, NoWrapAttributeKeepsSingleLine) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 60, 200};
     render_root->layout(context, viewport);
 

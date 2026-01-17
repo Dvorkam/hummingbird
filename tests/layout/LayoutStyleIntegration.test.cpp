@@ -39,7 +39,7 @@ TEST(LayoutStyleIntegrationTest, AppliesMarginPaddingAndWidth) {
     auto render_root = builder.build(dom_root.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 800, 600};
     render_root->layout(context, viewport);
 
@@ -90,7 +90,7 @@ TEST(LayoutStyleIntegrationTest, IncludesBorderInInlineBoxSizing) {
     auto render_root = builder.build(dom_root.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 800, 600};
     render_root->layout(context, viewport);
 
@@ -131,7 +131,7 @@ TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
     auto render_root = builder.build(dom_root.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 800, 600};
     render_root->layout(context, viewport);
 

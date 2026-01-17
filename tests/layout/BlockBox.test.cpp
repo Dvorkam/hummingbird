@@ -60,7 +60,7 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
 
     // Layout the tree
     Rect viewport = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     test_render_root->layout(context, viewport);
 
     // Assertions
@@ -92,7 +92,7 @@ TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
     auto inline_block = InlineBlockBox::create(span.get());
     inline_block->append_child(TextBox::create(dynamic_cast<Text*>(span->get_children()[0].get())));
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect bounds{0, 0, 300, 0};
     inline_block->layout(context, bounds);
 

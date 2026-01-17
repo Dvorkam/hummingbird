@@ -2,6 +2,8 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 
+namespace Hummingbird::Test {
+
 // A lightweight graphics context used in tests. All operations are no-ops
 // except text measurement, which uses a simple heuristic to return stable values.
 class TestGraphicsContext : public IGraphicsContext {
@@ -21,3 +23,5 @@ public:
 
     void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const TextStyle& /*style*/) override {}
 };
+
+}  // namespace Hummingbird::Test

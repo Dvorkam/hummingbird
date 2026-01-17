@@ -15,7 +15,7 @@ TEST(RenderBreakLayoutTest, UsesDefaultLineHeightWhenUnset) {
     auto br = DomFactory::create_element(arena, "br");
     auto render_break = RenderBreak::create(br.get());
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect bounds{0, 0, 100, 0};
     render_break->layout(context, bounds);
 
@@ -28,7 +28,7 @@ TEST(RenderRuleLayoutTest, UsesDefaultHeightWhenUnset) {
     auto hr = DomFactory::create_element(arena, "hr");
     auto render_rule = RenderRule::create(hr.get());
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect bounds{0, 0, 120, 0};
     render_rule->layout(context, bounds);
 

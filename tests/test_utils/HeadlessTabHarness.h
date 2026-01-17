@@ -31,7 +31,7 @@ public:
     const Engine::Tab& tab() const { return tab_; }
 
 private:
-    TestGraphicsContext context_;
+    Hummingbird::Test::TestGraphicsContext context_;
     Layout::Rect viewport_{0, 0, 800, 600};
     Engine::Tab tab_;
 };

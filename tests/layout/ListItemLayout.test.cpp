@@ -32,7 +32,7 @@ TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
     ASSERT_NE(render_root, nullptr);
     ASSERT_EQ(render_root->get_children().size(), 1u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 
@@ -69,7 +69,7 @@ TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
     ASSERT_NE(render_root, nullptr);
     ASSERT_EQ(render_root->get_children().size(), 1u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 
@@ -102,7 +102,7 @@ TEST(ListItemLayoutTest, InlineRunsShareLineWithinListItem) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 

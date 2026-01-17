@@ -247,7 +247,7 @@
 - [ ] Evaluate `tests/CMakeLists.txt` linking App directly; consider a lightweight test-support target.
 - [ ] Audit tests for unused includes and remove leftovers.
 - [ ] Audit src for unused includes and remove leftovers.
-- [ ] Move `TestGraphicsContext` into `Hummingbird::Test` namespace and update test call sites.
+- [x] Move `TestGraphicsContext` into `Hummingbird::Test` namespace and update test call sites.
 - [ ] Track `TextBox` TODO: choose real monospace fonts when available (src/layout/TextBox.cpp).
 - [x] Put `NetworkRequestUtils` helpers into a namespace to avoid global scope leaks.
 - [x] Move `NetworkThreadPool` into `Hummingbird::Platform` namespace.
