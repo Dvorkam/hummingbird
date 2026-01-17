@@ -257,7 +257,7 @@
 - [x] Move `core/utils/AssetPath` APIs into `Hummingbird::Core::Utils` (adjust call sites for consistency with other core utils).
 - [x] Move App layer classes (`BrowserApp`, `UrlBar`) into a `Hummingbird::App` namespace for consistency with the coding constitution.
 - [x] Revisit `Engine::ResolvedUrl` to avoid returning `std::string_view` that can point at external buffers (prefer owning string for keys).
-- [ ] Avoid repeated string allocations for ResourceStore key lookups (add a string_view hash/lookup or cache key objects).
+- [x] Avoid repeated string allocations for ResourceStore key lookups (add a string_view hash/lookup or cache key objects).
 - [ ] Wrap core utils (`Log`, `Assert`, `ArenaAllocator`) in `Hummingbird::Core` namespace to satisfy constitution.
 - [x] Consolidate numeric parsing helpers (`parse_dimension`, `parse_span_value`, `parse_length_value`) into a shared utility.
 - [x] Consolidate DOM attribute lookup helpers used in `RenderImage`/`RenderTable` into a shared helper.

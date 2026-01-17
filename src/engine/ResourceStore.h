@@ -61,14 +61,42 @@ private:
         bool operator==(const ResourceKey& other) const { return type == other.type && url == other.url; }
     };
 
+    struct ResourceKeyView {
+        ResourceType type;
+        std::string_view url;
+    };
+
     struct ResourceKeyHash {
+        using is_transparent = void;
+
         size_t operator()(const ResourceKey& key) const;
+        size_t operator()(const ResourceKeyView& key) const;
+    };
+
+    struct ResourceKeyEqual {
+        using is_transparent = void;
+
+        bool operator()(const ResourceKey& lhs, const ResourceKey& rhs) const {
+            return lhs.type == rhs.type && lhs.url == rhs.url;
+        }
+
+        bool operator()(const ResourceKey& lhs, const ResourceKeyView& rhs) const {
+            return lhs.type == rhs.type && lhs.url == rhs.url;
+        }
+
+        bool operator()(const ResourceKeyView& lhs, const ResourceKey& rhs) const {
+            return lhs.type == rhs.type && lhs.url == rhs.url;
+        }
+
+        bool operator()(const ResourceKeyView& lhs, const ResourceKeyView& rhs) const {
+            return lhs.type == rhs.type && lhs.url == rhs.url;
+        }
     };
 
     ResourceEntry& request(std::string_view url, ResourceType type);
     bool mark_loading(std::string_view url, ResourceType type);
 
-    std::unordered_map<ResourceKey, ResourceEntry, ResourceKeyHash> resources_;
+    std::unordered_map<ResourceKey, ResourceEntry, ResourceKeyHash, ResourceKeyEqual> resources_;
 };
 
 }  // namespace Hummingbird::Engine
