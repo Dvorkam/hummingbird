@@ -5,6 +5,8 @@
 
 #include "core/platform_api/INetwork.h"
 
+namespace Hummingbird::Platform {
+
 inline NetworkResponse make_response(const std::string& url) {
     NetworkResponse response;
     response.url = url;
@@ -23,3 +25,5 @@ inline bool respond_if_stopping(bool stopping, std::function<void(NetworkRespons
     if (callback) callback(make_response(url));
     return true;
 }
+
+}  // namespace Hummingbird::Platform

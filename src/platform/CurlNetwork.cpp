@@ -52,18 +52,18 @@ void CurlNetwork::shutdown() {
 
 void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
     if (!ok()) {
-        if (callback) callback(make_response(url));
+        if (callback) callback(Hummingbird::Platform::make_response(url));
         return;
     }
-    if (respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
+    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     // Move callback once, and never touch the moved-from original again.
     auto cb = std::move(callback);
 
     thread_pool_.submit([url, cb = std::move(cb), this]() mutable {
-        if (respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
+        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         std::string body;
-        NetworkResponse response = make_response(url);
+        NetworkResponse response = Hummingbird::Platform::make_response(url);
         CURL* curl = curl_easy_init();
         if (!curl) {
             HB_LOG_WARN("[network] curl init failed: url=" << url);

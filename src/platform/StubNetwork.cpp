@@ -50,7 +50,7 @@ std::string build_stub_body(const std::string& url) {
 
 void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb) {
     std::string body = build_stub_body(url);
-    NetworkResponse response = make_response_with_effective_url(url);
+    NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
     response.status = 200;
     response.body = std::move(body);
     if (cb) cb(std::move(response));
@@ -62,12 +62,12 @@ void StubNetwork::shutdown() {
 }
 
 void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
-    if (respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
+    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     auto cb = std::move(callback);
 
     thread_pool_.submit([url, cb = std::move(cb), this]() mutable {
-        if (respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
+        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         run_stub_request(url, std::move(cb));
     });
 }

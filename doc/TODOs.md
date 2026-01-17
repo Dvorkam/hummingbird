@@ -249,7 +249,7 @@
 - [ ] Audit src for unused includes and remove leftovers.
 - [ ] Move `TestGraphicsContext` into `Hummingbird::Test` namespace and update test call sites.
 - [ ] Track `TextBox` TODO: choose real monospace fonts when available (src/layout/TextBox.cpp).
-- [ ] Put `NetworkRequestUtils` helpers into a namespace to avoid global scope leaks.
+- [x] Put `NetworkRequestUtils` helpers into a namespace to avoid global scope leaks.
 - [ ] Move `NetworkThreadPool` into `Hummingbird::Platform` namespace.
 - [ ] Move platform implementation classes (`SDLWindow`, `SDLGraphicsContext`, `CurlNetwork`, `StubNetwork`, etc.) into `Hummingbird::Platform` namespace for consistency.
 - [ ] Move `core/platform_api` types (`InputEvent`, `IGraphicsContext`, `INetwork`, `IWindow`, etc.) into `Hummingbird` namespace to match the coding constitution.
