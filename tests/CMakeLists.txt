@@ -5,6 +5,7 @@ find_package(GTest REQUIRED)
 add_executable(HummingbirdTests
     app/SmokeMain.test.cpp
     test_utils/HeadlessTabHarness.h
+    test_utils/TestFakes.h
     test_utils/TestGraphicsContext.h
     engine/Tab.test.cpp
     engine/ResourceStore.test.cpp

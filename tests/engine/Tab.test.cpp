@@ -6,6 +6,7 @@
 
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "test_utils/HeadlessTabHarness.h"
+#include "test_utils/TestFakes.h"
 
 namespace {
 using Hummingbird::Test::DeferredNetwork;

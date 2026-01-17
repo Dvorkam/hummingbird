@@ -220,7 +220,7 @@
 - **Scope:** `SDLInputTranslation` header/impl and call sites.
 - **Acceptance:** Input behavior unchanged; unused helpers removed if any.
 - **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
-- [ ] Phase 3 Slice: Tests (harness cleanup + unused helpers).
+- [x] Phase 3 Slice: Tests (harness cleanup + unused helpers).
 - **Goal:** Keep test utilities minimal and consistent.
 - **Scope:** `tests/test_utils` + any lingering per-test helpers.
 - **Acceptance:** Tests still compile/run; helpers not duplicated.
