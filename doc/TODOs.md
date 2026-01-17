@@ -215,7 +215,7 @@
 - **Scope:** `Painter` flow helpers and related names.
 - **Acceptance:** Paint output and debug outlines unchanged.
 - **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
-- [ ] Phase 3 Slice: Platform (SDL input translation naming/unused).
+- [x] Phase 3 Slice: Platform (SDL input translation naming/unused).
 - **Goal:** Make translation entrypoints obvious and remove dead helpers.
 - **Scope:** `SDLInputTranslation` header/impl and call sites.
 - **Acceptance:** Input behavior unchanged; unused helpers removed if any.

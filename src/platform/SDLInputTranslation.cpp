@@ -2,7 +2,7 @@
 
 namespace Hummingbird::Platform::SDLInput {
 
-namespace {
+namespace detail {
 Modifiers to_mods(SDL_Keymod mod) {
     Modifiers m;
     m.ctrl = (mod & KMOD_CTRL) != 0;
@@ -81,7 +81,7 @@ bool translate_mouse_button_event(const SDL_Event& e, InputEvent& out, EventType
     return true;
 }
 
-bool translate_mouse_wheel(const SDL_Event& e, InputEvent& out) {
+bool translate_mouse_wheel_event(const SDL_Event& e, InputEvent& out) {
     out.type = EventType::MouseWheel;
     float dx = static_cast<float>(e.wheel.x);
     float dy = static_cast<float>(e.wheel.y);
@@ -103,7 +103,7 @@ bool translate_window_event(const SDL_Event& e, InputEvent& out) {
     }
     return false;
 }
-}  // namespace
+}  // namespace detail
 
 bool translate_event(const SDL_Event& e, InputEvent& out) {
     out = {};  // reset
@@ -114,25 +114,25 @@ bool translate_event(const SDL_Event& e, InputEvent& out) {
             return true;
 
         case SDL_TEXTINPUT:
-            return translate_text_input(e, out);
+            return detail::translate_text_input(e, out);
 
         case SDL_KEYDOWN:
-            return translate_key_event(e, out, EventType::KeyDown, e.key.repeat != 0);
+            return detail::translate_key_event(e, out, EventType::KeyDown, e.key.repeat != 0);
 
         case SDL_KEYUP:
-            return translate_key_event(e, out, EventType::KeyUp, false);
+            return detail::translate_key_event(e, out, EventType::KeyUp, false);
 
         case SDL_MOUSEBUTTONDOWN:
-            return translate_mouse_button_event(e, out, EventType::MouseDown);
+            return detail::translate_mouse_button_event(e, out, EventType::MouseDown);
 
         case SDL_MOUSEBUTTONUP:
-            return translate_mouse_button_event(e, out, EventType::MouseUp);
+            return detail::translate_mouse_button_event(e, out, EventType::MouseUp);
 
         case SDL_MOUSEWHEEL:
-            return translate_mouse_wheel(e, out);
+            return detail::translate_mouse_wheel_event(e, out);
 
         case SDL_WINDOWEVENT:
-            return translate_window_event(e, out);
+            return detail::translate_window_event(e, out);
 
         default:
             return false;
