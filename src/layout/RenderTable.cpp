@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "core/dom/Element.h"
+#include "core/dom/ElementUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/LayoutMetricsUtils.h"
 
@@ -30,13 +31,6 @@ std::string_view trim(std::string_view view) {
         view.remove_suffix(1);
     }
     return view;
-}
-
-std::optional<std::string_view> find_attribute_value(const DOM::Element& element, std::string_view name) {
-    if (const auto* value = element.find_attribute(name)) {
-        return std::string_view(*value);
-    }
-    return std::nullopt;
 }
 
 std::optional<size_t> parse_span_value(std::string_view value) {
@@ -61,7 +55,7 @@ size_t cell_colspan(const RenderTableCell& cell) {
     if (!element) {
         return 1;
     }
-    auto attr = find_attribute_value(*element, Hummingbird::Html::AttributeNames::ColSpan);
+    auto attr = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::ColSpan);
     if (!attr) {
         return 1;
     }
@@ -101,7 +95,7 @@ float resolve_table_target_width(const DOM::Element& element, const Css::Compute
     if (style && style->width.has_value()) {
         return std::max(0.0f, *style->width);
     }
-    auto attr = find_attribute_value(element, Hummingbird::Html::AttributeNames::Width);
+    auto attr = DOM::find_attribute_value(element, Hummingbird::Html::AttributeNames::Width);
     if (!attr) {
         return 0.0f;
     }

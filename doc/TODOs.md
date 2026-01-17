@@ -260,7 +260,7 @@
 - [ ] Avoid repeated string allocations for ResourceStore key lookups (add a string_view hash/lookup or cache key objects).
 - [ ] Wrap core utils (`Log`, `Assert`, `ArenaAllocator`) in `Hummingbird::Core` namespace to satisfy constitution.
 - [ ] Consolidate numeric parsing helpers (`parse_dimension`, `parse_span_value`, `parse_length_value`) into a shared utility.
-- [ ] Consolidate DOM attribute lookup helpers used in `RenderImage`/`RenderTable` into a shared helper.
+- [x] Consolidate DOM attribute lookup helpers used in `RenderImage`/`RenderTable` into a shared helper.
 - [x] Consolidate outline drawing helpers (RenderImage vs Painter) to reduce duplication.
 - [x] Remove or wire up unused `HtmlTokenizer::emit_error` helper.
 - [x] Cache default font path used for image alt text to avoid per-paint string allocations.

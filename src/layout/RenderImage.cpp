@@ -6,6 +6,7 @@
 #include <string>
 #include <string_view>
 
+#include "core/dom/ElementUtils.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
 #include "html/HtmlAttributeNames.h"
@@ -45,7 +46,7 @@ std::optional<float> parse_dimension(std::string_view value) {
 }
 
 std::optional<float> find_attribute_dimension(const DOM::Element& element, std::string_view name) {
-    if (const auto* value = element.find_attribute(name)) {
+    if (const auto value = DOM::find_attribute_value(element, name)) {
         return parse_dimension(*value);
     }
     return std::nullopt;
@@ -82,13 +83,6 @@ LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedS
     float content_width = resolve_width(element, style, image);
     float content_height = resolve_height(element, style, image);
     return {content_width + insets.left + insets.right, content_height + insets.top + insets.bottom};
-}
-
-std::string find_attribute_value(const DOM::Element& element, std::string_view name) {
-    if (const auto* value = element.find_attribute(name)) {
-        return *value;
-    }
-    return {};
 }
 
 const std::string& resolve_default_font_path() {
@@ -134,7 +128,10 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
     }
     PaintUtils::draw_outline(context, content, kPlaceholderStroke);
 
-    std::string alt_text = find_attribute_value(*element, Hummingbird::Html::AttributeNames::Alt);
+    std::string alt_text;
+    if (const auto value = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::Alt)) {
+        alt_text.assign(*value);
+    }
     if (alt_text.empty()) {
         return;
     }
