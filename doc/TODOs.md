@@ -263,7 +263,7 @@
 - [ ] Consolidate DOM attribute lookup helpers used in `RenderImage`/`RenderTable` into a shared helper.
 - [ ] Consolidate outline drawing helpers (RenderImage vs Painter) to reduce duplication.
 - [x] Remove or wire up unused `HtmlTokenizer::emit_error` helper.
-- [ ] Cache default font path used for image alt text to avoid per-paint string allocations.
+- [x] Cache default font path used for image alt text to avoid per-paint string allocations.
 - [ ] Update docs/README where behavior or structure changed.
 - [ ] Re-run full test suite and note skips.
 

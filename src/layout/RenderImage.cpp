@@ -102,8 +102,10 @@ void draw_outline(IGraphicsContext& context, const Rect& rect, const Color& colo
     context.fill_rect(right, color);
 }
 
-std::string resolve_default_font_path() {
-    return Hummingbird::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
+const std::string& resolve_default_font_path() {
+    static const std::string kDefaultFontPath =
+        Hummingbird::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
+    return kDefaultFontPath;
 }
 }  // namespace
 
@@ -148,9 +150,14 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
         return;
     }
 
-    TextStyle text_style;
-    text_style.font_path = resolve_default_font_path();
+    TextStyle& text_style = alt_text_style_;
+    if (text_style.font_path.empty()) {
+        text_style.font_path = resolve_default_font_path();
+    }
     text_style.font_size = style ? style->font_size : 12.0f;
+    text_style.bold = false;
+    text_style.italic = false;
+    text_style.monospace = false;
     text_style.color = style ? style->color : Color{80, 80, 80, 255};
 
     float text_x = content.x + kAltTextPadding;
