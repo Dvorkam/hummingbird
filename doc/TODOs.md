@@ -242,7 +242,7 @@
 - [ ] Remove dead code identified in Phase 2.
 - [ ] Consolidate utilities and update include paths.
 - [x] Consolidate whitespace trimming helpers (Url parsing + legacy attribute parsing) into a single utility.
-- [ ] Consolidate duplicated `compute_metrics` helpers across BlockBox/InlineBox/RenderListItem (reuse LayoutMetricsUtils).
+- [x] Consolidate duplicated `compute_metrics` helpers across BlockBox/InlineBox/RenderListItem (reuse LayoutMetricsUtils).
 - [ ] Extract TreeBuilder tag→render mapping table to reduce branching and keep tag routing centralized.
 - [ ] Evaluate `tests/CMakeLists.txt` linking App directly; consider a lightweight test-support target.
 - [ ] Audit tests for unused includes and remove leftovers.

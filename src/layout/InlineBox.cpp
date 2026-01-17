@@ -11,33 +11,12 @@ namespace Hummingbird::Layout {
 namespace {
 constexpr float kInlineAtomicLayoutWidth = 100000.0f;
 
-struct LayoutMetrics {
-    float inset_left;
-    float inset_right;
-    float inset_top;
-    float inset_bottom;
-    float content_width;
-};
-
 struct ChildMargins {
     float left;
     float right;
     float top;
     float bottom;
 };
-
-LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect) {
-    rect.x = bounds.x;
-    rect.y = bounds.y;
-    Metrics::Insets insets = Metrics::compute_insets(style);
-    float inset_left = insets.left;
-    float inset_right = insets.right;
-    float inset_top = insets.top;
-    float inset_bottom = insets.bottom;
-    float content_width = Metrics::content_width(bounds.width, insets);
-
-    return {inset_left, inset_right, inset_top, inset_bottom, content_width};
-}
 
 bool has_insets(const Css::ComputedStyle* style) {
     Metrics::Insets insets = Metrics::compute_insets(style);
@@ -158,9 +137,9 @@ void InlineBox::finalize_inline_layout() {
 
 void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
-    LayoutMetrics metrics = compute_metrics(style, bounds, m_rect);
-    float cursor_x = metrics.inset_left;
-    float cursor_y = metrics.inset_top;
+    Metrics::BoxMetrics metrics = Metrics::compute_box_metrics(style, bounds, m_rect, Metrics::BoxWidthPolicy::Ignore);
+    float cursor_x = metrics.insets.left;
+    float cursor_y = metrics.insets.top;
     float line_height = 0.0f;
 
     for (auto& child : m_children) {
@@ -169,7 +148,7 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
         float child_x = cursor_x + margins.left;
         float child_y = cursor_y + margins.top;
-        float available_width = metrics.content_width - (child_x - metrics.inset_left);
+        float available_width = metrics.content_width - (child_x - metrics.insets.left);
         Rect child_bounds{child_x, child_y, available_width, 0.0f};
         child->layout(context, child_bounds);
 
@@ -178,8 +157,8 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
         cursor_x = child_x + child->get_rect().width + margins.right;
     }
 
-    m_rect.width = cursor_x + metrics.inset_right;
-    m_rect.height = cursor_y + line_height + metrics.inset_bottom;
+    m_rect.width = cursor_x + metrics.insets.right;
+    m_rect.height = cursor_y + line_height + metrics.insets.bottom;
 }
 
 }  // namespace Hummingbird::Layout

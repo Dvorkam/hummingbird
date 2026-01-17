@@ -9,15 +9,6 @@
 namespace Hummingbird::Layout {
 
 namespace {
-struct LayoutMetrics {
-    float inset_left;
-    float inset_right;
-    float inset_top;
-    float inset_bottom;
-    float content_width;
-    float marker_offset;
-};
-
 struct LineCursor {
     float x;
     float y;
@@ -31,32 +22,6 @@ struct ChildMargins {
     float bottom;
 };
 
-LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect) {
-    Metrics::Insets insets = Metrics::compute_insets(style);
-    float inset_left = insets.left;
-    float inset_right = insets.right;
-    float inset_top = insets.top;
-    float inset_bottom = insets.bottom;
-
-    float target_width = bounds.width;
-    if (style && style->width.has_value()) {
-        target_width = std::min(bounds.width, *style->width);
-    }
-
-    rect.x = bounds.x;
-    rect.y = bounds.y;
-    if (style && style->width.has_value()) {
-        rect.width = target_width + inset_left + inset_right;
-    } else {
-        rect.width = bounds.width;
-    }
-
-    float marker_offset = kListMarkerSizePx + kListMarkerGapPx;
-    float content_width = Metrics::content_width(rect.width, insets, marker_offset);
-
-    return {inset_left, inset_right, inset_top, inset_bottom, content_width, marker_offset};
-}
-
 ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
     return {style ? style->margin.left : 0.0f, style ? style->margin.right : 0.0f, style ? style->margin.top : 0.0f,
             style ? style->margin.bottom : 0.0f};
@@ -69,12 +34,12 @@ void flush_line(LineCursor& cursor, float inset_left, float marker_offset) {
 }
 
 void layout_block_child(IGraphicsContext& context, RenderObject& child, const ChildMargins& margins,
-                        const LayoutMetrics& metrics, LineCursor& cursor) {
+                        const Metrics::BoxMetrics& metrics, float marker_offset, LineCursor& cursor) {
     if (margins.top > 0.0f) {
         cursor.y += margins.top;
     }
-    flush_line(cursor, metrics.inset_left, metrics.marker_offset);
-    float child_x = metrics.inset_left + metrics.marker_offset + margins.left;
+    flush_line(cursor, metrics.insets.left, marker_offset);
+    float child_x = metrics.insets.left + marker_offset + margins.left;
     float child_y = cursor.y;
     float available_width = metrics.content_width - margins.left - margins.right;
     Rect child_bounds = {child_x, child_y, available_width, 0.0f};
@@ -84,11 +49,12 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
 
 InlineLayout::InlineLayoutResult layout_inline_group(IGraphicsContext& context,
                                                      std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
-                                                     const LayoutMetrics& metrics, LineCursor& cursor,
-                                                     Css::ComputedStyle::TextAlign text_align, float wrap_width) {
+                                                     const Metrics::BoxMetrics& metrics, float marker_offset,
+                                                     LineCursor& cursor, Css::ComputedStyle::TextAlign text_align,
+                                                     float wrap_width) {
     InlineLayout::GroupLayoutContext layout_context;
-    layout_context.start_x = cursor.x - (metrics.inset_left + metrics.marker_offset);
-    layout_context.base_x = metrics.inset_left + metrics.marker_offset;
+    layout_context.start_x = cursor.x - (metrics.insets.left + marker_offset);
+    layout_context.base_x = metrics.insets.left + marker_offset;
     layout_context.base_y = cursor.y;
     layout_context.content_width = metrics.content_width;
     layout_context.align = text_align;
@@ -129,9 +95,11 @@ const Rect& RenderListItem::marker_rect() const {
 
 void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
-    LayoutMetrics metrics = compute_metrics(style, bounds, m_rect);
-    LineCursor cursor{metrics.inset_left + metrics.marker_offset, metrics.inset_top, 0.0f};
-    float marker_y = metrics.inset_top;
+    float marker_offset = kListMarkerSizePx + kListMarkerGapPx;
+    Metrics::BoxMetrics metrics =
+        Metrics::compute_box_metrics(style, bounds, m_rect, Metrics::BoxWidthPolicy::WidthOnly, marker_offset);
+    LineCursor cursor{metrics.insets.left + marker_offset, metrics.insets.top, 0.0f};
+    float marker_y = metrics.insets.top;
     bool marker_y_set = false;
 
     size_t i = 0;
@@ -141,8 +109,8 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         ChildMargins margins = compute_child_margins(child_style);
 
         if (!child->Inline()) {
-            layout_block_child(context, *child, margins, metrics, cursor);
-            update_marker_for_block(marker_y_set, marker_y, metrics.inset_top);
+            layout_block_child(context, *child, margins, metrics, marker_offset, cursor);
+            update_marker_for_block(marker_y_set, marker_y, metrics.insets.top);
             ++i;
             continue;
         }
@@ -151,15 +119,15 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         float wrap_width =
             (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) ? 0.0f : metrics.content_width;
         InlineLayout::InlineLayoutResult inline_layout =
-            layout_inline_group(context, m_children, i, metrics, cursor, align, wrap_width);
-        update_marker_for_inline(inline_layout, marker_y_set, marker_y, metrics.inset_top);
+            layout_inline_group(context, m_children, i, metrics, marker_offset, cursor, align, wrap_width);
+        update_marker_for_inline(inline_layout, marker_y_set, marker_y, metrics.insets.top);
     }
 
-    flush_line(cursor, metrics.inset_left, metrics.marker_offset);
-    m_rect.height = cursor.y + metrics.inset_bottom;
+    flush_line(cursor, metrics.insets.left, marker_offset);
+    m_rect.height = cursor.y + metrics.insets.bottom;
 
     if (m_marker) {
-        Rect marker_bounds{metrics.inset_left, marker_y, kListMarkerSizePx, kListMarkerSizePx};
+        Rect marker_bounds{metrics.insets.left, marker_y, kListMarkerSizePx, kListMarkerSizePx};
         m_marker->layout(context, marker_bounds);
     }
 }

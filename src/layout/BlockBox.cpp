@@ -8,14 +8,6 @@
 namespace Hummingbird::Layout {
 
 namespace {
-struct LayoutMetrics {
-    float inset_left;
-    float inset_right;
-    float inset_top;
-    float inset_bottom;
-    float content_width;
-};
-
 struct LineCursor {
     float x;
     float y;
@@ -33,38 +25,6 @@ struct ChildMargins {
 
 constexpr float kInlineAtomicLayoutWidth = 100000.0f;
 
-LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect) {
-    Metrics::Insets insets = Metrics::compute_insets(style);
-    float inset_left = insets.left;
-    float inset_right = insets.right;
-    float inset_top = insets.top;
-    float inset_bottom = insets.bottom;
-
-    float target_width = bounds.width;
-    bool constrained = false;
-    if (style) {
-        if (style->width.has_value()) {
-            target_width = std::min(target_width, *style->width);
-            constrained = true;
-        }
-        if (style->max_width.has_value()) {
-            target_width = std::min(target_width, *style->max_width);
-            constrained = true;
-        }
-    }
-
-    rect.x = bounds.x;
-    rect.y = bounds.y;
-    if (constrained) {
-        rect.width = target_width + inset_left + inset_right;
-    } else {
-        rect.width = bounds.width;
-    }
-
-    float content_width = Metrics::content_width(rect.width, insets);
-    return {inset_left, inset_right, inset_top, inset_bottom, content_width};
-}
-
 ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
     return {style ? style->margin.left : 0.0f,       style ? style->margin.right : 0.0f,
             style ? style->margin.top : 0.0f,        style ? style->margin.bottom : 0.0f,
@@ -78,12 +38,12 @@ void flush_line(LineCursor& cursor, float inset_left) {
 }
 
 void layout_block_child(IGraphicsContext& context, RenderObject& child, const ChildMargins& margins,
-                        const LayoutMetrics& metrics, LineCursor& cursor) {
+                        const Metrics::BoxMetrics& metrics, LineCursor& cursor) {
     if (margins.top > 0.0f) {
         cursor.y += margins.top;
     }
-    flush_line(cursor, metrics.inset_left);
-    float child_x = metrics.inset_left + margins.left;
+    flush_line(cursor, metrics.insets.left);
+    float child_x = metrics.insets.left + margins.left;
     float child_y = cursor.y;
     float available_width =
         metrics.content_width - (margins.left_auto ? 0.0f : margins.left) - (margins.right_auto ? 0.0f : margins.right);
@@ -103,18 +63,18 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
         } else if (margins.right_auto) {
             right_margin = remaining;
         }
-        child_x = metrics.inset_left + left_margin;
+        child_x = metrics.insets.left + left_margin;
         child.set_rect({child_x, child.get_rect().y, child.get_rect().width, child.get_rect().height});
     }
     cursor.y = child_y + child.get_rect().height + margins.bottom;
 }
 
 void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
-                         const LayoutMetrics& metrics, LineCursor& cursor, Css::ComputedStyle::TextAlign text_align,
-                         float wrap_width) {
+                         const Metrics::BoxMetrics& metrics, LineCursor& cursor,
+                         Css::ComputedStyle::TextAlign text_align, float wrap_width) {
     InlineLayout::GroupLayoutContext layout_context;
-    layout_context.start_x = cursor.x - metrics.inset_left;
-    layout_context.base_x = metrics.inset_left;
+    layout_context.start_x = cursor.x - metrics.insets.left;
+    layout_context.base_x = metrics.insets.left;
     layout_context.base_y = cursor.y;
     layout_context.content_width = metrics.content_width;
     layout_context.align = text_align;
@@ -129,8 +89,9 @@ void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<
 
 void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
-    LayoutMetrics metrics = compute_metrics(style, bounds, m_rect);
-    LineCursor cursor{metrics.inset_left, metrics.inset_top, 0.0f};
+    Metrics::BoxMetrics metrics =
+        Metrics::compute_box_metrics(style, bounds, m_rect, Metrics::BoxWidthPolicy::WidthAndMax);
+    LineCursor cursor{metrics.insets.left, metrics.insets.top, 0.0f};
 
     size_t i = 0;
     while (i < m_children.size()) {
@@ -155,8 +116,8 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         layout_inline_group(context, m_children, i, metrics, cursor, align, wrap_width);
     }
 
-    flush_line(cursor, metrics.inset_left);
-    m_rect.height = cursor.y + metrics.inset_bottom;
+    flush_line(cursor, metrics.insets.left);
+    m_rect.height = cursor.y + metrics.insets.bottom;
 }
 
 void InlineBlockBox::reset_inline_layout() {
