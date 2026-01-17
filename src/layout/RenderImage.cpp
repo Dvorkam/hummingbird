@@ -10,6 +10,7 @@
 #include "core/utils/AssetPath.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/LayoutMetricsUtils.h"
+#include "layout/PaintUtils.h"
 #include "layout/inline/InlineTypes.h"
 
 namespace Hummingbird::Layout {
@@ -90,18 +91,6 @@ std::string find_attribute_value(const DOM::Element& element, std::string_view n
     return {};
 }
 
-void draw_outline(IGraphicsContext& context, const Rect& rect, const Color& color) {
-    constexpr float kThickness = 1.0f;
-    Rect top{rect.x, rect.y, rect.width, kThickness};
-    Rect bottom{rect.x, rect.y + rect.height - kThickness, rect.width, kThickness};
-    Rect left{rect.x, rect.y, kThickness, rect.height};
-    Rect right{rect.x + rect.width - kThickness, rect.y, kThickness, rect.height};
-    context.fill_rect(top, color);
-    context.fill_rect(bottom, color);
-    context.fill_rect(left, color);
-    context.fill_rect(right, color);
-}
-
 const std::string& resolve_default_font_path() {
     static const std::string kDefaultFontPath =
         Hummingbird::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
@@ -143,7 +132,7 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
     if (!has_background) {
         context.fill_rect(content, kPlaceholderFill);
     }
-    draw_outline(context, content, kPlaceholderStroke);
+    PaintUtils::draw_outline(context, content, kPlaceholderStroke);
 
     std::string alt_text = find_attribute_value(*element, Hummingbird::Html::AttributeNames::Alt);
     if (alt_text.empty()) {

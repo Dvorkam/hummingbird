@@ -2,6 +2,7 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/GeometryUtils.h"
+#include "layout/PaintUtils.h"
 #include "layout/RenderObject.h"
 #include "layout/RenderTreeTraversal.h"
 
@@ -9,18 +10,6 @@ namespace Hummingbird::Renderer {
 
 namespace {
 constexpr Color kOutlineColor{255, 0, 0, 100};
-
-void draw_outline(IGraphicsContext& context, const Layout::Rect& rect, const Color& color) {
-    constexpr float kThickness = 1.0f;
-    Layout::Rect top{rect.x, rect.y, rect.width, kThickness};
-    Layout::Rect bottom{rect.x, rect.y + rect.height - kThickness, rect.width, kThickness};
-    Layout::Rect left{rect.x, rect.y, kThickness, rect.height};
-    Layout::Rect right{rect.x + rect.width - kThickness, rect.y, kThickness, rect.height};
-    context.fill_rect(top, color);
-    context.fill_rect(bottom, color);
-    context.fill_rect(left, color);
-    context.fill_rect(right, color);
-}
 
 struct PaintContext {
     Layout::Point offset;
@@ -37,7 +26,7 @@ void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, con
             }
             current.paint_self(context, local_offset);
             if (paint_context.debug_outlines) {
-                draw_outline(context, absolute, kOutlineColor);
+                Layout::PaintUtils::draw_outline(context, absolute, kOutlineColor);
             }
             return Layout::Traversal::TraverseAction::Continue;
         });
