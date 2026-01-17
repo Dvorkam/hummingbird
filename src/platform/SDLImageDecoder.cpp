@@ -1,12 +1,20 @@
 #include "platform/SDLImageDecoder.h"
 
-#include <SDL.h>
+#include <SDL_error.h>
 #include <SDL_image.h>
+#include <SDL_pixels.h>
+#include <SDL_rwops.h>
+#include <SDL_surface.h>
 
 #include <cstring>
 #include <limits>
+#include <optional>
+#include <ostream>
+#include <vector>
 
 #include "core/utils/Log.h"
+
+namespace Hummingbird::Platform {
 
 namespace {
 bool ensure_sdl_image_ready() {
@@ -77,3 +85,5 @@ std::optional<ImageBitmap> SDLImageDecoder::decode(std::string_view bytes) {
 
     return bitmap;
 }
+
+}  // namespace Hummingbird::Platform

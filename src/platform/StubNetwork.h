@@ -1,13 +1,12 @@
 #pragma once
 
-#include <atomic>
 #include <functional>
-#include <mutex>
 #include <string>
-#include <thread>
-#include <vector>
 
 #include "core/platform_api/INetwork.h"
+#include "platform/NetworkThreadPool.h"
+
+namespace Hummingbird::Platform {
 
 class StubNetwork : public INetwork {
 public:
@@ -19,10 +18,7 @@ public:
     void shutdown() override;
 
 private:
-    void join_all();
-
-private:
-    std::atomic<bool> m_stopping{false};
-    std::mutex m_threads_mutex;
-    std::vector<std::thread> m_threads;
+    Hummingbird::Platform::NetworkThreadPool thread_pool_;
 };
+
+}  // namespace Hummingbird::Platform

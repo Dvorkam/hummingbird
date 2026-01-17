@@ -1,6 +1,14 @@
 #pragma once
 
+#include <memory>
+
 #include "layout/RenderObject.h"
+
+namespace Hummingbird {
+namespace DOM {
+class Node;
+}  // namespace DOM
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 

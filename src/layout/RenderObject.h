@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "core/dom/Node.h"
@@ -10,7 +11,15 @@
 #include "style/ComputedStyle.h"
 
 // Forward declare IGraphicsContext to break dependency cycle
+namespace Hummingbird {
 class IGraphicsContext;
+namespace Css {
+struct ComputedStyle;
+}  // namespace Css
+namespace Layout {
+class IInlineParticipant;
+}  // namespace Layout
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 

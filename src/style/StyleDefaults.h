@@ -1,0 +1,35 @@
+#pragma once
+
+#include "style/ComputedStyle.h"
+
+namespace Hummingbird {
+namespace Css {
+struct ComputedStyle;
+}  // namespace Css
+}  // namespace Hummingbird
+
+namespace Hummingbird::DOM {
+class Element;
+}
+
+namespace Hummingbird::Css::StyleDefaults {
+
+struct StyleOverrides {
+    bool color = false;
+    bool underline = false;
+    bool whitespace = false;
+    bool font_monospace = false;
+    bool weight = false;
+    bool style = false;
+    bool font_size = false;
+    bool font_face = false;
+    bool text_align = false;
+    bool background = false;
+    bool line_height = false;
+};
+
+void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,
+                               bool display_set);
+void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides);
+
+}  // namespace Hummingbird::Css::StyleDefaults

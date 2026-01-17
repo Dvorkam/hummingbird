@@ -4,14 +4,17 @@
 #include <memory>
 #include <new>
 #include <type_traits>
+#include <utility>
 #include <vector>
+
+namespace Hummingbird::Core {
 
 class ArenaAllocator {
 public:
     explicit ArenaAllocator(size_t bytes);
     ~ArenaAllocator();
 
-    // Allocate memory from the arena
+    // Allocate memory from the arena. Terminates on out-of-memory.
     void* allocate(size_t size, size_t alignment = alignof(std::max_align_t));
 
     // No deallocation of individual objects, only reset the whole arena
@@ -45,3 +48,5 @@ template <typename T, typename... Args>
 ArenaPtr<T> make_arena_ptr(ArenaAllocator& arena, Args&&... args) {
     return ArenaPtr<T>(arena_new<T>(arena, std::forward<Args>(args)...));
 }
+
+}  // namespace Hummingbird::Core

@@ -3,9 +3,18 @@
 #include <memory>
 
 #include "layout/BlockBox.h"
+#include "layout/RenderObject.h"
 
 class ListItemLayoutTest_GeneratesMarkerLeftOfContent_Test;
 class PainterTest_PaintsListMarkersWithCulling_Test;
+namespace Hummingbird {
+namespace DOM {
+class Node;
+}  // namespace DOM
+namespace Layout {
+struct Rect;
+}  // namespace Layout
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 

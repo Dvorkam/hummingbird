@@ -1,10 +1,16 @@
 #include "platform/CurlNetwork.h"
 
 #include <curl/curl.h>
+#include <stddef.h>
 
+#include <functional>
+#include <ostream>
 #include <utility>
 
 #include "core/utils/Log.h"
+#include "platform/NetworkRequestUtils.h"
+
+namespace Hummingbird::Platform {
 
 std::atomic<int> CurlNetwork::s_instances{0};
 std::mutex CurlNetwork::s_global_mutex;
@@ -46,40 +52,23 @@ CurlNetwork::~CurlNetwork() {
 }
 
 void CurlNetwork::shutdown() {
-    // run once
-    if (m_stopping.exchange(true, std::memory_order_relaxed)) return;
-    join_all();
-}
-
-void CurlNetwork::join_all() {
-    std::vector<std::thread> threads;
-    {
-        std::lock_guard<std::mutex> lg(m_threads_mutex);
-        threads.swap(m_threads);
-    }
-    for (auto& t : threads) {
-        if (t.joinable()) t.join();
-    }
+    thread_pool_.shutdown();
 }
 
 void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
-    if (!ok() || m_stopping.load(std::memory_order_relaxed)) {
-        if (callback) callback(NetworkResponse{.url = url});
+    if (!ok()) {
+        if (callback) callback(Hummingbird::Platform::make_response(url));
         return;
     }
+    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     // Move callback once, and never touch the moved-from original again.
     auto cb = std::move(callback);
 
-    std::thread worker([url, cb = std::move(cb), this]() mutable {
-        if (m_stopping.load(std::memory_order_relaxed)) {
-            if (cb) cb(NetworkResponse{.url = url});
-            return;
-        }
-
+    thread_pool_.submit([url, cb = std::move(cb), this]() mutable {
+        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         std::string body;
-        NetworkResponse response;
-        response.url = url;
+        NetworkResponse response = Hummingbird::Platform::make_response(url);
         CURL* curl = curl_easy_init();
         if (!curl) {
             HB_LOG_WARN("[network] curl init failed: url=" << url);
@@ -133,15 +122,6 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
         }
         if (cb) cb(std::move(response));
     });
-
-    {
-        std::lock_guard<std::mutex> lg(m_threads_mutex);
-        if (m_stopping.load(std::memory_order_relaxed)) {
-            // We’re shutting down; just join the worker and return.
-            // DO NOT call cb here — worker already did / will do it.
-            if (worker.joinable()) worker.join();
-            return;
-        }
-        m_threads.emplace_back(std::move(worker));
-    }
 }
+
+}  // namespace Hummingbird::Platform

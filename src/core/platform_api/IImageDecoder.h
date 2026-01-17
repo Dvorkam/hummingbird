@@ -6,6 +6,8 @@
 #include <string_view>
 #include <vector>
 
+namespace Hummingbird {
+
 enum class PixelFormat {
     BGRA32,
     PRGB32,
@@ -28,3 +30,5 @@ public:
 };
 
 using ImageDecoderPtr = std::unique_ptr<IImageDecoder>;
+
+}  // namespace Hummingbird

@@ -35,6 +35,7 @@ add_library(Style STATIC
     src/style/CssTokenizer.cpp
     src/style/CssParser.cpp
     src/style/SelectorMatcher.cpp
+    src/style/StyleDefaults.cpp
     src/style/StyleEngine.cpp
     src/style/StylesheetSource.cpp
 )
@@ -61,6 +62,7 @@ target_include_directories(Core
 add_library(Platform STATIC
     src/platform/SDLWindow.cpp
     src/platform/SDLGraphicsContext.cpp
+    src/platform/SDLInputTranslation.cpp
     src/platform/CurlNetwork.cpp
     src/platform/StubNetwork.cpp
     src/platform/NetworkFactory.cpp
@@ -69,6 +71,7 @@ add_library(Platform STATIC
     src/platform/FileResourceProvider.cpp
     src/platform/ResourceProviderFactory.cpp
     src/platform/SDLWindowFactory.cpp
+    src/platform/NetworkThreadPool.cpp
 )
 target_include_directories(Platform
     PUBLIC
@@ -98,6 +101,7 @@ add_library(Layout STATIC
     src/layout/InlineBox.cpp
     src/layout/TextBox.cpp
     src/layout/InlineLineBuilder.cpp
+    src/layout/inline/InlineLayoutUtils.cpp
     src/layout/RenderListItem.cpp
     src/layout/RenderBreak.cpp
     src/layout/RenderRule.cpp
@@ -122,6 +126,8 @@ target_include_directories(Renderer
 # --- Engine Library ---
 # This library owns document lifecycle and orchestration (parsing/style/layout/paint) without platform headers.
 add_library(Engine STATIC
+    src/engine/DocumentPipeline.cpp
+    src/engine/ResourceLoader.cpp
     src/engine/Tab.cpp
     src/engine/ResourceStore.cpp
 )
@@ -131,19 +137,28 @@ target_include_directories(Engine
 )
 target_link_libraries(Engine PUBLIC Core Html Layout Renderer Style)
 
+# --- App Library ---
+add_library(App
+    src/app/BrowserApp.cpp
+    src/app/BrowserApp.h
+    src/app/UrlBar.cpp
+    src/app/UrlBar.h
+)
+target_include_directories(App PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(App PUBLIC Platform Engine)
+
 # --- App Executable ---
 # This is the main application that brings everything together.
 add_executable(Hummingbird
     src/app/main.cpp
-    src/app/BrowserApp.cpp
-    src/app/BrowserApp.h
 )
+if(WIN32)
+    target_sources(Hummingbird PRIVATE src/app/hummingbird.rc)
+endif()
 
-# The App needs to know about the Core interfaces and the Platform implementation.
-target_include_directories(Hummingbird PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-target_link_libraries(Hummingbird PRIVATE Platform Engine SDL2::SDL2main)
+target_link_libraries(Hummingbird PRIVATE App SDL2::SDL2main)
 
 # --- Unit Testing ---
 enable_testing()

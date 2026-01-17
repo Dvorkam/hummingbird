@@ -3,10 +3,13 @@
 #include <string>
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 
 // Forward declaration
 struct SDL_Renderer;
+
+namespace Hummingbird::Platform {
 
 class SDLGraphicsContext : public IGraphicsContext {
 public:
@@ -25,3 +28,5 @@ private:
     SDL_Renderer* m_renderer = nullptr;
     Hummingbird::Layout::Rect m_viewport{0, 0, 0, 0};
 };
+
+}  // namespace Hummingbird::Platform

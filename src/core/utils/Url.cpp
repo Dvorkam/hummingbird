@@ -1,34 +1,15 @@
 #include "core/utils/Url.h"
 
-#include <algorithm>
-#include <cctype>
+#include <stddef.h>
+
+#include "core/utils/StringUtils.h"
 
 namespace Hummingbird::Core {
 
 namespace {
 
-std::string_view trim_ws(std::string_view input) {
-    const auto is_space = [](unsigned char c) { return std::isspace(c) != 0; };
-    size_t start = 0;
-    while (start < input.size() && is_space(static_cast<unsigned char>(input[start]))) {
-        ++start;
-    }
-    size_t end = input.size();
-    while (end > start && is_space(static_cast<unsigned char>(input[end - 1]))) {
-        --end;
-    }
-    return input.substr(start, end - start);
-}
-
 bool has_scheme(std::string_view url) {
     return url.find("://") != std::string_view::npos;
-}
-
-std::string to_lower(std::string_view input) {
-    std::string out(input);
-    std::transform(out.begin(), out.end(), out.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return out;
 }
 
 std::string normalize_path(std::string_view path) {
@@ -77,12 +58,12 @@ std::string base_dir(std::string_view path) {
 }  // namespace
 
 std::optional<UrlParts> parse_absolute_url(std::string_view url) {
-    url = trim_ws(url);
+    url = Utils::trim_ascii_whitespace(url);
     const size_t scheme_pos = url.find("://");
     if (scheme_pos == std::string_view::npos) return std::nullopt;
 
     UrlParts out;
-    out.scheme = to_lower(url.substr(0, scheme_pos));
+    out.scheme = Utils::to_lower(url.substr(0, scheme_pos));
     std::string_view rest = url.substr(scheme_pos + 3);
     if (rest.empty()) return std::nullopt;
 
@@ -92,9 +73,9 @@ std::optional<UrlParts> parse_absolute_url(std::string_view url) {
 
     size_t port_pos = authority.find(':');
     if (port_pos == std::string_view::npos) {
-        out.host = to_lower(authority);
+        out.host = Utils::to_lower(authority);
     } else {
-        out.host = to_lower(authority.substr(0, port_pos));
+        out.host = Utils::to_lower(authority.substr(0, port_pos));
         std::string_view port_str = authority.substr(port_pos + 1);
         if (!port_str.empty()) {
             try {
@@ -113,7 +94,7 @@ std::optional<UrlParts> parse_absolute_url(std::string_view url) {
 }
 
 std::string normalize_input_url(std::string_view input) {
-    input = trim_ws(input);
+    input = Utils::trim_ascii_whitespace(input);
     if (input.empty()) return {};
 
     if (has_scheme(input)) {
@@ -127,7 +108,7 @@ std::string normalize_input_url(std::string_view input) {
 }
 
 std::string resolve_url(std::string_view base_url, std::string_view href) {
-    href = trim_ws(href);
+    href = Utils::trim_ascii_whitespace(href);
     if (href.empty()) return {};
 
     if (has_scheme(href)) {

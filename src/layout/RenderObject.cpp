@@ -1,6 +1,9 @@
 #include "layout/RenderObject.h"
 
+#include <optional>
+
 #include "core/platform_api/IGraphicsContext.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 

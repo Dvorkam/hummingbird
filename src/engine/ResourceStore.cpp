@@ -1,13 +1,24 @@
 #include "engine/ResourceStore.h"
 
 #include <functional>
+#include <utility>
 
 namespace Hummingbird::Engine {
 
-size_t ResourceStore::ResourceKeyHash::operator()(const ResourceKey& key) const {
-    const size_t type_hash = std::hash<uint8_t>{}(static_cast<uint8_t>(key.type));
-    const size_t url_hash = std::hash<std::string>{}(key.url);
+namespace {
+size_t hash_key(ResourceType type, std::string_view url) {
+    const size_t type_hash = std::hash<uint8_t>{}(static_cast<uint8_t>(type));
+    const size_t url_hash = std::hash<std::string_view>{}(url);
     return type_hash ^ (url_hash << 1U);
+}
+}  // namespace
+
+size_t ResourceStore::ResourceKeyHash::operator()(const ResourceKey& key) const {
+    return hash_key(key.type, key.url);
+}
+
+size_t ResourceStore::ResourceKeyHash::operator()(const ResourceKeyView& key) const {
+    return hash_key(key.type, key.url);
 }
 
 ResourceEntry& ResourceStore::request(std::string_view url, ResourceType type) {
@@ -20,7 +31,7 @@ ResourceEntry& ResourceStore::request(std::string_view url, ResourceType type) {
 }
 
 bool ResourceStore::mark_loading(std::string_view url, ResourceType type) {
-    auto it = resources_.find(ResourceKey{type, std::string(url)});
+    auto it = resources_.find(ResourceKeyView{type, url});
     if (it == resources_.end()) return false;
     if (it->second.state == ResourceState::Loading || it->second.state == ResourceState::Ready) {
         return false;
@@ -30,7 +41,7 @@ bool ResourceStore::mark_loading(std::string_view url, ResourceType type) {
 }
 
 bool ResourceStore::mark_ready(std::string_view url, ResourceType type, std::string body) {
-    auto it = resources_.find(ResourceKey{type, std::string(url)});
+    auto it = resources_.find(ResourceKeyView{type, url});
     if (it == resources_.end()) return false;
     it->second.state = ResourceState::Ready;
     it->second.body = std::move(body);
@@ -38,7 +49,7 @@ bool ResourceStore::mark_ready(std::string_view url, ResourceType type, std::str
 }
 
 bool ResourceStore::mark_failed(std::string_view url, ResourceType type) {
-    auto it = resources_.find(ResourceKey{type, std::string(url)});
+    auto it = resources_.find(ResourceKeyView{type, url});
     if (it == resources_.end()) return false;
     it->second.state = ResourceState::Failed;
     it->second.body.clear();
@@ -52,20 +63,20 @@ bool ResourceStore::begin_request(std::string_view url, ResourceType type) {
 }
 
 bool ResourceStore::set_image(std::string_view url, ResourceType type, ImageBitmap image) {
-    auto it = resources_.find(ResourceKey{type, std::string(url)});
+    auto it = resources_.find(ResourceKeyView{type, url});
     if (it == resources_.end()) return false;
     it->second.image = std::make_unique<ImageBitmap>(std::move(image));
     return true;
 }
 
 const ResourceEntry* ResourceStore::find(std::string_view url, ResourceType type) const {
-    auto it = resources_.find(ResourceKey{type, std::string(url)});
+    auto it = resources_.find(ResourceKeyView{type, url});
     if (it == resources_.end()) return nullptr;
     return &it->second;
 }
 
 std::optional<ResourceView> ResourceStore::view(std::string_view url, ResourceType type) const {
-    auto it = resources_.find(ResourceKey{type, std::string(url)});
+    auto it = resources_.find(ResourceKeyView{type, url});
     if (it == resources_.end()) return std::nullopt;
     const ResourceEntry& entry = it->second;
     return ResourceView{entry.type, entry.state, entry.url, entry.body, entry.image.get()};

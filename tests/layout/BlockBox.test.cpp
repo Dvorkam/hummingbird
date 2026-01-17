@@ -2,7 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
@@ -10,14 +9,16 @@
 #include "html/HtmlAttributeNames.h"
 #include "layout/TextBox.h"
 #include "layout/TreeBuilder.h"
+#include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 namespace Attr = Hummingbird::Html::AttributeNames;
+using Hummingbird::IGraphicsContext;
 
 TEST(BlockBoxLayoutTest, SimpleStacking) {
     // Create a DOM tree: <body><p/><p/></body>
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto dom_root = DomFactory::create_element(arena, "body");
     auto p1 = DomFactory::create_element(arena, "p");
     auto p2 = DomFactory::create_element(arena, "p");
@@ -60,7 +61,7 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
 
     // Layout the tree
     Rect viewport = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     test_render_root->layout(context, viewport);
 
     // Assertions
@@ -84,7 +85,7 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
 }
 
 TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto span = DomFactory::create_element(arena, "span");
     auto text = DomFactory::create_text(arena, "Hello");
     span->append_child(std::move(text));
@@ -92,7 +93,7 @@ TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
     auto inline_block = InlineBlockBox::create(span.get());
     inline_block->append_child(TextBox::create(dynamic_cast<Text*>(span->get_children()[0].get())));
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect bounds{0, 0, 300, 0};
     inline_block->layout(context, bounds);
 

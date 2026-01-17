@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
@@ -9,13 +8,14 @@
 #include "layout/RenderListItem.h"
 #include "layout/TreeBuilder.h"
 #include "style/StyleEngine.h"
+#include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
 
 TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
     auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
     auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
@@ -32,7 +32,7 @@ TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
     ASSERT_NE(render_root, nullptr);
     ASSERT_EQ(render_root->get_children().size(), 1u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 
@@ -49,7 +49,7 @@ TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
 }
 
 TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
     auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
     auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
@@ -69,7 +69,7 @@ TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
     ASSERT_NE(render_root, nullptr);
     ASSERT_EQ(render_root->get_children().size(), 1u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 
@@ -85,7 +85,7 @@ TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
 }
 
 TEST(ListItemLayoutTest, InlineRunsShareLineWithinListItem) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
     auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
     auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
@@ -102,7 +102,7 @@ TEST(ListItemLayoutTest, InlineRunsShareLineWithinListItem) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 

@@ -1,69 +1,37 @@
 #include "renderer/Painter.h"
 
+#include <vector>
+
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/GeometryUtils.h"
+#include "layout/PaintUtils.h"
 #include "layout/RenderObject.h"
+#include "layout/RenderTreeTraversal.h"
 
 namespace Hummingbird::Renderer {
 
 namespace {
+constexpr Color kOutlineColor{255, 0, 0, 100};
 
-void draw_outline(IGraphicsContext& context, const Layout::Rect& rect, const Color& color) {
-    constexpr float kThickness = 1.0f;
-    Layout::Rect top{rect.x, rect.y, rect.width, kThickness};
-    Layout::Rect bottom{rect.x, rect.y + rect.height - kThickness, rect.width, kThickness};
-    Layout::Rect left{rect.x, rect.y, kThickness, rect.height};
-    Layout::Rect right{rect.x + rect.width - kThickness, rect.y, kThickness, rect.height};
-    context.fill_rect(top, color);
-    context.fill_rect(bottom, color);
-    context.fill_rect(left, color);
-    context.fill_rect(right, color);
-}
+struct PaintContext {
+    Layout::Point offset;
+    const Layout::Rect* viewport = nullptr;
+    bool debug_outlines = false;
+};
 
-bool intersects(const Layout::Rect& a, const Layout::Rect& b) {
-    if (a.width <= 0.0f || a.height <= 0.0f) return false;
-    if (b.width <= 0.0f || b.height <= 0.0f) return false;
-    return !(a.x + a.width <= b.x || a.x >= b.x + b.width || a.y + a.height <= b.y || a.y >= b.y + b.height);
-}
-
-template <typename Visitor>
-void traverse_tree(const Layout::RenderObject& node, const Layout::Point& offset, Visitor&& visitor) {
-    const auto& rect = node.get_rect();
-    Layout::Rect absolute{offset.x + rect.x, offset.y + rect.y, rect.width, rect.height};
-    if (!visitor(node, absolute, offset)) {
-        return;
-    }
-
-    for (const auto& child : node.get_children()) {
-        Layout::Point child_offset{absolute.x, absolute.y};
-        traverse_tree(*child, child_offset, visitor);
-    }
-}
-
-void paint_tree_culled(const Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
-                       const Layout::Rect& viewport, bool debug_outlines) {
-    traverse_tree(
-        node, offset,
+void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, const PaintContext& paint_context) {
+    Layout::Traversal::traverse_render_tree(
+        node, paint_context.offset,
         [&](const Layout::RenderObject& current, const Layout::Rect& absolute, const Layout::Point& local_offset) {
-            if (!intersects(absolute, viewport)) {
-                return false;
+            if (paint_context.viewport && !Layout::rect_intersects(absolute, *paint_context.viewport)) {
+                return Layout::Traversal::TraverseAction::SkipChildren;
             }
             current.paint_self(context, local_offset);
-            if (debug_outlines) {
-                Color outline{255, 0, 0, 100};
-                draw_outline(context, absolute, outline);
+            if (paint_context.debug_outlines) {
+                Layout::PaintUtils::draw_outline(context, absolute, kOutlineColor);
             }
-            return true;
+            return Layout::Traversal::TraverseAction::Continue;
         });
-}
-
-void paint_debug_outlines(const Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
-                          const Color& color) {
-    traverse_tree(node, offset,
-                  [&](const Layout::RenderObject& /*current*/, const Layout::Rect& absolute,
-                      const Layout::Point& /*local_offset*/) {
-                      draw_outline(context, absolute, color);
-                      return true;
-                  });
 }
 
 }  // namespace
@@ -71,16 +39,12 @@ void paint_debug_outlines(const Layout::RenderObject& node, IGraphicsContext& co
 void Painter::paint(const Layout::RenderObject& root, IGraphicsContext& context, const PaintOptions& options) {
     context.set_viewport(options.viewport);
     // Start the recursive paint process from the root with scroll offset applied.
-    Layout::Point offset{0, -options.scroll_y};
-    if (options.viewport.width <= 0.0f || options.viewport.height <= 0.0f) {
-        root.paint(context, offset);
-    }
-    if (options.viewport.width > 0.0f && options.viewport.height > 0.0f) {
-        paint_tree_culled(root, context, offset, options.viewport, options.debug_outlines);
-    } else if (options.debug_outlines) {
-        Color outline{255, 0, 0, 100};
-        paint_debug_outlines(root, context, offset, outline);
-    }
+    PaintContext paint_context;
+    paint_context.offset = {0, -options.scroll_y};
+    paint_context.viewport =
+        (options.viewport.width > 0.0f && options.viewport.height > 0.0f) ? &options.viewport : nullptr;
+    paint_context.debug_outlines = options.debug_outlines;
+    paint_tree(root, context, paint_context);
 }
 
 }  // namespace Hummingbird::Renderer

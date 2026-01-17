@@ -1,6 +1,5 @@
 #pragma once
 
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -8,8 +7,6 @@
 
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
-#include "engine/Tab.h"
-#include "layout/TestGraphicsContext.h"
 
 namespace Hummingbird::Test {
 
@@ -66,7 +63,6 @@ public:
     void defer_response(const std::string& url, std::string body) { deferred_[url] = std::move(body); }
 
     void get(const std::string& url, std::function<void(NetworkResponse)> callback) override {
-        requested_.push_back(url);
         if (deferred_.find(url) != deferred_.end()) {
             pending_[url] = std::move(callback);
             return;
@@ -105,7 +101,6 @@ private:
     std::unordered_map<std::string, std::string> responses_;
     std::unordered_map<std::string, std::string> deferred_;
     std::unordered_map<std::string, std::function<void(NetworkResponse)>> pending_;
-    std::vector<std::string> requested_;
 };
 
 class InlineImageDecoder final : public IImageDecoder {
@@ -122,32 +117,6 @@ public:
         bitmap.pixels.assign(static_cast<size_t>(bitmap.stride) * bitmap.height, 0xFF);
         return bitmap;
     }
-};
-
-class HeadlessTabHarness {
-public:
-    HeadlessTabHarness(NetworkPtr network, NetworkPtr fallback, ResourceProviderPtr provider,
-                       ImageDecoderPtr decoder = nullptr)
-        : tab_(std::move(network), std::move(fallback), std::move(provider), std::move(decoder)) {}
-
-    void set_viewport(const Layout::Rect& viewport) { viewport_ = viewport; }
-    const Layout::Rect& viewport() const { return viewport_; }
-
-    void navigate(std::string_view url) { tab_.navigate(url); }
-    bool tick() { return tab_.tick(context_, viewport_); }
-    void paint(bool debug_outlines = false) { tab_.paint(context_, viewport_, debug_outlines); }
-
-    std::optional<Engine::ResourceView> resource_view(std::string_view url, Engine::ResourceType type) const {
-        return tab_.resource_view(url, type);
-    }
-
-    Engine::Tab& tab() { return tab_; }
-    const Engine::Tab& tab() const { return tab_; }
-
-private:
-    TestGraphicsContext context_;
-    Layout::Rect viewport_{0, 0, 800, 600};
-    Engine::Tab tab_;
 };
 
 }  // namespace Hummingbird::Test

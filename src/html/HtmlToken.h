@@ -1,8 +1,8 @@
 #pragma once
 
-#include <array>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 namespace Hummingbird::Html {
 
@@ -15,8 +15,7 @@ struct Attribute {
 
 struct StartTagToken {
     std::string_view name;
-    std::array<Attribute, 8> attributes{};
-    size_t attribute_count{0};
+    std::vector<Attribute> attributes;
     bool self_closing{false};
 };
 struct EndTagToken {

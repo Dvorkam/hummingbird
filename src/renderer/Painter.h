@@ -1,7 +1,15 @@
 #pragma once
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/Geometry.h"
 #include "layout/RenderObject.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+namespace Layout {
+class RenderObject;
+}  // namespace Layout
+}  // namespace Hummingbird
 
 namespace Hummingbird::Renderer {
 

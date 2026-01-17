@@ -6,6 +6,8 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/InputEvent.h"
 
+namespace Hummingbird {
+
 class IWindow {
 public:
     virtual ~IWindow() = default;
@@ -29,3 +31,5 @@ public:
     // Clipboard access (UTF-8). Returns empty string if unavailable.
     virtual std::string get_clipboard_text() const = 0;
 };
+
+}  // namespace Hummingbird

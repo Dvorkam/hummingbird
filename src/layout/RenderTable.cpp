@@ -1,92 +1,46 @@
 #include "layout/RenderTable.h"
 
+#include <stddef.h>
+
 #include <algorithm>
-#include <cctype>
-#include <cstdlib>
 #include <numeric>
 #include <optional>
-#include <string>
 #include <string_view>
 
 #include "core/dom/Element.h"
+#include "core/dom/ElementUtils.h"
+#include "core/dom/Node.h"
+#include "core/utils/ParseUtils.h"
+#include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/Geometry.h"
+#include "layout/LayoutMetricsUtils.h"
+#include "layout/RenderObject.h"
+#include "style/ComputedStyle.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 
 namespace {
 constexpr float kTableMeasureWidth = 100000.0f;
 
-struct Insets {
-    float left;
-    float right;
-    float top;
-    float bottom;
-};
-
 struct ParsedWidth {
     float value;
     bool is_percent;
 };
 
-Insets compute_insets(const Css::ComputedStyle* style) {
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-    return {padding_left + border_left, padding_right + border_right, padding_top + border_top,
-            padding_bottom + border_bottom};
-}
-
-bool iequals(std::string_view a, std::string_view b) {
-    if (a.size() != b.size()) {
-        return false;
-    }
-    for (size_t i = 0; i < a.size(); ++i) {
-        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
-            return false;
-        }
-    }
-    return true;
-}
-
-std::string_view trim(std::string_view view) {
-    while (!view.empty() && std::isspace(static_cast<unsigned char>(view.front()))) {
-        view.remove_prefix(1);
-    }
-    while (!view.empty() && std::isspace(static_cast<unsigned char>(view.back()))) {
-        view.remove_suffix(1);
-    }
-    return view;
-}
-
-std::optional<std::string_view> find_attribute_value(const DOM::Element& element, std::string_view name) {
-    for (const auto& [key, value] : element.get_attributes()) {
-        if (iequals(key, name)) {
-            return std::string_view(value);
-        }
-    }
-    return std::nullopt;
-}
-
 std::optional<size_t> parse_span_value(std::string_view value) {
-    std::string_view trimmed = trim(value);
-    if (trimmed.empty()) {
+    auto parsed = Core::Utils::parse_long(value, Core::Utils::NumberParseMode::AllowTrailing);
+    if (!parsed) {
         return std::nullopt;
     }
-    std::string temp(trimmed);
-    char* end = nullptr;
-    long parsed = std::strtol(temp.c_str(), &end, 10);
-    if (end == temp.c_str()) {
-        return std::nullopt;
+    if (*parsed < 1) {
+        return 1U;
     }
-    if (parsed < 1) {
-        parsed = 1;
-    }
-    return static_cast<size_t>(parsed);
+    return static_cast<size_t>(*parsed);
 }
 
 size_t cell_colspan(const RenderTableCell& cell) {
@@ -94,7 +48,7 @@ size_t cell_colspan(const RenderTableCell& cell) {
     if (!element) {
         return 1;
     }
-    auto attr = find_attribute_value(*element, Hummingbird::Html::AttributeNames::ColSpan);
+    auto attr = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::ColSpan);
     if (!attr) {
         return 1;
     }
@@ -103,7 +57,7 @@ size_t cell_colspan(const RenderTableCell& cell) {
 }
 
 std::optional<ParsedWidth> parse_width_value(std::string_view value) {
-    std::string_view trimmed = trim(value);
+    std::string_view trimmed = Core::Utils::trim_ascii_whitespace(value);
     if (trimmed.empty()) {
         return std::nullopt;
     }
@@ -112,29 +66,24 @@ std::optional<ParsedWidth> parse_width_value(std::string_view value) {
     if (trimmed.back() == '%') {
         is_percent = true;
         trimmed.remove_suffix(1);
-        trimmed = trim(trimmed);
-        if (trimmed.empty()) {
-            return std::nullopt;
-        }
+        trimmed = Core::Utils::trim_ascii_whitespace(trimmed);
     }
 
-    std::string temp(trimmed);
-    char* end = nullptr;
-    float parsed = std::strtof(temp.c_str(), &end);
-    if (end == temp.c_str()) {
+    auto parsed = Core::Utils::parse_float(trimmed, Core::Utils::NumberParseMode::AllowTrailing);
+    if (!parsed) {
         return std::nullopt;
     }
-    if (parsed < 0.0f) {
-        parsed = 0.0f;
+    if (*parsed < 0.0f) {
+        *parsed = 0.0f;
     }
-    return ParsedWidth{parsed, is_percent};
+    return ParsedWidth{*parsed, is_percent};
 }
 
 float resolve_table_target_width(const DOM::Element& element, const Css::ComputedStyle* style, float available_width) {
     if (style && style->width.has_value()) {
         return std::max(0.0f, *style->width);
     }
-    auto attr = find_attribute_value(element, Hummingbird::Html::AttributeNames::Width);
+    auto attr = DOM::find_attribute_value(element, Hummingbird::Html::AttributeNames::Width);
     if (!attr) {
         return 0.0f;
     }
@@ -174,7 +123,7 @@ float sum_widths(const std::vector<float>& widths) {
     return std::accumulate(widths.begin(), widths.end(), 0.0f);
 }
 
-float compute_available_width(const Rect& bounds, const Insets& insets) {
+float compute_available_width(const Rect& bounds, const Metrics::Insets& insets) {
     float available_width = bounds.width - insets.left - insets.right;
     return std::max(0.0f, available_width);
 }
@@ -248,8 +197,8 @@ float apply_target_width(std::vector<float>& column_widths, float content_width,
     return target_width;
 }
 
-float layout_table_children(RenderTable& table, IGraphicsContext& context, const Insets& insets, float content_width,
-                            const std::vector<float>& column_widths) {
+float layout_table_children(RenderTable& table, IGraphicsContext& context, const Metrics::Insets& insets,
+                            float content_width, const std::vector<float>& column_widths) {
     float cursor_y = insets.top;
     for (const auto& child : table.get_children()) {
         if (auto* section = dynamic_cast<RenderTableSection*>(child.get())) {
@@ -270,7 +219,7 @@ float layout_table_children(RenderTable& table, IGraphicsContext& context, const
 
 void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
-    Insets insets = compute_insets(style);
+    Metrics::Insets insets = Metrics::compute_insets(style);
     float available_width = compute_available_width(bounds, insets);
     auto rows = collect_table_rows(*this);
     size_t column_count = compute_column_count(rows);

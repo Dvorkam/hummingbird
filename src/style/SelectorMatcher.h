@@ -2,6 +2,12 @@
 
 #include "style/Stylesheet.h"
 
+namespace Hummingbird {
+namespace Css {
+struct Selector;
+}  // namespace Css
+}  // namespace Hummingbird
+
 namespace Hummingbird::DOM {
 class Node;
 }

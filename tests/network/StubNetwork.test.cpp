@@ -4,8 +4,10 @@
 
 #include <future>
 
+using Hummingbird::NetworkResponse;
+
 TEST(StubNetworkTest, ReturnsExampleBody) {
-    StubNetwork net;
+    Hummingbird::Platform::StubNetwork net;
     std::promise<std::string> p;
     auto fut = p.get_future();
     net.get("http://example.dev", [&](NetworkResponse response) { p.set_value(std::move(response.body)); });

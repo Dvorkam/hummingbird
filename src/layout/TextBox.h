@@ -1,9 +1,14 @@
 #pragma once
 
+#include <stddef.h>
+
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "core/dom/Text.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 #include "layout/inline/IInlineParticipant.h"
 #include "layout/inline/InlineTypes.h"

@@ -3,7 +3,6 @@
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
-#include <memory>
 #include <string_view>
 #include <utility>
 
@@ -32,7 +31,7 @@ TEST(SmokeMainTest, StartsAndTicks) {
         GTEST_SKIP() << "Set HB_RUN_SMOKE_TEST=1 to enable the smoke test.";
     }
 
-    auto window = create_window();
+    auto window = Hummingbird::create_window();
     ASSERT_NE(window, nullptr);
     window->open();
     ASSERT_TRUE(window->is_open());
@@ -40,7 +39,7 @@ TEST(SmokeMainTest, StartsAndTicks) {
     auto gfx = window->get_graphics_context();
     ASSERT_NE(gfx, nullptr);
 
-    BrowserApp app(std::move(window));
+    Hummingbird::App::BrowserApp app(std::move(window));
     app.start();
 
     using clock = std::chrono::steady_clock;

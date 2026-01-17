@@ -1,5 +1,12 @@
 #include "platform/StubNetwork.h"
 
+#include <functional>
+#include <utility>
+
+#include "platform/NetworkRequestUtils.h"
+
+namespace Hummingbird::Platform {
+
 namespace {
 std::string build_stub_body(const std::string& url) {
     if (url == "http://example.dev" || url == "https://example.dev") {
@@ -46,16 +53,9 @@ std::string build_stub_body(const std::string& url) {
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
 }
 
-void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb, std::atomic<bool>& stopping) {
-    if (stopping.load(std::memory_order_relaxed)) {
-        if (cb) cb(NetworkResponse{.url = url});
-        return;
-    }
-
+void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb) {
     std::string body = build_stub_body(url);
-    NetworkResponse response;
-    response.url = url;
-    response.effective_url = url;
+    NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
     response.status = 200;
     response.body = std::move(body);
     if (cb) cb(std::move(response));
@@ -63,37 +63,18 @@ void run_stub_request(const std::string& url, std::function<void(NetworkResponse
 }  // namespace
 
 void StubNetwork::shutdown() {
-    if (m_stopping.exchange(true, std::memory_order_relaxed)) return;
-    join_all();
-}
-
-void StubNetwork::join_all() {
-    std::vector<std::thread> threads;
-    {
-        std::lock_guard<std::mutex> lg(m_threads_mutex);
-        threads.swap(m_threads);
-    }
-    for (auto& t : threads) {
-        if (t.joinable()) t.join();
-    }
+    thread_pool_.shutdown();
 }
 
 void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
-    if (m_stopping.load(std::memory_order_relaxed)) {
-        if (callback) callback(NetworkResponse{.url = url});
-        return;
-    }
+    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     auto cb = std::move(callback);
 
-    std::thread worker([url, cb = std::move(cb), this]() mutable { run_stub_request(url, std::move(cb), m_stopping); });
-
-    {
-        std::lock_guard<std::mutex> lg(m_threads_mutex);
-        if (m_stopping.load(std::memory_order_relaxed)) {
-            if (worker.joinable()) worker.join();
-            return;
-        }
-        m_threads.emplace_back(std::move(worker));
-    }
+    thread_pool_.submit([url, cb = std::move(cb), this]() mutable {
+        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
+        run_stub_request(url, std::move(cb));
+    });
 }
+
+}  // namespace Hummingbird::Platform

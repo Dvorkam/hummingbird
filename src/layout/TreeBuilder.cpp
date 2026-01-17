@@ -1,9 +1,14 @@
 #include "layout/TreeBuilder.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
-#include "html/HtmlTagNames.h"
 #include "layout/RenderFactory.h"
+#include "layout/TagRenderMap.h"
 #include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
@@ -18,12 +23,8 @@ bool is_whitespace_only(const std::string& text) {
     return true;
 }
 
-bool is_non_visual_tag(std::string_view tag) {
-    return tag == Hummingbird::Html::TagNames::Head || tag == Hummingbird::Html::TagNames::Style ||
-           tag == Hummingbird::Html::TagNames::Title || tag == Hummingbird::Html::TagNames::Script;
-}
-
-std::unique_ptr<RenderObject> render_for_display(const DOM::Element* element, Css::ComputedStyle::Display display) {
+std::unique_ptr<RenderObject> create_render_for_display(const DOM::Element* element,
+                                                        Css::ComputedStyle::Display display) {
     switch (display) {
         case Css::ComputedStyle::Display::Inline:
             return RenderFactory::create_inline_box(element);
@@ -56,34 +57,15 @@ std::unique_ptr<RenderObject> create_render_object(const DOM::Node* node) {
     if (auto element_node = dynamic_cast<const DOM::Element*>(node)) {
         // Skip non-visual elements for now.
         const auto& tag = element_node->get_tag_name();
-        if (is_non_visual_tag(tag)) {
+        if (TagRenderMap::is_non_visual_tag(tag)) {
             return nullptr;
         }
-        if (tag == Hummingbird::Html::TagNames::Br) {
-            return RenderFactory::create_break(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Hr) {
-            return RenderFactory::create_rule(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Img) {
-            return RenderFactory::create_image(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Table) {
-            return RenderFactory::create_table(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Thead || tag == Hummingbird::Html::TagNames::Tbody ||
-            tag == Hummingbird::Html::TagNames::Tfoot) {
-            return RenderFactory::create_table_section(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Tr) {
-            return RenderFactory::create_table_row(element_node);
-        }
-        if (tag == Hummingbird::Html::TagNames::Td || tag == Hummingbird::Html::TagNames::Th) {
-            return RenderFactory::create_table_cell(element_node);
+        if (TagRenderMap::is_special_tag(tag)) {
+            return TagRenderMap::create_special_render_object(element_node);
         }
         auto style = element_node->get_computed_style();
         if (style) {
-            return render_for_display(element_node, style->display);
+            return create_render_for_display(element_node, style->display);
         }
         return RenderFactory::create_block_box(element_node);
     } else if (auto text_node = dynamic_cast<const DOM::Text*>(node)) {

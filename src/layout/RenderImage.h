@@ -1,12 +1,18 @@
 #pragma once
 
+#include <stddef.h>
+
 #include <memory>
 
 #include "core/dom/Element.h"
+#include "core/platform_api/IGraphicsContext.h"
+#include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 #include "layout/inline/IInlineParticipant.h"
 
+namespace Hummingbird {
 struct ImageBitmap;
+}
 
 namespace Hummingbird::Layout {
 
@@ -43,6 +49,7 @@ private:
     float m_inline_measured_width = 0.0f;
     float m_inline_measured_height = 0.0f;
     const ImageBitmap* m_image = nullptr;
+    mutable TextStyle alt_text_style_;
 };
 
 }  // namespace Hummingbird::Layout

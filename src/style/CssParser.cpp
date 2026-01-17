@@ -1,7 +1,10 @@
 #include "style/CssParser.h"
 
 #include <optional>
+#include <ostream>
+#include <utility>
 
+#include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/Log.h"
 #include "style/CssPropertyNames.h"
 #include "style/CssValueNames.h"
@@ -39,17 +42,28 @@ static bool is_selector_start(TokenType type) {
 }
 
 Selector Parser::parse_selector() {
-    SelectorType type = SelectorType::Tag;
-    if (match(TokenType::Dot)) {
-        type = SelectorType::Class;
-    } else if (match(TokenType::Hash)) {
-        type = SelectorType::Id;
-    }
-    std::string value;
+    Selector selector;
     if (peek().type == TokenType::Identifier) {
-        value = advance().lexeme;
+        selector.tag = advance().lexeme;
     }
-    return Selector{type, value};
+    while (true) {
+        if (match(TokenType::Dot)) {
+            if (peek().type == TokenType::Identifier) {
+                selector.classes.emplace_back(advance().lexeme);
+                continue;
+            }
+            break;
+        }
+        if (match(TokenType::Hash)) {
+            if (peek().type == TokenType::Identifier) {
+                selector.id = advance().lexeme;
+                continue;
+            }
+            break;
+        }
+        break;
+    }
+    return selector;
 }
 
 std::vector<Selector> Parser::parse_selectors() {
@@ -147,29 +161,42 @@ std::vector<Declaration> Parser::parse_declarations() {
 }
 
 Property Parser::parse_property_name(std::string_view name) const {
-    if (name == PropertyNames::Display) return Property::Display;
-    if (name == PropertyNames::Background) return Property::Background;
-    if (name == PropertyNames::Border) return Property::Border;
-    if (name == PropertyNames::BorderWidth) return Property::BorderWidth;
-    if (name == PropertyNames::BorderColor) return Property::BorderColor;
-    if (name == PropertyNames::BorderStyle) return Property::BorderStyle;
-    if (name == PropertyNames::Margin) return Property::Margin;
-    if (name == PropertyNames::MarginTop) return Property::MarginTop;
-    if (name == PropertyNames::MarginRight) return Property::MarginRight;
-    if (name == PropertyNames::MarginBottom) return Property::MarginBottom;
-    if (name == PropertyNames::MarginLeft) return Property::MarginLeft;
-    if (name == PropertyNames::Padding) return Property::Padding;
-    if (name == PropertyNames::PaddingTop) return Property::PaddingTop;
-    if (name == PropertyNames::PaddingRight) return Property::PaddingRight;
-    if (name == PropertyNames::PaddingBottom) return Property::PaddingBottom;
-    if (name == PropertyNames::PaddingLeft) return Property::PaddingLeft;
-    if (name == PropertyNames::Width) return Property::Width;
-    if (name == PropertyNames::Height) return Property::Height;
-    if (name == PropertyNames::Color) return Property::Color;
-    if (name == PropertyNames::BackgroundColor) return Property::BackgroundColor;
-    if (name == PropertyNames::FontSize) return Property::FontSize;
-    if (name == PropertyNames::LineHeight) return Property::LineHeight;
-    if (name == PropertyNames::MaxWidth) return Property::MaxWidth;
+    struct Mapping {
+        std::string_view name;
+        Property property;
+    };
+
+    static constexpr Mapping kMappings[] = {
+        {PropertyNames::Display, Property::Display},
+        {PropertyNames::Background, Property::Background},
+        {PropertyNames::Border, Property::Border},
+        {PropertyNames::BorderWidth, Property::BorderWidth},
+        {PropertyNames::BorderColor, Property::BorderColor},
+        {PropertyNames::BorderStyle, Property::BorderStyle},
+        {PropertyNames::Margin, Property::Margin},
+        {PropertyNames::MarginTop, Property::MarginTop},
+        {PropertyNames::MarginRight, Property::MarginRight},
+        {PropertyNames::MarginBottom, Property::MarginBottom},
+        {PropertyNames::MarginLeft, Property::MarginLeft},
+        {PropertyNames::Padding, Property::Padding},
+        {PropertyNames::PaddingTop, Property::PaddingTop},
+        {PropertyNames::PaddingRight, Property::PaddingRight},
+        {PropertyNames::PaddingBottom, Property::PaddingBottom},
+        {PropertyNames::PaddingLeft, Property::PaddingLeft},
+        {PropertyNames::Width, Property::Width},
+        {PropertyNames::Height, Property::Height},
+        {PropertyNames::Color, Property::Color},
+        {PropertyNames::BackgroundColor, Property::BackgroundColor},
+        {PropertyNames::FontSize, Property::FontSize},
+        {PropertyNames::LineHeight, Property::LineHeight},
+        {PropertyNames::MaxWidth, Property::MaxWidth},
+    };
+
+    for (const auto& mapping : kMappings) {
+        if (name == mapping.name) {
+            return mapping.property;
+        }
+    }
     return Property::Unknown;
 }
 

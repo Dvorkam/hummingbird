@@ -3,6 +3,8 @@
 #include <cstdint>
 #include <string>
 
+namespace Hummingbird {
+
 enum class EventType : uint8_t {
     None,
     Quit,
@@ -104,3 +106,5 @@ struct InputEvent {
         int height{0};
     } resize{};
 };
+
+}  // namespace Hummingbird

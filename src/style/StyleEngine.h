@@ -3,6 +3,13 @@
 #include "style/ComputedStyle.h"
 #include "style/Stylesheet.h"
 
+namespace Hummingbird {
+namespace Css {
+struct ComputedStyle;
+struct Stylesheet;
+}  // namespace Css
+}  // namespace Hummingbird
+
 namespace Hummingbird::DOM {
 class Node;
 }

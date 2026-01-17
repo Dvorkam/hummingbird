@@ -1,87 +1,31 @@
 #include "html/HtmlParser.h"
 
-#include <algorithm>
-#include <cctype>
+#include <stddef.h>
+
+#include <memory>
+#include <ostream>
+#include <utility>
+#include <variant>
 
 #include "core/dom/DomFactory.h"
+#include "core/dom/Element.h"
+#include "core/dom/Text.h"
 #include "core/utils/Log.h"
+#include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlStringUtils.h"
+#include "html/HtmlTagMetadata.h"
 #include "html/HtmlTagNames.h"
+#include "html/HtmlToken.h"
 
 namespace Hummingbird::Html {
 
-Parser::Parser(ArenaAllocator& arena, std::string_view html) : m_tokenizer(html), m_arena(arena) {}
-
-namespace {
-std::string to_lower(const std::string_view& view) {
-    std::string out(view);
-    std::transform(out.begin(), out.end(), out.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return out;
-}
-
-bool iequals(std::string_view a, std::string_view b) {
-    if (a.size() != b.size()) return false;
-    for (size_t i = 0; i < a.size(); ++i) {
-        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
-            return false;
-        }
-    }
-    return true;
-}
-
-std::string_view find_attribute(const StartTagToken& tag_data, std::string_view name) {
-    for (size_t i = 0; i < tag_data.attribute_count; ++i) {
-        const auto& attr = tag_data.attributes[i];
-        if (iequals(attr.name, name)) {
-            return attr.value;
-        }
-    }
-    return {};
-}
-
-bool is_void_element(std::string_view name) {
-    static constexpr std::string_view kVoidElements[] = {
-        Hummingbird::Html::TagNames::Meta, Hummingbird::Html::TagNames::Link,  Hummingbird::Html::TagNames::Br,
-        Hummingbird::Html::TagNames::Img,  Hummingbird::Html::TagNames::Input, Hummingbird::Html::TagNames::Hr};
-    for (auto tag : kVoidElements) {
-        if (tag == name) return true;
-    }
-    return false;
-}
-
-bool is_known_element(std::string_view name) {
-    static constexpr std::string_view kKnown[] = {
-        Hummingbird::Html::TagNames::Html,   Hummingbird::Html::TagNames::Head,
-        Hummingbird::Html::TagNames::Body,   Hummingbird::Html::TagNames::Title,
-        Hummingbird::Html::TagNames::Style,  Hummingbird::Html::TagNames::Script,
-        Hummingbird::Html::TagNames::Div,    Hummingbird::Html::TagNames::P,
-        Hummingbird::Html::TagNames::Span,   Hummingbird::Html::TagNames::H1,
-        Hummingbird::Html::TagNames::H2,     Hummingbird::Html::TagNames::H3,
-        Hummingbird::Html::TagNames::H4,     Hummingbird::Html::TagNames::H5,
-        Hummingbird::Html::TagNames::H6,     Hummingbird::Html::TagNames::B,
-        Hummingbird::Html::TagNames::Strong, Hummingbird::Html::TagNames::I,
-        Hummingbird::Html::TagNames::Em,     Hummingbird::Html::TagNames::Img,
-        Hummingbird::Html::TagNames::Br,     Hummingbird::Html::TagNames::Hr,
-        Hummingbird::Html::TagNames::Input,  Hummingbird::Html::TagNames::Ul,
-        Hummingbird::Html::TagNames::Ol,     Hummingbird::Html::TagNames::Li,
-        Hummingbird::Html::TagNames::Pre,    Hummingbird::Html::TagNames::Code,
-        Hummingbird::Html::TagNames::A,      Hummingbird::Html::TagNames::Blockquote,
-        Hummingbird::Html::TagNames::Font,   Hummingbird::Html::TagNames::Meta,
-        Hummingbird::Html::TagNames::Link,   Hummingbird::Html::TagNames::Table,
-        Hummingbird::Html::TagNames::Thead,  Hummingbird::Html::TagNames::Tbody,
-        Hummingbird::Html::TagNames::Tfoot,  Hummingbird::Html::TagNames::Tr,
-        Hummingbird::Html::TagNames::Td,     Hummingbird::Html::TagNames::Th};
-    for (auto tag : kKnown) {
-        if (tag == name) return true;
-    }
-    return false;
-}
-}  // namespace
+Parser::Parser(Core::ArenaAllocator& arena, std::string_view html) : m_tokenizer(html), m_arena(arena) {}
 
 Parser::Result Parser::parse() {
     m_style_blocks.clear();
     m_stylesheet_links.clear();
+    m_image_links.clear();
     m_unsupported_tags.clear();
     auto root = DOM::DomFactory::create_element(m_arena, Hummingbird::Html::TagNames::Root);
     ParseState state;
@@ -116,15 +60,16 @@ Parser::Result Parser::parse() {
     }
 
     Result result;
-    result.dom = ArenaPtr<DOM::Node>(root.release());
+    result.dom = Core::ArenaPtr<DOM::Node>(root.release());
     result.style_blocks = std::move(m_style_blocks);
     result.stylesheet_links = std::move(m_stylesheet_links);
+    result.image_links = std::move(m_image_links);
     result.unsupported_tags = std::move(m_unsupported_tags);
     return result;
 }
 
 void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) {
-    std::string lowered_name = to_lower(tag_data.name);
+    std::string lowered_name = Core::Utils::to_lower(tag_data.name);
     maybe_close_list_item(state, lowered_name);
 
     auto new_element = DOM::DomFactory::create_element(m_arena, lowered_name);
@@ -136,14 +81,20 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
     DOM::Node* appended = parent->get_children().back().get();
     track_unsupported_tag(lowered_name);
     if (lowered_name == Hummingbird::Html::TagNames::Link) {
-        auto rel = to_lower(find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
-        auto href = find_attribute(tag_data, Hummingbird::Html::AttributeNames::Href);
+        auto rel = Core::Utils::to_lower(Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
+        auto href = Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Href);
         if (rel == "stylesheet" && !href.empty()) {
             m_stylesheet_links.emplace_back(href);
         }
     }
+    if (lowered_name == Hummingbird::Html::TagNames::Img) {
+        auto src = Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Src);
+        if (!src.empty()) {
+            m_image_links.emplace_back(src);
+        }
+    }
 
-    bool should_push = !is_void_element(lowered_name) && !tag_data.self_closing;
+    bool should_push = !TagMetadata::is_void_tag(lowered_name) && !tag_data.self_closing;
     if (should_push) {
         state.open_elements.push_back(appended);
     }
@@ -154,7 +105,7 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
 }
 
 void Parser::handle_end_tag(const EndTagToken& end_data, ParseState& state) {
-    std::string lowered_end = to_lower(end_data.name);
+    std::string lowered_end = Core::Utils::to_lower(end_data.name);
     if (lowered_end == Hummingbird::Html::TagNames::Style) {
         state.in_style = false;
     }
@@ -182,9 +133,8 @@ DOM::Node* Parser::select_parent(const ParseState& state, std::string_view tag_n
 }
 
 void Parser::apply_attributes(DOM::Element& element, const StartTagToken& tag_data) {
-    for (size_t i = 0; i < tag_data.attribute_count; ++i) {
-        const auto& attr = tag_data.attributes[i];
-        element.set_attribute(to_lower(attr.name), attr.value);
+    for (const auto& attr : tag_data.attributes) {
+        element.set_attribute(attr.name, attr.value);
     }
 }
 
@@ -201,7 +151,7 @@ void Parser::append_text_node(DOM::Node* parent, std::string_view text) {
 }
 
 void Parser::track_unsupported_tag(std::string_view tag_name) {
-    if (is_known_element(tag_name)) return;
+    if (TagMetadata::is_known_tag(tag_name)) return;
     std::string name(tag_name);
     if (m_unsupported_tags.insert(name).second) {
         HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << name << ">");

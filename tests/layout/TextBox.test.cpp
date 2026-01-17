@@ -4,11 +4,17 @@
 
 #include <string>
 
-#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Text.h"
 #include "style/ComputedStyle.h"
+#include "test_utils/TestGraphicsContext.h"
+
+using Hummingbird::Color;
+using Hummingbird::IGraphicsContext;
+using Hummingbird::ImageBitmap;
+using Hummingbird::TextMetrics;
+using Hummingbird::TextStyle;
 
 class FontCaptureContext : public IGraphicsContext {
 public:
@@ -33,7 +39,7 @@ public:
 // NOTE: This test requires the font file 'assets/fonts/Roboto-Regular.ttf' to be present.
 TEST(TextBoxLayoutTest, SimpleTextMeasurement) {
     // 1. Create a DOM Text node
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Hello");
 
     // 2. Create a TextBox render object
@@ -41,7 +47,7 @@ TEST(TextBoxLayoutTest, SimpleTextMeasurement) {
 
     // 3. Layout the text box
     Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     text_box->layout(context, bounds);
 
     // 4. Assert dimensions
@@ -54,18 +60,18 @@ TEST(TextBoxLayoutTest, SimpleTextMeasurement) {
 }
 
 TEST(TextBoxLayoutTest, CollapsesWhitespaceInNormalMode) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Hello   \n   world");
     auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
     Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     text_box->layout(context, bounds);
 
     EXPECT_EQ(text_box->rendered_text(), "Hello world");
 }
 
 TEST(TextBoxLayoutTest, PreservesWhitespaceInPreMode) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Line1\n  Line2");
     Hummingbird::Css::ComputedStyle pre_style = Hummingbird::Css::default_computed_style();
     pre_style.whitespace = Hummingbird::Css::ComputedStyle::WhiteSpace::Preserve;
@@ -74,7 +80,7 @@ TEST(TextBoxLayoutTest, PreservesWhitespaceInPreMode) {
 
     auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
     Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
 
     text_box->layout(context, bounds);
     EXPECT_EQ(text_box->rendered_text(), "Line1\n  Line2");
@@ -82,7 +88,7 @@ TEST(TextBoxLayoutTest, PreservesWhitespaceInPreMode) {
 
 TEST(TextBoxLayoutTest, SelectsFontByBoldItalicCombination) {
     auto run_case = [](Hummingbird::Css::ComputedStyle style, std::string_view expected_suffix) {
-        ArenaAllocator arena(1024);
+        Hummingbird::Core::ArenaAllocator arena(1024);
         auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Hello");
         dom_text->set_computed_style(std::make_shared<Hummingbird::Css::ComputedStyle>(style));
 
@@ -114,7 +120,7 @@ TEST(TextBoxLayoutTest, SelectsFontByBoldItalicCombination) {
 }
 
 TEST(TextBoxLayoutTest, IncludesPaddingAndBorderInSize) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Hi");
     auto style = Hummingbird::Css::default_computed_style();
     style.padding.left = 2.0f;
@@ -125,7 +131,7 @@ TEST(TextBoxLayoutTest, IncludesPaddingAndBorderInSize) {
 
     auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
     Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
 
     text_box->layout(context, bounds);
 
