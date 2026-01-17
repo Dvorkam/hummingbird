@@ -7,7 +7,7 @@
 - [x] **[M3 P2] T-BRAND-1: Windows ICO Sizes**; Goal: add 48/64/128 sizes to ico; Scope: `assets/icons/hummingbird.ico`; Acceptance: Windows scaling looks correct at common sizes; Tests: n/a.
 - [x] **[M3 P2] T-BRAND-2: Runtime Icon Layout**; Goal: split runtime PNG/ICO into `assets/icons/` and keep SVGs in `assets/logos/`; Scope: asset moves + references; Acceptance: app loads icons from new paths; Tests: `ctest --preset user-ninja-multi-vcpkglt`.
 - [x] **[M3 P2] T-REFAC-4: Consolidate Utilities + Include Paths**; Goal: reduce duplicate helpers and normalize includes; Scope: core/utils + include paths; Acceptance: helpers centralized, no include regressions; Tests: `ctest --preset user-ninja-multi-vcpkglt`.
-- [ ] **[M3 P2] T-DOC-1: Update Docs/README After Refactor**; Goal: document current structure and build/run notes; Scope: `README.md` + relevant docs; Acceptance: docs match current code layout and workflows; Tests: n/a.
+- [x] **[M3 P2] T-DOC-1: Update Docs/README After Refactor**; Goal: document current structure and build/run notes; Scope: `README.md` + relevant docs; Acceptance: docs match current code layout and workflows; Tests: n/a.
 - [ ] **[M3 P2] T-TEST-1: Full Test Suite + Note Skips**; Goal: run full suite and record skips; Scope: tests + TODO note; Acceptance: skips are documented with reasons; Tests: full suite.
 
 Note: Engine/App split work remains tracked in `doc/milestones/milestone3.md` (Epic 3.1, 3.6, 3.10).
