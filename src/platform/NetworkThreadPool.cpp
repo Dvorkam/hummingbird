@@ -1,5 +1,7 @@
 #include "platform/NetworkThreadPool.h"
 
+namespace Hummingbird::Platform {
+
 void NetworkThreadPool::shutdown() {
     if (stopping_.exchange(true, std::memory_order_relaxed)) return;
 
@@ -35,3 +37,5 @@ void NetworkThreadPool::submit(std::function<void()> task) {
         threads_.emplace_back(std::move(worker));
     }
 }
+
+}  // namespace Hummingbird::Platform

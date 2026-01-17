@@ -6,6 +6,8 @@
 #include <thread>
 #include <vector>
 
+namespace Hummingbird::Platform {
+
 // Simple thread bucket for async network requests.
 class NetworkThreadPool {
 public:
@@ -18,3 +20,5 @@ private:
     std::mutex threads_mutex_;
     std::vector<std::thread> threads_;
 };
+
+}  // namespace Hummingbird::Platform

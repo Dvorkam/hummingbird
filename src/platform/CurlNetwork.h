@@ -22,7 +22,7 @@ public:
 
 private:
     std::atomic<bool> m_initialized{false};
-    NetworkThreadPool thread_pool_;
+    Hummingbird::Platform::NetworkThreadPool thread_pool_;
 
     // libcurl global lifetime management (process-wide)
     static std::atomic<int> s_instances;

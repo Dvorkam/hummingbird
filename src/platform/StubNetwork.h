@@ -16,5 +16,5 @@ public:
     void shutdown() override;
 
 private:
-    NetworkThreadPool thread_pool_;
+    Hummingbird::Platform::NetworkThreadPool thread_pool_;
 };
