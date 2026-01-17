@@ -8,11 +8,40 @@
 #include "test_utils/TestFakes.h"
 
 namespace {
+using Hummingbird::NetworkResponse;
 using Hummingbird::Test::DeferredNetwork;
 using Hummingbird::Test::HeadlessTabHarness;
 using Hummingbird::Test::InlineImageDecoder;
 using Hummingbird::Test::InlineNetwork;
 using Hummingbird::Test::RoutingNetwork;
+
+class TlsFailureNetwork final : public Hummingbird::INetwork {
+public:
+    explicit TlsFailureNetwork(std::string body) : body_(std::move(body)) {}
+
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback,
+             const Hummingbird::NetworkRequestOptions& options = {}) override {
+        NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        last_allow_insecure_ = options.allow_insecure;
+        if (options.allow_insecure) {
+            response.status = 200;
+            response.body = body_;
+        } else {
+            response.error = Hummingbird::NetworkError::TlsVerificationFailed;
+        }
+        if (callback) callback(std::move(response));
+    }
+
+    void shutdown() override {}
+
+    bool last_allow_insecure() const { return last_allow_insecure_; }
+
+private:
+    std::string body_;
+    bool last_allow_insecure_ = false;
+};
 }  // namespace
 
 TEST(EngineTabTest, NavigateAndBuildsDocument) {
@@ -375,4 +404,48 @@ TEST(EngineTabTest, RequestsStylesheetsInDocumentOrder) {
     ASSERT_NE(it_a, requested.end());
     ASSERT_NE(it_b, requested.end());
     EXPECT_LT(std::distance(requested.begin(), it_a), std::distance(requested.begin(), it_b));
+}
+
+TEST(EngineTabTest, ShowsTlsWarningPageOnVerificationFailure) {
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<TlsFailureNetwork>("<html><body>ok</body></html>");
+    auto* network_ptr = network.get();
+    auto fallback = std::make_unique<InlineNetwork>("<html><body>fallback</body></html>");
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+    harness.navigate("https://badcert.test");
+    EXPECT_TRUE(harness.tick());
+
+    auto view = harness.resource_view("https://badcert.test", Hummingbird::Engine::ResourceType::Document);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_NE(view->body.find("Secure connection failed"), std::string::npos);
+    EXPECT_NE(view->body.find("https://badcert.test"), std::string::npos);
+    EXPECT_EQ(harness.tab().security_state(), Hummingbird::SecurityState::InsecureTls);
+    EXPECT_FALSE(network_ptr->last_allow_insecure());
+}
+
+TEST(EngineTabTest, AllowsInsecureReloadForCurrentHost) {
+    const std::string html = "<html><body>ok</body></html>";
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<TlsFailureNetwork>(html);
+    auto* network_ptr = network.get();
+    auto fallback = std::make_unique<InlineNetwork>("<html><body>fallback</body></html>");
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+    harness.navigate("https://badcert.test");
+    EXPECT_TRUE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().allow_insecure_for_current_host());
+    harness.tab().navigate(harness.tab().requested_url());
+    EXPECT_TRUE(harness.tick());
+
+    auto view = harness.resource_view("https://badcert.test", Hummingbird::Engine::ResourceType::Document);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_NE(view->body.find("ok"), std::string::npos);
+    EXPECT_TRUE(network_ptr->last_allow_insecure());
+    EXPECT_EQ(harness.tab().security_state(), Hummingbird::SecurityState::InsecureTls);
 }
