@@ -119,6 +119,15 @@ const TlsConfig& tls_config() {
     static const TlsConfig config = detect_tls_config();
     return config;
 }
+
+bool is_tls_verification_error(CURLcode code) {
+    if (code == CURLE_PEER_FAILED_VERIFICATION) return true;
+    if (code == CURLE_SSL_CACERT) return true;
+    if (code == CURLE_SSL_CERTPROBLEM) return true;
+    if (code == CURLE_SSL_INVALIDCERTSTATUS) return true;
+    if (code == CURLE_SSL_ISSUER_ERROR) return true;
+    return false;
+}
 }  // namespace
 
 CurlNetwork::CurlNetwork() {
@@ -153,7 +162,8 @@ void CurlNetwork::shutdown() {
     thread_pool_.shutdown();
 }
 
-void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
+void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback,
+                      const NetworkRequestOptions& options) {
     if (!ok()) {
         if (callback) callback(Hummingbird::Platform::make_response(url));
         return;
@@ -163,7 +173,8 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
     // Move callback once, and never touch the moved-from original again.
     auto cb = std::move(callback);
 
-    thread_pool_.submit([url, cb = std::move(cb), this]() mutable {
+    const bool allow_insecure = options.allow_insecure;
+    thread_pool_.submit([url, cb = std::move(cb), this, allow_insecure]() mutable {
         if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         std::string body;
         NetworkResponse response = Hummingbird::Platform::make_response(url);
@@ -182,7 +193,8 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
         curl_easy_setopt(curl, CURLOPT_USERAGENT, "Hummingbird/0.2");
 
         const TlsConfig& tls = tls_config();
-        if (tls.insecure) {
+        const bool allow_insecure_request = tls.insecure || allow_insecure;
+        if (allow_insecure_request) {
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
         } else {
@@ -219,6 +231,8 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
         curl_easy_cleanup(curl);
 
         if (res != CURLE_OK) {
+            response.error =
+                is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
             HB_LOG_WARN("[network] curl failed: url=" << url << " code=" << res << " err=" << curl_easy_strerror(res)
                                                       << " status=" << status << " ssl_verify=" << ssl_verify_result
                                                       << " effective=" << effective_url

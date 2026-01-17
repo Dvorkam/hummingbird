@@ -6,11 +6,22 @@
 
 namespace Hummingbird {
 
+enum class NetworkError {
+    None,
+    TlsVerificationFailed,
+    CurlError,
+};
+
+struct NetworkRequestOptions {
+    bool allow_insecure = false;
+};
+
 struct NetworkResponse {
     std::string url;
     std::string effective_url;
     std::string body;
     long status = 0;
+    NetworkError error = NetworkError::None;
 };
 
 class INetwork {
@@ -20,7 +31,8 @@ public:
     // Fetch the resource at |url| and deliver the raw body to |callback|.
     // Implementations may complete synchronously or asynchronously.
     // If redirects occur, implementations should fill effective_url with the final URL.
-    virtual void get(const std::string& url, std::function<void(NetworkResponse)> callback) = 0;
+    virtual void get(const std::string& url, std::function<void(NetworkResponse)> callback,
+                     const NetworkRequestOptions& options = {}) = 0;
     // Release any background resources (threads, handles, etc).
     // Implementations must ensure no callbacks run after shutdown() returns.
     virtual void shutdown() = 0;

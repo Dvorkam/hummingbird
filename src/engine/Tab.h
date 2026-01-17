@@ -9,6 +9,7 @@
 #include <string_view>
 #include <vector>
 
+#include "core/SecurityState.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
@@ -27,7 +28,6 @@ class Node;
 }
 
 namespace Hummingbird::Engine {
-
 class Tab {
 public:
     Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
@@ -58,7 +58,10 @@ public:
     float scroll_y() const { return scroll_y_; }
     float content_height() const { return content_height_; }
     std::string_view requested_url() const { return requested_url_; }
+    SecurityState security_state() const { return security_state_; }
     std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
+
+    bool allow_insecure_for_current_host();
 
 private:
     void clamp_scroll(float viewport_height);
@@ -78,6 +81,7 @@ private:
     DocumentPipeline document_pipeline_;
 
     std::string requested_url_;
+    SecurityState security_state_ = SecurityState::Unknown;
     float scroll_y_ = 0.0f;
     float content_height_ = 0.0f;
     Layout::Rect last_viewport_{0, 0, 0, 0};

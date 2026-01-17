@@ -19,13 +19,38 @@ namespace Hummingbird::App {
 namespace {
 // You can keep constants here to avoid re-allocating per frame
 constexpr Color kClearColor{255, 255, 255, 255};
+
+std::optional<ImageBitmap> load_icon(IResourceProvider* provider, IImageDecoder* decoder, std::string_view path) {
+    if (!provider || !decoder) return std::nullopt;
+    auto bytes = provider->load_bytes(path);
+    if (!bytes) return std::nullopt;
+    auto decoded = decoder->decode(*bytes);
+    if (!decoded) {
+        HB_LOG_WARN("[ui] failed to decode icon: " << path);
+    }
+    return decoded;
+}
+
+UrlBar::SecurityIcons load_security_icons(IResourceProvider* provider, IImageDecoder* decoder) {
+    UrlBar::SecurityIcons icons;
+    icons.secure = load_icon(provider, decoder, "assets/icons/page_security/secure.png");
+    icons.insecure = load_icon(provider, decoder, "assets/icons/page_security/insecure.png");
+    icons.asecure = load_icon(provider, decoder, "assets/icons/page_security/asecure.png");
+    return icons;
+}
 }  // namespace
 
 BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     : window_(std::move(window)),
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
       tab_(create_network(NetworkBackend::Curl), create_network(NetworkBackend::Stub), create_resource_provider(),
-           create_image_decoder()) {}
+           create_image_decoder()) {
+    auto provider = create_resource_provider();
+    auto decoder = create_image_decoder();
+    if (provider && decoder) {
+        url_bar_.set_security_icons(load_security_icons(provider.get(), decoder.get()));
+    }
+}
 
 BrowserApp::~BrowserApp() {
     shutdown();
@@ -67,6 +92,9 @@ bool BrowserApp::tick() {
         auto [win_w, win_h] = window_->get_size();
         const auto viewport = compute_content_viewport(win_w, win_h);
         if (tab_.tick(*graphics_, viewport)) {
+            needs_repaint_ = true;
+        }
+        if (url_bar_.set_security_state(tab_.security_state())) {
             needs_repaint_ = true;
         }
     }
@@ -153,8 +181,16 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
 }
 
 void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
-    if (url_bar_.handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get())) {
-        needs_repaint_ = true;
+    auto url_result = url_bar_.handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
+    if (url_result.handled) {
+        if (url_result.security_override_requested) {
+            if (tab_.allow_insecure_for_current_host()) {
+                tab_.navigate(tab_.requested_url());
+            }
+        }
+        if (url_result.needs_repaint) {
+            needs_repaint_ = true;
+        }
         return;
     }
 

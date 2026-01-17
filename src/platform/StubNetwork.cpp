@@ -66,7 +66,9 @@ void StubNetwork::shutdown() {
     thread_pool_.shutdown();
 }
 
-void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback) {
+void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback,
+                      const NetworkRequestOptions& options) {
+    (void)options;
     if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     auto cb = std::move(callback);

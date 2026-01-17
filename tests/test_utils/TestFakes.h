@@ -15,7 +15,9 @@ public:
     InlineNetwork(std::string body, std::string effective_url = {})
         : body_(std::move(body)), effective_url_(std::move(effective_url)) {}
 
-    void get(const std::string& url, std::function<void(NetworkResponse)> callback) override {
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback,
+             const NetworkRequestOptions& options = {}) override {
+        (void)options;
         NetworkResponse response;
         response.url = url;
         response.effective_url = effective_url_.empty() ? url : effective_url_;
@@ -35,7 +37,9 @@ class RoutingNetwork final : public INetwork {
 public:
     void set_response(const std::string& url, std::string body) { responses_[url] = std::move(body); }
 
-    void get(const std::string& url, std::function<void(NetworkResponse)> callback) override {
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback,
+             const NetworkRequestOptions& options = {}) override {
+        (void)options;
         requested_.push_back(url);
         auto it = responses_.find(url);
         NetworkResponse response;
@@ -62,7 +66,9 @@ public:
     void set_response(const std::string& url, std::string body) { responses_[url] = std::move(body); }
     void defer_response(const std::string& url, std::string body) { deferred_[url] = std::move(body); }
 
-    void get(const std::string& url, std::function<void(NetworkResponse)> callback) override {
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback,
+             const NetworkRequestOptions& options = {}) override {
+        (void)options;
         if (deferred_.find(url) != deferred_.end()) {
             pending_[url] = std::move(callback);
             return;

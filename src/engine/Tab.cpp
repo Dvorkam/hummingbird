@@ -15,6 +15,16 @@ class IGraphicsContext;
 
 namespace Hummingbird::Engine {
 
+namespace {
+SecurityState security_state_for_url(std::string_view url) {
+    auto parsed = Core::parse_absolute_url(url);
+    if (!parsed) return SecurityState::Unknown;
+    if (parsed->scheme == "https") return SecurityState::Secure;
+    if (parsed->scheme == "http") return SecurityState::InsecureHttp;
+    return SecurityState::Unknown;
+}
+}  // namespace
+
 Tab::Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
          ImageDecoderPtr image_decoder)
     : resource_loader_(std::move(network), std::move(fallback_network), std::move(resource_provider),
@@ -35,6 +45,7 @@ void Tab::navigate(std::string_view url) {
 
     std::string normalized = Core::normalize_input_url(url);
     requested_url_ = std::move(normalized);
+    security_state_ = security_state_for_url(requested_url_);
     reset_document_state();
     resource_loader_.navigate(requested_url_);
 }
@@ -105,6 +116,13 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     if (!result.effective_url.empty()) {
         requested_url_ = result.effective_url;
     }
+    if (result.document_error == NetworkError::TlsVerificationFailed) {
+        security_state_ = SecurityState::InsecureTls;
+    } else if (resource_loader_.is_insecure_allowed_for_url(requested_url_)) {
+        security_state_ = SecurityState::InsecureTls;
+    } else {
+        security_state_ = security_state_for_url(requested_url_);
+    }
     const auto* entry = resource_loader_.find(result.document_url, ResourceType::Document);
     if (!entry) {
         return;
@@ -173,6 +191,16 @@ void Tab::update_layout_state(const Layout::Rect& viewport) {
     has_viewport_ = true;
     clamp_scroll(viewport.height);
     dirty_ = true;
+}
+
+bool Tab::allow_insecure_for_current_host() {
+    auto parsed = Core::parse_absolute_url(requested_url_);
+    if (!parsed || parsed->host.empty()) {
+        return false;
+    }
+    resource_loader_.allow_insecure_host(parsed->host);
+    security_state_ = SecurityState::InsecureTls;
+    return true;
 }
 
 }  // namespace Hummingbird::Engine

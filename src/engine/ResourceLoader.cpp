@@ -1,14 +1,47 @@
 #include "engine/ResourceLoader.h"
 
+#include <algorithm>
+#include <cctype>
 #include <functional>
 #include <ostream>
 #include <utility>
 
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
+#include "core/utils/Url.h"
 #include "engine/ResourceUrl.h"
 
 namespace Hummingbird::Engine {
+
+namespace {
+std::string build_tls_error_body(const std::string& url) {
+    std::string body;
+    body.reserve(512 + url.size());
+    body += R"HTML(<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>TLS Verification Failed</title>
+    <style>
+      body { margin: 24px; font-family: sans-serif; color: #222; }
+      h1 { margin-bottom: 12px; }
+      code { background: #eee; padding: 2px 4px; }
+      .hint { margin-top: 16px; }
+    </style>
+  </head>
+  <body>
+    <h1>Secure connection failed</h1>
+    <p>Hummingbird could not verify the TLS certificate for:</p>
+    <p><code>)HTML";
+    body += url;
+    body += R"HTML(</code></p>
+    <p class="hint">If you trust this site, click the insecure icon in the URL bar to proceed once.</p>
+  </body>
+</html>
+)HTML";
+    return body;
+}
+}  // namespace
 
 ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
                                ImageDecoderPtr image_decoder)
@@ -60,7 +93,7 @@ void ResourceLoader::navigate(std::string_view url) {
             if (id != active_nav_.load(std::memory_order_acquire)) return;
             bool success = !response.body.empty();
             enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
-                                    std::move(response.effective_url));
+                                    std::move(response.effective_url), response.error);
         });
         return;
     }
@@ -72,7 +105,7 @@ void ResourceLoader::navigate(std::string_view url) {
                 if (id != active_nav_.load(std::memory_order_acquire)) return;
                 bool success = !response.body.empty();
                 enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
-                                        std::move(response.effective_url));
+                                        std::move(response.effective_url), response.error);
             });
         } else {
             enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
@@ -80,25 +113,45 @@ void ResourceLoader::navigate(std::string_view url) {
         return;
     }
 
-    network_->get(url_copy, [this, id, url_copy](NetworkResponse response) {
-        if (id != active_nav_.load(std::memory_order_acquire)) return;
+    NetworkRequestOptions options{};
+    options.allow_insecure = is_insecure_allowed_for_url(url_copy);
+    network_->get(
+        url_copy,
+        [this, id, url_copy](NetworkResponse response) {
+            if (id != active_nav_.load(std::memory_order_acquire)) return;
 
-        if (response.body.empty()) {
-            HB_LOG_WARN("[network] curl returned empty for " << url_copy << ", using stub");
-            if (!fallback_network_) return;
-            fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse fallback) {
-                if (id != active_nav_.load(std::memory_order_acquire)) return;
-                bool success = !fallback.body.empty();
-                enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
-                                        std::move(fallback.effective_url));
-            });
-            return;
-        }
+            if (response.body.empty()) {
+                if (response.error == NetworkError::TlsVerificationFailed) {
+                    HB_LOG_WARN("[network] TLS verification failed for " << url_copy << ", showing warning page");
+                    std::string body = build_tls_error_body(url_copy);
+                    enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), true,
+                                            std::move(response.effective_url), response.error);
+                } else {
+                    HB_LOG_WARN("[network] curl returned empty for " << url_copy << ", using stub");
+                    if (!fallback_network_) return;
+                    fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse fallback) {
+                        if (id != active_nav_.load(std::memory_order_acquire)) return;
+                        bool success = !fallback.body.empty();
+                        enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
+                                                std::move(fallback.effective_url), fallback.error);
+                    });
+                }
+                return;
+            }
 
-        HB_LOG_INFO("[network] fetched " << response.body.size() << " bytes from " << url_copy);
-        enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), true,
-                                std::move(response.effective_url));
-    });
+            HB_LOG_INFO("[network] fetched " << response.body.size() << " bytes from " << url_copy);
+            enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), true,
+                                    std::move(response.effective_url), response.error);
+        },
+        options);
+}
+
+void ResourceLoader::allow_insecure_host(std::string_view host) {
+    const std::string normalized = normalize_host(host);
+    if (!normalized.empty()) {
+        insecure_hosts_.insert(normalized);
+        HB_LOG_WARN("[network] allowing insecure TLS for host: " << normalized);
+    }
 }
 
 void ResourceLoader::request_stylesheets(const std::vector<std::string>& links, std::string_view base_url) {
@@ -176,6 +229,7 @@ void ResourceLoader::handle_document_update(PendingResourceUpdate& update, Batch
     document_ready = true;
     result.document_url = update.url;
     result.effective_url = update.effective_url;
+    result.document_error = update.error;
 }
 
 void ResourceLoader::handle_stylesheet_update(PendingResourceUpdate& update, bool& stylesheet_ready) {
@@ -284,21 +338,26 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         }
 
         HB_LOG_DEBUG("[resource] fetching " << options.type_label << ": " << url);
-        fetcher->get(url, [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
-            if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
-            bool success = !response.body.empty();
-            if (!success) {
-                HB_LOG_WARN("[resource] " << type_label << " fetch failed: " << url);
-            }
-            enqueue_resource_update(type, url, std::move(response.body), success);
-        });
+        NetworkRequestOptions request_options{};
+        request_options.allow_insecure = is_insecure_allowed_for_url(url);
+        fetcher->get(
+            url,
+            [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
+                if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
+                bool success = !response.body.empty();
+                if (!success) {
+                    HB_LOG_WARN("[resource] " << type_label << " fetch failed: " << url);
+                }
+                enqueue_resource_update(type, url, std::move(response.body), success, {}, response.error);
+            },
+            request_options);
     }
 }
 
 void ResourceLoader::enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success,
-                                             std::string effective_url) {
+                                             std::string effective_url, NetworkError error) {
     std::lock_guard<std::mutex> lg(pending_mutex_);
-    pending_resources_.push_back({type, std::move(url), std::move(effective_url), std::move(body), success});
+    pending_resources_.push_back({type, std::move(url), std::move(effective_url), std::move(body), success, error});
 }
 
 std::vector<ResourceLoader::PendingResourceUpdate> ResourceLoader::take_pending_resources() {
@@ -306,6 +365,22 @@ std::vector<ResourceLoader::PendingResourceUpdate> ResourceLoader::take_pending_
     std::lock_guard<std::mutex> lg(pending_mutex_);
     pending.swap(pending_resources_);
     return pending;
+}
+
+bool ResourceLoader::is_insecure_allowed_for_url(std::string_view url) const {
+    auto parsed = Core::parse_absolute_url(url);
+    if (!parsed) return false;
+    if (parsed->scheme != "https") return false;
+    const std::string host = normalize_host(parsed->host);
+    if (host.empty()) return false;
+    return insecure_hosts_.find(host) != insecure_hosts_.end();
+}
+
+std::string ResourceLoader::normalize_host(std::string_view host) {
+    std::string normalized(host);
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    return normalized;
 }
 
 }  // namespace Hummingbird::Engine

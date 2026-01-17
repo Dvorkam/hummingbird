@@ -8,6 +8,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "core/platform_api/IImageDecoder.h"
@@ -25,6 +26,7 @@ public:
         std::string effective_url;
         std::string body;
         bool success;
+        NetworkError error = NetworkError::None;
     };
 
     struct BatchResult {
@@ -34,6 +36,7 @@ public:
         size_t pending_count = 0;
         std::string document_url;
         std::string effective_url;
+        NetworkError document_error = NetworkError::None;
     };
 
     ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
@@ -47,6 +50,8 @@ public:
     void shutdown();
     void reset();
     void navigate(std::string_view url);
+    void allow_insecure_host(std::string_view host);
+    bool is_insecure_allowed_for_url(std::string_view url) const;
 
     void request_stylesheets(const std::vector<std::string>& links, std::string_view base_url);
     void request_images(const std::vector<std::string>& links, std::string_view base_url);
@@ -74,13 +79,14 @@ private:
     void request_resources(const std::vector<std::string>& links, std::string_view base_url,
                            const ResourceRequestOptions& options);
     void enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success,
-                                 std::string effective_url = {});
+                                 std::string effective_url = {}, NetworkError error = NetworkError::None);
     std::vector<PendingResourceUpdate> take_pending_resources();
     void handle_document_update(PendingResourceUpdate& update, BatchResult& result, bool& document_ready);
     void handle_stylesheet_update(PendingResourceUpdate& update, bool& stylesheet_ready);
     void handle_image_update(PendingResourceUpdate& update, bool& image_ready, size_t& image_decode_count,
                              double& image_decode_ms);
     void handle_failed_update(const PendingResourceUpdate& update);
+    static std::string normalize_host(std::string_view host);
 
     std::atomic<uint64_t> nav_counter_{0};
     std::atomic<uint64_t> active_nav_{0};
@@ -93,6 +99,7 @@ private:
     ResourceProviderPtr resource_provider_;
     ImageDecoderPtr image_decoder_;
     ResourceStore resource_store_;
+    std::unordered_set<std::string> insecure_hosts_;
 };
 
 }  // namespace Hummingbird::Engine

@@ -15,7 +15,8 @@ public:
     CurlNetwork();
     ~CurlNetwork() override;
 
-    void get(const std::string& url, std::function<void(NetworkResponse)> callback) override;
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback,
+             const NetworkRequestOptions& options = {}) override;
 
     void shutdown() override;
 

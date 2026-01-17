@@ -13,6 +13,9 @@ namespace Hummingbird::App {
 namespace {
 constexpr Color kOverlayBg{220, 220, 220, 255};
 constexpr Color kOverlayText{0, 0, 0, 255};
+constexpr float kIconSize = 16.0f;
+constexpr float kIconPadding = 6.0f;
+constexpr float kTextPadding = 8.0f;
 }  // namespace
 
 UrlBar::UrlBar() : text_("https://example.dev") {
@@ -54,6 +57,16 @@ void UrlBar::set_active(bool active, IWindow* window, const char* log_message) {
 void UrlBar::move_caret_to_end() {
     caret_ = text_.size();
     refresh_render_text();
+}
+
+void UrlBar::set_security_icons(SecurityIcons icons) {
+    security_icons_ = std::move(icons);
+}
+
+bool UrlBar::set_security_state(SecurityState state) {
+    if (security_state_ == state) return false;
+    security_state_ = state;
+    return true;
 }
 
 bool UrlBar::handle_text_input(std::string_view text) {
@@ -161,16 +174,31 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     return result;
 }
 
-bool UrlBar::handle_mouse_down(int x, int y, IWindow* window) {
-    if (y >= height_) return false;
+UrlBar::MouseResult UrlBar::handle_mouse_down(int x, int y, IWindow* window) {
+    MouseResult result;
+    if (y >= height_) return result;
+
+    result.handled = true;
+    result.needs_repaint = true;
+
+    if (security_state_ == SecurityState::InsecureTls && is_security_icon_hit(x, y)) {
+        result.security_override_requested = true;
+    }
+
     set_active(true, window, "[ui] URL bar focused (mouse)");
-    return true;
+    return result;
 }
 
 void UrlBar::draw(IGraphicsContext& graphics, int win_w) const {
     Hummingbird::Layout::Rect bar{0, 0, static_cast<float>(win_w), static_cast<float>(height_)};
     graphics.fill_rect(bar, kOverlayBg);
-    graphics.draw_text(render_text_, 8.0f, 8.0f, style_);
+    const ImageBitmap* icon = current_icon();
+    if (icon) {
+        const float icon_y = (static_cast<float>(height_) - kIconSize) * 0.5f;
+        Hummingbird::Layout::Rect icon_rect{kTextPadding, icon_y, kIconSize, kIconSize};
+        graphics.draw_image(*icon, icon_rect);
+    }
+    graphics.draw_text(render_text_, text_start_x(), 8.0f, style_);
 }
 
 void UrlBar::refresh_render_text() {
@@ -187,6 +215,31 @@ void UrlBar::insert_text(std::string_view text) {
     text_.insert(caret_, text);
     caret_ += text.size();
     refresh_render_text();
+}
+
+const ImageBitmap* UrlBar::current_icon() const {
+    switch (security_state_) {
+        case SecurityState::Secure:
+            return security_icons_.secure ? &*security_icons_.secure : nullptr;
+        case SecurityState::InsecureTls:
+            return security_icons_.insecure ? &*security_icons_.insecure : nullptr;
+        case SecurityState::InsecureHttp:
+            return security_icons_.asecure ? &*security_icons_.asecure : nullptr;
+        case SecurityState::Unknown:
+        default:
+            return nullptr;
+    }
+}
+
+float UrlBar::text_start_x() const {
+    return current_icon() ? (kTextPadding + kIconSize + kIconPadding) : kTextPadding;
+}
+
+bool UrlBar::is_security_icon_hit(int x, int y) const {
+    if (!current_icon()) return false;
+    const float icon_y = (static_cast<float>(height_) - kIconSize) * 0.5f;
+    return x >= static_cast<int>(kTextPadding) && x <= static_cast<int>(kTextPadding + kIconSize) &&
+           y >= static_cast<int>(icon_y) && y <= static_cast<int>(icon_y + kIconSize);
 }
 
 std::string::size_type UrlBar::clamp_caret(std::string::size_type caret, std::string_view text) {
