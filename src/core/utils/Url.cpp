@@ -1,25 +1,10 @@
 #include "core/utils/Url.h"
 
-#include <cctype>
-
 #include "core/utils/StringUtils.h"
 
 namespace Hummingbird::Core {
 
 namespace {
-
-std::string_view trim_ws(std::string_view input) {
-    const auto is_space = [](unsigned char c) { return std::isspace(c) != 0; };
-    size_t start = 0;
-    while (start < input.size() && is_space(static_cast<unsigned char>(input[start]))) {
-        ++start;
-    }
-    size_t end = input.size();
-    while (end > start && is_space(static_cast<unsigned char>(input[end - 1]))) {
-        --end;
-    }
-    return input.substr(start, end - start);
-}
 
 bool has_scheme(std::string_view url) {
     return url.find("://") != std::string_view::npos;
@@ -71,7 +56,7 @@ std::string base_dir(std::string_view path) {
 }  // namespace
 
 std::optional<UrlParts> parse_absolute_url(std::string_view url) {
-    url = trim_ws(url);
+    url = Utils::trim_ascii_whitespace(url);
     const size_t scheme_pos = url.find("://");
     if (scheme_pos == std::string_view::npos) return std::nullopt;
 
@@ -107,7 +92,7 @@ std::optional<UrlParts> parse_absolute_url(std::string_view url) {
 }
 
 std::string normalize_input_url(std::string_view input) {
-    input = trim_ws(input);
+    input = Utils::trim_ascii_whitespace(input);
     if (input.empty()) return {};
 
     if (has_scheme(input)) {
@@ -121,7 +106,7 @@ std::string normalize_input_url(std::string_view input) {
 }
 
 std::string resolve_url(std::string_view base_url, std::string_view href) {
-    href = trim_ws(href);
+    href = Utils::trim_ascii_whitespace(href);
     if (href.empty()) return {};
 
     if (has_scheme(href)) {

@@ -241,7 +241,7 @@
 - [ ] **Phase 4: Cleanup + Verification**
 - [ ] Remove dead code identified in Phase 2.
 - [ ] Consolidate utilities and update include paths.
-- [ ] Consolidate whitespace trimming helpers (Url parsing + legacy attribute parsing) into a single utility.
+- [x] Consolidate whitespace trimming helpers (Url parsing + legacy attribute parsing) into a single utility.
 - [ ] Consolidate duplicated `compute_metrics` helpers across BlockBox/InlineBox/RenderListItem (reuse LayoutMetricsUtils).
 - [ ] Extract TreeBuilder tag→render mapping table to reduce branching and keep tag routing centralized.
 - [ ] Evaluate `tests/CMakeLists.txt` linking App directly; consider a lightweight test-support target.
@@ -259,7 +259,7 @@
 - [ ] Revisit `Engine::ResolvedUrl` to avoid returning `std::string_view` that can point at external buffers (prefer owning string for keys).
 - [ ] Avoid repeated string allocations for ResourceStore key lookups (add a string_view hash/lookup or cache key objects).
 - [ ] Wrap core utils (`Log`, `Assert`, `ArenaAllocator`) in `Hummingbird::Core` namespace to satisfy constitution.
-- [ ] Consolidate numeric parsing helpers (`parse_dimension`, `parse_span_value`, `parse_length_value`) into a shared utility.
+- [x] Consolidate numeric parsing helpers (`parse_dimension`, `parse_span_value`, `parse_length_value`) into a shared utility.
 - [x] Consolidate DOM attribute lookup helpers used in `RenderImage`/`RenderTable` into a shared helper.
 - [x] Consolidate outline drawing helpers (RenderImage vs Painter) to reduce duplication.
 - [x] Remove or wire up unused `HtmlTokenizer::emit_error` helper.

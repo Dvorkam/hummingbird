@@ -1,7 +1,6 @@
 #include "layout/RenderImage.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -9,6 +8,7 @@
 #include "core/dom/ElementUtils.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
+#include "core/utils/ParseUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/PaintUtils.h"
@@ -29,25 +29,9 @@ struct LayoutSize {
     float height;
 };
 
-std::optional<float> parse_dimension(std::string_view value) {
-    if (value.empty()) {
-        return std::nullopt;
-    }
-    std::string temp(value);
-    char* end = nullptr;
-    float parsed = std::strtof(temp.c_str(), &end);
-    if (end == temp.c_str()) {
-        return std::nullopt;
-    }
-    if (parsed < 0.0f) {
-        parsed = 0.0f;
-    }
-    return parsed;
-}
-
 std::optional<float> find_attribute_dimension(const DOM::Element& element, std::string_view name) {
     if (const auto value = DOM::find_attribute_value(element, name)) {
-        return parse_dimension(*value);
+        return Core::Utils::parse_float(*value, Core::Utils::NumberParseMode::AllowTrailing);
     }
     return std::nullopt;
 }

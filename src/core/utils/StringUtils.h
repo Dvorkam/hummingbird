@@ -24,4 +24,14 @@ inline bool equals_ignore_case(std::string_view a, std::string_view b) {
     return true;
 }
 
+inline std::string_view trim_ascii_whitespace(std::string_view input) {
+    while (!input.empty() && std::isspace(static_cast<unsigned char>(input.front()))) {
+        input.remove_prefix(1);
+    }
+    while (!input.empty() && std::isspace(static_cast<unsigned char>(input.back()))) {
+        input.remove_suffix(1);
+    }
+    return input;
+}
+
 }  // namespace Hummingbird::Core::Utils

@@ -1,8 +1,6 @@
 #include "layout/RenderTable.h"
 
 #include <algorithm>
-#include <cctype>
-#include <cstdlib>
 #include <numeric>
 #include <optional>
 #include <string>
@@ -10,6 +8,7 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/ElementUtils.h"
+#include "core/utils/ParseUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/LayoutMetricsUtils.h"
 
@@ -23,31 +22,15 @@ struct ParsedWidth {
     bool is_percent;
 };
 
-std::string_view trim(std::string_view view) {
-    while (!view.empty() && std::isspace(static_cast<unsigned char>(view.front()))) {
-        view.remove_prefix(1);
-    }
-    while (!view.empty() && std::isspace(static_cast<unsigned char>(view.back()))) {
-        view.remove_suffix(1);
-    }
-    return view;
-}
-
 std::optional<size_t> parse_span_value(std::string_view value) {
-    std::string_view trimmed = trim(value);
-    if (trimmed.empty()) {
+    auto parsed = Core::Utils::parse_long(value, Core::Utils::NumberParseMode::AllowTrailing);
+    if (!parsed) {
         return std::nullopt;
     }
-    std::string temp(trimmed);
-    char* end = nullptr;
-    long parsed = std::strtol(temp.c_str(), &end, 10);
-    if (end == temp.c_str()) {
-        return std::nullopt;
+    if (*parsed < 1) {
+        return 1U;
     }
-    if (parsed < 1) {
-        parsed = 1;
-    }
-    return static_cast<size_t>(parsed);
+    return static_cast<size_t>(*parsed);
 }
 
 size_t cell_colspan(const RenderTableCell& cell) {
@@ -64,7 +47,7 @@ size_t cell_colspan(const RenderTableCell& cell) {
 }
 
 std::optional<ParsedWidth> parse_width_value(std::string_view value) {
-    std::string_view trimmed = trim(value);
+    std::string_view trimmed = Core::Utils::trim_ascii_whitespace(value);
     if (trimmed.empty()) {
         return std::nullopt;
     }
@@ -73,22 +56,17 @@ std::optional<ParsedWidth> parse_width_value(std::string_view value) {
     if (trimmed.back() == '%') {
         is_percent = true;
         trimmed.remove_suffix(1);
-        trimmed = trim(trimmed);
-        if (trimmed.empty()) {
-            return std::nullopt;
-        }
+        trimmed = Core::Utils::trim_ascii_whitespace(trimmed);
     }
 
-    std::string temp(trimmed);
-    char* end = nullptr;
-    float parsed = std::strtof(temp.c_str(), &end);
-    if (end == temp.c_str()) {
+    auto parsed = Core::Utils::parse_float(trimmed, Core::Utils::NumberParseMode::AllowTrailing);
+    if (!parsed) {
         return std::nullopt;
     }
-    if (parsed < 0.0f) {
-        parsed = 0.0f;
+    if (*parsed < 0.0f) {
+        *parsed = 0.0f;
     }
-    return ParsedWidth{parsed, is_percent};
+    return ParsedWidth{*parsed, is_percent};
 }
 
 float resolve_table_target_width(const DOM::Element& element, const Css::ComputedStyle* style, float available_width) {

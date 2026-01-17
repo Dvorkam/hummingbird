@@ -1,9 +1,7 @@
 #include "style/StyleDefaults.h"
 
-#include <cctype>
-#include <cstdlib>
-
 #include "core/dom/Element.h"
+#include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
@@ -97,80 +95,35 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
 
 void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides) {
     auto parse_length_value = [](std::string_view value) -> std::optional<float> {
-        std::string_view trimmed = value;
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) {
-            trimmed.remove_prefix(1);
-        }
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
-            trimmed.remove_suffix(1);
-        }
-        if (trimmed.empty()) {
+        auto parsed = Core::Utils::parse_float(value, Core::Utils::NumberParseMode::Strict);
+        if (!parsed) {
             return std::nullopt;
         }
-        std::string temp(trimmed);
-        char* end = nullptr;
-        float parsed = std::strtof(temp.c_str(), &end);
-        if (end == temp.c_str()) {
-            return std::nullopt;
-        }
-        while (end && *end != '\0' && std::isspace(static_cast<unsigned char>(*end))) {
-            ++end;
-        }
-        if (end && *end != '\0') {
-            return std::nullopt;
-        }
-        if (parsed < 0.0f) {
-            parsed = 0.0f;
+        if (*parsed < 0.0f) {
+            *parsed = 0.0f;
         }
         return parsed;
     };
 
     auto parse_font_size_value = [](std::string_view value) -> std::optional<float> {
-        std::string_view trimmed = value;
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) {
-            trimmed.remove_prefix(1);
-        }
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
-            trimmed.remove_suffix(1);
-        }
-        if (trimmed.empty()) {
+        auto parsed = Core::Utils::parse_long(value, Core::Utils::NumberParseMode::Strict);
+        if (!parsed) {
             return std::nullopt;
         }
-        std::string temp(trimmed);
-        char* end = nullptr;
-        long parsed = std::strtol(temp.c_str(), &end, 10);
-        if (end == temp.c_str()) {
-            return std::nullopt;
+        if (*parsed < 1) {
+            *parsed = 1;
         }
-        while (end && *end != '\0' && std::isspace(static_cast<unsigned char>(*end))) {
-            ++end;
-        }
-        if (end && *end != '\0') {
-            return std::nullopt;
-        }
-        if (parsed < 1) {
-            parsed = 1;
-        }
-        if (parsed > 7) {
-            parsed = 7;
+        if (*parsed > 7) {
+            *parsed = 7;
         }
         static constexpr float kFontSizes[] = {10.0f, 13.0f, 16.0f, 18.0f, 24.0f, 32.0f, 48.0f};
-        return kFontSizes[parsed - 1];
+        return kFontSizes[*parsed - 1];
     };
 
     auto parse_font_face_value = [](std::string_view value) -> std::string {
-        std::string_view trimmed = value;
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) {
-            trimmed.remove_prefix(1);
-        }
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
-            trimmed.remove_suffix(1);
-        }
+        std::string_view trimmed = Core::Utils::trim_ascii_whitespace(value);
         if (auto comma = trimmed.find(','); comma != std::string_view::npos) {
-            trimmed = trimmed.substr(0, comma);
-            while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
-                trimmed.remove_suffix(1);
-            }
+            trimmed = Core::Utils::trim_ascii_whitespace(trimmed.substr(0, comma));
         }
         if (trimmed.size() >= 2 && ((trimmed.front() == '"' && trimmed.back() == '"') ||
                                     (trimmed.front() == '\'' && trimmed.back() == '\''))) {
