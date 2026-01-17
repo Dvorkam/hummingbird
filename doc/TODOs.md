@@ -241,6 +241,10 @@
 - [ ] **Phase 4: Cleanup + Verification**
 - [ ] Remove dead code identified in Phase 2.
 - [ ] Consolidate utilities and update include paths.
+- [ ] Consolidate whitespace trimming helpers (Url parsing + legacy attribute parsing) into a single utility.
+- [ ] Audit tests for unused includes and remove leftovers.
+- [ ] Move `TestGraphicsContext` into `Hummingbird::Test` namespace and update test call sites.
+- [ ] Track `TextBox` TODO: choose real monospace fonts when available (src/layout/TextBox.cpp).
 - [ ] Update docs/README where behavior or structure changed.
 - [ ] Re-run full test suite and note skips.
 
