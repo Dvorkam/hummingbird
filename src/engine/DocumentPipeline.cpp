@@ -118,7 +118,7 @@ bool DocumentPipeline::update_image_resources(std::string_view base_url) {
                 if (const auto* src = element->find_attribute(Hummingbird::Html::AttributeNames::Src);
                     src && !src->empty()) {
                     auto resolved = resolve_resource_url(base_url, *src);
-                    std::string_view key = resolved.key;
+                    const std::string& key = resolved.key;
                     auto view = resource_store_->view(key, ResourceType::Image);
                     if (view && view->state == ResourceState::Ready) {
                         bitmap = view->image;
@@ -225,7 +225,7 @@ std::string DocumentPipeline::build_css_source(std::string_view base_url) const 
     size_t failed_count = 0;
     for (const auto& href : stylesheet_links_) {
         auto resolved = resolve_resource_url(base_url, href);
-        std::string_view key = resolved.key;
+        const std::string& key = resolved.key;
         auto view = resource_store_->view(key, ResourceType::Stylesheet);
         if (!view) {
             ++missing_count;

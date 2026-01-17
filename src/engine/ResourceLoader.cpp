@@ -225,7 +225,7 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
 
     for (const auto& raw_url : links) {
         auto resolved = resolve_resource_url(base_url, raw_url);
-        std::string url(resolved.key);
+        const std::string& url = resolved.key;
         if (url.empty()) continue;
 
         if (!resource_store_.begin_request(url, options.type)) {
