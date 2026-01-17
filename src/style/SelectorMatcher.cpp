@@ -1,11 +1,16 @@
 #include "style/SelectorMatcher.h"
 
+#include <stddef.h>
+
 #include <cctype>
+#include <string>
 #include <string_view>
 #include <vector>
 
 #include "core/dom/Element.h"
+#include "core/dom/Node.h"
 #include "html/HtmlAttributeNames.h"
+#include "style/Stylesheet.h"
 
 namespace Hummingbird::Css {
 

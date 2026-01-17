@@ -1,5 +1,9 @@
 #include "engine/ResourceLoader.h"
 
+#include <functional>
+#include <ostream>
+#include <utility>
+
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "engine/ResourceUrl.h"

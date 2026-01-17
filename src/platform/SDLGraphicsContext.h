@@ -3,6 +3,7 @@
 #include <string>
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 
 // Forward declaration

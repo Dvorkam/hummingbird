@@ -1,13 +1,24 @@
 #include "style/StyleEngine.h"
 
-#include <algorithm>
-#include <unordered_map>
+#include <stddef.h>
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
+#include "core/platform_api/IGraphicsContext.h"
+#include "style/ComputedStyle.h"
 #include "style/CssValueNames.h"
 #include "style/SelectorMatcher.h"
 #include "style/StyleDefaults.h"
+#include "style/Stylesheet.h"
 
 namespace Hummingbird::Css {
 

@@ -1,6 +1,7 @@
 #include "core/ArenaAllocator.h"
 
 #include <exception>
+#include <ostream>
 
 #include "core/utils/Log.h"
 

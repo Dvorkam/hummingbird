@@ -1,11 +1,17 @@
 #include "engine/Tab.h"
 
 #include <algorithm>
+#include <ostream>
 #include <utility>
+#include <vector>
 
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "core/utils/Url.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+}  // namespace Hummingbird
 
 namespace Hummingbird::Engine {
 

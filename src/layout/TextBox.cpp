@@ -3,11 +3,15 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <optional>
+#include <ostream>
+#include <utility>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "layout/LayoutMetricsUtils.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 

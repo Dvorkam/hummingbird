@@ -1,7 +1,19 @@
 #include "platform/SDLWindow.h"
 
 #include <SDL.h>
+#include <SDL_clipboard.h>
+#include <SDL_error.h>
+#include <SDL_events.h>
 #include <SDL_image.h>
+#include <SDL_keyboard.h>
+#include <SDL_render.h>
+#include <SDL_stdinc.h>
+#include <SDL_surface.h>
+#include <SDL_video.h>
+
+#include <memory>
+#include <ostream>
+#include <utility>
 
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"

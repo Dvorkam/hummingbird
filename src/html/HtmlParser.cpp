@@ -1,14 +1,22 @@
 #include "html/HtmlParser.h"
 
-#include <cctype>
+#include <stddef.h>
+
+#include <memory>
+#include <ostream>
+#include <utility>
+#include <variant>
 
 #include "core/dom/DomFactory.h"
+#include "core/dom/Element.h"
+#include "core/dom/Text.h"
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlStringUtils.h"
 #include "html/HtmlTagMetadata.h"
 #include "html/HtmlTagNames.h"
+#include "html/HtmlToken.h"
 
 namespace Hummingbird::Html {
 

@@ -1,7 +1,10 @@
 #include "platform/CurlNetwork.h"
 
 #include <curl/curl.h>
+#include <stddef.h>
 
+#include <functional>
+#include <ostream>
 #include <utility>
 
 #include "core/utils/Log.h"

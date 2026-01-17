@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <memory>
 #include <vector>
 
@@ -7,6 +8,13 @@
 #include "layout/RenderObject.h"
 #include "layout/inline/InlineTypes.h"
 #include "style/ComputedStyle.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+namespace Layout {
+class RenderObject;
+}  // namespace Layout
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout::InlineLayout {
 

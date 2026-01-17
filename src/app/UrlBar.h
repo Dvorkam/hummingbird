@@ -8,6 +8,11 @@
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 
+namespace Hummingbird {
+class IWindow;
+struct InputEvent;
+}  // namespace Hummingbird
+
 namespace Hummingbird::App {
 
 class UrlBar {

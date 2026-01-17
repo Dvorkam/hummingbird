@@ -1,6 +1,9 @@
 #include "platform/FileResourceProvider.h"
 
+#include <filesystem>
 #include <fstream>
+#include <iterator>
+#include <optional>
 
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"

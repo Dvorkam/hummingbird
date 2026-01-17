@@ -1,10 +1,27 @@
 #include "platform/SDLGraphicsContext.h"
 
-#include <SDL.h>
+#include <SDL_blendmode.h>
+#include <SDL_pixels.h>
+#include <SDL_rect.h>
+#include <SDL_render.h>
+#include <SDL_surface.h>
 #include <blend2d.h>
+#include <blend2d/context.h>
+#include <blend2d/font.h>
+#include <blend2d/fontdefs.h>
+#include <blend2d/fontface.h>
+#include <blend2d/format.h>
+#include <blend2d/geometry.h>
+#include <blend2d/glyphbuffer.h>
+#include <blend2d/image.h>
+#include <blend2d/rgba.h>
+#include <stddef.h>
 
 #include <cmath>
+#include <cstdint>
+#include <ostream>
 #include <span>
+#include <vector>
 
 #include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"

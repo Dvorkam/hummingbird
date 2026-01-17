@@ -15,7 +15,12 @@
 #include "core/platform_api/IResourceProvider.h"
 #include "engine/DocumentPipeline.h"
 #include "engine/ResourceLoader.h"
+#include "engine/ResourceStore.h"
 #include "layout/Geometry.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+}  // namespace Hummingbird
 
 namespace Hummingbird::DOM {
 class Node;

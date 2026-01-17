@@ -1,6 +1,7 @@
 #include "engine/ResourceStore.h"
 
 #include <functional>
+#include <utility>
 
 namespace Hummingbird::Engine {
 

@@ -1,10 +1,22 @@
 #include "layout/RenderListItem.h"
 
+#include <stddef.h>
+
 #include <algorithm>
+#include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/Geometry.h"
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/inline/InlineLayoutUtils.h"
+#include "layout/inline/InlineRef.h"
+#include "style/ComputedStyle.h"
+
+namespace Hummingbird {
+namespace DOM {
+class Node;
+}  // namespace DOM
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 

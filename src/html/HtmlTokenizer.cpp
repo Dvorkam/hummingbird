@@ -1,6 +1,8 @@
 #include "html/HtmlTokenizer.h"
 
 #include <cctype>
+#include <utility>
+#include <variant>
 
 namespace Hummingbird::Html {
 

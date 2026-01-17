@@ -1,6 +1,10 @@
 #include "layout/RenderRule.h"
 
+#include <optional>
+
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/Geometry.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 

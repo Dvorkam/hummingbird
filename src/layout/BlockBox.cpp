@@ -1,9 +1,19 @@
 #include "layout/BlockBox.h"
 
 #include <algorithm>
+#include <optional>
+#include <utility>
+#include <vector>
 
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/inline/InlineLayoutUtils.h"
+#include "layout/inline/InlineRef.h"
+#include "layout/inline/InlineTypes.h"
+#include "style/ComputedStyle.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 

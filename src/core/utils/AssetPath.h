@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <string_view>
+#include <string>
 
 namespace Hummingbird::Core::Utils {
 

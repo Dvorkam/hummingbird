@@ -1,5 +1,7 @@
 #include "core/platform_api/NetworkFactory.h"
 
+#include <memory>
+
 #include "platform/CurlNetwork.h"
 #include "platform/StubNetwork.h"
 

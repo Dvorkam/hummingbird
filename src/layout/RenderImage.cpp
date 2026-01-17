@@ -4,6 +4,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include "core/dom/ElementUtils.h"
 #include "core/platform_api/IImageDecoder.h"
@@ -13,6 +15,7 @@
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/PaintUtils.h"
 #include "layout/inline/InlineTypes.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 

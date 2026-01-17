@@ -1,5 +1,7 @@
 #include "platform/NetworkThreadPool.h"
 
+#include <utility>
+
 namespace Hummingbird::Platform {
 
 void NetworkThreadPool::shutdown() {

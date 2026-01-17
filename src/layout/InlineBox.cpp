@@ -1,10 +1,13 @@
 #include "layout/InlineBox.h"
 
 #include <algorithm>
+#include <utility>
+#include <vector>
 
-#include "core/platform_api/IGraphicsContext.h"
-#include "layout/InlineLineBuilder.h"
 #include "layout/LayoutMetricsUtils.h"
+#include "layout/inline/InlineRef.h"
+#include "layout/inline/InlineTypes.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 

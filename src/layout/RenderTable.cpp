@@ -1,16 +1,26 @@
 #include "layout/RenderTable.h"
 
+#include <stddef.h>
+
 #include <algorithm>
 #include <numeric>
 #include <optional>
-#include <string>
 #include <string_view>
 
 #include "core/dom/Element.h"
 #include "core/dom/ElementUtils.h"
+#include "core/dom/Node.h"
 #include "core/utils/ParseUtils.h"
+#include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/Geometry.h"
 #include "layout/LayoutMetricsUtils.h"
+#include "layout/RenderObject.h"
+#include "style/ComputedStyle.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 

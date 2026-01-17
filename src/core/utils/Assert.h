@@ -21,11 +21,11 @@ namespace Hummingbird::Core {
 #endif
 
 #if HB_ENABLE_ASSERTS
-#define HB_ASSERT(expr)                                                      \
-    do {                                                                     \
-        if (!(expr)) {                                                       \
-            ::Hummingbird::Core::assert_failed(#expr, __FILE__, __LINE__);   \
-        }                                                                    \
+#define HB_ASSERT(expr)                                                    \
+    do {                                                                   \
+        if (!(expr)) {                                                     \
+            ::Hummingbird::Core::assert_failed(#expr, __FILE__, __LINE__); \
+        }                                                                  \
     } while (0)
 #else
 #define HB_ASSERT(expr)     \

@@ -12,6 +12,17 @@
 #include "core/dom/Text.h"
 #include "html/HtmlTokenizer.h"
 
+namespace Hummingbird {
+namespace DOM {
+class Element;
+}  // namespace DOM
+namespace Html {
+struct CharacterDataToken;
+struct EndTagToken;
+struct StartTagToken;
+}  // namespace Html
+}  // namespace Hummingbird
+
 namespace Hummingbird::Html {
 
 class Parser {

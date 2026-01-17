@@ -3,6 +3,14 @@
 #include <algorithm>
 
 #include "layout/InlineLineBuilder.h"
+#include "layout/Geometry.h"
+#include "layout/RenderObject.h"
+#include "layout/inline/IInlineParticipant.h"
+#include "layout/inline/InlineRef.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout::InlineLayout {
 

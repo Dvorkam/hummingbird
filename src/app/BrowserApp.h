@@ -7,6 +7,13 @@
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 #include "engine/Tab.h"
+#include "layout/Geometry.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+class IWindow;
+struct InputEvent;
+}  // namespace Hummingbird
 
 namespace Hummingbird::App {
 

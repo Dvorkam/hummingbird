@@ -1,5 +1,7 @@
 #include "core/utils/Url.h"
 
+#include <stddef.h>
+
 #include "core/utils/StringUtils.h"
 
 namespace Hummingbird::Core {

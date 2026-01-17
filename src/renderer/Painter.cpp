@@ -1,5 +1,7 @@
 #include "renderer/Painter.h"
 
+#include <vector>
+
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/GeometryUtils.h"
 #include "layout/PaintUtils.h"

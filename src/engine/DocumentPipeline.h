@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stddef.h>
+
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -14,7 +17,8 @@
 
 namespace Hummingbird {
 class IResourceProvider;
-}
+class IGraphicsContext;
+}  // namespace Hummingbird
 
 namespace Hummingbird::DOM {
 class Node;

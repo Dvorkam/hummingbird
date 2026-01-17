@@ -5,6 +5,7 @@
 #include "layout/RenderBreak.h"
 #include "layout/RenderImage.h"
 #include "layout/RenderListItem.h"
+#include "layout/RenderObject.h"
 #include "layout/RenderRule.h"
 #include "layout/RenderTable.h"
 #include "layout/TextBox.h"

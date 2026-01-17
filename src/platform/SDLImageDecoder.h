@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string_view>
+
 #include "core/platform_api/IImageDecoder.h"
 
 namespace Hummingbird::Platform {

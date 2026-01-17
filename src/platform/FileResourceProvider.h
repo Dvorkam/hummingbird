@@ -1,5 +1,8 @@
 #pragma once
 
+#include <string>
+#include <string_view>
+
 #include "core/platform_api/IResourceProvider.h"
 
 namespace Hummingbird::Platform {

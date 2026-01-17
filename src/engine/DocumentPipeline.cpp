@@ -1,9 +1,11 @@
 #include "engine/DocumentPipeline.h"
 
-#include <algorithm>
+#include <ostream>
+#include <utility>
 
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
+#include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IResourceProvider.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
@@ -17,7 +19,12 @@
 #include "layout/RenderObject.h"
 #include "layout/RenderTreeTraversal.h"
 #include "style/CssParser.h"
+#include "style/Stylesheet.h"
 #include "style/StylesheetSource.h"
+
+namespace Hummingbird {
+struct ImageBitmap;
+}  // namespace Hummingbird
 
 namespace Hummingbird::Engine {
 

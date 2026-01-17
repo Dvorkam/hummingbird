@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "core/platform_api/IWindow.h"
+#include "core/platform_api/InputEvent.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "layout/Geometry.h"

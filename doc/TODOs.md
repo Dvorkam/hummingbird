@@ -246,7 +246,7 @@
 - [x] Extract TreeBuilder tag→render mapping table to reduce branching and keep tag routing centralized.
 - [x] Evaluate `tests/CMakeLists.txt` linking App directly; consider a lightweight test-support target.
 - [x] Audit tests for unused includes and remove leftovers.
-- [ ] Audit src for unused includes and remove leftovers.
+- [x] Audit src for unused includes and remove leftovers.
 - [x] Move `TestGraphicsContext` into `Hummingbird::Test` namespace and update test call sites.
 - [ ] Track `TextBox` TODO: choose real monospace fonts when available (src/layout/TextBox.cpp).
 - [x] Put `NetworkRequestUtils` helpers into a namespace to avoid global scope leaks.

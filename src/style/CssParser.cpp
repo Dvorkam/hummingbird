@@ -1,7 +1,10 @@
 #include "style/CssParser.h"
 
 #include <optional>
+#include <ostream>
+#include <utility>
 
+#include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/Log.h"
 #include "style/CssPropertyNames.h"
 #include "style/CssValueNames.h"

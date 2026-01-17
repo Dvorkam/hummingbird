@@ -1,6 +1,9 @@
 #pragma once
 
+#include <stddef.h>
+
 #include <string_view>
+#include <vector>
 
 #include "html/HtmlToken.h"
 

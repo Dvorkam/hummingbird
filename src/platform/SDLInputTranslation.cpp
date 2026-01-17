@@ -1,5 +1,14 @@
 #include "platform/SDLInputTranslation.h"
 
+#include <SDL_keycode.h>
+#include <SDL_mouse.h>
+#include <SDL_video.h>
+#include <stdint.h>
+
+#include <string>
+
+#include "core/platform_api/InputEvent.h"
+
 namespace Hummingbird::Platform::SDLInput {
 
 namespace detail {

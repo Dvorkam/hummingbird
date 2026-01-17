@@ -1,5 +1,7 @@
 #include "core/platform_api/ImageDecoderFactory.h"
 
+#include <memory>
+
 #include "platform/SDLImageDecoder.h"
 
 namespace Hummingbird {

@@ -1,10 +1,17 @@
 #include "style/StyleDefaults.h"
 
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+
 #include "core/dom/Element.h"
+#include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Css::StyleDefaults {
 

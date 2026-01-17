@@ -1,5 +1,7 @@
 #include "core/platform_api/ResourceProviderFactory.h"
 
+#include <memory>
+
 #include "platform/FileResourceProvider.h"
 
 namespace Hummingbird {

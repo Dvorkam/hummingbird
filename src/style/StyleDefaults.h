@@ -2,6 +2,12 @@
 
 #include "style/ComputedStyle.h"
 
+namespace Hummingbird {
+namespace Css {
+struct ComputedStyle;
+}  // namespace Css
+}  // namespace Hummingbird
+
 namespace Hummingbird::DOM {
 class Element;
 }

@@ -1,5 +1,10 @@
 #include "layout/TreeBuilder.h"
 
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "layout/RenderFactory.h"

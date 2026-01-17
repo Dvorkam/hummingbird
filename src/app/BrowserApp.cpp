@@ -1,9 +1,15 @@
 #include "app/BrowserApp.h"
 
 #include <algorithm>
+#include <optional>
+#include <ostream>
+#include <string>
 #include <utility>
 
+#include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/IWindow.h"
 #include "core/platform_api/ImageDecoderFactory.h"
+#include "core/platform_api/InputEvent.h"
 #include "core/platform_api/NetworkFactory.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/utils/Log.h"

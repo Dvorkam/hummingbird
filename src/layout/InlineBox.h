@@ -1,7 +1,18 @@
 #pragma once
 
+#include <stddef.h>
+
+#include <memory>
+
+#include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 #include "layout/inline/IInlineParticipant.h"
+
+namespace Hummingbird {
+namespace DOM {
+class Node;
+}  // namespace DOM
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 

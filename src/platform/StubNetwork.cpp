@@ -1,5 +1,8 @@
 #include "platform/StubNetwork.h"
 
+#include <functional>
+#include <utility>
+
 #include "platform/NetworkRequestUtils.h"
 
 namespace Hummingbird::Platform {
