@@ -5,6 +5,8 @@
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 
+namespace Hummingbird::Platform {
+
 namespace {
 std::optional<std::string> load_asset_file(std::string_view resource_id, const char* label) {
     if (resource_id.empty()) {
@@ -33,3 +35,5 @@ std::optional<std::string> FileResourceProvider::load_text(std::string_view reso
 std::optional<std::string> FileResourceProvider::load_bytes(std::string_view resource_id) {
     return load_asset_file(resource_id, "asset");
 }
+
+}  // namespace Hummingbird::Platform

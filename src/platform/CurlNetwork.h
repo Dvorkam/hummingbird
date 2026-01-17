@@ -7,6 +7,8 @@
 #include "core/platform_api/INetwork.h"
 #include "platform/NetworkThreadPool.h"
 
+namespace Hummingbird::Platform {
+
 class CurlNetwork : public INetwork {
 public:
     CurlNetwork();
@@ -30,3 +32,5 @@ private:
 
     static constexpr const char* kAcceptEncoding = "";
 };
+
+}  // namespace Hummingbird::Platform

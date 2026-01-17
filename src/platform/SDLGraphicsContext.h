@@ -8,6 +8,8 @@
 // Forward declaration
 struct SDL_Renderer;
 
+namespace Hummingbird::Platform {
+
 class SDLGraphicsContext : public IGraphicsContext {
 public:
     SDLGraphicsContext(SDL_Renderer* renderer);
@@ -25,3 +27,5 @@ private:
     SDL_Renderer* m_renderer = nullptr;
     Hummingbird::Layout::Rect m_viewport{0, 0, 0, 0};
 };
+
+}  // namespace Hummingbird::Platform

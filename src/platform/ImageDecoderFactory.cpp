@@ -3,5 +3,5 @@
 #include "platform/SDLImageDecoder.h"
 
 ImageDecoderPtr create_image_decoder() {
-    return std::make_unique<SDLImageDecoder>();
+    return std::make_unique<Hummingbird::Platform::SDLImageDecoder>();
 }

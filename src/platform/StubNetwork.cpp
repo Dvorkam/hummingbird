@@ -2,6 +2,8 @@
 
 #include "platform/NetworkRequestUtils.h"
 
+namespace Hummingbird::Platform {
+
 namespace {
 std::string build_stub_body(const std::string& url) {
     if (url == "http://example.dev" || url == "https://example.dev") {
@@ -71,3 +73,5 @@ void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse
         run_stub_request(url, std::move(cb));
     });
 }
+
+}  // namespace Hummingbird::Platform

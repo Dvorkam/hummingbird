@@ -8,6 +8,8 @@
 #include "platform/SDLGraphicsContext.h"
 #include "platform/SDLInputTranslation.h"
 
+namespace Hummingbird::Platform {
+
 namespace {
 SDL_Surface* load_window_icon_surface() {
     static bool sdl_image_ready = false;
@@ -138,3 +140,5 @@ std::string SDLWindow::get_clipboard_text() const {
     SDL_free(text);
     return out;
 }
+
+}  // namespace Hummingbird::Platform

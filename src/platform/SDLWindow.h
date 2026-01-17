@@ -9,6 +9,8 @@
 struct SDL_Window;
 struct SDL_Renderer;
 
+namespace Hummingbird::Platform {
+
 class SDLWindow : public IWindow {
 public:
     SDLWindow();
@@ -36,3 +38,5 @@ private:
     SDL_Renderer* m_renderer = nullptr;
     bool m_is_open = false;
 };
+
+}  // namespace Hummingbird::Platform

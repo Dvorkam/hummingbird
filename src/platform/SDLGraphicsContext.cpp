@@ -10,6 +10,8 @@
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 
+namespace Hummingbird::Platform {
+
 namespace {
 struct FontSetup {
     BLFontFace face;
@@ -270,3 +272,5 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
 
     return {width, height};
 }
+
+}  // namespace Hummingbird::Platform

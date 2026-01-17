@@ -251,7 +251,7 @@
 - [ ] Track `TextBox` TODO: choose real monospace fonts when available (src/layout/TextBox.cpp).
 - [x] Put `NetworkRequestUtils` helpers into a namespace to avoid global scope leaks.
 - [x] Move `NetworkThreadPool` into `Hummingbird::Platform` namespace.
-- [ ] Move platform implementation classes (`SDLWindow`, `SDLGraphicsContext`, `CurlNetwork`, `StubNetwork`, etc.) into `Hummingbird::Platform` namespace for consistency.
+- [x] Move platform implementation classes (`SDLWindow`, `SDLGraphicsContext`, `CurlNetwork`, `StubNetwork`, etc.) into `Hummingbird::Platform` namespace for consistency.
 - [ ] Move `core/platform_api` types (`InputEvent`, `IGraphicsContext`, `INetwork`, `IWindow`, etc.) into `Hummingbird` namespace to match the coding constitution.
 - [ ] Move platform API factory functions (`create_window`, `create_network`, `create_resource_provider`, `create_image_decoder`) into the same namespace as their interfaces.
 - [x] Move `core/utils/AssetPath` APIs into `Hummingbird::Core::Utils` (adjust call sites for consistency with other core utils).

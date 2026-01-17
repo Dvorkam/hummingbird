@@ -8,6 +8,8 @@
 
 #include "core/utils/Log.h"
 
+namespace Hummingbird::Platform {
+
 namespace {
 bool ensure_sdl_image_ready() {
     static bool initialized = false;
@@ -77,3 +79,5 @@ std::optional<ImageBitmap> SDLImageDecoder::decode(std::string_view bytes) {
 
     return bitmap;
 }
+
+}  // namespace Hummingbird::Platform

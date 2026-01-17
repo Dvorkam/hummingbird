@@ -7,6 +7,8 @@
 #include "core/utils/Log.h"
 #include "platform/NetworkRequestUtils.h"
 
+namespace Hummingbird::Platform {
+
 std::atomic<int> CurlNetwork::s_instances{0};
 std::mutex CurlNetwork::s_global_mutex;
 
@@ -118,3 +120,5 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
         if (cb) cb(std::move(response));
     });
 }
+
+}  // namespace Hummingbird::Platform

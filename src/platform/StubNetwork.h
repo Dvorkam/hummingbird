@@ -6,6 +6,8 @@
 #include "core/platform_api/INetwork.h"
 #include "platform/NetworkThreadPool.h"
 
+namespace Hummingbird::Platform {
+
 class StubNetwork : public INetwork {
 public:
     StubNetwork() = default;
@@ -18,3 +20,5 @@ public:
 private:
     Hummingbird::Platform::NetworkThreadPool thread_pool_;
 };
+
+}  // namespace Hummingbird::Platform
