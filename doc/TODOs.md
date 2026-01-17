@@ -42,7 +42,10 @@ Note: Engine/App split work remains tracked in `doc/milestones/milestone3.md` (E
 - [ ] **[M4 P2] T-FONT-1: Monospace Font Selection**; Goal: pick real monospace fonts when requested; Scope: TextBox + font mapping; Acceptance: monospace uses actual mono face; Tests: layout tests.
 - [ ] **[M4 P2] T-SUPPORT-REG-1: Supported Feature Registry + Deduped Warnings**; Goal: centralize supported tags/properties and dedupe warnings; Scope: Html/Css support tables + logging; Acceptance: warnings are once-per-(tag/property) per doc; Tests: parser tests.
 - [ ] **[M4 P2] T-PERF-1: Retained Display List (Paint Cache)**; Goal: avoid rebuilding paint commands for static content; Scope: renderer/engine; Acceptance: unchanged output with fewer rebuilds; Tests: renderer tests.
-- [ ] **[M4 P2] T-PERF-2: Text Rendering Cache**; Goal: cache FontSetup and optionally text textures; Scope: SDLGraphicsContext; Acceptance: repeated paints avoid font reloads; Tests: renderer tests.
+- [x] **[M4 P2] T-RENDER-1: Font Setup Cache**; Goal: cache Blend2D font setup per (path,size); Scope: SDLGraphicsContext; Acceptance: draw/measure no longer reloads fonts per call; Tests: renderer tests.
+- [ ] **[M4 P2] T-RENDER-2: Premeasured Text Draw**; Goal: avoid re-measuring text inside draw calls; Scope: TextBox + SDLGraphicsContext; Acceptance: draw path uses precomputed metrics; Tests: renderer tests.
+- [ ] **[M4 P2] T-RENDER-3: Text Texture Cache (LRU)**; Goal: reuse SDL textures for repeated strings; Scope: SDLGraphicsContext; Acceptance: text-heavy pages reuse cached textures; Tests: renderer perf tests.
+- [ ] **[M4 P2] T-RENDER-4: Image Texture Cache (LRU)**; Goal: reuse SDL textures for repeated images; Scope: SDLGraphicsContext; Acceptance: repeated image paints reuse textures; Tests: renderer perf tests.
 
 ### Milestone 5 (Layout/Polish)
 
@@ -59,6 +62,8 @@ Note: Engine/App split work remains tracked in `doc/milestones/milestone3.md` (E
 ### Milestone 6+ (Big Rocks)
 
 - [ ] **[M6 P1] T-PERF-4: Offscreen Raster Cache + Layer Invalidation**; Goal: repaint only dirty regions; Scope: renderer + engine invalidation; Acceptance: cached layers reused across frames; Tests: renderer perf tests.
+- [ ] **[M6 P1] T-CACHE-1: Tab Resource Eviction + Rehydrate**; Goal: evict resources/render tree for background tabs and restore on focus; Scope: Tab + ResourceStore; Acceptance: inactive tabs drop memory and reload on activation; Tests: engine tests.
+- [ ] **[M6 P1] T-PERF-5: Batch Resource Updates**; Goal: coalesce resource arrivals into fewer style/layout passes; Scope: ResourceLoader + DocumentPipeline; Acceptance: heavy pages avoid repeated full rebuilds; Tests: engine perf tests.
 - [ ] **[M6 P1] T-LAYOUT-FLEX-1: Flexbox Layout MVP**; Goal: basic flex layout; Scope: layout engine; Acceptance: common flex rows/columns render; Tests: layout tests.
 - [ ] **[M6 P2] T-LAYOUT-GRID-1: Grid Layout MVP**; Goal: minimal CSS Grid support; Scope: layout engine; Acceptance: fixed-track grids render; Tests: layout tests.
 - [ ] **[M6 P2] T-ANIM-1: transition + transform (static)**; Goal: parse/apply transforms without timing engine; Scope: style + paint; Acceptance: transform affects paint matrix; Tests: renderer tests.

@@ -9,7 +9,6 @@
 #include <blend2d/context.h>
 #include <blend2d/font.h>
 #include <blend2d/fontdefs.h>
-#include <blend2d/fontface.h>
 #include <blend2d/format.h>
 #include <blend2d/geometry.h>
 #include <blend2d/glyphbuffer.h>
@@ -26,32 +25,11 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
+#include "platform/FontCache.h"
 
 namespace Hummingbird::Platform {
 
 namespace {
-struct FontSetup {
-    BLFontFace face;
-    BLFont font;
-    BLFontMetrics metrics;
-};
-
-bool load_font_setup(const std::string& font_path, float font_size, FontSetup& out, bool include_error) {
-    BLResult err = out.face.createFromFile(font_path.c_str());
-    if (err != BL_SUCCESS) {
-        if (include_error) {
-            HB_LOG_ERROR("[platform] Failed to load font: " << font_path << " (err=" << err << ")");
-        } else {
-            HB_LOG_ERROR("[platform] Failed to load font: " << font_path);
-        }
-        return false;
-    }
-
-    out.font.createFromFace(out.face, font_size);
-    out.metrics = out.font.metrics();
-    return true;
-}
-
 bool is_outside_viewport(const Hummingbird::Layout::Rect& viewport, float x, float y, float width, float height) {
     if (viewport.width <= 0 || viewport.height <= 0) {
         return false;
@@ -230,12 +208,10 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     if (is_outside_viewport(m_viewport, x, y, target_width, target_height)) return;
 
     const std::string& resolved_font = Hummingbird::Core::Utils::resolve_asset_path_string(style.font_path);
-    FontSetup font_setup;
-    if (!load_font_setup(resolved_font, style.font_size, font_setup, false)) {
-        return;
-    }
+    const FontSetup* font_setup = FontCache::instance().get_or_load(resolved_font, style.font_size, false);
+    if (!font_setup) return;
 
-    SDL_Texture* texture = build_text_texture(m_renderer, text, style, font_setup, target_width, target_height);
+    SDL_Texture* texture = build_text_texture(m_renderer, text, style, *font_setup, target_width, target_height);
     if (!texture) return;
 
     SDL_Rect dest_rect = {(int)x, (int)y, target_width, target_height};
@@ -258,17 +234,15 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
     }
 
     const std::string& resolved_font = Hummingbird::Core::Utils::resolve_asset_path_string(style.font_path);
-    FontSetup font_setup;
-    if (!load_font_setup(resolved_font, style.font_size, font_setup, true)) {
-        return {0, 0};
-    }
+    const FontSetup* font_setup = FontCache::instance().get_or_load(resolved_font, style.font_size, true);
+    if (!font_setup) return {0, 0};
 
     BLGlyphBuffer glyphBuffer;
     glyphBuffer.setUtf8Text(text.c_str());
-    font_setup.font.shape(glyphBuffer);
+    font_setup->font.shape(glyphBuffer);
 
     BLTextMetrics tm;
-    font_setup.font.getTextMetrics(glyphBuffer, tm);
+    font_setup->font.getTextMetrics(glyphBuffer, tm);
 
     // Prefer advance width but guard with bounding box to avoid clipping.
     float width = compute_text_width(tm);
@@ -278,7 +252,7 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
     if (style.italic) width += 1.0f;
 
     // Use font metrics for a consistent line height with a small fudge for descenders.
-    float height = compute_text_height(font_setup.metrics);
+    float height = compute_text_height(font_setup->metrics);
 
     static bool logged = false;
     if (!logged) {
