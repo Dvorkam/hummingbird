@@ -50,7 +50,7 @@ public:
 TEST(PainterIntegrationTest, PaintsTextNodesFromParserOutput) {
     // Arrange: parse a simple HTML snippet.
     std::string_view html = "<html><body><p>First line</p><p>Second line</p></body></html>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
@@ -76,7 +76,7 @@ TEST(PainterIntegrationTest, PaintsTextNodesFromParserOutput) {
 TEST(PainterDebugTest, DrawsOutlinesWhenDebugEnabled) {
     // DOM: <html><body><p>Text</p></body></html>
     std::string_view html = "<html><body><p>Text</p></body></html>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
@@ -99,7 +99,7 @@ TEST(PainterDebugTest, DrawsOutlinesWhenDebugEnabled) {
 
 TEST(PainterTest, PaintsBordersFromComputedStyle) {
     std::string_view html = "<html><body><div>Box</div></body></html>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
@@ -161,7 +161,7 @@ Hummingbird::Layout::RenderObject* find_tag(Hummingbird::Layout::RenderObject* n
 
 TEST(PainterTest, PaintsBorderEdgesAtComputedPositions) {
     std::string_view html = "<html><body><div>Box</div></body></html>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
@@ -219,7 +219,7 @@ TEST(PainterTest, PaintsBorderEdgesAtComputedPositions) {
 
 TEST(PainterTest, PaintsBackgroundForBoxes) {
     std::string_view html = "<html><body><div>Box</div></body></html>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
@@ -257,7 +257,7 @@ TEST(PainterTest, PaintsBackgroundForBoxes) {
 
 TEST(PainterTest, PaintsImagePlaceholderWithAltText) {
     std::string_view html = "<html><body><img alt=\"Logo\" width=\"32\" height=\"16\"></body></html>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
@@ -280,7 +280,7 @@ TEST(PainterTest, PaintsImagePlaceholderWithAltText) {
 
 TEST(PainterTest, SkipsPaintForOffscreenNodes) {
     std::string_view html = "<html><body><p>First</p><p>Second</p></body></html>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
@@ -303,7 +303,7 @@ TEST(PainterTest, SkipsPaintForOffscreenNodes) {
 
 TEST(PainterTest, PaintsListMarkersWithCulling) {
     std::string_view html = "<html><body><ul><li>Item</li></ul></body></html>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
@@ -345,7 +345,7 @@ TEST(PainterTest, PaintsListMarkersWithCulling) {
 
 TEST(PainterTest, PaintsHorizontalRuleWithCulling) {
     std::string_view html = "<html><body><hr></body></html>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 

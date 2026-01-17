@@ -12,7 +12,7 @@
 
 namespace Hummingbird::Html {
 
-Parser::Parser(ArenaAllocator& arena, std::string_view html) : m_tokenizer(html), m_arena(arena) {}
+Parser::Parser(Core::ArenaAllocator& arena, std::string_view html) : m_tokenizer(html), m_arena(arena) {}
 
 Parser::Result Parser::parse() {
     m_style_blocks.clear();
@@ -52,7 +52,7 @@ Parser::Result Parser::parse() {
     }
 
     Result result;
-    result.dom = ArenaPtr<DOM::Node>(root.release());
+    result.dom = Core::ArenaPtr<DOM::Node>(root.release());
     result.style_blocks = std::move(m_style_blocks);
     result.stylesheet_links = std::move(m_stylesheet_links);
     result.image_links = std::move(m_image_links);

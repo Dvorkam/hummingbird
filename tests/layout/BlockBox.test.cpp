@@ -18,7 +18,7 @@ using Hummingbird::IGraphicsContext;
 
 TEST(BlockBoxLayoutTest, SimpleStacking) {
     // Create a DOM tree: <body><p/><p/></body>
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto dom_root = DomFactory::create_element(arena, "body");
     auto p1 = DomFactory::create_element(arena, "p");
     auto p2 = DomFactory::create_element(arena, "p");
@@ -85,7 +85,7 @@ TEST(BlockBoxLayoutTest, SimpleStacking) {
 }
 
 TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto span = DomFactory::create_element(arena, "span");
     auto text = DomFactory::create_text(arena, "Hello");
     span->append_child(std::move(text));

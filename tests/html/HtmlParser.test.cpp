@@ -11,7 +11,7 @@ namespace PropertyNames = Hummingbird::Css::PropertyNames;
 
 TEST(HtmlParserTest, SimpleTreeConstruction) {
     std::string_view html = "<html><body><p>Hello</p></body></html>";
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     Parser parser(arena, html);
     auto result = parser.parse();
     ASSERT_NE(result.dom, nullptr);
@@ -24,7 +24,7 @@ TEST(HtmlParserTest, SimpleTreeConstruction) {
 
 TEST(HtmlParserTest, CoalescesAdjacentTextNodes) {
     std::string_view html = "<div>Hello <!--comment-->World</div>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Parser parser(arena, html);
     auto result = parser.parse();
     ASSERT_NE(result.dom, nullptr);
@@ -39,7 +39,7 @@ TEST(HtmlParserTest, CoalescesAdjacentTextNodes) {
 
 TEST(HtmlParserTest, HandlesVoidAndSelfClosingTagsWithoutStackingChildren) {
     std::string_view html = "<div>Hello<br/>World<img src='x'/></div>";
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     Parser parser(arena, html);
     auto result = parser.parse();
     ASSERT_NE(result.dom, nullptr);
@@ -66,7 +66,7 @@ TEST(HtmlParserTest, HandlesVoidAndSelfClosingTagsWithoutStackingChildren) {
 
 TEST(HtmlParserTest, TracksUnsupportedTags) {
     std::string_view html = "<custom><inner/></custom><video></video>";
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     Parser parser(arena, html);
     auto result = parser.parse();
     ASSERT_NE(result.dom, nullptr);
@@ -80,7 +80,7 @@ TEST(HtmlParserTest, TracksUnsupportedTags) {
 TEST(HtmlParserTest, PopsToMatchingAncestorOnMismatchedEndTag) {
     // </div> closes both <p> and <span> scopes, then the trailing <p> should attach to root.
     std::string_view html = "<div><span><p>inner</div><p>after</p>";
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     Parser parser(arena, html);
     auto result = parser.parse();
     ASSERT_NE(result.dom, nullptr);
@@ -109,7 +109,7 @@ TEST(HtmlParserTest, PopsToMatchingAncestorOnMismatchedEndTag) {
 
 TEST(HtmlParserTest, IsCaseInsensitiveForTags) {
     std::string_view html = "<DIV><A HREF='#'>Link</A></DIV>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Parser parser(arena, html);
     auto result = parser.parse();
     ASSERT_NE(result.dom, nullptr);
@@ -126,7 +126,7 @@ TEST(HtmlParserTest, IsCaseInsensitiveForTags) {
 
 TEST(HtmlParserTest, ExtractsStyleBlocks) {
     std::string_view html = "<style>body { color: red; }</style><p>Hi</p>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Parser parser(arena, html);
     auto result = parser.parse();
     ASSERT_NE(result.dom, nullptr);
@@ -139,7 +139,7 @@ TEST(HtmlParserTest, ExtractsStyleBlocks) {
 TEST(HtmlParserTest, DiscoversStylesheetLinks) {
     std::string_view html =
         "<head><link rel=\"stylesheet\" href=\"site.css\"></head><body><link href='print.css' rel='StyleSheet'></body>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Parser parser(arena, html);
     auto result = parser.parse();
     ASSERT_EQ(result.stylesheet_links.size(), 2u);
@@ -149,7 +149,7 @@ TEST(HtmlParserTest, DiscoversStylesheetLinks) {
 
 TEST(HtmlParserTest, DiscoversImageLinks) {
     std::string_view html = "<body><img src='images/a.png'><img SRC=\"/b.jpg\"></body>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Parser parser(arena, html);
     auto result = parser.parse();
     ASSERT_EQ(result.image_links.size(), 2u);
@@ -159,7 +159,7 @@ TEST(HtmlParserTest, DiscoversImageLinks) {
 
 TEST(HtmlParserTest, AutoClosesListItems) {
     std::string_view html = "<ul><li>One<li>Two</ul>";
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
@@ -173,7 +173,7 @@ TEST(HtmlParserTest, AutoClosesListItems) {
 
 TEST(HtmlParserTest, MovesBodyOutOfHead) {
     std::string_view html = "<html><head><body><p>Hi</p></body></head></html>";
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 

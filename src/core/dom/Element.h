@@ -30,8 +30,8 @@ public:
 
     using AttributeMap = std::unordered_map<std::string, std::string, AttributeHash, AttributeEq>;
 
-    static ArenaPtr<Element> create(ArenaAllocator& arena, std::string_view tag_name) {
-        return ArenaPtr<Element>(arena_new<Element>(arena, tag_name));
+    static Core::ArenaPtr<Element> create(Core::ArenaAllocator& arena, std::string_view tag_name) {
+        return Core::ArenaPtr<Element>(Core::arena_new<Element>(arena, tag_name));
     }
 
     const std::string& get_tag_name() const { return m_tag_name; }
@@ -50,7 +50,7 @@ public:
 private:
     template <typename T, typename... Args>
     // Allow arena_new to invoke the private constructor while keeping creation centralized.
-    friend T* ::arena_new(ArenaAllocator&, Args&&...);
+    friend T* Core::arena_new(Core::ArenaAllocator&, Args&&...);
 
     explicit Element(std::string_view tag_name) : m_tag_name(tag_name) {}
 

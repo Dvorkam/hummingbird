@@ -39,7 +39,7 @@ public:
 // NOTE: This test requires the font file 'assets/fonts/Roboto-Regular.ttf' to be present.
 TEST(TextBoxLayoutTest, SimpleTextMeasurement) {
     // 1. Create a DOM Text node
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Hello");
 
     // 2. Create a TextBox render object
@@ -60,7 +60,7 @@ TEST(TextBoxLayoutTest, SimpleTextMeasurement) {
 }
 
 TEST(TextBoxLayoutTest, CollapsesWhitespaceInNormalMode) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Hello   \n   world");
     auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
     Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
@@ -71,7 +71,7 @@ TEST(TextBoxLayoutTest, CollapsesWhitespaceInNormalMode) {
 }
 
 TEST(TextBoxLayoutTest, PreservesWhitespaceInPreMode) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Line1\n  Line2");
     Hummingbird::Css::ComputedStyle pre_style = Hummingbird::Css::default_computed_style();
     pre_style.whitespace = Hummingbird::Css::ComputedStyle::WhiteSpace::Preserve;
@@ -88,7 +88,7 @@ TEST(TextBoxLayoutTest, PreservesWhitespaceInPreMode) {
 
 TEST(TextBoxLayoutTest, SelectsFontByBoldItalicCombination) {
     auto run_case = [](Hummingbird::Css::ComputedStyle style, std::string_view expected_suffix) {
-        ArenaAllocator arena(1024);
+        Hummingbird::Core::ArenaAllocator arena(1024);
         auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Hello");
         dom_text->set_computed_style(std::make_shared<Hummingbird::Css::ComputedStyle>(style));
 
@@ -120,7 +120,7 @@ TEST(TextBoxLayoutTest, SelectsFontByBoldItalicCombination) {
 }
 
 TEST(TextBoxLayoutTest, IncludesPaddingAndBorderInSize) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Hi");
     auto style = Hummingbird::Css::default_computed_style();
     style.padding.left = 2.0f;

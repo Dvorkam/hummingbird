@@ -22,6 +22,8 @@ size_t padding_for_alignment(const std::vector<char>& buffer, size_t offset, siz
 }
 }  // namespace
 
+namespace Hummingbird::Core {
+
 ArenaAllocator::ArenaAllocator(size_t bytes) : m_offset(0) {
     m_buffer.resize(bytes);
 }
@@ -44,3 +46,5 @@ void* ArenaAllocator::allocate(size_t size, size_t alignment) {
 void ArenaAllocator::reset() {
     m_offset = 0;
 }
+
+}  // namespace Hummingbird::Core

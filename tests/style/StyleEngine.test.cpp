@@ -17,7 +17,7 @@ namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(StyleEngineTest, AppliesRulesAndCascade) {
     // DOM: <div class="box" id="main"><span></span></div>
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
     root->set_attribute(Attr::Class, "box");
     root->set_attribute(Attr::Id, "main");
@@ -44,7 +44,7 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
 }
 
 TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
     auto pre = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Pre);
     auto anchor = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
@@ -106,7 +106,7 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
 }
 
 TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
     root->set_attribute(Attr::Class, "text");
     root->set_attribute(Attr::Id, "main");
@@ -131,7 +131,7 @@ TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
 }
 
 TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
     root->append_child(DomFactory::create_text(arena, "Link"));
 
@@ -151,7 +151,7 @@ TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
 }
 
 TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
     root->set_attribute(Attr::Class, "box");
 
@@ -171,7 +171,7 @@ TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
 }
 
 TEST(StyleEngineTest, ExpandsBackgroundAndBorderShorthand) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = "div { background: #ff0000; border: 2px solid #000; }";
@@ -199,7 +199,7 @@ TEST(StyleEngineTest, ExpandsBackgroundAndBorderShorthand) {
 }
 
 TEST(StyleEngineTest, SupportsMarginAutoAndMaxWidth) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = "div { margin: 8px auto; max-width: 200px; }";
@@ -220,7 +220,7 @@ TEST(StyleEngineTest, SupportsMarginAutoAndMaxWidth) {
 }
 
 TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = "div { max-width: 40em; }";
@@ -236,7 +236,7 @@ TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
 }
 
 TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
 
     std::string css = "p { font-size: 20px; line-height: 1.5; }";
@@ -253,7 +253,7 @@ TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
 }
 
 TEST(StyleEngineTest, LinkSourcesApplyInDocumentOrder) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
 
     std::string ua = "p { color: red; }";
@@ -275,7 +275,7 @@ TEST(StyleEngineTest, LinkSourcesApplyInDocumentOrder) {
 }
 
 TEST(StyleEngineTest, StyleBlocksOverrideLinksInOrder) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
 
     std::string ua = "p { color: red; }";
@@ -297,7 +297,7 @@ TEST(StyleEngineTest, StyleBlocksOverrideLinksInOrder) {
 }
 
 TEST(StyleEngineTest, AppliesBorderProperties) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = R"(
@@ -319,7 +319,7 @@ TEST(StyleEngineTest, AppliesBorderProperties) {
 }
 
 TEST(StyleEngineTest, AppliesBackgroundColor) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = "div { background-color: #333; }";
@@ -338,7 +338,7 @@ TEST(StyleEngineTest, AppliesBackgroundColor) {
 }
 
 TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = "div { display: inline-block; }";
@@ -354,7 +354,7 @@ TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
 }
 
 TEST(StyleEngineTest, DefaultsListItemDisplay) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
 
     StyleEngine engine;
@@ -367,7 +367,7 @@ TEST(StyleEngineTest, DefaultsListItemDisplay) {
 }
 
 TEST(StyleEngineTest, EmInheritsHeadingTypography) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto h1 = DomFactory::create_element(arena, Hummingbird::Html::TagNames::H1);
     auto em = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Em);
     em->append_child(DomFactory::create_text(arena, "Emphasized"));
@@ -390,7 +390,7 @@ TEST(StyleEngineTest, EmInheritsHeadingTypography) {
 }
 
 TEST(StyleEngineTest, AlignAttributeMapsToTextAlign) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto cell = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
     cell->set_attribute(Attr::Align, "center");
     auto span = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
@@ -411,7 +411,7 @@ TEST(StyleEngineTest, AlignAttributeMapsToTextAlign) {
 }
 
 TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto cell = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
     cell->set_attribute(Attr::NoWrap, "");
     cell->append_child(DomFactory::create_text(arena, "Text"));
@@ -430,7 +430,7 @@ TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
 }
 
 TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto img = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Img);
     img->set_attribute(Attr::Width, "120");
     img->set_attribute(Attr::Height, "80");
@@ -448,7 +448,7 @@ TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
 }
 
 TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto font = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Font);
     font->set_attribute(Attr::Size, "6");
     font->set_attribute(Attr::Face, "Sans-Serif");

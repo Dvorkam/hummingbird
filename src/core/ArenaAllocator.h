@@ -6,6 +6,8 @@
 #include <type_traits>
 #include <vector>
 
+namespace Hummingbird::Core {
+
 class ArenaAllocator {
 public:
     explicit ArenaAllocator(size_t bytes);
@@ -45,3 +47,5 @@ template <typename T, typename... Args>
 ArenaPtr<T> make_arena_ptr(ArenaAllocator& arena, Args&&... args) {
     return ArenaPtr<T>(arena_new<T>(arena, std::forward<Args>(args)...));
 }
+
+}  // namespace Hummingbird::Core

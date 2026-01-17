@@ -18,7 +18,7 @@ namespace TagNames = Hummingbird::Html::TagNames;
 namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(TableLayoutTest, AlignsCellsIntoColumns) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
     auto row1 = DomFactory::create_element(arena, TagNames::Tr);
@@ -83,7 +83,7 @@ TEST(TableLayoutTest, AlignsCellsIntoColumns) {
 }
 
 TEST(TableLayoutTest, ExpandsColumnsWhenTableIsPercentWidth) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
     table->set_attribute(Attr::Width, "100%");
@@ -143,7 +143,7 @@ TEST(TableLayoutTest, ExpandsColumnsWhenTableIsPercentWidth) {
 }
 
 TEST(TableLayoutTest, ColspanExpandsColumnWidths) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
     auto row1 = DomFactory::create_element(arena, TagNames::Tr);
@@ -201,7 +201,7 @@ TEST(TableLayoutTest, ColspanExpandsColumnWidths) {
 }
 
 TEST(TableLayoutTest, AlignDoesNotInflateIntrinsicWidths) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
     auto row = DomFactory::create_element(arena, TagNames::Tr);

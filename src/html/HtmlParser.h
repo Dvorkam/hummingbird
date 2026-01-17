@@ -16,9 +16,9 @@ namespace Hummingbird::Html {
 
 class Parser {
 public:
-    Parser(ArenaAllocator& arena, std::string_view html);
+    Parser(Core::ArenaAllocator& arena, std::string_view html);
     struct Result {
-        ArenaPtr<DOM::Node> dom;
+        Core::ArenaPtr<DOM::Node> dom;
         std::vector<std::string> style_blocks;
         std::vector<std::string> stylesheet_links;
         std::vector<std::string> image_links;
@@ -45,7 +45,7 @@ private:
     void maybe_close_list_item(ParseState& state, std::string_view tag_name);
 
     Tokenizer m_tokenizer;
-    ArenaAllocator& m_arena;
+    Core::ArenaAllocator& m_arena;
     std::unordered_set<std::string> m_unsupported_tags;
     std::vector<std::string> m_style_blocks;
     std::vector<std::string> m_stylesheet_links;

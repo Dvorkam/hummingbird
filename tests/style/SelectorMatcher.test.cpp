@@ -13,7 +13,7 @@ using namespace Hummingbird::DOM;
 namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(SelectorMatcherTest, MatchesTagClassId) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto elem = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
     elem->set_attribute(Attr::Class, "foo bar");
     elem->set_attribute(Attr::Id, "main");
@@ -54,7 +54,7 @@ TEST(SelectorMatcherTest, MatchesTagClassId) {
 }
 
 TEST(SelectorMatcherTest, NormalizesAttributeKeys) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto elem = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
     elem->set_attribute("CLASS", "foo");
     elem->set_attribute("ID", "main");

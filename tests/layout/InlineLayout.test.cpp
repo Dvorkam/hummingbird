@@ -20,7 +20,7 @@ using Hummingbird::ImageBitmap;
 using Hummingbird::PixelFormat;
 
 TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_text(arena, "Hello "));
@@ -57,7 +57,7 @@ TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
 }
 
 TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto ul = DomFactory::create_element(arena, "ul");
     ul->append_child(DomFactory::create_element(arena, "li"));
@@ -89,7 +89,7 @@ TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
 }
 
 TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     // "HelloHello" (10 chars) at 8px each = 80px > 60px available forces wrap.
@@ -118,7 +118,7 @@ TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
 }
 
 TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_text(arena, "Hello "));
@@ -153,7 +153,7 @@ TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
 }
 
 TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_text(arena, "Hello Hello Hello "));
@@ -185,7 +185,7 @@ TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
 }
 
 TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     auto span = DomFactory::create_element(arena, "span");
@@ -220,7 +220,7 @@ TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
 }
 
 TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_text(arena, "Hi"));
@@ -257,7 +257,7 @@ TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
 }
 
 TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_element(arena, "img"));
@@ -284,7 +284,7 @@ TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
 }
 
 TEST(InlineLayoutTest, InlineImageUsesIntrinsicSizeWhenAvailable) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_element(arena, "img"));
@@ -322,7 +322,7 @@ TEST(InlineLayoutTest, InlineImageUsesIntrinsicSizeWhenAvailable) {
 }
 
 TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->set_attribute(Attr::Align, "center");
@@ -350,7 +350,7 @@ TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
 }
 
 TEST(InlineLayoutTest, NoWrapAttributeKeepsSingleLine) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->set_attribute(Attr::NoWrap, "");

@@ -15,7 +15,7 @@ using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
 
 TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
     auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
     auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
@@ -49,7 +49,7 @@ TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
 }
 
 TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
     auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
     auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
@@ -85,7 +85,7 @@ TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {
 }
 
 TEST(ListItemLayoutTest, InlineRunsShareLineWithinListItem) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
     auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
     auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);

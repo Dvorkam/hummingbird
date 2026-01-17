@@ -5,11 +5,11 @@
 
 namespace Hummingbird::DOM {
 
-ArenaPtr<Element> DomFactory::create_element(ArenaAllocator& arena, std::string_view tag_name) {
+Core::ArenaPtr<Element> DomFactory::create_element(Core::ArenaAllocator& arena, std::string_view tag_name) {
     return Element::create(arena, tag_name);
 }
 
-ArenaPtr<Text> DomFactory::create_text(ArenaAllocator& arena, std::string_view text) {
+Core::ArenaPtr<Text> DomFactory::create_text(Core::ArenaAllocator& arena, std::string_view text) {
     return Text::create(arena, text);
 }
 

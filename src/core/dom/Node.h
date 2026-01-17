@@ -23,13 +23,13 @@ public:
     virtual ~Node() = default;
 
     template <NodeLike ChildT>
-    void append_child(ArenaPtr<ChildT> child) {
+    void append_child(Core::ArenaPtr<ChildT> child) {
         child->m_parent = this;
         Node* raw = child.release();
-        m_children.emplace_back(ArenaPtr<Node>(raw));
+        m_children.emplace_back(Core::ArenaPtr<Node>(raw));
     }
 
-    const std::vector<ArenaPtr<Node>>& get_children() const { return m_children; }
+    const std::vector<Core::ArenaPtr<Node>>& get_children() const { return m_children; }
     Node* get_parent() { return m_parent; }
     const Node* get_parent() const { return m_parent; }
 
@@ -40,7 +40,7 @@ protected:
     Node() = default;
 
     Node* m_parent = nullptr;
-    std::vector<ArenaPtr<Node>> m_children;
+    std::vector<Core::ArenaPtr<Node>> m_children;
     std::shared_ptr<Css::ComputedStyle> m_computed_style;
 };
 

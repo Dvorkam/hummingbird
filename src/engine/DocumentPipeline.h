@@ -79,8 +79,8 @@ private:
     Layout::TreeBuilder tree_builder_;
     Renderer::Painter painter_;
 
-    ArenaAllocator dom_arena_{2 * 1024 * 1024};
-    ArenaPtr<DOM::Node> dom_tree_;
+    Core::ArenaAllocator dom_arena_{2 * 1024 * 1024};
+    Core::ArenaPtr<DOM::Node> dom_tree_;
     std::unique_ptr<Layout::RenderObject> render_tree_;
 
     std::vector<std::string> style_blocks_;
