@@ -212,7 +212,7 @@ jobs:
           EOF
 
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          cp assets/logos/hummingbird-256.png AppDir/usr/share/icons/hicolor/256x256/apps/hummingbird.png
+          cp assets/icons/hummingbird-256.png AppDir/usr/share/icons/hicolor/256x256/apps/hummingbird.png
           cp AppDir/usr/share/icons/hicolor/256x256/apps/hummingbird.png AppDir/hummingbird.png
 
           curl -L -o linuxdeploy-x86_64.AppImage \
