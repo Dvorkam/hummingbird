@@ -19,7 +19,6 @@ private:
     bool eof() const;
     void skip_whitespace();
 
-    Token emit_error(std::string_view message);
     Token emit_character_data();
     Token emit_tag(bool is_end_tag, bool self_closing, std::string_view tag_name, std::vector<Attribute> attrs);
     void parse_tag_name(std::string_view& out_name);

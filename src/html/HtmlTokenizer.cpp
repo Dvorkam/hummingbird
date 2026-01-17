@@ -28,10 +28,6 @@ void Tokenizer::skip_whitespace() {
     }
 }
 
-Token Tokenizer::emit_error(std::string_view message) {
-    return Token{TokenType::Error, ErrorToken{message}};
-}
-
 void Tokenizer::parse_tag_name(std::string_view& out_name) {
     size_t start = m_pos;
     while (!eof() &&
