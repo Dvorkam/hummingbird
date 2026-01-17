@@ -20,6 +20,9 @@ void measure_inline_participants(IGraphicsContext& context, std::vector<std::uni
                                  size_t& i);
 void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
                          std::vector<InlineRun>& runs);
+InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
+                                       size_t& i, float start_x, float base_x, float base_y, float content_width,
+                                       Css::ComputedStyle::TextAlign align, float wrap_width, bool capture_fragments);
 void align_inline_lines(std::vector<InlineLine>& lines, float available_width, Css::ComputedStyle::TextAlign align);
 InlineLayoutResult apply_inline_fragments(const std::vector<InlineLine>& lines, const std::vector<InlineRun>& runs,
                                           float base_x, float base_y, bool capture_fragments);

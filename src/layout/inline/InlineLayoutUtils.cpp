@@ -2,6 +2,8 @@
 
 #include <algorithm>
 
+#include "layout/InlineLineBuilder.h"
+
 namespace Hummingbird::Layout::InlineLayout {
 
 void measure_inline_participants(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
@@ -25,6 +27,44 @@ void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<
         inl.get().collect_inline_runs(context, runs);
         ++i;
     }
+}
+
+InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
+                                       size_t& i, float start_x, float base_x, float base_y, float content_width,
+                                       Css::ComputedStyle::TextAlign align, float wrap_width, bool capture_fragments) {
+    InlineLayoutResult result;
+    InlineLineBuilder builder;
+    std::vector<InlineRun> runs;
+    size_t group_start = i;
+    size_t group_end = i;
+
+    measure_inline_participants(context, children, group_end);
+    i = group_start;
+    collect_inline_runs(context, children, i, runs);
+
+    if (runs.empty()) {
+        return result;
+    }
+
+    for (const auto& run : runs) {
+        builder.add_run(run);
+    }
+
+    auto lines = builder.layout(wrap_width, start_x);
+    if (lines.empty()) {
+        return result;
+    }
+
+    align_inline_lines(lines, content_width, align);
+    result = apply_inline_fragments(lines, runs, base_x, base_y, capture_fragments);
+
+    for (size_t j = group_start; j < group_end; ++j) {
+        if (auto inl = children[j]->Inline()) {
+            inl.get().finalize_inline_layout();
+        }
+    }
+
+    return result;
 }
 
 void align_inline_lines(std::vector<InlineLine>& lines, float available_width, Css::ComputedStyle::TextAlign align) {

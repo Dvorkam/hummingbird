@@ -7,7 +7,6 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
-#include "layout/InlineLineBuilder.h"
 #include "layout/LayoutMetricsUtils.h"
 
 namespace Hummingbird::Layout {

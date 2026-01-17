@@ -199,6 +199,12 @@
 - [ ] Execute one slice at a time with a clean commit.
 - [ ] Run format/build/tests per slice (per AGENTS.override.md).
 - [ ] Record any follow-up tasks in TODOs.
+- [x] Phase 3 Slice: Layout (inline layout helpers).
+- [ ] Phase 3 Slice: Style (selector matcher + parse helpers).
+- [ ] Phase 3 Slice: Core (attribute casing policy).
+- [ ] Phase 3 Slice: Renderer (paint flow naming/culling helpers).
+- [ ] Phase 3 Slice: Platform (SDL input translation naming/unused).
+- [ ] Phase 3 Slice: Tests (harness cleanup + unused helpers).
 
 - [x] **Phase 3 Slice: Engine (ResourceLoader batch handling)**
 - **Goal:** Make resource batch processing easier to follow without changing behavior.
@@ -474,3 +480,8 @@
 * **I want** a centralized registry for supported HTML tags + CSS properties (and deduped logs),
 * **So that** we avoid drift and warning spam.
 * **Acceptance:** one table drives “known/supported”; warnings are once-per-(tag/property) per document.
+- [x] **Phase 3 Slice: Layout (inline layout helpers)**
+- **Goal:** Remove duplicated inline group layout code in BlockBox/RenderListItem.
+- **Scope:** `InlineLayoutUtils` + call sites in `BlockBox` and `RenderListItem`.
+- **Acceptance:** Same inline flow/layout outputs; group finalize behavior unchanged.
+- **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).

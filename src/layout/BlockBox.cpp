@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include "layout/InlineLineBuilder.h"
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/inline/InlineLayoutUtils.h"
 
@@ -113,37 +112,11 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
 void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
                          const LayoutMetrics& metrics, LineCursor& cursor, Css::ComputedStyle::TextAlign text_align,
                          float wrap_width) {
-    InlineLineBuilder builder;
-    builder.reset();
-    std::vector<InlineRun> runs;
-    size_t group_start = i;
-    size_t group_end = i;
-
-    InlineLayout::measure_inline_participants(context, children, group_end);
-    i = group_start;
-    InlineLayout::collect_inline_runs(context, children, i, runs);
-
-    if (runs.empty()) {
-        return;
-    }
-
-    for (const auto& run : runs) {
-        builder.add_run(run);
-    }
-
     float start_x = cursor.x - metrics.inset_left;
-    auto lines = builder.layout(wrap_width, start_x);
-    InlineLayout::align_inline_lines(lines, metrics.content_width, text_align);
     float base_x = metrics.inset_left;
     float base_y = cursor.y;
-
-    InlineLayout::InlineLayoutResult layout = InlineLayout::apply_inline_fragments(lines, runs, base_x, base_y, false);
-
-    for (size_t j = group_start; j < group_end; ++j) {
-        if (auto inl = children[j]->Inline()) {
-            inl.get().finalize_inline_layout();
-        }
-    }
+    InlineLayout::InlineLayoutResult layout = InlineLayout::layout_inline_group(
+        context, children, i, start_x, base_x, base_y, metrics.content_width, text_align, wrap_width, false);
 
     InlineLayout::update_cursor_for_inline(cursor.x, cursor.y, cursor.line_height, base_x, base_y, layout);
 }
