@@ -239,13 +239,13 @@
 - **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
 
 - [ ] **Phase 4: Cleanup + Verification**
-- [ ] Remove dead code identified in Phase 2.
+- [x] Remove dead code identified in Phase 2.
 - [ ] Consolidate utilities and update include paths.
 - [x] Consolidate whitespace trimming helpers (Url parsing + legacy attribute parsing) into a single utility.
 - [x] Consolidate duplicated `compute_metrics` helpers across BlockBox/InlineBox/RenderListItem (reuse LayoutMetricsUtils).
 - [x] Extract TreeBuilder tag→render mapping table to reduce branching and keep tag routing centralized.
-- [ ] Evaluate `tests/CMakeLists.txt` linking App directly; consider a lightweight test-support target.
-- [ ] Audit tests for unused includes and remove leftovers.
+- [x] Evaluate `tests/CMakeLists.txt` linking App directly; consider a lightweight test-support target.
+- [x] Audit tests for unused includes and remove leftovers.
 - [ ] Audit src for unused includes and remove leftovers.
 - [x] Move `TestGraphicsContext` into `Hummingbird::Test` namespace and update test call sites.
 - [ ] Track `TextBox` TODO: choose real monospace fonts when available (src/layout/TextBox.cpp).

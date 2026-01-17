@@ -1,9 +1,15 @@
 # Find the GTest package
 find_package(GTest REQUIRED)
 
-# Create the test executable
+# Shared include paths for test targets.
+add_library(HummingbirdTestSupport INTERFACE)
+target_include_directories(HummingbirdTestSupport INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+    ${CMAKE_CURRENT_SOURCE_DIR}
+)
+
+# Create the core test executable (no App dependency).
 add_executable(HummingbirdTests
-    app/SmokeMain.test.cpp
     test_utils/HeadlessTabHarness.h
     test_utils/TestFakes.h
     test_utils/TestGraphicsContext.h
@@ -38,7 +44,7 @@ add_executable(HummingbirdTests
 # Link the test executable against GTest and our libraries
 target_link_libraries(HummingbirdTests PRIVATE
     GTest::gtest_main
-    App
+    HummingbirdTestSupport
     Core
     Html
     Layout
@@ -48,14 +54,21 @@ target_link_libraries(HummingbirdTests PRIVATE
     Platform
 )
 
-# Add the root src directory to the include path so tests can find headers
-target_include_directories(HummingbirdTests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/../src
-    ${CMAKE_CURRENT_SOURCE_DIR}
+# App-only smoke test target.
+add_executable(HummingbirdAppTests
+    app/SmokeMain.test.cpp
+)
+target_link_libraries(HummingbirdAppTests PRIVATE
+    GTest::gtest_main
+    HummingbirdTestSupport
+    App
 )
 
 # Add the test executable to the list of tests
 include(GoogleTest)
 gtest_discover_tests(HummingbirdTests
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+gtest_discover_tests(HummingbirdAppTests
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
