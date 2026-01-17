@@ -8,6 +8,7 @@
 namespace Hummingbird::Renderer {
 
 namespace {
+constexpr Color kOutlineColor{255, 0, 0, 100};
 
 void draw_outline(IGraphicsContext& context, const Layout::Rect& rect, const Color& color) {
     constexpr float kThickness = 1.0f;
@@ -21,18 +22,22 @@ void draw_outline(IGraphicsContext& context, const Layout::Rect& rect, const Col
     context.fill_rect(right, color);
 }
 
-void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, const Layout::Point& offset,
-                const Layout::Rect* viewport, bool debug_outlines) {
-    const Color outline{255, 0, 0, 100};
+struct PaintContext {
+    Layout::Point offset;
+    const Layout::Rect* viewport = nullptr;
+    bool debug_outlines = false;
+};
+
+void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, const PaintContext& paint_context) {
     Layout::Traversal::traverse_render_tree(
-        node, offset,
+        node, paint_context.offset,
         [&](const Layout::RenderObject& current, const Layout::Rect& absolute, const Layout::Point& local_offset) {
-            if (viewport && !Layout::rect_intersects(absolute, *viewport)) {
+            if (paint_context.viewport && !Layout::rect_intersects(absolute, *paint_context.viewport)) {
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
             current.paint_self(context, local_offset);
-            if (debug_outlines) {
-                draw_outline(context, absolute, outline);
+            if (paint_context.debug_outlines) {
+                draw_outline(context, absolute, kOutlineColor);
             }
             return Layout::Traversal::TraverseAction::Continue;
         });
@@ -43,10 +48,12 @@ void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, con
 void Painter::paint(const Layout::RenderObject& root, IGraphicsContext& context, const PaintOptions& options) {
     context.set_viewport(options.viewport);
     // Start the recursive paint process from the root with scroll offset applied.
-    Layout::Point offset{0, -options.scroll_y};
-    const Layout::Rect* viewport =
+    PaintContext paint_context;
+    paint_context.offset = {0, -options.scroll_y};
+    paint_context.viewport =
         (options.viewport.width > 0.0f && options.viewport.height > 0.0f) ? &options.viewport : nullptr;
-    paint_tree(root, context, offset, viewport, options.debug_outlines);
+    paint_context.debug_outlines = options.debug_outlines;
+    paint_tree(root, context, paint_context);
 }
 
 }  // namespace Hummingbird::Renderer

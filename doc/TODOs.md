@@ -210,7 +210,7 @@
 - **Scope:** `DOM::Element` attribute storage + usage (parser + lookups).
 - **Acceptance:** Attribute lookups remain correct; no mixed-case regressions in tests.
 - **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
-- [ ] Phase 3 Slice: Renderer (paint flow naming/culling helpers).
+- [x] Phase 3 Slice: Renderer (paint flow naming/culling helpers).
 - **Goal:** Clarify paint flow and keep culling behavior explicit.
 - **Scope:** `Painter` flow helpers and related names.
 - **Acceptance:** Paint output and debug outlines unchanged.
