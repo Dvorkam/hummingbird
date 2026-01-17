@@ -34,9 +34,9 @@ SDL_Surface* load_window_icon_surface() {
     }
 
     static const char* kCandidates[] = {
-        "assets/logos/hummingbird-32.png",
-        "assets/logos/hummingbird-16.png",
-        "assets/logos/hummingbird-256.png",
+        "assets/icons/hummingbird-32.png",
+        "assets/icons/hummingbird-16.png",
+        "assets/icons/hummingbird-256.png",
     };
 
     for (const char* candidate : kCandidates) {
@@ -47,7 +47,7 @@ SDL_Surface* load_window_icon_surface() {
         }
     }
 
-    HB_LOG_WARN("[platform] Failed to load window icon from assets/logos");
+    HB_LOG_WARN("[platform] Failed to load window icon from assets/icons");
     return nullptr;
 }
 }  // namespace
