@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
-#include <iterator>
 #include <string>
 
 #include "core/platform_api/ResourceProviderFactory.h"

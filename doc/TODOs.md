@@ -195,10 +195,10 @@
 - **Acceptance:** either normalize keys on `set_attribute` or add a case-insensitive lookup helper, with a test.
 
 - [ ] **Phase 3: Refactor Slices**
-- [ ] Write a short refactor brief for each slice (goal, scope, acceptance, test impact).
-- [ ] Execute one slice at a time with a clean commit.
-- [ ] Run format/build/tests per slice (per AGENTS.override.md).
-- [ ] Record any follow-up tasks in TODOs.
+- [x] Write a short refactor brief for each slice (goal, scope, acceptance, test impact).
+- [x] Execute one slice at a time with a clean commit.
+- [x] Run format/build/tests per slice (per AGENTS.override.md).
+- [x] Record any follow-up tasks in TODOs.
 - [x] Phase 3 Slice: Layout (inline layout helpers).
 - [x] Phase 3 Slice: Style (selector matcher + parse helpers).
 - **Goal:** Consolidate selector matching helpers and make match flow easier to follow.
