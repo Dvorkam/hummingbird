@@ -30,8 +30,7 @@ void collect_inline_runs(IGraphicsContext& context, std::vector<std::unique_ptr<
 }
 
 InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
-                                       size_t& i, float start_x, float base_x, float base_y, float content_width,
-                                       Css::ComputedStyle::TextAlign align, float wrap_width, bool capture_fragments) {
+                                       size_t& i, const GroupLayoutContext& layout) {
     InlineLayoutResult result;
     InlineLineBuilder builder;
     std::vector<InlineRun> runs;
@@ -50,13 +49,13 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
         builder.add_run(run);
     }
 
-    auto lines = builder.layout(wrap_width, start_x);
+    auto lines = builder.layout(layout.wrap_width, layout.start_x);
     if (lines.empty()) {
         return result;
     }
 
-    align_inline_lines(lines, content_width, align);
-    result = apply_inline_fragments(lines, runs, base_x, base_y, capture_fragments);
+    align_inline_lines(lines, layout.content_width, layout.align);
+    result = apply_inline_fragments(lines, runs, layout.base_x, layout.base_y, layout.capture_fragments);
 
     for (size_t j = group_start; j < group_end; ++j) {
         if (auto inl = children[j]->Inline()) {

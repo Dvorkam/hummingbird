@@ -112,13 +112,18 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
 void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
                          const LayoutMetrics& metrics, LineCursor& cursor, Css::ComputedStyle::TextAlign text_align,
                          float wrap_width) {
-    float start_x = cursor.x - metrics.inset_left;
-    float base_x = metrics.inset_left;
-    float base_y = cursor.y;
-    InlineLayout::InlineLayoutResult layout = InlineLayout::layout_inline_group(
-        context, children, i, start_x, base_x, base_y, metrics.content_width, text_align, wrap_width, false);
+    InlineLayout::GroupLayoutContext layout_context;
+    layout_context.start_x = cursor.x - metrics.inset_left;
+    layout_context.base_x = metrics.inset_left;
+    layout_context.base_y = cursor.y;
+    layout_context.content_width = metrics.content_width;
+    layout_context.align = text_align;
+    layout_context.wrap_width = wrap_width;
+    layout_context.capture_fragments = false;
+    InlineLayout::InlineLayoutResult layout = InlineLayout::layout_inline_group(context, children, i, layout_context);
 
-    InlineLayout::update_cursor_for_inline(cursor.x, cursor.y, cursor.line_height, base_x, base_y, layout);
+    InlineLayout::update_cursor_for_inline(cursor.x, cursor.y, cursor.line_height, layout_context.base_x,
+                                           layout_context.base_y, layout);
 }
 }  // namespace
 

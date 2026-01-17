@@ -201,10 +201,30 @@
 - [ ] Record any follow-up tasks in TODOs.
 - [x] Phase 3 Slice: Layout (inline layout helpers).
 - [ ] Phase 3 Slice: Style (selector matcher + parse helpers).
+- **Goal:** Consolidate selector matching helpers and make match flow easier to follow.
+- **Scope:** `SelectorMatcher` helpers and nearby parser utilities.
+- **Acceptance:** Same selector results; existing selector tests pass unchanged.
+- **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
 - [ ] Phase 3 Slice: Core (attribute casing policy).
+- **Goal:** Choose a single attribute casing strategy and remove redundant paths.
+- **Scope:** `DOM::Element` attribute storage + usage (parser + lookups).
+- **Acceptance:** Attribute lookups remain correct; no mixed-case regressions in tests.
+- **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
 - [ ] Phase 3 Slice: Renderer (paint flow naming/culling helpers).
+- **Goal:** Clarify paint flow and keep culling behavior explicit.
+- **Scope:** `Painter` flow helpers and related names.
+- **Acceptance:** Paint output and debug outlines unchanged.
+- **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
 - [ ] Phase 3 Slice: Platform (SDL input translation naming/unused).
+- **Goal:** Make translation entrypoints obvious and remove dead helpers.
+- **Scope:** `SDLInputTranslation` header/impl and call sites.
+- **Acceptance:** Input behavior unchanged; unused helpers removed if any.
+- **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
 - [ ] Phase 3 Slice: Tests (harness cleanup + unused helpers).
+- **Goal:** Keep test utilities minimal and consistent.
+- **Scope:** `tests/test_utils` + any lingering per-test helpers.
+- **Acceptance:** Tests still compile/run; helpers not duplicated.
+- **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
 
 - [x] **Phase 3 Slice: Engine (ResourceLoader batch handling)**
 - **Goal:** Make resource batch processing easier to follow without changing behavior.
