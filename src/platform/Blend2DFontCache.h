@@ -1,7 +1,6 @@
 #pragma once
 
-#include <blend2d/font.h>
-#include <blend2d/fontface.h>
+#include <blend2d.h>
 
 #include <mutex>
 #include <string>
@@ -15,9 +14,9 @@ struct FontSetup {
     BLFontMetrics metrics;
 };
 
-class FontCache {
+class Blend2DFontCache {
 public:
-    static FontCache& instance();
+    static Blend2DFontCache& instance();
 
     const FontSetup* get_or_load(const std::string& font_path, float font_size, bool include_error);
     void set_max_entries(size_t max_entries);
@@ -39,7 +38,7 @@ private:
         size_t last_used = 0;
     };
 
-    FontCache() = default;
+    Blend2DFontCache() = default;
 
     bool load_font_setup(const std::string& font_path, float font_size, FontSetup& out, bool include_error);
     void evict_if_needed();

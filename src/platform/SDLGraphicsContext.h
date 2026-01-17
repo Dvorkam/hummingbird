@@ -23,6 +23,8 @@ public:
     void draw_image(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest) override;
     TextMetrics measure_text(const std::string& text, const TextStyle& style) override;
     void draw_text(const std::string& text, float x, float y, const TextStyle& style) override;
+    void draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
+                                const TextMetrics& metrics) override;
 
 private:
     SDL_Renderer* m_renderer = nullptr;

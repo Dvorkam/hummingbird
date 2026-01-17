@@ -1,4 +1,4 @@
-#include "platform/FontCache.h"
+#include "platform/Blend2DFontCache.h"
 
 #include <bit>
 #include <cstdint>
@@ -9,19 +9,19 @@
 
 namespace Hummingbird::Platform {
 
-FontCache& FontCache::instance() {
-    static FontCache cache;
+Blend2DFontCache& Blend2DFontCache::instance() {
+    static Blend2DFontCache cache;
     return cache;
 }
 
-size_t FontCache::FontKeyHash::operator()(const FontKey& key) const {
+size_t Blend2DFontCache::FontKeyHash::operator()(const FontKey& key) const {
     const size_t path_hash = std::hash<std::string>{}(key.path);
     const auto size_bits = std::bit_cast<std::uint32_t>(key.size);
     const size_t size_hash = std::hash<std::uint32_t>{}(size_bits);
     return path_hash ^ (size_hash + 0x9e3779b97f4a7c15ULL + (path_hash << 6) + (path_hash >> 2));
 }
 
-const FontSetup* FontCache::get_or_load(const std::string& font_path, float font_size, bool include_error) {
+const FontSetup* Blend2DFontCache::get_or_load(const std::string& font_path, float font_size, bool include_error) {
     std::lock_guard<std::mutex> lock(mutex_);
     FontKey key{font_path, font_size};
     auto it = entries_.find(key);
@@ -43,13 +43,14 @@ const FontSetup* FontCache::get_or_load(const std::string& font_path, float font
     return &inserted->second.setup;
 }
 
-void FontCache::set_max_entries(size_t max_entries) {
+void Blend2DFontCache::set_max_entries(size_t max_entries) {
     std::lock_guard<std::mutex> lock(mutex_);
     max_entries_ = max_entries;
     evict_if_needed();
 }
 
-bool FontCache::load_font_setup(const std::string& font_path, float font_size, FontSetup& out, bool include_error) {
+bool Blend2DFontCache::load_font_setup(const std::string& font_path, float font_size, FontSetup& out,
+                                       bool include_error) {
     BLResult err = out.face.createFromFile(font_path.c_str());
     if (err != BL_SUCCESS) {
         if (include_error) {
@@ -65,7 +66,7 @@ bool FontCache::load_font_setup(const std::string& font_path, float font_size, F
     return true;
 }
 
-void FontCache::evict_if_needed() {
+void Blend2DFontCache::evict_if_needed() {
     while (entries_.size() > max_entries_) {
         auto victim = entries_.end();
         for (auto it = entries_.begin(); it != entries_.end(); ++it) {

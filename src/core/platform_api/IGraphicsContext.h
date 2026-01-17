@@ -41,6 +41,10 @@ public:
     virtual void draw_image(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest) = 0;
     virtual TextMetrics measure_text(const std::string& text, const TextStyle& style) = 0;
     virtual void draw_text(const std::string& text, float x, float y, const TextStyle& style) = 0;
+    virtual void draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
+                                        const TextMetrics& metrics) {
+        draw_text(text, x, y, style);
+    }
 };
 
 }  // namespace Hummingbird

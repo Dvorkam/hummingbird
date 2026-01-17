@@ -25,7 +25,7 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
-#include "platform/FontCache.h"
+#include "platform/Blend2DFontCache.h"
 
 namespace Hummingbird::Platform {
 
@@ -197,8 +197,16 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
         return;
     }
 
-    // Reuse the layout metrics logic to avoid duplicating measurement behavior.
     TextMetrics metrics = measure_text(text, style);
+    draw_text_with_metrics(text, x, y, style, metrics);
+}
+
+void SDLGraphicsContext::draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
+                                                const TextMetrics& metrics) {
+    if (!m_renderer) {
+        return;
+    }
+
     int target_width = 0;
     int target_height = 0;
     if (!resolve_target_dimensions(metrics, target_width, target_height)) {
@@ -208,7 +216,7 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     if (is_outside_viewport(m_viewport, x, y, target_width, target_height)) return;
 
     const std::string& resolved_font = Hummingbird::Core::Utils::resolve_asset_path_string(style.font_path);
-    const FontSetup* font_setup = FontCache::instance().get_or_load(resolved_font, style.font_size, false);
+    const FontSetup* font_setup = Blend2DFontCache::instance().get_or_load(resolved_font, style.font_size, false);
     if (!font_setup) return;
 
     SDL_Texture* texture = build_text_texture(m_renderer, text, style, *font_setup, target_width, target_height);
@@ -234,7 +242,7 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
     }
 
     const std::string& resolved_font = Hummingbird::Core::Utils::resolve_asset_path_string(style.font_path);
-    const FontSetup* font_setup = FontCache::instance().get_or_load(resolved_font, style.font_size, true);
+    const FontSetup* font_setup = Blend2DFontCache::instance().get_or_load(resolved_font, style.font_size, true);
     if (!font_setup) return {0, 0};
 
     BLGlyphBuffer glyphBuffer;

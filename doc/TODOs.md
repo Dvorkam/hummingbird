@@ -43,7 +43,7 @@ Note: Engine/App split work remains tracked in `doc/milestones/milestone3.md` (E
 - [ ] **[M4 P2] T-SUPPORT-REG-1: Supported Feature Registry + Deduped Warnings**; Goal: centralize supported tags/properties and dedupe warnings; Scope: Html/Css support tables + logging; Acceptance: warnings are once-per-(tag/property) per doc; Tests: parser tests.
 - [ ] **[M4 P2] T-PERF-1: Retained Display List (Paint Cache)**; Goal: avoid rebuilding paint commands for static content; Scope: renderer/engine; Acceptance: unchanged output with fewer rebuilds; Tests: renderer tests.
 - [x] **[M4 P2] T-RENDER-1: Font Setup Cache**; Goal: cache Blend2D font setup per (path,size); Scope: SDLGraphicsContext; Acceptance: draw/measure no longer reloads fonts per call; Tests: renderer tests.
-- [ ] **[M4 P2] T-RENDER-2: Premeasured Text Draw**; Goal: avoid re-measuring text inside draw calls; Scope: TextBox + SDLGraphicsContext; Acceptance: draw path uses precomputed metrics; Tests: renderer tests.
+- [x] **[M4 P2] T-RENDER-2: Premeasured Text Draw**; Goal: avoid re-measuring text inside draw calls; Scope: TextBox + SDLGraphicsContext; Acceptance: draw path uses precomputed metrics; Tests: renderer tests.
 - [ ] **[M4 P2] T-RENDER-3: Text Texture Cache (LRU)**; Goal: reuse SDL textures for repeated strings; Scope: SDLGraphicsContext; Acceptance: text-heavy pages reuse cached textures; Tests: renderer perf tests.
 - [ ] **[M4 P2] T-RENDER-4: Image Texture Cache (LRU)**; Goal: reuse SDL textures for repeated images; Scope: SDLGraphicsContext; Acceptance: repeated image paints reuse textures; Tests: renderer perf tests.
 
