@@ -103,6 +103,11 @@ The smoke test that opens a window is guarded; enable it with:
 HB_RUN_SMOKE_TEST=1 ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
 ```
 
+## Test coverage
+
+- CI: Windows + Ubuntu (unit tests + smoke test via GitHub Actions).
+- Manual visual checks: Fedora (local run).
+
 ## TLS troubleshooting (debug only)
 
 If HTTPS fails due to missing or unusual CA bundles, libcurl will fall back to stub
