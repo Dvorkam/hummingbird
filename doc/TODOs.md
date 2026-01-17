@@ -242,9 +242,14 @@
 - [ ] Remove dead code identified in Phase 2.
 - [ ] Consolidate utilities and update include paths.
 - [ ] Consolidate whitespace trimming helpers (Url parsing + legacy attribute parsing) into a single utility.
+- [ ] Consolidate duplicated `compute_metrics` helpers across BlockBox/InlineBox/RenderListItem (reuse LayoutMetricsUtils).
+- [ ] Extract TreeBuilder tag→render mapping table to reduce branching and keep tag routing centralized.
+- [ ] Evaluate `tests/CMakeLists.txt` linking App directly; consider a lightweight test-support target.
 - [ ] Audit tests for unused includes and remove leftovers.
+- [ ] Audit src for unused includes and remove leftovers.
 - [ ] Move `TestGraphicsContext` into `Hummingbird::Test` namespace and update test call sites.
 - [ ] Track `TextBox` TODO: choose real monospace fonts when available (src/layout/TextBox.cpp).
+- [ ] Put `NetworkRequestUtils` helpers into a namespace to avoid global scope leaks.
 - [ ] Update docs/README where behavior or structure changed.
 - [ ] Re-run full test suite and note skips.
 
