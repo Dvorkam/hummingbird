@@ -52,3 +52,15 @@ TEST(SelectorMatcherTest, MatchesTagClassId) {
     compound.classes = {"foo", "bar"};
     EXPECT_TRUE(matches_selector(elem.get(), compound));
 }
+
+TEST(SelectorMatcherTest, NormalizesAttributeKeys) {
+    ArenaAllocator arena(1024);
+    auto elem = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    elem->set_attribute("CLASS", "foo");
+    elem->set_attribute("ID", "main");
+
+    Selector selector;
+    selector.classes = {"foo"};
+    selector.id = "main";
+    EXPECT_TRUE(matches_selector(elem.get(), selector));
+}

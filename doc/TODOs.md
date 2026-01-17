@@ -188,7 +188,7 @@
 - **So that** future users don’t assume `exit` callbacks fire after skipping.
 - **Acceptance:** add a traversal test covering `SkipChildren` and `Stop`, and document whether `exit` runs.
 
-- [ ] **Story T-REFAC-3: Attribute Lookup Normalization**
+- [x] **Story T-REFAC-3: Attribute Lookup Normalization**
 - **As a** maintainer,
 - **I want** attribute lookup to tolerate case differences,
 - **So that** mixed-case attribute keys don’t silently miss.
@@ -205,7 +205,7 @@
 - **Scope:** `SelectorMatcher` helpers and nearby parser utilities.
 - **Acceptance:** Same selector results; existing selector tests pass unchanged.
 - **Tests:** `ctest --preset user-ninja-multi-vcpkglt` (SmokeMainTest skipped).
-- [ ] Phase 3 Slice: Core (attribute casing policy).
+- [x] Phase 3 Slice: Core (attribute casing policy).
 - **Goal:** Choose a single attribute casing strategy and remove redundant paths.
 - **Scope:** `DOM::Element` attribute storage + usage (parser + lookups).
 - **Acceptance:** Attribute lookups remain correct; no mixed-case regressions in tests.

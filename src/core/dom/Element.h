@@ -5,6 +5,8 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "core/utils/StringUtils.h"
+
 #include "core/dom/Node.h"
 
 namespace Hummingbird::DOM {
@@ -43,7 +45,7 @@ public:
     }
 
     void set_attribute(std::string_view key, std::string_view value) {
-        m_attributes[std::string(key)] = std::string(value);
+        m_attributes[Core::Utils::to_lower(key)] = std::string(value);
     }
 
 private:

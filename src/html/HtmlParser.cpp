@@ -126,7 +126,7 @@ DOM::Node* Parser::select_parent(const ParseState& state, std::string_view tag_n
 
 void Parser::apply_attributes(DOM::Element& element, const StartTagToken& tag_data) {
     for (const auto& attr : tag_data.attributes) {
-        element.set_attribute(Core::Utils::to_lower(attr.name), attr.value);
+        element.set_attribute(attr.name, attr.value);
     }
 }
 

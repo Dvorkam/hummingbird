@@ -9,7 +9,6 @@
 #include <string_view>
 
 #include "core/dom/Element.h"
-#include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/LayoutMetricsUtils.h"
 
@@ -36,11 +35,6 @@ std::string_view trim(std::string_view view) {
 std::optional<std::string_view> find_attribute_value(const DOM::Element& element, std::string_view name) {
     if (const auto* value = element.find_attribute(name)) {
         return std::string_view(*value);
-    }
-    for (const auto& [key, value] : element.get_attributes()) {
-        if (Core::Utils::iequals(key, name)) {
-            return std::string_view(value);
-        }
     }
     return std::nullopt;
 }
