@@ -40,7 +40,7 @@ TEST(SmokeMainTest, StartsAndTicks) {
     auto gfx = window->get_graphics_context();
     ASSERT_NE(gfx, nullptr);
 
-    BrowserApp app(std::move(window));
+    Hummingbird::App::BrowserApp app(std::move(window));
     app.start();
 
     using clock = std::chrono::steady_clock;

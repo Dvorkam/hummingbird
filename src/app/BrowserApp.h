@@ -8,6 +8,8 @@
 #include "core/platform_api/InputEvent.h"
 #include "engine/Tab.h"
 
+namespace Hummingbird::App {
+
 class BrowserApp {
 public:
     explicit BrowserApp(std::unique_ptr<IWindow> window);
@@ -52,3 +54,5 @@ private:
     int max_events_per_tick_ = 200;
     int wait_timeout_ms_ = 16;
 };
+
+}  // namespace Hummingbird::App

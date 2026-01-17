@@ -8,6 +8,8 @@
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/utils/Log.h"
 
+namespace Hummingbird::App {
+
 namespace {
 // You can keep constants here to avoid re-allocating per frame
 constexpr Color kClearColor{255, 255, 255, 255};
@@ -208,3 +210,5 @@ void BrowserApp::render_if_needed() {
     graphics_->present();
     needs_repaint_ = false;
 }
+
+}  // namespace Hummingbird::App

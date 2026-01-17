@@ -8,6 +8,8 @@
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 
+namespace Hummingbird::App {
+
 class UrlBar {
 public:
     UrlBar();
@@ -48,3 +50,5 @@ private:
     bool active_ = true;
     int height_ = 32;
 };
+
+}  // namespace Hummingbird::App

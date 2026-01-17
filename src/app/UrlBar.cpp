@@ -6,6 +6,8 @@
 #include "core/utils/Log.h"
 #include "layout/Geometry.h"
 
+namespace Hummingbird::App {
+
 namespace {
 constexpr Color kOverlayBg{220, 220, 220, 255};
 constexpr Color kOverlayText{0, 0, 0, 255};
@@ -208,3 +210,5 @@ std::string::size_type UrlBar::next_codepoint(std::string_view text, std::string
     }
     return i;
 }
+
+}  // namespace Hummingbird::App

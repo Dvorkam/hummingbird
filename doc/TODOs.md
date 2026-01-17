@@ -255,7 +255,7 @@
 - [ ] Move `core/platform_api` types (`InputEvent`, `IGraphicsContext`, `INetwork`, `IWindow`, etc.) into `Hummingbird` namespace to match the coding constitution.
 - [ ] Move platform API factory functions (`create_window`, `create_network`, `create_resource_provider`, `create_image_decoder`) into the same namespace as their interfaces.
 - [x] Move `core/utils/AssetPath` APIs into `Hummingbird::Core::Utils` (adjust call sites for consistency with other core utils).
-- [ ] Move App layer classes (`BrowserApp`, `UrlBar`) into a `Hummingbird::App` namespace for consistency with the coding constitution.
+- [x] Move App layer classes (`BrowserApp`, `UrlBar`) into a `Hummingbird::App` namespace for consistency with the coding constitution.
 - [ ] Revisit `Engine::ResolvedUrl` to avoid returning `std::string_view` that can point at external buffers (prefer owning string for keys).
 - [ ] Avoid repeated string allocations for ResourceStore key lookups (add a string_view hash/lookup or cache key objects).
 - [ ] Wrap core utils (`Log`, `Assert`, `ArenaAllocator`) in `Hummingbird::Core` namespace to satisfy constitution.

@@ -10,7 +10,7 @@ int main(int /*argc*/, char* /*argv*/[]) {
 
     if (!window->is_open()) return 1;
 
-    BrowserApp app(std::move(window));
+    Hummingbird::App::BrowserApp app(std::move(window));
     app.start();  // initial navigation + initial UI focus
 
     while (app.tick()) {  // one “frame”
