@@ -5,6 +5,8 @@
 #include <string>
 #include <string_view>
 
+namespace Hummingbird {
+
 class IResourceProvider {
 public:
     virtual ~IResourceProvider() = default;
@@ -18,3 +20,5 @@ public:
 };
 
 using ResourceProviderPtr = std::unique_ptr<IResourceProvider>;
+
+}  // namespace Hummingbird

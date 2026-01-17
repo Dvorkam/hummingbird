@@ -33,7 +33,7 @@ TEST(EngineTabTest, NavigateAndBuildsDocument) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
@@ -61,7 +61,7 @@ TEST(EngineTabTest, FetchesLinkedStylesheet) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     auto network = std::make_unique<RoutingNetwork>();
@@ -98,7 +98,7 @@ TEST(EngineTabTest, FetchesLinkedImage) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     auto network = std::make_unique<RoutingNetwork>();
@@ -141,7 +141,7 @@ TEST(EngineTabTest, RebuildsWhenStylesheetArrives) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     auto network = std::make_unique<DeferredNetwork>();
@@ -176,7 +176,7 @@ TEST(EngineTabTest, HitTestResolvesLink) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
@@ -202,7 +202,7 @@ TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     const std::string effective_url = "https://www.acme.com/software/thttpd/";
@@ -229,7 +229,7 @@ TEST(EngineTabTest, ResolvesRelativeResourcesFromNormalizedUrl) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     auto network = std::make_unique<RoutingNetwork>();
@@ -264,7 +264,7 @@ TEST(EngineTabTest, MarksResourcesFailedWhenFetchReturnsEmpty) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     auto network = std::make_unique<RoutingNetwork>();
@@ -305,7 +305,7 @@ TEST(EngineTabTest, ClearsResourcesOnNavigationSwap) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     auto network = std::make_unique<RoutingNetwork>();
@@ -353,7 +353,7 @@ TEST(EngineTabTest, RequestsStylesheetsInDocumentOrder) {
 </html>
 )HTML";
 
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     auto network = std::make_unique<RoutingNetwork>();

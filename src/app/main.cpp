@@ -5,7 +5,7 @@
 #include "core/platform_api/WindowFactory.h"
 
 int main(int /*argc*/, char* /*argv*/[]) {
-    auto window = create_window();
+    auto window = Hummingbird::create_window();
     window->open();
 
     if (!window->is_open()) return 1;

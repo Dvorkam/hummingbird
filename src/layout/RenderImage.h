@@ -7,7 +7,9 @@
 #include "layout/RenderObject.h"
 #include "layout/inline/IInlineParticipant.h"
 
+namespace Hummingbird {
 struct ImageBitmap;
+}
 
 namespace Hummingbird::Layout {
 

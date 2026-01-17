@@ -3,7 +3,9 @@
 #include <cstddef>
 #include <vector>
 
+namespace Hummingbird {
 class IGraphicsContext;
+}
 
 namespace Hummingbird::Layout {
 

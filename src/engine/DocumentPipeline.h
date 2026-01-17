@@ -12,7 +12,9 @@
 #include "renderer/Painter.h"
 #include "style/StyleEngine.h"
 
+namespace Hummingbird {
 class IResourceProvider;
+}
 
 namespace Hummingbird::DOM {
 class Node;

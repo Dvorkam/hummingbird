@@ -14,6 +14,7 @@
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 namespace Attr = Hummingbird::Html::AttributeNames;
+using Hummingbird::IGraphicsContext;
 
 TEST(BlockBoxLayoutTest, SimpleStacking) {
     // Create a DOM tree: <body><p/><p/></body>

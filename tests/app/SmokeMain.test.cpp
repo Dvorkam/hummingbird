@@ -32,7 +32,7 @@ TEST(SmokeMainTest, StartsAndTicks) {
         GTEST_SKIP() << "Set HB_RUN_SMOKE_TEST=1 to enable the smoke test.";
     }
 
-    auto window = create_window();
+    auto window = Hummingbird::create_window();
     ASSERT_NE(window, nullptr);
     window->open();
     ASSERT_TRUE(window->is_open());

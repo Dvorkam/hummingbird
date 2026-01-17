@@ -3,7 +3,7 @@
 #include "core/platform_api/ResourceProviderFactory.h"
 
 TEST(ResourceProviderTest, LoadsTextFromAssets) {
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     auto text = provider->load_text("assets/ua.css");
@@ -12,7 +12,7 @@ TEST(ResourceProviderTest, LoadsTextFromAssets) {
 }
 
 TEST(ResourceProviderTest, LoadsBytesFromAssets) {
-    auto provider = create_resource_provider();
+    auto provider = Hummingbird::create_resource_provider();
     ASSERT_NE(provider, nullptr);
 
     auto bytes = provider->load_bytes("assets/ua.css");

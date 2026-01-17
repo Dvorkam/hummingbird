@@ -10,7 +10,9 @@
 #include "style/ComputedStyle.h"
 
 // Forward declare IGraphicsContext to break dependency cycle
+namespace Hummingbird {
 class IGraphicsContext;
+}
 
 namespace Hummingbird::Layout {
 

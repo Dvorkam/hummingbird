@@ -3,6 +3,8 @@
 #include "platform/CurlNetwork.h"
 #include "platform/StubNetwork.h"
 
+namespace Hummingbird {
+
 NetworkPtr create_network(NetworkBackend backend) {
     switch (backend) {
         case NetworkBackend::Curl:
@@ -12,3 +14,5 @@ NetworkPtr create_network(NetworkBackend backend) {
     }
     return nullptr;
 }
+
+}  // namespace Hummingbird

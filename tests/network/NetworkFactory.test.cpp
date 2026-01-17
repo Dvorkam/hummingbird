@@ -3,11 +3,11 @@
 #include <gtest/gtest.h>
 
 TEST(NetworkFactoryTest, CreatesBackends) {
-    auto curl = create_network(NetworkBackend::Curl);
+    auto curl = Hummingbird::create_network(Hummingbird::NetworkBackend::Curl);
     ASSERT_NE(curl, nullptr);
     curl->shutdown();
 
-    auto stub = create_network(NetworkBackend::Stub);
+    auto stub = Hummingbird::create_network(Hummingbird::NetworkBackend::Stub);
     ASSERT_NE(stub, nullptr);
     stub->shutdown();
 }

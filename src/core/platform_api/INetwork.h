@@ -4,6 +4,8 @@
 #include <memory>
 #include <string>
 
+namespace Hummingbird {
+
 struct NetworkResponse {
     std::string url;
     std::string effective_url;
@@ -25,3 +27,5 @@ public:
 };
 
 using NetworkPtr = std::unique_ptr<INetwork>;
+
+}  // namespace Hummingbird

@@ -4,6 +4,8 @@
 
 #include <future>
 
+using Hummingbird::NetworkResponse;
+
 TEST(StubNetworkTest, ReturnsExampleBody) {
     Hummingbird::Platform::StubNetwork net;
     std::promise<std::string> p;

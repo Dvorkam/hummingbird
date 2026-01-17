@@ -14,6 +14,11 @@
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
 
+using Hummingbird::Color;
+using Hummingbird::IGraphicsContext;
+using Hummingbird::ImageBitmap;
+using Hummingbird::TextMetrics;
+using Hummingbird::TextStyle;
 using Hummingbird::Layout::RenderObject;
 using namespace Hummingbird::Css;
 

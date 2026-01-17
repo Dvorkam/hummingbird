@@ -8,6 +8,8 @@ namespace Hummingbird::Layout {
 struct Rect;
 }
 
+namespace Hummingbird {
+
 struct ImageBitmap;
 
 struct Color {
@@ -40,3 +42,5 @@ public:
     virtual TextMetrics measure_text(const std::string& text, const TextStyle& style) = 0;
     virtual void draw_text(const std::string& text, float x, float y, const TextStyle& style) = 0;
 };
+
+}  // namespace Hummingbird

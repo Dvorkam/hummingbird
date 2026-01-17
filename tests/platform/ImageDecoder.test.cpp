@@ -12,7 +12,7 @@ std::string to_bytes(const unsigned char* data, size_t size) {
 }
 
 void expect_decodes(const unsigned char* data, size_t size) {
-    auto decoder = create_image_decoder();
+    auto decoder = Hummingbird::create_image_decoder();
     ASSERT_NE(decoder, nullptr);
 
     std::string bytes = to_bytes(data, size);
@@ -21,7 +21,7 @@ void expect_decodes(const unsigned char* data, size_t size) {
     EXPECT_EQ(bitmap->width, 1);
     EXPECT_EQ(bitmap->height, 1);
     EXPECT_GT(bitmap->stride, 0);
-    EXPECT_EQ(bitmap->format, PixelFormat::BGRA32);
+    EXPECT_EQ(bitmap->format, Hummingbird::PixelFormat::BGRA32);
     EXPECT_FALSE(bitmap->pixels.empty());
 }
 

@@ -16,6 +16,8 @@ using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
 namespace Attr = Hummingbird::Html::AttributeNames;
+using Hummingbird::ImageBitmap;
+using Hummingbird::PixelFormat;
 
 TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
     ArenaAllocator arena(4096);

@@ -10,6 +10,12 @@
 #include "style/ComputedStyle.h"
 #include "test_utils/TestGraphicsContext.h"
 
+using Hummingbird::Color;
+using Hummingbird::IGraphicsContext;
+using Hummingbird::ImageBitmap;
+using Hummingbird::TextMetrics;
+using Hummingbird::TextStyle;
+
 class FontCaptureContext : public IGraphicsContext {
 public:
     void set_viewport(const Hummingbird::Layout::Rect& /*viewport*/) override {}
