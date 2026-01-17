@@ -15,7 +15,7 @@ UrlBar::UrlBar() : text_("https://example.dev") {
     text_.reserve(2048);
     render_text_.reserve(2049);
 
-    font_path_ = Hummingbird::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
+    font_path_ = Hummingbird::Core::Utils::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
     style_.font_path = font_path_;
     style_.font_size = 16.0f;
     style_.color = kOverlayText;

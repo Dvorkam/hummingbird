@@ -71,7 +71,7 @@ LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedS
 
 const std::string& resolve_default_font_path() {
     static const std::string kDefaultFontPath =
-        Hummingbird::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
+        Hummingbird::Core::Utils::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
     return kDefaultFontPath;
 }
 }  // namespace

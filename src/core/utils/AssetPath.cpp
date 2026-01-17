@@ -6,7 +6,7 @@
 #include <mutex>
 #include <string>
 
-namespace Hummingbird {
+namespace Hummingbird::Core::Utils {
 
 namespace {
 
@@ -82,4 +82,4 @@ const std::string& resolve_asset_path_string(std::string_view relative_path) {
     return resolve_asset_path_cached(relative_path).string;
 }
 
-}  // namespace Hummingbird
+}  // namespace Hummingbird::Core::Utils

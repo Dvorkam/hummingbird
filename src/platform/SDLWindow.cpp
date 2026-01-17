@@ -26,7 +26,7 @@ SDL_Surface* load_window_icon_surface() {
     };
 
     for (const char* candidate : kCandidates) {
-        const std::string& path = Hummingbird::resolve_asset_path_string(candidate);
+        const std::string& path = Hummingbird::Core::Utils::resolve_asset_path_string(candidate);
         SDL_Surface* icon = IMG_Load(path.c_str());
         if (icon) {
             return icon;

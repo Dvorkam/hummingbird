@@ -14,7 +14,7 @@ std::optional<std::string> load_asset_file(std::string_view resource_id, const c
         return std::nullopt;
     }
 
-    auto path = Hummingbird::resolve_asset_path(resource_id);
+    auto path = Hummingbird::Core::Utils::resolve_asset_path(resource_id);
     std::ifstream file(path, std::ios::in | std::ios::binary);
     if (!file) {
         HB_LOG_WARN("[resource] missing " << label << " file: " << path.string());

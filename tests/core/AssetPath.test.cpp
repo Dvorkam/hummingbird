@@ -49,7 +49,7 @@ private:
 }  // namespace
 
 TEST(AssetPathTest, ResolvesFontFromRepoRoot) {
-    auto path = Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
+    auto path = Hummingbird::Core::Utils::resolve_asset_path("assets/fonts/Roboto-Regular.ttf");
     EXPECT_TRUE(std::filesystem::exists(path));
 }
 
@@ -64,7 +64,7 @@ TEST(AssetPathTest, RespectsAssetRootEnv) {
 
     EnvVarGuard guard("HB_ASSET_ROOT", root.string());
 
-    auto resolved = Hummingbird::resolve_asset_path("assets/fonts/Dummy.ttf");
+    auto resolved = Hummingbird::Core::Utils::resolve_asset_path("assets/fonts/Dummy.ttf");
     EXPECT_TRUE(std::filesystem::exists(resolved));
     EXPECT_TRUE(std::filesystem::equivalent(resolved, font_path));
 

@@ -210,7 +210,7 @@ void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, co
     }
     if (is_outside_viewport(m_viewport, x, y, target_width, target_height)) return;
 
-    const std::string& resolved_font = Hummingbird::resolve_asset_path_string(style.font_path);
+    const std::string& resolved_font = Hummingbird::Core::Utils::resolve_asset_path_string(style.font_path);
     FontSetup font_setup;
     if (!load_font_setup(resolved_font, style.font_size, font_setup, false)) {
         return;
@@ -238,7 +238,7 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
         return {0, 0};
     }
 
-    const std::string& resolved_font = Hummingbird::resolve_asset_path_string(style.font_path);
+    const std::string& resolved_font = Hummingbird::Core::Utils::resolve_asset_path_string(style.font_path);
     FontSetup font_setup;
     if (!load_font_setup(resolved_font, style.font_size, font_setup, true)) {
         return {0, 0};
