@@ -200,7 +200,7 @@
 - [ ] Run format/build/tests per slice (per AGENTS.override.md).
 - [ ] Record any follow-up tasks in TODOs.
 - [x] Phase 3 Slice: Layout (inline layout helpers).
-- [ ] Phase 3 Slice: Style (selector matcher + parse helpers).
+- [x] Phase 3 Slice: Style (selector matcher + parse helpers).
 - **Goal:** Consolidate selector matching helpers and make match flow easier to follow.
 - **Scope:** `SelectorMatcher` helpers and nearby parser utilities.
 - **Acceptance:** Same selector results; existing selector tests pass unchanged.
