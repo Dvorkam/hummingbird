@@ -1,7 +1,6 @@
 #include "layout/RenderImage.h"
 
 #include <algorithm>
-#include <cctype>
 #include <cstdlib>
 #include <optional>
 #include <string>
@@ -28,18 +27,6 @@ struct LayoutSize {
     float height;
 };
 
-bool iequals(std::string_view a, std::string_view b) {
-    if (a.size() != b.size()) {
-        return false;
-    }
-    for (size_t i = 0; i < a.size(); ++i) {
-        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
-            return false;
-        }
-    }
-    return true;
-}
-
 std::optional<float> parse_dimension(std::string_view value) {
     if (value.empty()) {
         return std::nullopt;
@@ -57,10 +44,8 @@ std::optional<float> parse_dimension(std::string_view value) {
 }
 
 std::optional<float> find_attribute_dimension(const DOM::Element& element, std::string_view name) {
-    for (const auto& [key, value] : element.get_attributes()) {
-        if (iequals(key, name)) {
-            return parse_dimension(value);
-        }
+    if (const auto* value = element.find_attribute(name)) {
+        return parse_dimension(*value);
     }
     return std::nullopt;
 }
@@ -99,10 +84,8 @@ LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedS
 }
 
 std::string find_attribute_value(const DOM::Element& element, std::string_view name) {
-    for (const auto& [key, value] : element.get_attributes()) {
-        if (iequals(key, name)) {
-            return value;
-        }
+    if (const auto* value = element.find_attribute(name)) {
+        return *value;
     }
     return {};
 }

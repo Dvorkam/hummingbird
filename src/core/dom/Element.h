@@ -5,9 +5,8 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "core/utils/StringUtils.h"
-
 #include "core/dom/Node.h"
+#include "core/utils/StringUtils.h"
 
 namespace Hummingbird::DOM {
 

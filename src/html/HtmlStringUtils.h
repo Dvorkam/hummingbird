@@ -10,7 +10,7 @@ namespace Hummingbird::Html::Utils {
 
 inline std::string_view find_attribute(const StartTagToken& tag_data, std::string_view name) {
     for (const auto& attr : tag_data.attributes) {
-        if (Core::Utils::iequals(attr.name, name)) {
+        if (Core::Utils::equals_ignore_case(attr.name, name)) {
             return attr.value;
         }
     }
