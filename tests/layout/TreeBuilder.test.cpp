@@ -22,7 +22,7 @@ namespace TagNames = Hummingbird::Html::TagNames;
 namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(TreeBuilderTest, SimpleTree) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_root = DomFactory::create_element(arena, TagNames::Html);
     dom_root->append_child(DomFactory::create_element(arena, TagNames::Body));
 
@@ -39,7 +39,7 @@ TEST(TreeBuilderTest, SimpleTree) {
 }
 
 TEST(TreeBuilderTest, CreatesTextBoxForTextNode) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_root = DomFactory::create_element(arena, TagNames::P);
     dom_root->append_child(DomFactory::create_text(arena, "Hello"));
 
@@ -54,7 +54,7 @@ TEST(TreeBuilderTest, CreatesTextBoxForTextNode) {
 }
 
 TEST(TreeBuilderTest, CreatesBreakAndRuleForControlTags) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_root = DomFactory::create_element(arena, TagNames::Body);
     dom_root->append_child(DomFactory::create_element(arena, TagNames::Br));
     dom_root->append_child(DomFactory::create_element(arena, TagNames::Hr));
@@ -69,7 +69,7 @@ TEST(TreeBuilderTest, CreatesBreakAndRuleForControlTags) {
 }
 
 TEST(TreeBuilderTest, SkipsNonVisualNodesButKeepsRootContainer) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto dom_root = DomFactory::create_element(arena, TagNames::Html);
     auto head = DomFactory::create_element(arena, TagNames::Head);
     head->append_child(DomFactory::create_element(arena, TagNames::Style));
@@ -89,7 +89,7 @@ TEST(TreeBuilderTest, SkipsNonVisualNodesButKeepsRootContainer) {
 }
 
 TEST(TreeBuilderTest, SkipsDisplayNoneElements) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto dom_root = DomFactory::create_element(arena, TagNames::Body);
     auto visible = DomFactory::create_element(arena, TagNames::Div);
     auto hidden = DomFactory::create_element(arena, TagNames::Div);
@@ -112,7 +112,7 @@ TEST(TreeBuilderTest, SkipsDisplayNoneElements) {
 }
 
 TEST(TreeBuilderTest, SkipsWhitespaceOnlyTextInNormalMode) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_root = DomFactory::create_element(arena, TagNames::P);
     dom_root->append_child(DomFactory::create_text(arena, " \n\t "));
 
@@ -128,7 +128,7 @@ TEST(TreeBuilderTest, SkipsWhitespaceOnlyTextInNormalMode) {
 }
 
 TEST(TreeBuilderTest, PreservesWhitespaceOnlyTextInPreMode) {
-    ArenaAllocator arena(1024);
+    Hummingbird::Core::ArenaAllocator arena(1024);
     auto dom_root = DomFactory::create_element(arena, TagNames::Pre);
     dom_root->append_child(DomFactory::create_text(arena, " \n\t "));
 
@@ -146,7 +146,7 @@ TEST(TreeBuilderTest, PreservesWhitespaceOnlyTextInPreMode) {
 }
 
 TEST(TreeBuilderTest, CreatesTableRenderObjects) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto dom_root = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
     auto row = DomFactory::create_element(arena, TagNames::Tr);

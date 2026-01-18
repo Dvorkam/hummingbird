@@ -1,15 +1,21 @@
 #include "layout/RenderImage.h"
 
 #include <algorithm>
-#include <cctype>
-#include <cstdlib>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
+#include "core/dom/ElementUtils.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
+#include "core/utils/ParseUtils.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/LayoutMetricsUtils.h"
+#include "layout/PaintUtils.h"
 #include "layout/inline/InlineTypes.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 
@@ -21,125 +27,62 @@ constexpr float kAltTextPadding = 4.0f;
 const Color kPlaceholderFill{230, 230, 230, 255};
 const Color kPlaceholderStroke{150, 150, 150, 255};
 
-struct Insets {
-    float left;
-    float right;
-    float top;
-    float bottom;
-};
-
 struct LayoutSize {
     float width;
     float height;
 };
 
-Insets compute_insets(const Css::ComputedStyle* style) {
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-    return {padding_left + border_left, padding_right + border_right, padding_top + border_top,
-            padding_bottom + border_bottom};
-}
-
-bool iequals(std::string_view a, std::string_view b) {
-    if (a.size() != b.size()) {
-        return false;
-    }
-    for (size_t i = 0; i < a.size(); ++i) {
-        if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
-            return false;
-        }
-    }
-    return true;
-}
-
-std::optional<float> parse_dimension(std::string_view value) {
-    if (value.empty()) {
-        return std::nullopt;
-    }
-    std::string temp(value);
-    char* end = nullptr;
-    float parsed = std::strtof(temp.c_str(), &end);
-    if (end == temp.c_str()) {
-        return std::nullopt;
-    }
-    if (parsed < 0.0f) {
-        parsed = 0.0f;
-    }
-    return parsed;
-}
-
 std::optional<float> find_attribute_dimension(const DOM::Element& element, std::string_view name) {
-    for (const auto& [key, value] : element.get_attributes()) {
-        if (iequals(key, name)) {
-            return parse_dimension(value);
-        }
+    if (const auto value = DOM::find_attribute_value(element, name)) {
+        return Core::Utils::parse_float(*value, Core::Utils::NumberParseMode::AllowTrailing);
     }
     return std::nullopt;
 }
 
-float resolve_width(const DOM::Element& element, const Css::ComputedStyle* style) {
+float resolve_width(const DOM::Element& element, const Css::ComputedStyle* style, const ImageBitmap* image) {
     if (style && style->width.has_value()) {
         return std::max(0.0f, *style->width);
     }
     if (auto attr = find_attribute_dimension(element, Hummingbird::Html::AttributeNames::Width)) {
         return std::max(0.0f, *attr);
     }
+    if (image && image->width > 0) {
+        return static_cast<float>(image->width);
+    }
     return kDefaultImageWidth;
 }
 
-float resolve_height(const DOM::Element& element, const Css::ComputedStyle* style) {
+float resolve_height(const DOM::Element& element, const Css::ComputedStyle* style, const ImageBitmap* image) {
     if (style && style->height.has_value()) {
         return std::max(0.0f, *style->height);
     }
     if (auto attr = find_attribute_dimension(element, Hummingbird::Html::AttributeNames::Height)) {
         return std::max(0.0f, *attr);
     }
+    if (image && image->height > 0) {
+        return static_cast<float>(image->height);
+    }
     return kDefaultImageHeight;
 }
 
-LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedStyle* style) {
-    Insets insets = compute_insets(style);
-    float content_width = resolve_width(element, style);
-    float content_height = resolve_height(element, style);
+LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedStyle* style, const ImageBitmap* image) {
+    Metrics::Insets insets = Metrics::compute_insets(style);
+    float content_width = resolve_width(element, style, image);
+    float content_height = resolve_height(element, style, image);
     return {content_width + insets.left + insets.right, content_height + insets.top + insets.bottom};
 }
 
-std::string find_attribute_value(const DOM::Element& element, std::string_view name) {
-    for (const auto& [key, value] : element.get_attributes()) {
-        if (iequals(key, name)) {
-            return value;
-        }
-    }
-    return {};
-}
-
-void draw_outline(IGraphicsContext& context, const Rect& rect, const Color& color) {
-    constexpr float kThickness = 1.0f;
-    Rect top{rect.x, rect.y, rect.width, kThickness};
-    Rect bottom{rect.x, rect.y + rect.height - kThickness, rect.width, kThickness};
-    Rect left{rect.x, rect.y, kThickness, rect.height};
-    Rect right{rect.x + rect.width - kThickness, rect.y, kThickness, rect.height};
-    context.fill_rect(top, color);
-    context.fill_rect(bottom, color);
-    context.fill_rect(left, color);
-    context.fill_rect(right, color);
-}
-
-std::string resolve_default_font_path() {
-    return Hummingbird::resolve_asset_path("assets/fonts/Roboto-Regular.ttf").string();
+const std::string& resolve_default_font_path() {
+    static const std::string kDefaultFontPath =
+        Hummingbird::Core::Utils::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
+    return kDefaultFontPath;
 }
 }  // namespace
 
 void RenderImage::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
-    LayoutSize size = compute_layout_size(*element, style);
+    LayoutSize size = compute_layout_size(*element, style, m_image);
 
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
@@ -152,7 +95,7 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
 
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
-    Insets insets = compute_insets(style);
+    Metrics::Insets insets = Metrics::compute_insets(style);
 
     Rect content{offset.x + m_rect.x + insets.left, offset.y + m_rect.y + insets.top,
                  m_rect.width - insets.left - insets.right, m_rect.height - insets.top - insets.bottom};
@@ -161,20 +104,33 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
         return;
     }
 
+    if (m_image) {
+        context.draw_image(*m_image, content);
+        return;
+    }
+
     bool has_background = style && style->background.has_value();
     if (!has_background) {
         context.fill_rect(content, kPlaceholderFill);
     }
-    draw_outline(context, content, kPlaceholderStroke);
+    PaintUtils::draw_outline(context, content, kPlaceholderStroke);
 
-    std::string alt_text = find_attribute_value(*element, Hummingbird::Html::AttributeNames::Alt);
+    std::string alt_text;
+    if (const auto value = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::Alt)) {
+        alt_text.assign(*value);
+    }
     if (alt_text.empty()) {
         return;
     }
 
-    TextStyle text_style;
-    text_style.font_path = resolve_default_font_path();
+    TextStyle& text_style = alt_text_style_;
+    if (text_style.font_path.empty()) {
+        text_style.font_path = resolve_default_font_path();
+    }
     text_style.font_size = style ? style->font_size : 12.0f;
+    text_style.bold = false;
+    text_style.italic = false;
+    text_style.monospace = false;
     text_style.color = style ? style->color : Color{80, 80, 80, 255};
 
     float text_x = content.x + kAltTextPadding;
@@ -198,7 +154,7 @@ void RenderImage::reset_inline_layout() {
 void RenderImage::measure_inline(IGraphicsContext& /*context*/) {
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
-    LayoutSize size = compute_layout_size(*element, style);
+    LayoutSize size = compute_layout_size(*element, style, m_image);
     m_inline_measured_width = size.width;
     m_inline_measured_height = size.height;
 }
@@ -223,6 +179,14 @@ void RenderImage::apply_inline_fragment(size_t index, const InlineFragment& frag
 }
 
 void RenderImage::finalize_inline_layout() {}
+
+bool RenderImage::set_image(const ImageBitmap* image) {
+    if (image == m_image) {
+        return false;
+    }
+    m_image = image;
+    return true;
+}
 
 bool RenderImage::should_inline() const {
     const auto* style = get_computed_style();

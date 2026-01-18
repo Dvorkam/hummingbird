@@ -1,7 +1,11 @@
 #include "style/CssParser.h"
 
 #include <optional>
+#include <ostream>
+#include <utility>
 
+#include "core/platform_api/IGraphicsContext.h"
+#include "core/utils/Log.h"
 #include "style/CssPropertyNames.h"
 #include "style/CssValueNames.h"
 
@@ -38,17 +42,28 @@ static bool is_selector_start(TokenType type) {
 }
 
 Selector Parser::parse_selector() {
-    SelectorType type = SelectorType::Tag;
-    if (match(TokenType::Dot)) {
-        type = SelectorType::Class;
-    } else if (match(TokenType::Hash)) {
-        type = SelectorType::Id;
-    }
-    std::string value;
+    Selector selector;
     if (peek().type == TokenType::Identifier) {
-        value = advance().lexeme;
+        selector.tag = advance().lexeme;
     }
-    return Selector{type, value};
+    while (true) {
+        if (match(TokenType::Dot)) {
+            if (peek().type == TokenType::Identifier) {
+                selector.classes.emplace_back(advance().lexeme);
+                continue;
+            }
+            break;
+        }
+        if (match(TokenType::Hash)) {
+            if (peek().type == TokenType::Identifier) {
+                selector.id = advance().lexeme;
+                continue;
+            }
+            break;
+        }
+        break;
+    }
+    return selector;
 }
 
 std::vector<Selector> Parser::parse_selectors() {
@@ -120,6 +135,19 @@ Value Parser::parse_value() {
     return Value::identifier("");
 }
 
+std::vector<Value> Parser::parse_value_list() {
+    std::vector<Value> values;
+    while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+        if (peek().type == TokenType::Hash || peek().type == TokenType::Identifier ||
+            peek().type == TokenType::Number) {
+            values.push_back(parse_value());
+            continue;
+        }
+        advance();
+    }
+    return values;
+}
+
 std::vector<Declaration> Parser::parse_declarations() {
     std::vector<Declaration> decls;
     while (!eof() && peek().type != TokenType::RBrace) {
@@ -133,27 +161,42 @@ std::vector<Declaration> Parser::parse_declarations() {
 }
 
 Property Parser::parse_property_name(std::string_view name) const {
-    if (name == PropertyNames::Display) return Property::Display;
-    if (name == PropertyNames::BorderWidth) return Property::BorderWidth;
-    if (name == PropertyNames::BorderColor) return Property::BorderColor;
-    if (name == PropertyNames::BorderStyle) return Property::BorderStyle;
-    if (name == PropertyNames::Margin) return Property::Margin;
-    if (name == PropertyNames::MarginTop) return Property::MarginTop;
-    if (name == PropertyNames::MarginRight) return Property::MarginRight;
-    if (name == PropertyNames::MarginBottom) return Property::MarginBottom;
-    if (name == PropertyNames::MarginLeft) return Property::MarginLeft;
-    if (name == PropertyNames::Padding) return Property::Padding;
-    if (name == PropertyNames::PaddingTop) return Property::PaddingTop;
-    if (name == PropertyNames::PaddingRight) return Property::PaddingRight;
-    if (name == PropertyNames::PaddingBottom) return Property::PaddingBottom;
-    if (name == PropertyNames::PaddingLeft) return Property::PaddingLeft;
-    if (name == PropertyNames::Width) return Property::Width;
-    if (name == PropertyNames::Height) return Property::Height;
-    if (name == PropertyNames::Color) return Property::Color;
-    if (name == PropertyNames::BackgroundColor) return Property::BackgroundColor;
-    if (name == PropertyNames::FontSize) return Property::FontSize;
-    if (name == PropertyNames::LineHeight) return Property::LineHeight;
-    if (name == PropertyNames::MaxWidth) return Property::MaxWidth;
+    struct Mapping {
+        std::string_view name;
+        Property property;
+    };
+
+    static constexpr Mapping kMappings[] = {
+        {PropertyNames::Display, Property::Display},
+        {PropertyNames::Background, Property::Background},
+        {PropertyNames::Border, Property::Border},
+        {PropertyNames::BorderWidth, Property::BorderWidth},
+        {PropertyNames::BorderColor, Property::BorderColor},
+        {PropertyNames::BorderStyle, Property::BorderStyle},
+        {PropertyNames::Margin, Property::Margin},
+        {PropertyNames::MarginTop, Property::MarginTop},
+        {PropertyNames::MarginRight, Property::MarginRight},
+        {PropertyNames::MarginBottom, Property::MarginBottom},
+        {PropertyNames::MarginLeft, Property::MarginLeft},
+        {PropertyNames::Padding, Property::Padding},
+        {PropertyNames::PaddingTop, Property::PaddingTop},
+        {PropertyNames::PaddingRight, Property::PaddingRight},
+        {PropertyNames::PaddingBottom, Property::PaddingBottom},
+        {PropertyNames::PaddingLeft, Property::PaddingLeft},
+        {PropertyNames::Width, Property::Width},
+        {PropertyNames::Height, Property::Height},
+        {PropertyNames::Color, Property::Color},
+        {PropertyNames::BackgroundColor, Property::BackgroundColor},
+        {PropertyNames::FontSize, Property::FontSize},
+        {PropertyNames::LineHeight, Property::LineHeight},
+        {PropertyNames::MaxWidth, Property::MaxWidth},
+    };
+
+    for (const auto& mapping : kMappings) {
+        if (name == mapping.name) {
+            return mapping.property;
+        }
+    }
     return Property::Unknown;
 }
 
@@ -196,16 +239,80 @@ Value Parser::parse_number_value() {
 }
 
 bool Parser::consume_declaration(std::vector<Declaration>& decls) {
+    std::string_view property_name;
+    if (peek().type == TokenType::Identifier) {
+        property_name = peek().lexeme;
+    }
     Property property = parse_property();
     if (!match(TokenType::Colon)) {
         return false;
     }
-    Value value = parse_value();
-    // Skip remaining value tokens we don't model yet.
-    while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
-        advance();
-    }
+    std::vector<Value> values = parse_value_list();
     match(TokenType::Semicolon);  // consume if present
+
+    if (property == Property::Unknown && !property_name.empty()) {
+        std::string name(property_name);
+        if (m_unknown_properties.insert(name).second) {
+            HB_LOG_WARN("[parser] Unsupported CSS property encountered: " << name);
+        }
+    }
+
+    auto emit_edges = [&](Property top, Property right, Property bottom, Property left) {
+        if (values.empty()) {
+            return;
+        }
+        const size_t count = values.size();
+        const Value& top_value = values[0];
+        const Value& right_value = count > 1 ? values[1] : values[0];
+        const Value& bottom_value = count > 2 ? values[2] : values[0];
+        const Value& left_value = count > 3 ? values[3] : (count > 1 ? values[1] : values[0]);
+        decls.push_back({top, top_value});
+        decls.push_back({right, right_value});
+        decls.push_back({bottom, bottom_value});
+        decls.push_back({left, left_value});
+    };
+
+    if (property == Property::Margin) {
+        emit_edges(Property::MarginTop, Property::MarginRight, Property::MarginBottom, Property::MarginLeft);
+        return true;
+    }
+    if (property == Property::Padding) {
+        emit_edges(Property::PaddingTop, Property::PaddingRight, Property::PaddingBottom, Property::PaddingLeft);
+        return true;
+    }
+    if (property == Property::Border) {
+        std::optional<Value> border_width;
+        std::optional<Value> border_style;
+        std::optional<Value> border_color;
+        for (const auto& value : values) {
+            if (!border_width && value.type == Value::Type::Length) {
+                border_width = value;
+                continue;
+            }
+            if (!border_color && value.type == Value::Type::Color) {
+                border_color = value;
+                continue;
+            }
+            if (!border_style && value.type == Value::Type::Identifier && value.ident == ValueNames::Solid) {
+                border_style = value;
+            }
+        }
+        if (border_width) decls.push_back({Property::BorderWidth, *border_width});
+        if (border_style) decls.push_back({Property::BorderStyle, *border_style});
+        if (border_color) decls.push_back({Property::BorderColor, *border_color});
+        return true;
+    }
+    if (property == Property::Background) {
+        for (const auto& value : values) {
+            if (value.type == Value::Type::Color) {
+                decls.push_back({Property::BackgroundColor, value});
+                break;
+            }
+        }
+        return true;
+    }
+
+    Value value = values.empty() ? Value::identifier("") : values.front();
     decls.push_back({property, value});
     return true;
 }

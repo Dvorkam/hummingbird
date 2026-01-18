@@ -1,9 +1,14 @@
 #pragma once
 
+#include <stddef.h>
+
+#include <memory>
 #include <string>
+#include <vector>
 
 #include "core/dom/Text.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 #include "layout/inline/IInlineParticipant.h"
 #include "layout/inline/InlineTypes.h"
@@ -52,6 +57,7 @@ private:
 
     std::string m_rendered_text;
     std::vector<std::string> m_lines;
+    std::vector<float> m_line_widths;
     std::vector<TextFragment> m_fragments;
     std::vector<InlineRun> m_inline_runs;
     float m_line_height = 0.0f;

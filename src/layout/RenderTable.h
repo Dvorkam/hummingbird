@@ -1,6 +1,19 @@
 #pragma once
 
+#include <memory>
+#include <vector>
+
 #include "layout/BlockBox.h"
+
+namespace Hummingbird {
+class IGraphicsContext;
+namespace DOM {
+class Node;
+}  // namespace DOM
+namespace Layout {
+struct Rect;
+}  // namespace Layout
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 

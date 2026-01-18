@@ -8,10 +8,10 @@
 
 namespace Hummingbird::Css {
 
-enum class SelectorType { Tag, Class, Id };
-
 enum class Property {
     Unknown,
+    Background,
+    Border,
     Display,
     BorderWidth,
     BorderColor,
@@ -89,21 +89,16 @@ struct Value {
 };
 
 struct Selector {
-    SelectorType type;
-    std::string value;
-
-    Selector(SelectorType type, std::string_view value) : type(type), value(value) {}
+    std::string tag;
+    std::string id;
+    std::vector<std::string> classes;
 
     int specificity() const {
-        switch (type) {
-            case SelectorType::Id:
-                return 100;
-            case SelectorType::Class:
-                return 10;
-            case SelectorType::Tag:
-                return 1;
-        }
-        return 0;
+        int spec = 0;
+        if (!id.empty()) spec += 100;
+        spec += static_cast<int>(classes.size()) * 10;
+        if (!tag.empty()) spec += 1;
+        return spec;
     }
 };
 

@@ -13,9 +13,12 @@ This is an early prototype:
 ## What works today (high level)
 
 - HTML tokenizer + parser building a DOM tree.
-- CSS parsing for a subset of selectors/properties, including `<style>` blocks.
-- Basic block + inline layout (with ongoing work on inline flow).
+- CSS parsing for a subset of selectors/properties, including `<style>` blocks and external stylesheets.
+- Resource pipeline for HTML/CSS/images with incremental restyles as data arrives.
+- URL normalization + relative URL resolution for linked resources.
+- Basic block + inline layout.
 - Painting via Blend2D into an SDL2 window.
+- Image decoding via SDL2_image (PNG/JPEG/WebP/GIF first frame).
 - Fetching HTML via libcurl, plus a deterministic built-in demo page at `https://example.dev`.
 
 ## Getting started (prebuilt releases)
@@ -67,11 +70,12 @@ Linux packages (Ubuntu/Debian) roughly matching CI:
 sudo apt-get update
 sudo apt-get install -y \
   build-essential ninja-build \
-  libx11-dev libxft-dev libxext-dev \
-  autoconf autoconf-archive automake libtool libltdl-dev
+  autoconf autoconf-archive automake libtool libltdl-dev \
+  xvfb patchelf file curl
 ```
 
-If you want to run tests headlessly, also install `xvfb` (CI uses it).
+Depending on your distro, SDL2’s X11/Wayland backends may need system dev packages
+(for example: `libx11-dev`, `libxext-dev`, `libxft-dev` on Ubuntu/Debian).
 
 ### Build steps (using presets)
 
@@ -97,6 +101,26 @@ The smoke test that opens a window is guarded; enable it with:
 
 ```bash
 HB_RUN_SMOKE_TEST=1 ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
+```
+
+## Test coverage
+
+- CI: Windows + Ubuntu (unit tests + smoke test via GitHub Actions).
+- Manual visual checks: Fedora (local run).
+
+## TLS troubleshooting (debug only)
+
+If HTTPS fails due to missing or unusual CA bundles, libcurl will fall back to stub
+content. You can point it at system roots with:
+
+- `CURL_CA_BUNDLE=/path/to/ca-bundle.crt`
+- `SSL_CERT_FILE=/path/to/ca-bundle.crt`
+- `SSL_CERT_DIR=/path/to/certs`
+
+For debugging only, you can bypass verification entirely:
+
+```bash
+HB_TLS_INSECURE=1 ./build/Release/Hummingbird
 ```
 
 ## Usage / controls

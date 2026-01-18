@@ -1,28 +1,25 @@
 #pragma once
 
-#include <atomic>
 #include <functional>
-#include <mutex>
 #include <string>
-#include <thread>
-#include <vector>
 
 #include "core/platform_api/INetwork.h"
+#include "platform/NetworkThreadPool.h"
+
+namespace Hummingbird::Platform {
 
 class StubNetwork : public INetwork {
 public:
     StubNetwork() = default;
     ~StubNetwork() override { shutdown(); }
 
-    void get(const std::string& url, std::function<void(std::string)> callback) override;
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback,
+             const NetworkRequestOptions& options = {}) override;
 
     void shutdown() override;
 
 private:
-    void join_all();
-
-private:
-    std::atomic<bool> m_stopping{false};
-    std::mutex m_threads_mutex;
-    std::vector<std::thread> m_threads;
+    Hummingbird::Platform::NetworkThreadPool thread_pool_;
 };
+
+}  // namespace Hummingbird::Platform

@@ -34,7 +34,7 @@ TEST(HtmlTokenizerTest, ParsesAttributes) {
     auto start = std::get<StartTagToken>(t1.data);
     EXPECT_EQ(start.name, TagNames::Div);
     EXPECT_FALSE(start.self_closing);
-    ASSERT_EQ(start.attribute_count, 2u);
+    ASSERT_EQ(start.attributes.size(), 2u);
     EXPECT_EQ(start.attributes[0].name, Attr::Id);
     EXPECT_EQ(start.attributes[0].value, "main");
     EXPECT_EQ(start.attributes[1].name, Attr::Class);
@@ -50,13 +50,19 @@ TEST(HtmlTokenizerTest, DetectsSelfClosingTag) {
     EXPECT_TRUE(start.self_closing);
 }
 
-TEST(HtmlTokenizerTest, SkipsExtraAttributesWithoutEmittingText) {
+TEST(HtmlTokenizerTest, ParsesManyAttributesAndPreservesText) {
     std::string_view html =
         "<img a=\"1\" b=\"2\" c=\"3\" d=\"4\" e=\"5\" f=\"6\" g=\"7\" h=\"8\" i=\"9\" j=\"10\">Hello";
     Tokenizer tokenizer(html);
 
     auto token = tokenizer.next_token();
     ASSERT_EQ(token.type, TokenType::StartTag);
+    auto start = std::get<StartTagToken>(token.data);
+    ASSERT_EQ(start.attributes.size(), 10u);
+    EXPECT_EQ(start.attributes.front().name, "a");
+    EXPECT_EQ(start.attributes.front().value, "1");
+    EXPECT_EQ(start.attributes.back().name, "j");
+    EXPECT_EQ(start.attributes.back().value, "10");
 
     token = tokenizer.next_token();
     ASSERT_EQ(token.type, TokenType::CharacterData);
@@ -75,4 +81,18 @@ TEST(HtmlTokenizerTest, HandlesColonInAttributeNames) {
     ASSERT_EQ(token.type, TokenType::CharacterData);
     auto character = std::get<CharacterDataToken>(token.data);
     EXPECT_EQ(character.data, "Hi");
+}
+
+TEST(HtmlTokenizerTest, ParsesBooleanAndUnquotedAttributes) {
+    std::string_view html = "<input disabled data=enabled>";
+    Tokenizer tokenizer(html);
+
+    auto token = tokenizer.next_token();
+    ASSERT_EQ(token.type, TokenType::StartTag);
+    auto start = std::get<StartTagToken>(token.data);
+    ASSERT_EQ(start.attributes.size(), 2u);
+    EXPECT_EQ(start.attributes[0].name, "disabled");
+    EXPECT_TRUE(start.attributes[0].value.empty());
+    EXPECT_EQ(start.attributes[1].name, "data");
+    EXPECT_EQ(start.attributes[1].value, "enabled");
 }

@@ -10,6 +10,7 @@ static constexpr std::string_view InlineBlock = "inline-block";
 static constexpr std::string_view ListItem = "list-item";
 static constexpr std::string_view Block = "block";
 static constexpr std::string_view Solid = "solid";
+static constexpr std::string_view Auto = "auto";
 
 static constexpr std::string_view Red = "red";
 static constexpr std::string_view Blue = "blue";

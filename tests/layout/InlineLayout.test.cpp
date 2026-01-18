@@ -1,22 +1,26 @@
 #include <gtest/gtest.h>
 
-#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/RenderImage.h"
 #include "layout/TreeBuilder.h"
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
+#include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
 namespace Attr = Hummingbird::Html::AttributeNames;
+using Hummingbird::ImageBitmap;
+using Hummingbird::PixelFormat;
 
 TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_text(arena, "Hello "));
@@ -35,7 +39,7 @@ TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
     ASSERT_NE(render_root, nullptr);
     ASSERT_EQ(render_root->get_children().size(), 1u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 300, 200};
     render_root->layout(context, viewport);
 
@@ -53,7 +57,7 @@ TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
 }
 
 TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto ul = DomFactory::create_element(arena, "ul");
     ul->append_child(DomFactory::create_element(arena, "li"));
@@ -71,7 +75,7 @@ TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
     ASSERT_NE(render_root, nullptr);
     ASSERT_EQ(render_root->get_children().size(), 2u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 400, 300};
     render_root->layout(context, viewport);
 
@@ -85,7 +89,7 @@ TEST(InlineLayoutTest, IndentsListsPerUserAgentDefaults) {
 }
 
 TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     // "HelloHello" (10 chars) at 8px each = 80px > 60px available forces wrap.
@@ -100,7 +104,7 @@ TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 60, 200};
     render_root->layout(context, viewport);
 
@@ -114,7 +118,7 @@ TEST(InlineLayoutTest, GreedyWrapsInlineTextWithinWidth) {
 }
 
 TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_text(arena, "Hello "));
@@ -134,7 +138,7 @@ TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
     const auto& para = render_root->get_children()[0];
     ASSERT_EQ(para->get_children().size(), 3u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 
@@ -149,7 +153,7 @@ TEST(InlineLayoutTest, PreservesSpacesAroundInlineElements) {
 }
 
 TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_text(arena, "Hello Hello Hello "));
@@ -166,7 +170,7 @@ TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 120, 200};
     render_root->layout(context, viewport);
 
@@ -181,7 +185,7 @@ TEST(InlineLayoutTest, ContinuesInlineFlowAfterWrappedText) {
 }
 
 TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     auto span = DomFactory::create_element(arena, "span");
@@ -200,7 +204,7 @@ TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 300, 200};
     render_root->layout(context, viewport);
 
@@ -216,7 +220,7 @@ TEST(InlineLayoutTest, InlineBoxWithPaddingIsAtomic) {
 }
 
 TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_text(arena, "Hi"));
@@ -235,7 +239,7 @@ TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 400, 200};
     render_root->layout(context, viewport);
 
@@ -253,7 +257,7 @@ TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
 }
 
 TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->append_child(DomFactory::create_element(arena, "img"));
@@ -267,7 +271,7 @@ TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 500, 400};
     render_root->layout(context, viewport);
 
@@ -279,8 +283,46 @@ TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
     EXPECT_FLOAT_EQ(image_rect.height, 150.0f);
 }
 
+TEST(InlineLayoutTest, InlineImageUsesIntrinsicSizeWhenAvailable) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_element(arena, "img"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    auto* image = dynamic_cast<RenderImage*>(para->get_children()[0].get());
+    ASSERT_NE(image, nullptr);
+
+    ImageBitmap bitmap;
+    bitmap.width = 40;
+    bitmap.height = 20;
+    bitmap.stride = 160;
+    bitmap.format = PixelFormat::PRGB32;
+    bitmap.pixels.resize(static_cast<size_t>(bitmap.stride) * bitmap.height);
+
+    image->set_image(&bitmap);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    const auto& image_rect = image->get_rect();
+    EXPECT_FLOAT_EQ(image_rect.width, 40.0f);
+    EXPECT_FLOAT_EQ(image_rect.height, 20.0f);
+}
+
 TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->set_attribute(Attr::Align, "center");
@@ -295,7 +337,7 @@ TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 
@@ -308,7 +350,7 @@ TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
 }
 
 TEST(InlineLayoutTest, NoWrapAttributeKeepsSingleLine) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     p->set_attribute(Attr::NoWrap, "");
@@ -323,7 +365,7 @@ TEST(InlineLayoutTest, NoWrapAttributeKeepsSingleLine) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 60, 200};
     render_root->layout(context, viewport);
 

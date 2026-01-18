@@ -3,11 +3,15 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <optional>
+#include <ostream>
+#include <utility>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
-#include "layout/InlineLineBuilder.h"
+#include "layout/LayoutMetricsUtils.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 
@@ -19,25 +23,7 @@ constexpr float kDefaultFontSizePx = 16.0f;
 constexpr float kUnderlineOffsetPx = 2.0f;
 constexpr float kUnderlineThicknessPx = 1.0f;
 
-struct Insets {
-    float left;
-    float right;
-    float top;
-    float bottom;
-};
-
-Insets compute_insets(const Css::ComputedStyle* style) {
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-    return {padding_left + border_left, padding_right + border_right, padding_top + border_top,
-            padding_bottom + border_bottom};
-}
+using Metrics::Insets;
 
 // Collapse runs of whitespace to a single space; convert newlines/tabs to spaces.
 std::string collapse_whitespace(const std::string& text) {
@@ -77,7 +63,7 @@ std::string resolve_text_font_path(const Css::ComputedStyle* style) {
     } else if (italic) {
         font_path = "assets/fonts/Roboto-Italic.ttf";
     }
-    return Hummingbird::resolve_asset_path(font_path).string();
+    return Hummingbird::Core::Utils::resolve_asset_path_string(font_path);
 }
 
 TextStyle build_text_style(const Css::ComputedStyle* style) {
@@ -137,20 +123,22 @@ float compute_available_width(const Css::ComputedStyle* style, const Rect& bound
     return available_width;
 }
 
-void append_line(std::vector<std::string>& lines, float& content_width, std::string line_text, float measured_width) {
+void append_line(std::vector<std::string>& lines, std::vector<float>& line_widths, float& content_width,
+                 std::string line_text, float measured_width) {
     lines.push_back(std::move(line_text));
+    line_widths.push_back(measured_width);
     content_width = std::max(content_width, measured_width);
 }
 
 void build_preserved_lines(IGraphicsContext& context, const std::string& text, const TextStyle& text_style,
-                           std::vector<std::string>& lines, float& content_width) {
+                           std::vector<std::string>& lines, std::vector<float>& line_widths, float& content_width) {
     // Preserve newlines; no wrapping.
     size_t start = 0;
     while (start < text.size()) {
         size_t nl = text.find('\n', start);
         std::string line = nl == std::string::npos ? text.substr(start) : text.substr(start, nl - start);
         float w = context.measure_text(line, text_style).width;
-        append_line(lines, content_width, std::move(line), w);
+        append_line(lines, line_widths, content_width, std::move(line), w);
         if (nl == std::string::npos) {
             break;
         }
@@ -159,7 +147,8 @@ void build_preserved_lines(IGraphicsContext& context, const std::string& text, c
 }
 
 void build_wrapped_lines(IGraphicsContext& context, const std::string& text, const TextStyle& text_style,
-                         float available_width, std::vector<std::string>& lines, float& content_width) {
+                         float available_width, std::vector<std::string>& lines, std::vector<float>& line_widths,
+                         float& content_width) {
     // Greedy wrap by tokens (words and explicit spaces) to preserve spacing around inline elements.
     auto tokens = tokenize_text(text);
 
@@ -174,7 +163,7 @@ void build_wrapped_lines(IGraphicsContext& context, const std::string& text, con
         bool would_overflow =
             (available_width > 0.0f && line_width > 0.0f && (line_width + tok_width) > available_width);
         if (would_overflow) {
-            append_line(lines, content_width, line_text, line_width);
+            append_line(lines, line_widths, content_width, line_text, line_width);
             line_text.clear();
             line_width = 0.0f;
             if (is_space) {
@@ -184,16 +173,18 @@ void build_wrapped_lines(IGraphicsContext& context, const std::string& text, con
         line_text += tok;
         line_width += tok_width;
     }
-    append_line(lines, content_width, line_text, line_width);
+    append_line(lines, line_widths, content_width, line_text, line_width);
 }
 
 bool apply_empty_text_layout(const std::string& rendered_text, std::vector<std::string>& lines,
-                             TextMetrics& last_metrics, float& line_height, Rect& rect, const Insets& insets) {
+                             std::vector<float>& line_widths, TextMetrics& last_metrics, float& line_height, Rect& rect,
+                             const Insets& insets) {
     if (!rendered_text.empty()) {
         return false;
     }
 
     lines.push_back("");
+    line_widths.push_back(0.0f);
     last_metrics = {};
     line_height = 0.0f;
     rect.width = insets.left + insets.right;
@@ -213,14 +204,16 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_rect.y = bounds.y;
 
     const auto* style = get_computed_style();
-    Insets insets = compute_insets(style);
+    Insets insets = Metrics::compute_insets(style);
 
     m_rendered_text = build_rendered_text(get_dom_node()->get_text(), style);
 
     m_lines.clear();
+    m_line_widths.clear();
     m_line_height = 0.0f;
 
-    if (apply_empty_text_layout(m_rendered_text, m_lines, m_last_metrics, m_line_height, m_rect, insets)) {
+    if (apply_empty_text_layout(m_rendered_text, m_lines, m_line_widths, m_last_metrics, m_line_height, m_rect,
+                                insets)) {
         return;
     }
 
@@ -237,15 +230,19 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         }
     }
     float line_height = measure_text_block(context, m_rendered_text, text_style, m_last_metrics);
+    if (style && style->line_height > 0.0f) {
+        line_height = style->line_height;
+    }
     m_line_height = line_height;
 
     float content_width = 0.0f;
     float available_width = compute_available_width(style, bounds, insets);
 
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
-        build_preserved_lines(context, m_rendered_text, text_style, m_lines, content_width);
+        build_preserved_lines(context, m_rendered_text, text_style, m_lines, m_line_widths, content_width);
     } else {
-        build_wrapped_lines(context, m_rendered_text, text_style, available_width, m_lines, content_width);
+        build_wrapped_lines(context, m_rendered_text, text_style, available_width, m_lines, m_line_widths,
+                            content_width);
     }
 
     m_rect.height = static_cast<float>(m_lines.size()) * line_height + insets.top + insets.bottom;
@@ -267,6 +264,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
 void TextBox::reset_inline_layout() {
     m_fragments.clear();
     m_lines.clear();
+    m_line_widths.clear();
     m_line_height = 0.0f;
     m_inline_runs.clear();
 }
@@ -291,6 +289,9 @@ void TextBox::measure_inline(IGraphicsContext& context) {
     auto tokens = tokenize_text(m_rendered_text);
     TextStyle text_style = build_text_style(style);
     float line_height = context.measure_text("A", text_style).height;
+    if (style && style->line_height > 0.0f) {
+        line_height = style->line_height;
+    }
     m_line_height = line_height;
     m_fragments.clear();
     m_fragments.resize(tokens.size());
@@ -352,7 +353,7 @@ void TextBox::finalize_inline_layout() {
 void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
     // The absolute position to draw the text is the parent's offset plus our own relative position.
     const auto* style = get_computed_style();
-    Insets insets = compute_insets(style);
+    Insets insets = Metrics::compute_insets(style);
 
     float absolute_x = offset.x + m_rect.x + insets.left;
     float absolute_y = offset.y + m_rect.y + insets.top;
@@ -385,7 +386,9 @@ void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_s
         }
         float line_right = frag.rect.x + frag.rect.width;
         line_widths[line_index] = std::max(line_widths[line_index], line_right);
-        context.draw_text(frag.text, absolute_x + frag.rect.x, absolute_y + frag.rect.y, text_style);
+        TextMetrics metrics{frag.rect.width, frag.rect.height};
+        context.draw_text_with_metrics(frag.text, absolute_x + frag.rect.x, absolute_y + frag.rect.y, text_style,
+                                       metrics);
     }
 
     if (!underline) {
@@ -409,8 +412,13 @@ void TextBox::paint_lines(IGraphicsContext& context, const TextStyle& text_style
     for (size_t i = 0; i < m_lines.size(); ++i) {
         float y = absolute_y + static_cast<float>(i) * line_height;
         if (!m_lines[i].empty()) {
-            context.draw_text(m_lines[i], absolute_x, y, text_style);
-            underline_width = std::max(underline_width, context.measure_text(m_lines[i], text_style).width);
+            float line_width = 0.0f;
+            if (i < m_line_widths.size()) {
+                line_width = m_line_widths[i];
+            }
+            TextMetrics metrics{line_width, line_height};
+            context.draw_text_with_metrics(m_lines[i], absolute_x, y, text_style, metrics);
+            underline_width = std::max(underline_width, line_width);
         }
     }
 

@@ -1,9 +1,12 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/InputEvent.h"
+
+namespace Hummingbird {
 
 class IWindow {
 public:
@@ -24,4 +27,9 @@ public:
     // Text input mode (needed for SDL-style TEXTINPUT)
     virtual void start_text_input() = 0;
     virtual void stop_text_input() = 0;
+
+    // Clipboard access (UTF-8). Returns empty string if unavailable.
+    virtual std::string get_clipboard_text() const = 0;
 };
+
+}  // namespace Hummingbird

@@ -12,8 +12,9 @@ TEST(CSSParserTest, ParsesSingleRule) {
     ASSERT_EQ(sheet.rules.size(), 1u);
     const auto& rule = sheet.rules[0];
     ASSERT_EQ(rule.selectors.size(), 1u);
-    EXPECT_EQ(rule.selectors[0].type, SelectorType::Tag);
-    EXPECT_EQ(rule.selectors[0].value, Hummingbird::Html::TagNames::Div);
+    EXPECT_EQ(rule.selectors[0].tag, Hummingbird::Html::TagNames::Div);
+    EXPECT_TRUE(rule.selectors[0].id.empty());
+    EXPECT_TRUE(rule.selectors[0].classes.empty());
     ASSERT_EQ(rule.declarations.size(), 1u);
     EXPECT_EQ(rule.declarations[0].property, Property::Color);
     EXPECT_EQ(rule.declarations[0].value.type, Value::Type::Color);
@@ -28,17 +29,35 @@ TEST(CSSParserTest, ParsesSelectorList) {
     ASSERT_EQ(sheet.rules.size(), 1u);
     const auto& rule = sheet.rules[0];
     ASSERT_EQ(rule.selectors.size(), 3u);
-    EXPECT_EQ(rule.selectors[0].type, SelectorType::Tag);
-    EXPECT_EQ(rule.selectors[0].value, Hummingbird::Html::TagNames::H1);
-    EXPECT_EQ(rule.selectors[1].type, SelectorType::Tag);
-    EXPECT_EQ(rule.selectors[1].value, Hummingbird::Html::TagNames::H2);
-    EXPECT_EQ(rule.selectors[2].type, SelectorType::Class);
-    EXPECT_EQ(rule.selectors[2].value, "title");
-    ASSERT_EQ(rule.declarations.size(), 1u);
-    EXPECT_EQ(rule.declarations[0].property, Property::Margin);
-    EXPECT_EQ(rule.declarations[0].value.type, Value::Type::Length);
-    EXPECT_FLOAT_EQ(rule.declarations[0].value.length.value, 10.0f);
-    EXPECT_EQ(rule.declarations[0].value.length.unit, Unit::Px);
+    EXPECT_EQ(rule.selectors[0].tag, Hummingbird::Html::TagNames::H1);
+    EXPECT_TRUE(rule.selectors[0].classes.empty());
+    EXPECT_EQ(rule.selectors[1].tag, Hummingbird::Html::TagNames::H2);
+    EXPECT_TRUE(rule.selectors[1].classes.empty());
+    ASSERT_EQ(rule.selectors[2].classes.size(), 1u);
+    EXPECT_TRUE(rule.selectors[2].tag.empty());
+    EXPECT_EQ(rule.selectors[2].classes[0], "title");
+    ASSERT_EQ(rule.declarations.size(), 4u);
+    EXPECT_EQ(rule.declarations[0].property, Property::MarginTop);
+    EXPECT_EQ(rule.declarations[1].property, Property::MarginRight);
+    EXPECT_EQ(rule.declarations[2].property, Property::MarginBottom);
+    EXPECT_EQ(rule.declarations[3].property, Property::MarginLeft);
+    for (const auto& decl : rule.declarations) {
+        EXPECT_EQ(decl.value.type, Value::Type::Length);
+        EXPECT_FLOAT_EQ(decl.value.length.value, 10.0f);
+        EXPECT_EQ(decl.value.length.unit, Unit::Px);
+    }
+}
+
+TEST(CSSParserTest, ParsesCompoundSelector) {
+    Parser parser("div.note#main { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& rule = sheet.rules[0];
+    ASSERT_EQ(rule.selectors.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].tag, Hummingbird::Html::TagNames::Div);
+    EXPECT_EQ(rule.selectors[0].id, "main");
+    ASSERT_EQ(rule.selectors[0].classes.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].classes[0], "note");
 }
 
 TEST(CSSParserTest, ParsesHexColor) {

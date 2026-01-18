@@ -174,6 +174,7 @@ void draw(T object) { ... }
 * **`#pragma once`:** Use in every header.
 * **Forward Declarations:** Avoid `#include` in header files whenever possible. Use forward declarations (`class Node;`) to reduce compilation dependency chains.
 * **Modules:** (Optional) If the compiler support is stable, prefer C++20 Modules (`import`) over headers.
+* **IWYU Audits:** Use include-what-you-use (`iwyu_tool.py -p build`, then `fix_includes.py`) to keep includes minimal and explicit; ensure `CMAKE_EXPORT_COMPILE_COMMANDS=ON`.
 
 ### 4.3. Type Safety
 

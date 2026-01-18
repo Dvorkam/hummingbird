@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "core/dom/Node.h"
@@ -10,7 +11,15 @@
 #include "style/ComputedStyle.h"
 
 // Forward declare IGraphicsContext to break dependency cycle
+namespace Hummingbird {
 class IGraphicsContext;
+namespace Css {
+struct ComputedStyle;
+}  // namespace Css
+namespace Layout {
+class IInlineParticipant;
+}  // namespace Layout
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 
@@ -23,6 +32,7 @@ public:
 
     const DOM::Node* get_dom_node() const { return m_dom_node; }
     const Rect& get_rect() const { return m_rect; }
+    void set_rect(const Rect& rect) { m_rect = rect; }
     const Css::ComputedStyle* get_computed_style() const {
         auto style = m_dom_node ? m_dom_node->get_computed_style() : nullptr;
         return style ? style.get() : nullptr;

@@ -1,31 +1,21 @@
 #pragma once
 
-#include <atomic>
-#include <cstdint>
 #include <memory>
-#include <mutex>
-#include <optional>
-#include <string>
-#include <vector>
 
-#include "core/ArenaAllocator.h"
+#include "app/UrlBar.h"
 #include "core/platform_api/IGraphicsContext.h"
-#include "core/platform_api/INetwork.h"
-#include "core/platform_api/IResourceProvider.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
-#include "layout/TreeBuilder.h"
-#include "renderer/Painter.h"
-#include "style/StyleEngine.h"
+#include "engine/Tab.h"
+#include "layout/Geometry.h"
 
-// Forward decls (or include appropriate DOM/Layout headers if needed)
-namespace Hummingbird::DOM {
-class Node;
-}
-namespace Hummingbird::Layout {
-class RenderObject;
-struct Rect;
-}  // namespace Hummingbird::Layout
+namespace Hummingbird {
+class IGraphicsContext;
+class IWindow;
+struct InputEvent;
+}  // namespace Hummingbird
+
+namespace Hummingbird::App {
 
 class BrowserApp {
 public:
@@ -42,8 +32,8 @@ public:
 private:
     // --- main tick phases ---
     void pump_events();
-    void consume_pending_html_and_rebuild();
     void render_if_needed();
+    Hummingbird::Layout::Rect compute_content_viewport(int win_w, int win_h) const;
 
     // --- event handling ---
     void handle_event(const InputEvent& e);
@@ -53,65 +43,23 @@ private:
     void handle_mouse_down_event(const InputEvent& e);
     void handle_mouse_wheel_event(const InputEvent& e);
     void handle_resize_event(const InputEvent& e);
-    void set_url_bar_active(bool active, const char* log_message);
-
-    // --- navigation ---
-    void load_url(const std::string& url);
-
-    // --- helpers ---
-    void clamp_scroll(float viewport_height);
-    void relayout_for_window(int win_w, int win_h);
-    std::optional<std::string> take_pending_html();
-    void rebuild_from_html(const std::string& html);
-    void reset_document_state();
-    bool parse_html(const std::string& html, std::vector<std::string>& style_blocks,
-                    std::vector<std::string>& stylesheet_links);
-    std::string build_css_source(const std::vector<std::string>& style_blocks,
-                                 const std::vector<std::string>& stylesheet_links) const;
-    void parse_and_apply_css(const std::string& css);
-    bool build_render_tree();
-    void layout_current_window();
 
 private:
     // App Utils
-    std::atomic<bool> shutting_down_{false};
+    bool shutting_down_ = false;
     // Platform
     std::unique_ptr<IWindow> window_;
     std::unique_ptr<IGraphicsContext> graphics_;
-
-    // Async HTML handoff (network thread -> main thread)
-    std::mutex pending_mutex_;
-    std::optional<std::string> pending_html_;
-
-    // Deps / subsystems
-    std::unique_ptr<INetwork> network_;
-    std::unique_ptr<INetwork> fallback_network_;
-    ResourceProviderPtr resource_provider_;
-    Hummingbird::Css::StyleEngine style_engine_;
-    Hummingbird::Layout::TreeBuilder tree_builder_;
-    Hummingbird::Renderer::Painter painter_;
+    Hummingbird::Engine::Tab tab_;
 
     // UI state
-    std::string url_bar_text_ = "https://example.dev";
-    std::string requested_url_ = url_bar_text_;
-    bool url_bar_active_ = true;
+    UrlBar url_bar_;
     bool debug_outlines_ = false;
     bool needs_repaint_ = true;
-
-    int url_bar_height_ = 32;
-    float scroll_y_ = 0.0f;
-    float content_height_ = 0.0f;
-
-    // Navigation race protection
-    std::atomic<uint64_t> nav_counter_{0};
-    std::atomic<uint64_t> active_nav_{0};
-
-    // Document / layout state
-    ArenaAllocator dom_arena_{2 * 1024 * 1024};
-    ArenaPtr<Hummingbird::DOM::Node> dom_tree_;
-    std::unique_ptr<Hummingbird::Layout::RenderObject> render_tree_;
 
     // Event draining controls
     int max_events_per_tick_ = 200;
     int wait_timeout_ms_ = 16;
 };
+
+}  // namespace Hummingbird::App

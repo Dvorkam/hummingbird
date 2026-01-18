@@ -1,7 +1,10 @@
 #pragma once
 
+#include <stddef.h>
+
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "style/CssTokenizer.h"
@@ -24,6 +27,7 @@ private:
     std::vector<Selector> parse_selectors();
     Property parse_property();
     Value parse_value();
+    std::vector<Value> parse_value_list();
     std::vector<Declaration> parse_declarations();
     Property parse_property_name(std::string_view name) const;
     Value parse_hash_value();
@@ -34,6 +38,7 @@ private:
     std::string m_buffer;
     std::vector<Token> m_tokens;
     size_t m_pos = 0;
+    std::unordered_set<std::string> m_unknown_properties;
 };
 
 }  // namespace Hummingbird::Css

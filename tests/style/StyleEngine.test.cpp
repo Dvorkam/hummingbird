@@ -9,6 +9,7 @@
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "style/CssParser.h"
+#include "style/StylesheetSource.h"
 
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
@@ -16,7 +17,7 @@ namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(StyleEngineTest, AppliesRulesAndCascade) {
     // DOM: <div class="box" id="main"><span></span></div>
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
     root->set_attribute(Attr::Class, "box");
     root->set_attribute(Attr::Id, "main");
@@ -43,7 +44,7 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
 }
 
 TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
     auto pre = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Pre);
     auto anchor = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
@@ -105,7 +106,7 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
 }
 
 TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
     root->set_attribute(Attr::Class, "text");
     root->set_attribute(Attr::Id, "main");
@@ -130,7 +131,7 @@ TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
 }
 
 TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
     root->append_child(DomFactory::create_text(arena, "Link"));
 
@@ -150,7 +151,7 @@ TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
 }
 
 TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
     root->set_attribute(Attr::Class, "box");
 
@@ -169,8 +170,134 @@ TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
     EXPECT_FLOAT_EQ(style->margin.top, 9.0f);
 }
 
+TEST(StyleEngineTest, ExpandsBackgroundAndBorderShorthand) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background: #ff0000; border: 2px solid #000; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->background.has_value());
+    EXPECT_EQ(style->background->r, 255);
+    EXPECT_EQ(style->background->g, 0);
+    EXPECT_EQ(style->background->b, 0);
+
+    EXPECT_EQ(style->border_style, ComputedStyle::BorderStyle::Solid);
+    EXPECT_FLOAT_EQ(style->border_width.top, 2.0f);
+    EXPECT_FLOAT_EQ(style->border_width.right, 2.0f);
+    EXPECT_FLOAT_EQ(style->border_width.bottom, 2.0f);
+    EXPECT_FLOAT_EQ(style->border_width.left, 2.0f);
+    EXPECT_EQ(style->border_color.r, 0);
+    EXPECT_EQ(style->border_color.g, 0);
+    EXPECT_EQ(style->border_color.b, 0);
+}
+
+TEST(StyleEngineTest, SupportsMarginAutoAndMaxWidth) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { margin: 8px auto; max-width: 200px; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->margin.top, 8.0f);
+    EXPECT_FLOAT_EQ(style->margin.bottom, 8.0f);
+    EXPECT_TRUE(style->margin_left_auto);
+    EXPECT_TRUE(style->margin_right_auto);
+    ASSERT_TRUE(style->max_width.has_value());
+    EXPECT_FLOAT_EQ(style->max_width.value(), 200.0f);
+}
+
+TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { max-width: 40em; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FALSE(style->max_width.has_value());
+}
+
+TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font-size: 20px; line-height: 1.5; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->font_size, 20.0f);
+    EXPECT_FLOAT_EQ(style->line_height, 30.0f);
+}
+
+TEST(StyleEngineTest, LinkSourcesApplyInDocumentOrder) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string ua = "p { color: red; }";
+    std::vector<std::string> links = {"p { color: blue; }", "p { color: black; }"};
+    std::vector<std::string> blocks;
+
+    auto merged = Hummingbird::Css::merge_css_sources(ua, links, blocks);
+    Parser parser(merged);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 0);
+}
+
+TEST(StyleEngineTest, StyleBlocksOverrideLinksInOrder) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string ua = "p { color: red; }";
+    std::vector<std::string> links = {"p { color: blue; }", "p { color: black; }"};
+    std::vector<std::string> blocks = {"p { color: white; }", "p { color: blue; }"};
+
+    auto merged = Hummingbird::Css::merge_css_sources(ua, links, blocks);
+    Parser parser(merged);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 255);
+}
+
 TEST(StyleEngineTest, AppliesBorderProperties) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = R"(
@@ -192,7 +319,7 @@ TEST(StyleEngineTest, AppliesBorderProperties) {
 }
 
 TEST(StyleEngineTest, AppliesBackgroundColor) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = "div { background-color: #333; }";
@@ -211,7 +338,7 @@ TEST(StyleEngineTest, AppliesBackgroundColor) {
 }
 
 TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
     std::string css = "div { display: inline-block; }";
@@ -227,7 +354,7 @@ TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
 }
 
 TEST(StyleEngineTest, DefaultsListItemDisplay) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
 
     StyleEngine engine;
@@ -240,7 +367,7 @@ TEST(StyleEngineTest, DefaultsListItemDisplay) {
 }
 
 TEST(StyleEngineTest, EmInheritsHeadingTypography) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto h1 = DomFactory::create_element(arena, Hummingbird::Html::TagNames::H1);
     auto em = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Em);
     em->append_child(DomFactory::create_text(arena, "Emphasized"));
@@ -263,7 +390,7 @@ TEST(StyleEngineTest, EmInheritsHeadingTypography) {
 }
 
 TEST(StyleEngineTest, AlignAttributeMapsToTextAlign) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto cell = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
     cell->set_attribute(Attr::Align, "center");
     auto span = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
@@ -284,7 +411,7 @@ TEST(StyleEngineTest, AlignAttributeMapsToTextAlign) {
 }
 
 TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto cell = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
     cell->set_attribute(Attr::NoWrap, "");
     cell->append_child(DomFactory::create_text(arena, "Text"));
@@ -303,7 +430,7 @@ TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
 }
 
 TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto img = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Img);
     img->set_attribute(Attr::Width, "120");
     img->set_attribute(Attr::Height, "80");
@@ -321,7 +448,7 @@ TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
 }
 
 TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
-    ArenaAllocator arena(2048);
+    Hummingbird::Core::ArenaAllocator arena(2048);
     auto font = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Font);
     font->set_attribute(Attr::Size, "6");
     font->set_attribute(Attr::Face, "Sans-Serif");

@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
@@ -10,6 +9,7 @@
 #include "layout/RenderTable.h"
 #include "layout/TreeBuilder.h"
 #include "style/StyleEngine.h"
+#include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
@@ -18,7 +18,7 @@ namespace TagNames = Hummingbird::Html::TagNames;
 namespace Attr = Hummingbird::Html::AttributeNames;
 
 TEST(TableLayoutTest, AlignsCellsIntoColumns) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
     auto row1 = DomFactory::create_element(arena, TagNames::Tr);
@@ -48,7 +48,7 @@ TEST(TableLayoutTest, AlignsCellsIntoColumns) {
     ASSERT_NE(render_root, nullptr);
     ASSERT_EQ(render_root->get_children().size(), 1u);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 400, 200};
     render_root->layout(context, viewport);
 
@@ -83,7 +83,7 @@ TEST(TableLayoutTest, AlignsCellsIntoColumns) {
 }
 
 TEST(TableLayoutTest, ExpandsColumnsWhenTableIsPercentWidth) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
     table->set_attribute(Attr::Width, "100%");
@@ -113,7 +113,7 @@ TEST(TableLayoutTest, ExpandsColumnsWhenTableIsPercentWidth) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 200, 200};
     render_root->layout(context, viewport);
 
@@ -143,7 +143,7 @@ TEST(TableLayoutTest, ExpandsColumnsWhenTableIsPercentWidth) {
 }
 
 TEST(TableLayoutTest, ColspanExpandsColumnWidths) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
     auto row1 = DomFactory::create_element(arena, TagNames::Tr);
@@ -174,7 +174,7 @@ TEST(TableLayoutTest, ColspanExpandsColumnWidths) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 400, 200};
     render_root->layout(context, viewport);
 
@@ -201,7 +201,7 @@ TEST(TableLayoutTest, ColspanExpandsColumnWidths) {
 }
 
 TEST(TableLayoutTest, AlignDoesNotInflateIntrinsicWidths) {
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);
     auto table = DomFactory::create_element(arena, TagNames::Table);
     auto row = DomFactory::create_element(arena, TagNames::Tr);
@@ -223,7 +223,7 @@ TEST(TableLayoutTest, AlignDoesNotInflateIntrinsicWidths) {
     auto render_root = builder.build(body.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 400, 200};
     render_root->layout(context, viewport);
 

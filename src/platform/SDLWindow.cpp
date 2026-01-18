@@ -1,9 +1,56 @@
 #include "platform/SDLWindow.h"
 
 #include <SDL.h>
+#include <SDL_clipboard.h>
+#include <SDL_error.h>
+#include <SDL_events.h>
+#include <SDL_image.h>
+#include <SDL_keyboard.h>
+#include <SDL_render.h>
+#include <SDL_stdinc.h>
+#include <SDL_surface.h>
+#include <SDL_video.h>
 
+#include <memory>
+#include <ostream>
+#include <utility>
+
+#include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "platform/SDLGraphicsContext.h"
+#include "platform/SDLInputTranslation.h"
+
+namespace Hummingbird::Platform {
+
+namespace {
+SDL_Surface* load_window_icon_surface() {
+    static bool sdl_image_ready = false;
+    if (!sdl_image_ready) {
+        int initted = IMG_Init(IMG_INIT_PNG);
+        if ((initted & IMG_INIT_PNG) != IMG_INIT_PNG) {
+            HB_LOG_WARN("[platform] SDL2_image PNG support not available: " << IMG_GetError());
+        }
+        sdl_image_ready = true;
+    }
+
+    static const char* kCandidates[] = {
+        "assets/icons/hummingbird-32.png",
+        "assets/icons/hummingbird-16.png",
+        "assets/icons/hummingbird-256.png",
+    };
+
+    for (const char* candidate : kCandidates) {
+        const std::string& path = Hummingbird::Core::Utils::resolve_asset_path_string(candidate);
+        SDL_Surface* icon = IMG_Load(path.c_str());
+        if (icon) {
+            return icon;
+        }
+    }
+
+    HB_LOG_WARN("[platform] Failed to load window icon from assets/icons");
+    return nullptr;
+}
+}  // namespace
 
 SDLWindow::SDLWindow() {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -21,6 +68,11 @@ void SDLWindow::open() {
     if (m_window == nullptr) {
         HB_LOG_ERROR("[platform] SDL_CreateWindow failed: " << SDL_GetError());
         return;
+    }
+
+    if (SDL_Surface* icon = load_window_icon_surface()) {
+        SDL_SetWindowIcon(m_window, icon);
+        SDL_FreeSurface(icon);
     }
 
     m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
@@ -69,139 +121,16 @@ std::pair<int, int> SDLWindow::get_size() const {
     return {w, h};
 }
 
-static Modifiers to_mods(SDL_Keymod mod) {
-    Modifiers m;
-    m.ctrl = (mod & KMOD_CTRL) != 0;
-    m.shift = (mod & KMOD_SHIFT) != 0;
-    m.alt = (mod & KMOD_ALT) != 0;
-    m.meta = (mod & KMOD_GUI) != 0;
-    return m;
-}
-
-static Key to_key(SDL_Keycode kc) {
-    if (kc >= SDLK_a && kc <= SDLK_z) {
-        return static_cast<Key>(static_cast<uint8_t>(Key::A) + static_cast<uint8_t>(kc - SDLK_a));
-    }
-    switch (kc) {
-        case SDLK_BACKSPACE:
-            return Key::Backspace;
-        case SDLK_RETURN:
-            return Key::Enter;
-        case SDLK_ESCAPE:
-            return Key::Escape;
-        case SDLK_F1:
-            return Key::F1;
-        default:
-            return Key::Unknown;
-    }
-}
-
-static MouseButton to_mouse_button(uint8_t b) {
-    switch (b) {
-        case SDL_BUTTON_LEFT:
-            return MouseButton::Left;
-        case SDL_BUTTON_MIDDLE:
-            return MouseButton::Middle;
-        case SDL_BUTTON_RIGHT:
-            return MouseButton::Right;
-        case SDL_BUTTON_X1:
-            return MouseButton::X1;
-        case SDL_BUTTON_X2:
-            return MouseButton::X2;
-        default:
-            return MouseButton::Unknown;
-    }
-}
-
-static bool translate_text_input(const SDL_Event& e, InputEvent& out) {
-    out.type = EventType::TextInput;
-    out.text.text = e.text.text;  // UTF-8
-    return true;
-}
-
-static bool translate_key_event(const SDL_Event& e, InputEvent& out, EventType type, bool repeat) {
-    out.type = type;
-    out.mods = to_mods(static_cast<SDL_Keymod>(e.key.keysym.mod));
-    out.key.key = to_key(e.key.keysym.sym);
-    out.key.repeat = repeat;
-    return true;
-}
-
-static bool translate_mouse_button_event(const SDL_Event& e, InputEvent& out, EventType type) {
-    out.type = type;
-    out.mouse_button.x = e.button.x;
-    out.mouse_button.y = e.button.y;
-    out.mouse_button.button = to_mouse_button(e.button.button);
-    return true;
-}
-
-static bool translate_mouse_wheel(const SDL_Event& e, InputEvent& out) {
-    out.type = EventType::MouseWheel;
-    float dx = static_cast<float>(e.wheel.x);
-    float dy = static_cast<float>(e.wheel.y);
-    if (e.wheel.direction == SDL_MOUSEWHEEL_FLIPPED) {
-        dx = -dx;
-        dy = -dy;
-    }
-    out.wheel.dx = dx;
-    out.wheel.dy = dy;
-    return true;
-}
-
-static bool translate_window_event(const SDL_Event& e, InputEvent& out) {
-    if (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED || e.window.event == SDL_WINDOWEVENT_RESIZED) {
-        out.type = EventType::Resize;
-        out.resize.width = e.window.data1;
-        out.resize.height = e.window.data2;
-        return true;
-    }
-    return false;
-}
-
-static bool translate_event(const SDL_Event& e, InputEvent& out) {
-    out = {};  // reset
-
-    switch (e.type) {
-        case SDL_QUIT:
-            out.type = EventType::Quit;
-            return true;
-
-        case SDL_TEXTINPUT:
-            return translate_text_input(e, out);
-
-        case SDL_KEYDOWN:
-            return translate_key_event(e, out, EventType::KeyDown, e.key.repeat != 0);
-
-        case SDL_KEYUP:
-            return translate_key_event(e, out, EventType::KeyUp, false);
-
-        case SDL_MOUSEBUTTONDOWN:
-            return translate_mouse_button_event(e, out, EventType::MouseDown);
-
-        case SDL_MOUSEBUTTONUP:
-            return translate_mouse_button_event(e, out, EventType::MouseUp);
-
-        case SDL_MOUSEWHEEL:
-            return translate_mouse_wheel(e, out);
-
-        case SDL_WINDOWEVENT:
-            return translate_window_event(e, out);
-
-        default:
-            return false;
-    }
-}
-
 bool SDLWindow::wait_event(InputEvent& out, int timeout_ms) {
     SDL_Event e;
     if (!SDL_WaitEventTimeout(&e, timeout_ms)) return false;
-    return translate_event(e, out);
+    return Hummingbird::Platform::SDLInput::translate_event(e, out);
 }
 
 bool SDLWindow::poll_event(InputEvent& out) {
     SDL_Event e;
     if (!SDL_PollEvent(&e)) return false;
-    return translate_event(e, out);
+    return Hummingbird::Platform::SDLInput::translate_event(e, out);
 }
 
 void SDLWindow::start_text_input() {
@@ -210,3 +139,18 @@ void SDLWindow::start_text_input() {
 void SDLWindow::stop_text_input() {
     SDL_StopTextInput();
 }
+
+std::string SDLWindow::get_clipboard_text() const {
+    if (!SDL_HasClipboardText()) return {};
+
+    char* text = SDL_GetClipboardText();
+    if (!text) {
+        return {};
+    }
+
+    std::string out = text;
+    SDL_free(text);
+    return out;
+}
+
+}  // namespace Hummingbird::Platform

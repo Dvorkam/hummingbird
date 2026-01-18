@@ -1,22 +1,18 @@
 #include "layout/InlineBox.h"
 
 #include <algorithm>
+#include <utility>
+#include <vector>
 
-#include "core/platform_api/IGraphicsContext.h"
-#include "layout/InlineLineBuilder.h"
+#include "layout/LayoutMetricsUtils.h"
+#include "layout/inline/InlineRef.h"
+#include "layout/inline/InlineTypes.h"
+#include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 
 namespace {
 constexpr float kInlineAtomicLayoutWidth = 100000.0f;
-
-struct LayoutMetrics {
-    float inset_left;
-    float inset_right;
-    float inset_top;
-    float inset_bottom;
-    float content_width;
-};
 
 struct ChildMargins {
     float left;
@@ -25,35 +21,9 @@ struct ChildMargins {
     float bottom;
 };
 
-LayoutMetrics compute_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect) {
-    rect.x = bounds.x;
-    rect.y = bounds.y;
-
-    float padding_left = style ? style->padding.left : 0.0f;
-    float padding_right = style ? style->padding.right : 0.0f;
-    float padding_top = style ? style->padding.top : 0.0f;
-    float padding_bottom = style ? style->padding.bottom : 0.0f;
-    float border_left = style ? style->border_width.left : 0.0f;
-    float border_right = style ? style->border_width.right : 0.0f;
-    float border_top = style ? style->border_width.top : 0.0f;
-    float border_bottom = style ? style->border_width.bottom : 0.0f;
-
-    float inset_left = padding_left + border_left;
-    float inset_right = padding_right + border_right;
-    float inset_top = padding_top + border_top;
-    float inset_bottom = padding_bottom + border_bottom;
-
-    float content_width = bounds.width - inset_left - inset_right;
-    if (content_width < 0.0f) content_width = 0.0f;
-
-    return {inset_left, inset_right, inset_top, inset_bottom, content_width};
-}
-
 bool has_insets(const Css::ComputedStyle* style) {
-    if (!style) return false;
-    return style->padding.left > 0.0f || style->padding.right > 0.0f || style->padding.top > 0.0f ||
-           style->padding.bottom > 0.0f || style->border_width.left > 0.0f || style->border_width.right > 0.0f ||
-           style->border_width.top > 0.0f || style->border_width.bottom > 0.0f;
+    Metrics::Insets insets = Metrics::compute_insets(style);
+    return insets.left > 0.0f || insets.right > 0.0f || insets.top > 0.0f || insets.bottom > 0.0f;
 }
 
 ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
@@ -170,9 +140,9 @@ void InlineBox::finalize_inline_layout() {
 
 void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
-    LayoutMetrics metrics = compute_metrics(style, bounds, m_rect);
-    float cursor_x = metrics.inset_left;
-    float cursor_y = metrics.inset_top;
+    Metrics::BoxMetrics metrics = Metrics::compute_box_metrics(style, bounds, m_rect, Metrics::BoxWidthPolicy::Ignore);
+    float cursor_x = metrics.insets.left;
+    float cursor_y = metrics.insets.top;
     float line_height = 0.0f;
 
     for (auto& child : m_children) {
@@ -181,7 +151,7 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
         float child_x = cursor_x + margins.left;
         float child_y = cursor_y + margins.top;
-        float available_width = metrics.content_width - (child_x - metrics.inset_left);
+        float available_width = metrics.content_width - (child_x - metrics.insets.left);
         Rect child_bounds{child_x, child_y, available_width, 0.0f};
         child->layout(context, child_bounds);
 
@@ -190,8 +160,8 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
         cursor_x = child_x + child->get_rect().width + margins.right;
     }
 
-    m_rect.width = cursor_x + metrics.inset_right;
-    m_rect.height = cursor_y + line_height + metrics.inset_bottom;
+    m_rect.width = cursor_x + metrics.insets.right;
+    m_rect.height = cursor_y + line_height + metrics.insets.bottom;
 }
 
 }  // namespace Hummingbird::Layout

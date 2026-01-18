@@ -1,6 +1,9 @@
 #pragma once
 
+#include <stddef.h>
+
 #include <string_view>
+#include <vector>
 
 #include "html/HtmlToken.h"
 
@@ -19,12 +22,10 @@ private:
     bool eof() const;
     void skip_whitespace();
 
-    Token emit_error(std::string_view message);
     Token emit_character_data();
-    Token emit_tag(bool is_end_tag, bool self_closing, std::string_view tag_name, const std::array<Attribute, 8>& attrs,
-                   size_t attr_count);
+    Token emit_tag(bool is_end_tag, bool self_closing, std::string_view tag_name, std::vector<Attribute> attrs);
     void parse_tag_name(std::string_view& out_name);
-    size_t parse_attributes(std::array<Attribute, 8>& attrs);
+    void parse_attributes(std::vector<Attribute>& attrs);
     bool handle_data_state(Token& out);
     bool handle_tag_open_state(Token& out);
     bool handle_end_tag_open_state(Token& out);

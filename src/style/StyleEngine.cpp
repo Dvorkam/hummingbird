@@ -1,16 +1,24 @@
 #include "style/StyleEngine.h"
 
-#include <algorithm>
-#include <cctype>
-#include <cstdlib>
-#include <unordered_map>
+#include <stddef.h>
 
+#include <memory>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unordered_map>
+#include <utility>
+#include <vector>
+
+#include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
-#include "html/HtmlAttributeNames.h"
-#include "html/HtmlTagNames.h"
+#include "core/platform_api/IGraphicsContext.h"
+#include "style/ComputedStyle.h"
 #include "style/CssValueNames.h"
 #include "style/SelectorMatcher.h"
+#include "style/StyleDefaults.h"
+#include "style/Stylesheet.h"
 
 namespace Hummingbird::Css {
 
@@ -32,22 +40,9 @@ struct MatchedProperty {
     Value value;
 };
 
-struct StyleOverrides {
-    bool color = false;
-    bool underline = false;
-    bool whitespace = false;
-    bool font_monospace = false;
-    bool weight = false;
-    bool style = false;
-    bool font_size = false;
-    bool font_face = false;
-    bool text_align = false;
-    bool background = false;
-};
-
 struct StyleResult {
     ComputedStyle style;
-    StyleOverrides overrides;
+    StyleDefaults::StyleOverrides overrides;
 };
 
 struct PropertyHash {
@@ -90,9 +85,29 @@ void apply_length_if_present(const PropertyMap& properties, Property property, f
 
 void apply_optional_length_if_present(const PropertyMap& properties, Property property, std::optional<float>& target) {
     auto it = properties.find(property);
-    if (it != properties.end()) {
-        target = value_to_length(it->second.value, target.value_or(0.0f));
+    if (it == properties.end()) {
+        return;
     }
+    const auto& value = it->second.value;
+    if (value.type != Value::Type::Length || value.length.unit != Unit::Px) {
+        return;
+    }
+    target = value.length.value;
+}
+
+void apply_margin_if_present(const PropertyMap& properties, Property property, float& target, bool& auto_flag) {
+    auto it = properties.find(property);
+    if (it == properties.end()) {
+        return;
+    }
+    const auto& value = it->second.value;
+    if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
+        auto_flag = true;
+        target = 0.0f;
+        return;
+    }
+    auto_flag = false;
+    target = value_to_length(value, target);
 }
 
 void apply_border_style(ComputedStyle& style, const Value& value) {
@@ -123,7 +138,8 @@ bool apply_display_property(const PropertyMap& properties, ComputedStyle& style)
     return true;
 }
 
-void apply_color_property(const PropertyMap& properties, ComputedStyle& style, StyleOverrides& overrides) {
+void apply_color_property(const PropertyMap& properties, ComputedStyle& style,
+                          StyleDefaults::StyleOverrides& overrides) {
     auto color_it = properties.find(Property::Color);
     if (color_it != properties.end() && color_it->second.value.type == Value::Type::Color) {
         style.color = color_it->second.value.color;
@@ -131,7 +147,8 @@ void apply_color_property(const PropertyMap& properties, ComputedStyle& style, S
     }
 }
 
-void apply_background_property(const PropertyMap& properties, ComputedStyle& style, StyleOverrides& overrides) {
+void apply_background_property(const PropertyMap& properties, ComputedStyle& style,
+                               StyleDefaults::StyleOverrides& overrides) {
     auto bg_it = properties.find(Property::BackgroundColor);
     if (bg_it != properties.end() && bg_it->second.value.type == Value::Type::Color) {
         style.background = bg_it->second.value.color;
@@ -139,8 +156,8 @@ void apply_background_property(const PropertyMap& properties, ComputedStyle& sty
     }
 }
 
-void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& style, StyleOverrides& overrides,
-                               bool& display_set) {
+void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& style,
+                               StyleDefaults::StyleOverrides& overrides, bool& display_set) {
     display_set = apply_display_property(properties, style);
 
     // margin / padding shorthand and individual edges
@@ -154,9 +171,9 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
     }
 
     apply_length_if_present(properties, Property::MarginTop, style.margin.top);
-    apply_length_if_present(properties, Property::MarginRight, style.margin.right);
+    apply_margin_if_present(properties, Property::MarginRight, style.margin.right, style.margin_right_auto);
     apply_length_if_present(properties, Property::MarginBottom, style.margin.bottom);
-    apply_length_if_present(properties, Property::MarginLeft, style.margin.left);
+    apply_margin_if_present(properties, Property::MarginLeft, style.margin.left, style.margin_left_auto);
 
     apply_length_if_present(properties, Property::PaddingTop, style.padding.top);
     apply_length_if_present(properties, Property::PaddingRight, style.padding.right);
@@ -178,238 +195,41 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
 
     apply_optional_length_if_present(properties, Property::Width, style.width);
     apply_optional_length_if_present(properties, Property::Height, style.height);
+    apply_optional_length_if_present(properties, Property::MaxWidth, style.max_width);
+
+    auto font_size_it = properties.find(Property::FontSize);
+    if (font_size_it != properties.end()) {
+        if (font_size_it->second.value.type == Value::Type::Length &&
+            font_size_it->second.value.length.unit == Unit::Px) {
+            style.font_size = font_size_it->second.value.length.value;
+            overrides.font_size = true;
+        }
+    }
+
+    auto line_height_it = properties.find(Property::LineHeight);
+    if (line_height_it != properties.end()) {
+        const auto& value = line_height_it->second.value;
+        if (value.type == Value::Type::Length && value.length.unit == Unit::Px) {
+            style.line_height = value.length.value;
+            overrides.line_height = true;
+        } else if (value.type == Value::Type::Number) {
+            style.line_height = value.number * style.font_size;
+            overrides.line_height = true;
+        }
+    }
 
     apply_color_property(properties, style, overrides);
     apply_background_property(properties, style, overrides);
 }
 
-void apply_ua_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides, bool display_set) {
-    const auto& tag = element.get_tag_name();
-    const auto set_heading = [&](float scale, float margin_em) {
-        style.font_size = 16.0f * scale;
-        style.weight = ComputedStyle::FontWeight::Bold;
-        float m = style.font_size * margin_em;
-        style.margin.top = style.margin.bottom = m;
-    };
-
-    if (!display_set) {
-        if (tag == Hummingbird::Html::TagNames::A || tag == Hummingbird::Html::TagNames::Span ||
-            tag == Hummingbird::Html::TagNames::Strong || tag == Hummingbird::Html::TagNames::Em ||
-            tag == Hummingbird::Html::TagNames::B || tag == Hummingbird::Html::TagNames::I ||
-            tag == Hummingbird::Html::TagNames::Code || tag == Hummingbird::Html::TagNames::Img ||
-            tag == Hummingbird::Html::TagNames::Font) {
-            style.display = ComputedStyle::Display::Inline;
-        } else if (tag == Hummingbird::Html::TagNames::Li) {
-            style.display = ComputedStyle::Display::ListItem;
-        }
-    }
-
-    if (tag == Hummingbird::Html::TagNames::Ul || tag == Hummingbird::Html::TagNames::Ol) {
-        style.padding.left = 20.0f;
-    } else if (tag == Hummingbird::Html::TagNames::Pre) {
-        if (style.whitespace == ComputedStyle::WhiteSpace::Normal) {
-            style.whitespace = ComputedStyle::WhiteSpace::Preserve;
-        }
-        style.font_monospace = true;
-        overrides.whitespace = true;
-        overrides.font_monospace = true;
-    } else if (tag == Hummingbird::Html::TagNames::A) {
-        style.color = {0, 0, 255, 255};
-        style.underline = true;
-        overrides.color = true;
-        overrides.underline = true;
-    } else if (tag == Hummingbird::Html::TagNames::Code) {
-        style.font_monospace = true;
-        style.background = Color{230, 230, 230, 255};
-        style.padding.left = style.padding.right = 2.0f;
-        style.padding.top = style.padding.bottom = 1.0f;
-        overrides.font_monospace = true;
-        overrides.background = true;
-    } else if (tag == Hummingbird::Html::TagNames::Blockquote) {
-        style.margin.left = 40.0f;
-        style.margin.right = 40.0f;
-        style.margin.top = 8.0f;
-        style.margin.bottom = 8.0f;
-    } else if (tag == Hummingbird::Html::TagNames::Hr) {
-        style.height = 2.0f;
-        style.margin.top = style.margin.bottom = 8.0f;
-        style.background = Color{50, 50, 50, 255};
-    } else if (tag == Hummingbird::Html::TagNames::Strong) {
-        style.weight = ComputedStyle::FontWeight::Bold;
-        overrides.weight = true;
-    } else if (tag == Hummingbird::Html::TagNames::Em) {
-        style.style = ComputedStyle::FontStyle::Italic;
-        overrides.style = true;
-    } else if (tag == Hummingbird::Html::TagNames::H1) {
-        set_heading(2.0f, 0.67f);
-        overrides.font_size = true;
-        overrides.weight = true;
-    } else if (tag == Hummingbird::Html::TagNames::H2) {
-        set_heading(1.5f, 0.83f);
-        overrides.font_size = true;
-        overrides.weight = true;
-    } else if (tag == Hummingbird::Html::TagNames::H3) {
-        set_heading(1.17f, 1.0f);
-        overrides.font_size = true;
-        overrides.weight = true;
-    } else if (tag == Hummingbird::Html::TagNames::H4) {
-        set_heading(1.0f, 1.33f);
-        overrides.font_size = true;
-        overrides.weight = true;
-    } else if (tag == Hummingbird::Html::TagNames::H5) {
-        set_heading(0.83f, 1.67f);
-        overrides.font_size = true;
-        overrides.weight = true;
-    } else if (tag == Hummingbird::Html::TagNames::H6) {
-        set_heading(0.67f, 2.33f);
-        overrides.font_size = true;
-        overrides.weight = true;
-    }
-}
-
-void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides) {
-    auto matches_name = [](std::string_view a, std::string_view b) {
-        if (a.size() != b.size()) return false;
-        for (size_t i = 0; i < a.size(); ++i) {
-            if (std::tolower(static_cast<unsigned char>(a[i])) != std::tolower(static_cast<unsigned char>(b[i]))) {
-                return false;
-            }
-        }
-        return true;
-    };
-
-    auto parse_length_value = [](std::string_view value) -> std::optional<float> {
-        std::string_view trimmed = value;
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) {
-            trimmed.remove_prefix(1);
-        }
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
-            trimmed.remove_suffix(1);
-        }
-        if (trimmed.empty()) {
-            return std::nullopt;
-        }
-        std::string temp(trimmed);
-        char* end = nullptr;
-        float parsed = std::strtof(temp.c_str(), &end);
-        if (end == temp.c_str()) {
-            return std::nullopt;
-        }
-        while (end && *end != '\0' && std::isspace(static_cast<unsigned char>(*end))) {
-            ++end;
-        }
-        if (end && *end != '\0') {
-            return std::nullopt;
-        }
-        if (parsed < 0.0f) {
-            parsed = 0.0f;
-        }
-        return parsed;
-    };
-
-    auto parse_font_size_value = [](std::string_view value) -> std::optional<float> {
-        std::string_view trimmed = value;
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) {
-            trimmed.remove_prefix(1);
-        }
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
-            trimmed.remove_suffix(1);
-        }
-        if (trimmed.empty()) {
-            return std::nullopt;
-        }
-        std::string temp(trimmed);
-        char* end = nullptr;
-        long parsed = std::strtol(temp.c_str(), &end, 10);
-        if (end == temp.c_str()) {
-            return std::nullopt;
-        }
-        while (end && *end != '\0' && std::isspace(static_cast<unsigned char>(*end))) {
-            ++end;
-        }
-        if (end && *end != '\0') {
-            return std::nullopt;
-        }
-        if (parsed < 1) {
-            parsed = 1;
-        }
-        if (parsed > 7) {
-            parsed = 7;
-        }
-        static constexpr float kFontSizes[] = {10.0f, 13.0f, 16.0f, 18.0f, 24.0f, 32.0f, 48.0f};
-        return kFontSizes[parsed - 1];
-    };
-
-    auto parse_font_face_value = [](std::string_view value) -> std::string {
-        std::string_view trimmed = value;
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.front()))) {
-            trimmed.remove_prefix(1);
-        }
-        while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
-            trimmed.remove_suffix(1);
-        }
-        if (auto comma = trimmed.find(','); comma != std::string_view::npos) {
-            trimmed = trimmed.substr(0, comma);
-            while (!trimmed.empty() && std::isspace(static_cast<unsigned char>(trimmed.back()))) {
-                trimmed.remove_suffix(1);
-            }
-        }
-        if (trimmed.size() >= 2 && ((trimmed.front() == '"' && trimmed.back() == '"') ||
-                                    (trimmed.front() == '\'' && trimmed.back() == '\''))) {
-            trimmed = trimmed.substr(1, trimmed.size() - 2);
-        }
-        std::string normalized(trimmed);
-        std::transform(normalized.begin(), normalized.end(), normalized.begin(),
-                       [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        return normalized;
-    };
-
-    for (const auto& [key, value] : element.get_attributes()) {
-        if (matches_name(key, Hummingbird::Html::AttributeNames::Align)) {
-            std::string normalized = value;
-            std::transform(normalized.begin(), normalized.end(), normalized.begin(),
-                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-            if (normalized == "left") {
-                style.text_align = ComputedStyle::TextAlign::Left;
-                overrides.text_align = true;
-            } else if (normalized == "center") {
-                style.text_align = ComputedStyle::TextAlign::Center;
-                overrides.text_align = true;
-            } else if (normalized == "right") {
-                style.text_align = ComputedStyle::TextAlign::Right;
-                overrides.text_align = true;
-            }
-        } else if (matches_name(key, Hummingbird::Html::AttributeNames::NoWrap)) {
-            style.whitespace = ComputedStyle::WhiteSpace::NoWrap;
-            overrides.whitespace = true;
-        } else if (matches_name(key, Hummingbird::Html::AttributeNames::Width) && !style.width.has_value()) {
-            if (auto parsed = parse_length_value(value)) {
-                style.width = *parsed;
-            }
-        } else if (matches_name(key, Hummingbird::Html::AttributeNames::Height) && !style.height.has_value()) {
-            if (auto parsed = parse_length_value(value)) {
-                style.height = *parsed;
-            }
-        } else if (matches_name(key, Hummingbird::Html::AttributeNames::Size)) {
-            if (auto parsed = parse_font_size_value(value)) {
-                style.font_size = *parsed;
-                overrides.font_size = true;
-            }
-        } else if (matches_name(key, Hummingbird::Html::AttributeNames::Face)) {
-            std::string face = parse_font_face_value(value);
-            if (!face.empty()) {
-                style.font_face = std::move(face);
-                overrides.font_face = true;
-            }
-        }
-    }
-}
-
 void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.margin = source.margin;
+    target.margin_left_auto = source.margin_left_auto;
+    target.margin_right_auto = source.margin_right_auto;
     target.padding = source.padding;
     target.width = source.width;
     target.height = source.height;
+    target.max_width = source.max_width;
     target.display = source.display;
     target.border_width = source.border_width;
     target.border_color = source.border_color;
@@ -417,7 +237,8 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.background = source.background;
 }
 
-void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& source, const StyleOverrides& overrides) {
+void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& source,
+                                 const StyleDefaults::StyleOverrides& overrides) {
     if (overrides.color) target.color = source.color;
     if (overrides.underline) target.underline = source.underline;
     if (overrides.whitespace) target.whitespace = source.whitespace;
@@ -428,6 +249,7 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
     if (overrides.font_face) target.font_face = source.font_face;
     if (overrides.text_align) target.text_align = source.text_align;
     if (overrides.background) target.background = source.background;
+    if (overrides.line_height) target.line_height = source.line_height;
 }
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).
@@ -439,8 +261,8 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node) {
 
     // Minimal UA defaults for basic HTML readability.
     if (const auto* element = dynamic_cast<const DOM::Element*>(node)) {
-        apply_ua_defaults(*element, style, result.overrides, display_set);
-        apply_legacy_attributes(*element, style, result.overrides);
+        StyleDefaults::apply_user_agent_defaults(*element, style, result.overrides, display_set);
+        StyleDefaults::apply_legacy_attributes(*element, style, result.overrides);
     }
 
     apply_properties_to_style(properties, style, result.overrides, display_set);

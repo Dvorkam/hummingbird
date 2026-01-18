@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include "TestGraphicsContext.h"
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
@@ -9,6 +8,7 @@
 #include "layout/TreeBuilder.h"
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
+#include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
@@ -16,7 +16,7 @@ using namespace Hummingbird::Css;
 
 TEST(LayoutStyleIntegrationTest, AppliesMarginPaddingAndWidth) {
     // DOM: <body><p>Hello</p><p>World</p></body>
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto dom_root = DomFactory::create_element(arena, "body");
     auto p1 = DomFactory::create_element(arena, "p");
     p1->append_child(DomFactory::create_text(arena, "Hello"));
@@ -39,7 +39,7 @@ TEST(LayoutStyleIntegrationTest, AppliesMarginPaddingAndWidth) {
     auto render_root = builder.build(dom_root.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 800, 600};
     render_root->layout(context, viewport);
 
@@ -70,7 +70,7 @@ TEST(LayoutStyleIntegrationTest, AppliesMarginPaddingAndWidth) {
 
 TEST(LayoutStyleIntegrationTest, IncludesBorderInInlineBoxSizing) {
     // DOM: <body><p><span>Hi</span></p></body>
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto dom_root = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     auto span = DomFactory::create_element(arena, "span");
@@ -90,7 +90,7 @@ TEST(LayoutStyleIntegrationTest, IncludesBorderInInlineBoxSizing) {
     auto render_root = builder.build(dom_root.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 800, 600};
     render_root->layout(context, viewport);
 
@@ -108,7 +108,7 @@ TEST(LayoutStyleIntegrationTest, IncludesBorderInInlineBoxSizing) {
 
 TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
     // DOM: <body><p><span>A</span><span>B</span></p></body>
-    ArenaAllocator arena(4096);
+    Hummingbird::Core::ArenaAllocator arena(4096);
     auto dom_root = DomFactory::create_element(arena, "body");
     auto p = DomFactory::create_element(arena, "p");
     auto span1 = DomFactory::create_element(arena, "span");
@@ -131,7 +131,7 @@ TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
     auto render_root = builder.build(dom_root.get());
     ASSERT_NE(render_root, nullptr);
 
-    TestGraphicsContext context;
+    Hummingbird::Test::TestGraphicsContext context;
     Rect viewport{0, 0, 800, 600};
     render_root->layout(context, viewport);
 

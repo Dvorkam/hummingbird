@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <utility>
 
@@ -7,6 +8,10 @@
 namespace Hummingbird::Layout {
 struct Rect;
 }
+
+namespace Hummingbird {
+
+struct ImageBitmap;
 
 struct Color {
     unsigned char r, g, b, a;
@@ -34,6 +39,14 @@ public:
     virtual void clear(const Color& color) = 0;
     virtual void present() = 0;
     virtual void fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color) = 0;
+    virtual void draw_image(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest) = 0;
     virtual TextMetrics measure_text(const std::string& text, const TextStyle& style) = 0;
     virtual void draw_text(const std::string& text, float x, float y, const TextStyle& style) = 0;
+    virtual void draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
+                                        const TextMetrics& metrics) {
+        draw_text(text, x, y, style);
+    }
+    virtual void set_text_cache_owner(std::uint64_t /*owner_id*/) {}
 };
+
+}  // namespace Hummingbird

@@ -9,8 +9,8 @@ namespace Hummingbird::DOM {
 
 class Text : public Node {
 public:
-    static ArenaPtr<Text> create(ArenaAllocator& arena, std::string_view text) {
-        return ArenaPtr<Text>(arena_new<Text>(arena, text));
+    static Core::ArenaPtr<Text> create(Core::ArenaAllocator& arena, std::string_view text) {
+        return Core::ArenaPtr<Text>(Core::arena_new<Text>(arena, text));
     }
 
     const std::string& get_text() const { return m_text; }
@@ -19,7 +19,7 @@ public:
 private:
     template <typename T, typename... Args>
     // Allow arena_new to invoke the private constructor while keeping creation centralized.
-    friend T* ::arena_new(ArenaAllocator&, Args&&...);
+    friend T* Core::arena_new(Core::ArenaAllocator&, Args&&...);
 
     explicit Text(std::string_view text) : m_text(text) {}
 

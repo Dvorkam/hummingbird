@@ -1,10 +1,18 @@
 #pragma once
 
+#include <stddef.h>
+
 #include <memory>
 
 #include "core/dom/Element.h"
+#include "core/platform_api/IGraphicsContext.h"
+#include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 #include "layout/inline/IInlineParticipant.h"
+
+namespace Hummingbird {
+struct ImageBitmap;
+}
 
 namespace Hummingbird::Layout {
 
@@ -16,6 +24,9 @@ public:
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
     void paint_self(IGraphicsContext& context, const Point& offset) const override;
+
+    bool set_image(const ImageBitmap* image);
+    const ImageBitmap* image() const { return m_image; }
 
     IInlineParticipant* as_inline_participant() override;
     const IInlineParticipant* as_inline_participant() const override;
@@ -37,6 +48,8 @@ private:
     bool should_inline() const;
     float m_inline_measured_width = 0.0f;
     float m_inline_measured_height = 0.0f;
+    const ImageBitmap* m_image = nullptr;
+    mutable TextStyle alt_text_style_;
 };
 
 }  // namespace Hummingbird::Layout

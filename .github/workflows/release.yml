@@ -47,6 +47,8 @@ jobs:
         run: ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
         env:
           HB_RUN_SMOKE_TEST: "1"
+          SDL_RENDER_DRIVER: "software"
+          SDL_VIDEODRIVER: "dummy"
 
       - name: Stage + Zip
         shell: pwsh
@@ -211,12 +213,8 @@ jobs:
           Terminal=false
           EOF
 
-          # Minimal icon placeholder (replace later)
           mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
-          if ! command -v convert >/dev/null 2>&1; then
-            sudo apt-get install -y imagemagick
-          fi
-          convert -size 256x256 xc:white AppDir/usr/share/icons/hicolor/256x256/apps/hummingbird.png
+          cp assets/icons/hummingbird-256.png AppDir/usr/share/icons/hicolor/256x256/apps/hummingbird.png
           cp AppDir/usr/share/icons/hicolor/256x256/apps/hummingbird.png AppDir/hummingbird.png
 
           curl -L -o linuxdeploy-x86_64.AppImage \

@@ -11,8 +11,8 @@ class Text;
 
 class DomFactory {
 public:
-    static ArenaPtr<Element> create_element(ArenaAllocator& arena, std::string_view tag_name);
-    static ArenaPtr<Text> create_text(ArenaAllocator& arena, std::string_view text);
+    static Core::ArenaPtr<Element> create_element(Core::ArenaAllocator& arena, std::string_view tag_name);
+    static Core::ArenaPtr<Text> create_text(Core::ArenaAllocator& arena, std::string_view text);
 };
 
 }  // namespace Hummingbird::DOM
