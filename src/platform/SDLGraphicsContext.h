@@ -6,6 +6,7 @@
 #include <unordered_map>
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 
@@ -32,6 +33,33 @@ public:
     void set_text_cache_owner(std::uint64_t owner_id) override;
 
 private:
+    struct ImageCacheKey {
+        const ImageBitmap* image = nullptr;
+        int width = 0;
+        int height = 0;
+        PixelFormat format = PixelFormat::BGRA32;
+
+        bool operator==(const ImageCacheKey& other) const {
+            return image == other.image && width == other.width && height == other.height && format == other.format;
+        }
+    };
+
+    struct ImageCacheKeyHash {
+        size_t operator()(const ImageCacheKey& key) const;
+    };
+
+    struct ImageCacheEntry {
+        SDL_Texture* texture = nullptr;
+        size_t bytes = 0;
+        size_t last_used = 0;
+    };
+
+    struct ImageCache {
+        std::unordered_map<ImageCacheKey, ImageCacheEntry, ImageCacheKeyHash> entries;
+        size_t bytes = 0;
+        size_t tick = 0;
+    };
+
     struct TextCacheKey {
         std::string text;
         std::string font_path;
@@ -67,6 +95,11 @@ private:
         size_t tick = 0;
     };
 
+    ImageCache& current_image_cache();
+    bool should_cache_image(const Hummingbird::Layout::Rect& dest) const;
+    void evict_image_cache(ImageCache& cache);
+    void clear_image_caches();
+
     TextCache& current_text_cache();
     bool should_cache_text(const Hummingbird::Layout::Rect& dest) const;
     void evict_text_cache(TextCache& cache);
@@ -74,8 +107,12 @@ private:
 
     SDL_Renderer* m_renderer = nullptr;
     Hummingbird::Layout::Rect m_viewport{0, 0, 0, 0};
+    std::unordered_map<std::uint64_t, ImageCache> image_caches_;
     std::unordered_map<std::uint64_t, TextCache> text_caches_;
     std::uint64_t text_cache_owner_ = 0;
+    size_t image_cache_max_bytes_ = 64 * 1024 * 1024;
+    size_t image_cache_max_entry_bytes_ = 8 * 1024 * 1024;
+    float image_cache_margin_factor_ = 1.0f;
     size_t text_cache_max_bytes_ = 16 * 1024 * 1024;
     size_t text_cache_max_entry_bytes_ = 512 * 1024;
     size_t text_cache_max_text_length_ = 256;

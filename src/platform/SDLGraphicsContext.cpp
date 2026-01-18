@@ -114,6 +114,7 @@ SDLGraphicsContext::SDLGraphicsContext(SDL_Renderer* renderer) : m_renderer(rend
 }
 
 SDLGraphicsContext::~SDLGraphicsContext() {
+    clear_image_caches();
     clear_text_caches();
 }
 
@@ -173,6 +174,64 @@ size_t SDLGraphicsContext::TextCacheKeyHash::operator()(const TextCacheKey& key)
     hash ^= static_cast<size_t>(key.color.b) << 24;
     hash ^= static_cast<size_t>(key.color.a) << 32;
     return hash;
+}
+
+size_t SDLGraphicsContext::ImageCacheKeyHash::operator()(const ImageCacheKey& key) const {
+    size_t hash = std::hash<const ImageBitmap*>{}(key.image);
+    hash ^= std::hash<int>{}(key.width) + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
+    hash ^= std::hash<int>{}(key.height) + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
+    hash ^= std::hash<int>{}(static_cast<int>(key.format)) + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
+    return hash;
+}
+
+SDLGraphicsContext::ImageCache& SDLGraphicsContext::current_image_cache() {
+    return image_caches_[text_cache_owner_];
+}
+
+bool SDLGraphicsContext::should_cache_image(const Hummingbird::Layout::Rect& dest) const {
+    if (text_cache_owner_ == 0) {
+        return false;
+    }
+    if (m_viewport.width <= 0.0f || m_viewport.height <= 0.0f) {
+        return true;
+    }
+    const float margin = m_viewport.height * image_cache_margin_factor_;
+    Hummingbird::Layout::Rect expanded{m_viewport.x, m_viewport.y - margin, m_viewport.width,
+                                       m_viewport.height + margin * 2.0f};
+    return !is_outside_viewport(expanded, dest.x, dest.y, dest.width, dest.height);
+}
+
+void SDLGraphicsContext::evict_image_cache(ImageCache& cache) {
+    while (cache.bytes > image_cache_max_bytes_ && !cache.entries.empty()) {
+        auto victim = cache.entries.end();
+        for (auto it = cache.entries.begin(); it != cache.entries.end(); ++it) {
+            if (victim == cache.entries.end() || it->second.last_used < victim->second.last_used) {
+                victim = it;
+            }
+        }
+        if (victim == cache.entries.end()) {
+            break;
+        }
+        if (victim->second.texture) {
+            SDL_DestroyTexture(victim->second.texture);
+        }
+        cache.bytes -= victim->second.bytes;
+        HB_LOG_DEBUG("[perf] image cache evict owner=" << text_cache_owner_ << " bytes=" << victim->second.bytes
+                                                       << " size=" << victim->first.width << "x"
+                                                       << victim->first.height);
+        cache.entries.erase(victim);
+    }
+}
+
+void SDLGraphicsContext::clear_image_caches() {
+    for (auto& [owner, cache] : image_caches_) {
+        for (auto& [key, entry] : cache.entries) {
+            if (entry.texture) {
+                SDL_DestroyTexture(entry.texture);
+            }
+        }
+    }
+    image_caches_.clear();
 }
 
 SDLGraphicsContext::TextCache& SDLGraphicsContext::current_text_cache() {
@@ -238,27 +297,68 @@ void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird:
         return;
     }
 
-    SDL_Surface* surface =
-        SDL_CreateRGBSurfaceWithFormatFrom(const_cast<std::uint8_t*>(image.pixels.data()), image.width, image.height,
-                                           32, image.stride, SDL_PIXELFORMAT_BGRA32);
-    if (!surface) {
-        HB_LOG_ERROR("[platform] Failed to create SDL_Surface from image");
-        return;
+    SDL_Texture* texture = nullptr;
+    bool cached = false;
+
+    const size_t entry_bytes =
+        static_cast<size_t>(image.width) * static_cast<size_t>(image.height) * sizeof(std::uint32_t);
+    const bool cache_allowed =
+        should_cache_image(dest) && entry_bytes <= image_cache_max_entry_bytes_ && text_cache_owner_ != 0;
+
+    ImageCache* cache = nullptr;
+    ImageCacheKey key;
+    if (cache_allowed) {
+        cache = &current_image_cache();
+        key.image = &image;
+        key.width = image.width;
+        key.height = image.height;
+        key.format = image.format;
+
+        auto it = cache->entries.find(key);
+        if (it != cache->entries.end()) {
+            it->second.last_used = ++cache->tick;
+            texture = it->second.texture;
+            cached = true;
+        }
     }
 
-    SDL_Texture* texture = SDL_CreateTextureFromSurface(m_renderer, surface);
-    SDL_FreeSurface(surface);
     if (!texture) {
-        HB_LOG_ERROR("[platform] Failed to create SDL_Texture from image");
-        return;
-    }
+        SDL_Surface* surface =
+            SDL_CreateRGBSurfaceWithFormatFrom(const_cast<std::uint8_t*>(image.pixels.data()), image.width,
+                                               image.height, 32, image.stride, SDL_PIXELFORMAT_BGRA32);
+        if (!surface) {
+            HB_LOG_ERROR("[platform] Failed to create SDL_Surface from image");
+            return;
+        }
 
-    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+        texture = SDL_CreateTextureFromSurface(m_renderer, surface);
+        SDL_FreeSurface(surface);
+        if (!texture) {
+            HB_LOG_ERROR("[platform] Failed to create SDL_Texture from image");
+            return;
+        }
+
+        SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+
+        if (cache_allowed && cache) {
+            ImageCacheEntry entry;
+            entry.texture = texture;
+            entry.bytes = entry_bytes;
+            entry.last_used = ++cache->tick;
+            cache->bytes += entry.bytes;
+            cache->entries.emplace(std::move(key), entry);
+            evict_image_cache(*cache);
+            cached = true;
+        }
+    }
 
     SDL_Rect dest_rect = {static_cast<int>(dest.x), static_cast<int>(dest.y), static_cast<int>(dest.width),
                           static_cast<int>(dest.height)};
     SDL_RenderCopy(m_renderer, texture, nullptr, &dest_rect);
-    SDL_DestroyTexture(texture);
+
+    if (!cached) {
+        SDL_DestroyTexture(texture);
+    }
 }
 
 void SDLGraphicsContext::draw_text(const std::string& text, float x, float y, const TextStyle& style) {
