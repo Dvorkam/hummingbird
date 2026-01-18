@@ -48,6 +48,7 @@ jobs:
         env:
           HB_RUN_SMOKE_TEST: "1"
           SDL_RENDER_DRIVER: "software"
+          SDL_VIDEODRIVER: "dummy"
 
       - name: Stage + Zip
         shell: pwsh
