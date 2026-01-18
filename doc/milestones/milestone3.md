@@ -1,7 +1,8 @@
-### **Milestone 3: The Navigator (Backlog)**
+### **Milestone 3: The Navigator (Complete)**
 
 **Theme:** Document lifecycle + resource loading + navigation.
 **Goal:** Turn the current “single document driven by `BrowserApp`” into an engine-owned document container that can navigate, load subresources (CSS/images), and update deterministically as resources arrive.
+**Status:** Complete (all milestone stories implemented).
 
 **Constraints (non-negotiable):**
 

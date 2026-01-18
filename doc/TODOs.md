@@ -1,10 +1,8 @@
 # TODOs
 
-## Milestone 3 (Navigator) Remaining
+## Milestone 3 (Navigator)
 
-- [ ] **[M3 P2] T-TEST-1: Full Test Suite + Note Skips**; Goal: run full suite and record skips; Scope: tests + TODO note; Acceptance: skips are documented with reasons; Tests: full suite.
-
-Note: Engine/App split work remains tracked in `doc/milestones/milestone3.md` (Epic 3.1, 3.6, 3.10).
+Milestone complete. See `doc/todo_archive/milestone3_done.md`.
 
 ## Milestone 4 (Scripting) Backlog
 
