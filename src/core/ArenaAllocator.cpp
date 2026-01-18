@@ -1,8 +1,6 @@
 #include "core/ArenaAllocator.h"
 
 #include <algorithm>
-#include <exception>
-#include <new>
 #include <ostream>
 
 #include "core/utils/Log.h"
@@ -36,6 +34,9 @@ ArenaAllocator::~ArenaAllocator() {
 }
 
 void* ArenaAllocator::allocate(size_t size, size_t alignment) {
+    if (m_failed) {
+        return nullptr;
+    }
     if (m_blocks.empty()) {
         m_blocks.push_back(Block{std::vector<char>(m_default_block_size), 0});
     }
@@ -46,7 +47,8 @@ void* ArenaAllocator::allocate(size_t size, size_t alignment) {
         if (m_max_blocks > 0 && m_blocks.size() >= m_max_blocks) {
             HB_LOG_ERROR("[arena] budget exceeded: request=" << size << " align=" << alignment << " blocks="
                                                              << m_blocks.size() << " max_blocks=" << m_max_blocks);
-            throw std::bad_alloc();
+            m_failed = true;
+            return nullptr;
         }
         const size_t new_size = std::max(m_default_block_size, required_capacity(size, alignment));
         HB_LOG_DEBUG("[arena] growing: request=" << size << " align=" << alignment << " new_block=" << new_size);
@@ -62,6 +64,7 @@ void* ArenaAllocator::allocate(size_t size, size_t alignment) {
 }
 
 void ArenaAllocator::reset() {
+    m_failed = false;
     if (m_blocks.empty()) {
         return;
     }

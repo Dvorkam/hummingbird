@@ -27,11 +27,17 @@ Parser::Result Parser::parse() {
     m_stylesheet_links.clear();
     m_image_links.clear();
     m_unsupported_tags.clear();
+    m_failed = false;
     auto root = DOM::DomFactory::create_element(m_arena, Hummingbird::Html::TagNames::Root);
+    if (!root) {
+        m_failed = true;
+        return {};
+    }
     ParseState state;
     state.open_elements.push_back(root.get());
 
     while (true) {
+        if (m_failed) break;
         Token token = m_tokenizer.next_token();
 
         if (token.type == TokenType::EndOfFile || token.type == TokenType::Error) {
@@ -59,6 +65,10 @@ Parser::Result Parser::parse() {
         }
     }
 
+    if (m_failed) {
+        return {};
+    }
+
     Result result;
     result.dom = Core::ArenaPtr<DOM::Node>(root.release());
     result.style_blocks = std::move(m_style_blocks);
@@ -73,6 +83,10 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
     maybe_close_list_item(state, lowered_name);
 
     auto new_element = DOM::DomFactory::create_element(m_arena, lowered_name);
+    if (!new_element) {
+        m_failed = true;
+        return;
+    }
     apply_attributes(*new_element, tag_data);
 
     DOM::Node* parent = select_parent(state, lowered_name);
@@ -147,6 +161,10 @@ void Parser::append_text_node(DOM::Node* parent, std::string_view text) {
         }
     }
     auto new_text = DOM::DomFactory::create_text(m_arena, text);
+    if (!new_text) {
+        m_failed = true;
+        return;
+    }
     parent->append_child(std::move(new_text));
 }
 

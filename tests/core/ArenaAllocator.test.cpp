@@ -2,8 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include <new>
-
 TEST(ArenaAllocatorTest, SimpleAllocation) {
     Hummingbird::Core::ArenaAllocator allocator(1024);
     void* ptr = allocator.allocate(100);
@@ -21,7 +19,9 @@ TEST(ArenaAllocatorTest, HonorsMaxBlocks) {
     Hummingbird::Core::ArenaAllocator allocator(64, 2);
     allocator.allocate(64);
     allocator.allocate(64);
-    EXPECT_THROW(allocator.allocate(64), std::bad_alloc);
+    void* ptr = allocator.allocate(64);
+    EXPECT_EQ(ptr, nullptr);
+    EXPECT_TRUE(allocator.failed());
 }
 
 TEST(ArenaAllocatorTest, Reset) {

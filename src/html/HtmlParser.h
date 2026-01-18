@@ -61,6 +61,7 @@ private:
     std::vector<std::string> m_style_blocks;
     std::vector<std::string> m_stylesheet_links;
     std::vector<std::string> m_image_links;
+    bool m_failed = false;
 };
 
 }  // namespace Hummingbird::Html
