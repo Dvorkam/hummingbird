@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 #include <utility>
 
@@ -45,6 +46,7 @@ public:
                                         const TextMetrics& metrics) {
         draw_text(text, x, y, style);
     }
+    virtual void set_text_cache_owner(std::uint64_t /*owner_id*/) {}
 };
 
 }  // namespace Hummingbird

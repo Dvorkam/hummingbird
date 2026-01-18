@@ -243,6 +243,7 @@ void BrowserApp::render_if_needed() {
     graphics_->clear(kClearColor);
 
     // URL bar
+    graphics_->set_text_cache_owner(0);
     url_bar_.draw(*graphics_, win_w);
 
     // Document paint

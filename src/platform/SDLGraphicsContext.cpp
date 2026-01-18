@@ -16,8 +16,10 @@
 #include <blend2d/rgba.h>
 #include <stddef.h>
 
+#include <bit>
 #include <cmath>
 #include <cstdint>
+#include <functional>
 #include <ostream>
 #include <span>
 #include <vector>
@@ -111,7 +113,9 @@ SDLGraphicsContext::SDLGraphicsContext(SDL_Renderer* renderer) : m_renderer(rend
     }
 }
 
-SDLGraphicsContext::~SDLGraphicsContext() {}
+SDLGraphicsContext::~SDLGraphicsContext() {
+    clear_text_caches();
+}
 
 void SDLGraphicsContext::set_viewport(const Hummingbird::Layout::Rect& viewport) {
     m_viewport = viewport;
@@ -153,6 +157,71 @@ void SDLGraphicsContext::fill_rect(const Hummingbird::Layout::Rect& rect, const 
         SDL_Rect sdl_rect = {(int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height};
         SDL_RenderFillRect(m_renderer, &sdl_rect);
     }
+}
+
+size_t SDLGraphicsContext::TextCacheKeyHash::operator()(const TextCacheKey& key) const {
+    const size_t text_hash = std::hash<std::string>{}(key.text);
+    const size_t path_hash = std::hash<std::string>{}(key.font_path);
+    const auto size_bits = std::bit_cast<std::uint32_t>(key.font_size);
+    size_t hash = text_hash ^ (path_hash + 0x9e3779b97f4a7c15ULL + (text_hash << 6) + (text_hash >> 2));
+    hash ^= std::hash<std::uint32_t>{}(size_bits) + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
+    hash ^= static_cast<size_t>(key.bold) << 1;
+    hash ^= static_cast<size_t>(key.italic) << 2;
+    hash ^= static_cast<size_t>(key.monospace) << 3;
+    hash ^= static_cast<size_t>(key.color.r) << 8;
+    hash ^= static_cast<size_t>(key.color.g) << 16;
+    hash ^= static_cast<size_t>(key.color.b) << 24;
+    hash ^= static_cast<size_t>(key.color.a) << 32;
+    return hash;
+}
+
+SDLGraphicsContext::TextCache& SDLGraphicsContext::current_text_cache() {
+    return text_caches_[text_cache_owner_];
+}
+
+bool SDLGraphicsContext::should_cache_text(const Hummingbird::Layout::Rect& dest) const {
+    if (text_cache_owner_ == 0) {
+        return false;
+    }
+    if (m_viewport.width <= 0.0f || m_viewport.height <= 0.0f) {
+        return true;
+    }
+    const float margin = m_viewport.height * text_cache_margin_factor_;
+    Hummingbird::Layout::Rect expanded{m_viewport.x, m_viewport.y - margin, m_viewport.width,
+                                       m_viewport.height + margin * 2.0f};
+    return !is_outside_viewport(expanded, dest.x, dest.y, dest.width, dest.height);
+}
+
+void SDLGraphicsContext::evict_text_cache(TextCache& cache) {
+    while (cache.bytes > text_cache_max_bytes_ && !cache.entries.empty()) {
+        auto victim = cache.entries.end();
+        for (auto it = cache.entries.begin(); it != cache.entries.end(); ++it) {
+            if (victim == cache.entries.end() || it->second.last_used < victim->second.last_used) {
+                victim = it;
+            }
+        }
+        if (victim == cache.entries.end()) {
+            break;
+        }
+        if (victim->second.texture) {
+            SDL_DestroyTexture(victim->second.texture);
+        }
+        cache.bytes -= victim->second.bytes;
+        HB_LOG_DEBUG("[perf] text cache evict owner=" << text_cache_owner_ << " bytes=" << victim->second.bytes
+                                                      << " text_len=" << victim->first.text.size());
+        cache.entries.erase(victim);
+    }
+}
+
+void SDLGraphicsContext::clear_text_caches() {
+    for (auto& [owner, cache] : text_caches_) {
+        for (auto& [key, entry] : cache.entries) {
+            if (entry.texture) {
+                SDL_DestroyTexture(entry.texture);
+            }
+        }
+    }
+    text_caches_.clear();
 }
 
 void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest) {
@@ -219,8 +288,52 @@ void SDLGraphicsContext::draw_text_with_metrics(const std::string& text, float x
     const FontSetup* font_setup = Blend2DFontCache::instance().get_or_load(resolved_font, style.font_size, false);
     if (!font_setup) return;
 
-    SDL_Texture* texture = build_text_texture(m_renderer, text, style, *font_setup, target_width, target_height);
-    if (!texture) return;
+    SDL_Texture* texture = nullptr;
+    bool cached = false;
+
+    const size_t entry_bytes =
+        static_cast<size_t>(target_width) * static_cast<size_t>(target_height) * sizeof(std::uint32_t);
+    const bool cache_allowed =
+        should_cache_text({x, y, static_cast<float>(target_width), static_cast<float>(target_height)}) &&
+        !text.empty() && text.size() <= text_cache_max_text_length_ && entry_bytes <= text_cache_max_entry_bytes_;
+
+    TextCache* cache = nullptr;
+    TextCacheKey key;
+    if (cache_allowed) {
+        cache = &current_text_cache();
+        key.text = text;
+        key.font_path = resolved_font;
+        key.font_size = style.font_size;
+        key.bold = style.bold;
+        key.italic = style.italic;
+        key.monospace = style.monospace;
+        key.color = style.color;
+
+        auto it = cache->entries.find(key);
+        if (it != cache->entries.end()) {
+            it->second.last_used = ++cache->tick;
+            texture = it->second.texture;
+            cached = true;
+        }
+    }
+
+    if (!texture) {
+        texture = build_text_texture(m_renderer, text, style, *font_setup, target_width, target_height);
+        if (!texture) return;
+
+        if (cache_allowed && cache) {
+            TextCacheEntry entry;
+            entry.texture = texture;
+            entry.width = target_width;
+            entry.height = target_height;
+            entry.bytes = entry_bytes;
+            entry.last_used = ++cache->tick;
+            cache->bytes += entry.bytes;
+            cache->entries.emplace(std::move(key), entry);
+            evict_text_cache(*cache);
+            cached = true;
+        }
+    }
 
     SDL_Rect dest_rect = {(int)x, (int)y, target_width, target_height};
 
@@ -233,7 +346,9 @@ void SDLGraphicsContext::draw_text_with_metrics(const std::string& text, float x
 
     SDL_RenderCopy(m_renderer, texture, NULL, &dest_rect);
 
-    SDL_DestroyTexture(texture);
+    if (!cached) {
+        SDL_DestroyTexture(texture);
+    }
 }
 
 TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const TextStyle& style) {
@@ -270,6 +385,10 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
     }
 
     return {width, height};
+}
+
+void SDLGraphicsContext::set_text_cache_owner(std::uint64_t owner_id) {
+    text_cache_owner_ = owner_id;
 }
 
 }  // namespace Hummingbird::Platform

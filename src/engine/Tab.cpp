@@ -1,6 +1,7 @@
 #include "engine/Tab.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <ostream>
 #include <utility>
 #include <vector>
@@ -71,8 +72,10 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
 
 void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool debug_outlines) {
     if (!document_pipeline_.has_render_tree()) return;
+    graphics.set_text_cache_owner(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(this)));
     DocumentPipeline::PaintContext context{viewport, debug_outlines, scroll_y_};
     document_pipeline_.paint(graphics, context);
+    graphics.set_text_cache_owner(0);
 }
 
 std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const {
