@@ -11,7 +11,7 @@ namespace Hummingbird::Core {
 
 class ArenaAllocator {
 public:
-    explicit ArenaAllocator(size_t bytes);
+    explicit ArenaAllocator(size_t bytes, size_t max_blocks = 0);
     ~ArenaAllocator();
 
     // Allocate memory from the arena. Terminates on out-of-memory.
@@ -27,6 +27,7 @@ private:
     };
 
     size_t m_default_block_size = 0;
+    size_t m_max_blocks = 0;
     std::vector<Block> m_blocks;
 };
 

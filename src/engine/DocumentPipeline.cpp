@@ -1,5 +1,6 @@
 #include "engine/DocumentPipeline.h"
 
+#include <new>
 #include <ostream>
 #include <utility>
 
@@ -75,8 +76,15 @@ void DocumentPipeline::reset() {
 
 bool DocumentPipeline::parse_html(std::string_view html) {
     const auto parse_start = Core::Clock::now();
-    Html::Parser parser(dom_arena_, html);
-    auto parse_result = parser.parse();
+    Html::Parser::Result parse_result;
+    try {
+        Html::Parser parser(dom_arena_, html);
+        parse_result = parser.parse();
+    } catch (const std::bad_alloc&) {
+        HB_LOG_ERROR("[pipeline] DOM arena budget exceeded, resetting document");
+        reset();
+        return false;
+    }
     const auto parse_end = Core::Clock::now();
 
     dom_tree_ = std::move(parse_result.dom);

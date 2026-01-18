@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <exception>
+#include <new>
 #include <ostream>
 
 #include "core/utils/Log.h"
@@ -25,7 +26,8 @@ size_t required_capacity(size_t size, size_t alignment) {
 
 namespace Hummingbird::Core {
 
-ArenaAllocator::ArenaAllocator(size_t bytes) : m_default_block_size(bytes) {
+ArenaAllocator::ArenaAllocator(size_t bytes, size_t max_blocks)
+    : m_default_block_size(bytes), m_max_blocks(max_blocks) {
     m_blocks.push_back(Block{std::vector<char>(bytes), 0});
 }
 
@@ -41,6 +43,11 @@ void* ArenaAllocator::allocate(size_t size, size_t alignment) {
     Block* block = &m_blocks.back();
     size_t padding = padding_for_alignment(block->buffer, block->offset, alignment);
     if (block->offset + padding + size > block->buffer.size()) {
+        if (m_max_blocks > 0 && m_blocks.size() >= m_max_blocks) {
+            HB_LOG_ERROR("[arena] budget exceeded: request=" << size << " align=" << alignment << " blocks="
+                                                             << m_blocks.size() << " max_blocks=" << m_max_blocks);
+            throw std::bad_alloc();
+        }
         const size_t new_size = std::max(m_default_block_size, required_capacity(size, alignment));
         HB_LOG_DEBUG("[arena] growing: request=" << size << " align=" << alignment << " new_block=" << new_size);
         m_blocks.push_back(Block{std::vector<char>(new_size), 0});

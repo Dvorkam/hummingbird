@@ -72,6 +72,9 @@ public:
     const std::vector<std::string>& image_links() const { return image_links_; }
 
 private:
+    static constexpr size_t kDomArenaBlockSize = 2 * 1024 * 1024;
+    static constexpr size_t kDomArenaMaxBlocks = 16;
+
     std::string build_css_source(std::string_view base_url) const;
     void parse_and_apply_css(const std::string& css);
     bool build_render_tree();
@@ -83,7 +86,7 @@ private:
     Layout::TreeBuilder tree_builder_;
     Renderer::Painter painter_;
 
-    Core::ArenaAllocator dom_arena_{2 * 1024 * 1024};
+    Core::ArenaAllocator dom_arena_{kDomArenaBlockSize, kDomArenaMaxBlocks};
     Core::ArenaPtr<DOM::Node> dom_tree_;
     std::unique_ptr<Layout::RenderObject> render_tree_;
 
