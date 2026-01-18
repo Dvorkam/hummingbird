@@ -1,5 +1,6 @@
 #include "core/ArenaAllocator.h"
 
+#include <algorithm>
 #include <exception>
 #include <ostream>
 
@@ -16,36 +17,52 @@ size_t padding_for_alignment(const std::vector<char>& buffer, size_t offset, siz
     return aligned - current;
 }
 
-[[noreturn]] void fail_out_of_memory(size_t size, size_t alignment, size_t offset, size_t capacity) {
-    HB_LOG_ERROR("[arena] out of memory: request=" << size << " align=" << alignment << " offset=" << offset
-                                                   << " capacity=" << capacity);
-    std::terminate();
+size_t required_capacity(size_t size, size_t alignment) {
+    return size + alignment;
 }
+
 }  // namespace
 
 namespace Hummingbird::Core {
 
-ArenaAllocator::ArenaAllocator(size_t bytes) : m_offset(0) {
-    m_buffer.resize(bytes);
+ArenaAllocator::ArenaAllocator(size_t bytes) : m_default_block_size(bytes) {
+    m_blocks.push_back(Block{std::vector<char>(bytes), 0});
 }
 
 ArenaAllocator::~ArenaAllocator() {
-    // m_buffer will be deallocated automatically
+    // m_blocks will be deallocated automatically
 }
 
 void* ArenaAllocator::allocate(size_t size, size_t alignment) {
-    size_t padding = padding_for_alignment(m_buffer, m_offset, alignment);
-    if (m_offset + padding + size > m_buffer.size()) {
-        fail_out_of_memory(size, alignment, m_offset, m_buffer.size());
+    if (m_blocks.empty()) {
+        m_blocks.push_back(Block{std::vector<char>(m_default_block_size), 0});
     }
-    m_offset += padding;
-    void* ptr = &m_buffer[m_offset];
-    m_offset += size;
+
+    Block* block = &m_blocks.back();
+    size_t padding = padding_for_alignment(block->buffer, block->offset, alignment);
+    if (block->offset + padding + size > block->buffer.size()) {
+        const size_t new_size = std::max(m_default_block_size, required_capacity(size, alignment));
+        HB_LOG_DEBUG("[arena] growing: request=" << size << " align=" << alignment << " new_block=" << new_size);
+        m_blocks.push_back(Block{std::vector<char>(new_size), 0});
+        block = &m_blocks.back();
+        padding = padding_for_alignment(block->buffer, block->offset, alignment);
+    }
+
+    block->offset += padding;
+    void* ptr = &block->buffer[block->offset];
+    block->offset += size;
     return ptr;
 }
 
 void ArenaAllocator::reset() {
-    m_offset = 0;
+    if (m_blocks.empty()) {
+        return;
+    }
+    if (m_blocks.size() > 1) {
+        m_blocks.resize(1);
+        m_blocks[0].buffer.resize(m_default_block_size);
+    }
+    m_blocks[0].offset = 0;
 }
 
 }  // namespace Hummingbird::Core

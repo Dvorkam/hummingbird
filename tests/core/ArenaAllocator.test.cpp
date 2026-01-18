@@ -8,10 +8,11 @@ TEST(ArenaAllocatorTest, SimpleAllocation) {
     ASSERT_NE(ptr, nullptr);
 }
 
-TEST(ArenaAllocatorTest, AllocationExceedsCapacity) {
+TEST(ArenaAllocatorTest, AllocatesAcrossBlocks) {
     Hummingbird::Core::ArenaAllocator allocator(100);
     allocator.allocate(50);
-    EXPECT_DEATH_IF_SUPPORTED(allocator.allocate(60), "out of memory");
+    void* ptr = allocator.allocate(60);
+    ASSERT_NE(ptr, nullptr);
 }
 
 TEST(ArenaAllocatorTest, Reset) {

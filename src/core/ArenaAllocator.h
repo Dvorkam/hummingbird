@@ -21,8 +21,13 @@ public:
     void reset();
 
 private:
-    std::vector<char> m_buffer;
-    size_t m_offset;
+    struct Block {
+        std::vector<char> buffer;
+        size_t offset = 0;
+    };
+
+    size_t m_default_block_size = 0;
+    std::vector<Block> m_blocks;
 };
 
 template <typename T>
