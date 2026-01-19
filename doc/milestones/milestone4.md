@@ -46,6 +46,36 @@ The story list below is intentionally long, but the DDG HTML deliverable only de
 
 This is the “make DDG actually usable” epic. Even if DDG’s HTML version doesn’t need JS, it absolutely needs **forms + input + button behavior**.
 
+### Stories
+
+* **Story 4.1.1: Control Rendering (Form/Input/Button)**
+* **Goal:** Render `<form>`, `<input>`, and `<button>` as visible elements with basic UA styling.
+* **Scope:** Parsing/routing in HTML→render-tree, minimal computed style defaults for controls, basic box rendering.
+* **Likely files:** `src/html/*`, `src/layout/*`, `src/style/*`, `src/renderer/*`.
+* **Acceptance:** DDG HTML page shows an obvious input box and a clickable button (even if not pretty).
+* **Tests:** layout/render integration tests for control boxes.
+
+* **Story 4.1.2: Input Focus + Text Editing MVP**
+* **Goal:** Make `<input type=text>` accept text, show a caret, and keep the value stable across frames.
+* **Scope:** focus state, text editing (insert/backspace/delete), basic cursor movement (left/right optional).
+* **Likely files:** `src/app/*` (event routing), `src/engine/*` (hit-test→focus), `src/layout/*` (paint caret/value).
+* **Acceptance:** Click input → type characters → they appear in the input; backspace deletes; focus is obvious.
+* **Tests:** headless harness tests for “value string updates” + “focus changes on click”.
+
+* **Story 4.1.3: Form Submit (GET) → Navigate**
+* **Goal:** Submitting a form generates a URL with query string and navigates via `Tab::Navigate(...)`.
+* **Scope:** `<form action method=get>`, input `name=value`, URL encoding basics, Enter submits nearest form.
+* **Likely files:** `src/core/utils/Url.*`, `src/engine/*`, `src/app/*`.
+* **Acceptance:** DDG search: type query + Enter navigates to results.
+* **Tests:** engine tests for query encoding + navigation URL generation.
+
+* **Story 4.1.4: Button Click Submits Nearest Form**
+* **Goal:** Clicking `<button>` triggers form submit (same behavior as Enter).
+* **Scope:** hit-test → dispatch click → form association rules (nearest ancestor form).
+* **Likely files:** `src/engine/*`, `src/layout/*` (hit-test), `src/app/*`.
+* **Acceptance:** DDG search: clicking Search navigates to results.
+* **Tests:** engine tests for “click button submits form”.
+
 **Scope**
 
 * DOM/HTML: recognize + render these tags with sane defaults:
@@ -107,6 +137,43 @@ This is the “The Brain” part, but keep it intentionally tiny and safe.
 
 This aligns with the roadmap’s “onclick/onload + DOM modify triggers re-layout” goal .
 
+### Stories
+
+* **Story 4.2.1: Script Engine Port (`IScriptEngine`)**
+* **Goal:** Introduce a Core-facing interface for scripting so Core/Html/Layout stay QuickJS-free.
+* **Scope:** interface definitions, factories, stubs/no-op implementation.
+* **Likely files:** `src/core/platform_api/*`, `src/platform/*`.
+* **Acceptance:** Engine can construct a script engine object behind an interface without linking QuickJS in Core libs.
+* **Tests:** compile/link + basic unit test with stub.
+
+* **Story 4.2.2: QuickJS Backend (Eval + Error Reporting)**
+* **Goal:** Implement a QuickJS-backed `IScriptEngine` with safe error reporting and no exceptions.
+* **Scope:** embed QuickJS, `eval(script)`, capture/return errors as status.
+* **Likely files:** `src/platform/*` (or dedicated adapter folder), build/vcpkg deps.
+* **Acceptance:** Internal page can run a trivial script and logs show errors cleanly.
+* **Tests:** unit tests for eval success/failure.
+
+* **Story 4.2.3: Minimal DOM Bindings (read + mutate)**
+* **Goal:** Bind `document.getElementById`, `element.textContent=...`, and optionally `setAttribute`.
+* **Scope:** object identity mapping between JS objects and DOM nodes; lifetime rules documented.
+* **Likely files:** `src/core/dom/*`, `src/engine/*`, script adapter files.
+* **Acceptance:** Clicking button updates a text node deterministically.
+* **Tests:** headless harness tests: JS mutation triggers a single invalidation.
+
+* **Story 4.2.4: Click + Load Event Dispatch**
+* **Goal:** Dispatch `click` and `load` into JS.
+* **Scope:** renderer hit-test result → DOM node → event dispatch; `load` once per document ready.
+* **Likely files:** `src/engine/*`, `src/layout/*`, `src/app/*`.
+* **Acceptance:** `onclick` triggers; `load` fires once after initial build.
+* **Tests:** engine tests for event routing order.
+
+* **Story 4.2.5: Internal Demo Page (`example.dev/js`)**
+* **Goal:** Provide a deterministic test page for JS integration.
+* **Scope:** stub document body, embedded scripts, small UI.
+* **Likely files:** `src/platform/StubNetwork.*` (or resource fixtures), tests.
+* **Acceptance:** demo page reliably shows a JS-driven change.
+* **Tests:** smoke/headless regression test for demo flow.
+
 ---
 
 ## Epic 4.3 — “Unsupported HTML/CSS Warnings Trend Down” (targeted coverage)
@@ -138,6 +205,43 @@ Focus only on what helps forms/readability:
   * reasonable spacing (not perfect, but “obviously usable”)
 * Your unsupported-tag/property log volume for that page is measurably lower than baseline.
 
+### Stories
+
+* **Story 4.3.1: Supported Feature Registry + Deduped Warnings (`T-SUPPORT-REG-1`)**
+* **Goal:** Centralize what is supported and avoid log spam.
+* **Scope:** registry tables for HTML tags + CSS properties; warn once per doc.
+* **Likely files:** `src/html/*`, `src/style/*`, `src/core/utils/Log.*`.
+* **Acceptance:** Unsupported warnings for DDG appear once per unique tag/property.
+* **Tests:** parser/style tests asserting dedupe behavior.
+
+* **Story 4.3.2: Selector Coverage (`T-CSS-SEL-1`)**
+* **Goal:** Ensure DDG CSS actually matches.
+* **Scope:** universal selector `*`, descendant combinator, compound selectors (tag+class/id).
+* **Likely files:** `src/style/CssParser.*`, `src/style/SelectorMatcher.*`, tests.
+* **Acceptance:** DDG-like selectors match and style visibly changes.
+* **Tests:** selector matcher tests.
+
+* **Story 4.3.3: Decode Named Entities (`T-HTML-ENT-1`)**
+* **Goal:** Improve readability for HTML-mode sites.
+* **Scope:** HTML text decoding for a small whitelist of named entities.
+* **Likely files:** `src/html/*`, tests.
+* **Acceptance:** `&mdash;`/`&nbsp;` render correctly on DDG and existing regression pages.
+* **Tests:** parser tests for entity decoding.
+
+* **Story 4.3.4: Robust Parsing (HTML/CSS) (`T-HTML-ROBUST-1`, `T-CSS-ROBUST-1`)**
+* **Goal:** Avoid hard failures on real-world markup/css.
+* **Scope:** malformed tag recovery + CSS declaration recovery.
+* **Likely files:** `src/html/*`, `src/style/*`, tests.
+* **Acceptance:** DDG HTML loads without parser aborts on malformed markup; CSS skips malformed declarations safely.
+* **Tests:** parser tests + css parser tests.
+
+* **Story 4.3.5: Text Readability (`T-CSS-TEXT-1/2/3`, `T-CSS-LEN-1`)**
+* **Goal:** Make pages readable enough to use.
+* **Scope:** `text-align`, `white-space: nowrap`, link underlines, and `em` length handling.
+* **Likely files:** `src/style/*`, `src/layout/*`, `src/renderer/*`, tests.
+* **Acceptance:** DDG results page is legible; link affordance is visible; common spacing units behave.
+* **Tests:** style/layout tests.
+
 ---
 
 ## Epic 4.4 — Fonts & Czech Characters (two-font demo, not a full font system)
@@ -163,6 +267,29 @@ If your renderer-side font/text caching work is already done (it appears tracked
 
 * A page that requests a specific font (or `sans-serif`) actually changes appearance.
 * Czech text renders with correct glyphs (no missing boxes).
+
+### Stories
+
+* **Story 4.4.1: font-family Mapping (`T-CSS-TYPO-1`)**
+* **Goal:** Respect common font-family requests with a small mapping table.
+* **Scope:** parse `font-family` lists, map generic families and a few known names to bundled fonts.
+* **Likely files:** `src/style/*`, `src/layout/*`, `src/platform/*`.
+* **Acceptance:** Pages that request `sans-serif`/`monospace` actually change appearance.
+* **Tests:** style/layout tests verifying selected face.
+
+* **Story 4.4.2: Monospace Selection (`T-FONT-1`)**
+* **Goal:** Ensure `<code>`/`pre` render with real monospace.
+* **Scope:** font selection plumbing and default mappings.
+* **Likely files:** `src/style/*`, `src/layout/*`, `src/platform/*`.
+* **Acceptance:** code blocks look monospace and measure consistently.
+* **Tests:** layout tests for monospace metrics.
+
+* **Story 4.4.3: Bold/Italic Selection (`T-CSS-TYPO-2`)**
+* **Goal:** Make bold/italic use the best available face.
+* **Scope:** `font-weight`/`font-style` mapping; best-effort fallbacks when faces are missing.
+* **Likely files:** `src/style/*`, `src/platform/*`.
+* **Acceptance:** headings/strong/em are visually differentiated in a predictable way.
+* **Tests:** style/layout tests.
 
 ---
 
