@@ -4,34 +4,9 @@
 
 Milestone complete. See `doc/todo_archive/milestone3_done.md`.
 
-## Milestone 4 (Scripting) Backlog
+## Milestone 4 (Scripting)
 
-- [ ] **[M4 P0] T-HTML-ROBUST-1: Malformed Tag Handling**; Goal: treat malformed tags as text with recovery; Scope: HtmlParser; Acceptance: `<>`, `< >`, `</>`, `<\n>` do not create elements; Tests: parser tests.
-- [ ] **[M4 P0] T-CSS-ROBUST-1: CSS Declaration Recovery**; Goal: skip malformed declarations safely; Scope: CssParser; Acceptance: only `ident ':' value` becomes a declaration, bad rules are skipped; Tests: CSS parser tests.
-- [ ] **[M4 P1] T-HTML-SEM-1: Semantic Block Tags Map to BlockBox**; Goal: map semantic container tags to block layout; Scope: TreeBuilder tag routing; Acceptance: no unsupported-tag warnings, layouts match div; Tests: layout tests.
-- [ ] **[M4 P1] T-HTML-CUSTOM-1: Custom Elements as Generic Elements**; Goal: allow dash-named tags; Scope: HtmlParser + TreeBuilder; Acceptance: custom elements parse/render as generic blocks; Tests: parser/layout tests.
-- [ ] **[M4 P1] T-HTML-ENT-1: Decode Named Entities**; Goal: decode common HTML entities; Scope: HtmlParser text handling; Acceptance: `&mdash;`, `&nbsp;`, `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` render correctly; Tests: parser tests.
-- [ ] **[M4 P1] T-HTML-ATTR-1: Body Color Attributes**; Goal: map `bgcolor/text/link/vlink`; Scope: StyleDefaults + legacy attribute mapping; Acceptance: body + link colors reflect attributes; Tests: style tests.
-- [ ] **[M4 P1] T-CSS-SEL-1: Selector Coverage**; Goal: add universal selector, descendant combinators, and compound selectors; Scope: CssParser + SelectorMatcher; Acceptance: matching behaves per spec subset; Tests: selector tests.
-- [ ] **[M4 P1] T-CSS-TEXT-1: text-align**; Goal: align inline runs; Scope: inline layout; Acceptance: left/center/right align inline content; Tests: layout tests.
-- [ ] **[M4 P1] T-CSS-TEXT-2: white-space (nowrap)**; Goal: respect nowrap; Scope: inline layout; Acceptance: nowrap prevents line breaks; Tests: layout tests.
-- [ ] **[M4 P1] T-CSS-TEXT-3: text-decoration (underline/none)**; Goal: render underline for links; Scope: Painter + TextBox; Acceptance: underline draws for inline text and can be disabled; Tests: renderer tests.
-- [ ] **[M4 P1] T-CSS-LEN-1: Length Units (em)**; Goal: resolve em values from font size; Scope: CssParser + style resolution; Acceptance: em converts for width/height/margins/padding; Tests: style/layout tests.
-- [ ] **[M4 P1] T-LAYOUT-HR-1: HR Width/Border Rendering**; Goal: honor computed size/border; Scope: RenderRule; Acceptance: hr uses computed width/height/border; Tests: layout/renderer tests.
-- [ ] **[M4 P1] T-LAYOUT-FLOAT-1: Float Layout (Right/Left)**; Goal: support float positioning; Scope: layout flow; Acceptance: float shifts inline flow and positions left/right; Tests: layout tests.
-- [ ] **[M4 P1] T-TABLE-ALIGN-1: Table Cell Block Alignment**; Goal: align block children in cells; Scope: RenderTable; Acceptance: center/right align works for block children; Tests: table layout tests.
-- [ ] **[M4 P2] T-CODE-1: Code Background Blocks**; Goal: render `<code>` backgrounds consistently; Scope: TextBox/Painter; Acceptance: computed background applies to inline and block code; Tests: renderer tests.
-- [ ] **[M4 P2] T-CSS-VAR-1: Custom Properties Storage**; Goal: store/inherit `--*` values; Scope: ComputedStyle; Acceptance: custom props are stored and inherited; Tests: style tests.
-- [ ] **[M4 P2] T-CSS-VAR-2: Minimal var() Resolution for Colors**; Goal: resolve var() for color/background-color; Scope: style resolution; Acceptance: var() resolves with fallback; Tests: style tests.
-- [ ] **[M4 P2] T-CSS-TYPO-1: font-family Fallback Chain**; Goal: parse font-family lists with fallbacks; Scope: StyleEngine + SDLGraphicsContext mapping; Acceptance: generic families map to real fonts; Tests: style/layout tests.
-- [ ] **[M4 P2] T-CSS-TYPO-2: font-style + font-weight**; Goal: apply bold/italic selection; Scope: font selection; Acceptance: weight/style affects chosen face or best-effort; Tests: style/layout tests.
-- [ ] **[M4 P2] T-CSS-BORDER-1: Border Styles Beyond Solid**; Goal: support `outset` and related styles; Scope: Painter; Acceptance: non-solid styles render (MVP can map to solid); Tests: renderer tests.
-- [ ] **[M4 P2] T-SVG-0: SVG Placeholder Box**; Goal: reserve space for `<svg>`; Scope: TreeBuilder + RenderFactory; Acceptance: svg renders placeholder rect and respects width/height; Tests: layout tests.
-- [ ] **[M4 P2] T-FORM-1: Button Element Rendering**; Goal: basic `<button>` UA style; Scope: TreeBuilder + StyleDefaults; Acceptance: button has padding/border/background and participates in layout; Tests: layout tests.
-- [ ] **[M4 P2] T-FORM-2: Basic Hit-Test + Click Signal**; Goal: click hit-test returns target element; Scope: hit testing + logging; Acceptance: click logs target (no action yet); Tests: engine tests.
-- [ ] **[M4 P2] T-FONT-1: Monospace Font Selection**; Goal: pick real monospace fonts when requested; Scope: TextBox + font mapping; Acceptance: monospace uses actual mono face; Tests: layout tests.
-- [ ] **[M4 P2] T-SUPPORT-REG-1: Supported Feature Registry + Deduped Warnings**; Goal: centralize supported tags/properties and dedupe warnings; Scope: Html/Css support tables + logging; Acceptance: warnings are once-per-(tag/property) per doc; Tests: parser tests.
-- [ ] **[M4 P2] T-PERF-1: Retained Display List (Paint Cache)**; Goal: avoid rebuilding paint commands for static content; Scope: renderer/engine; Acceptance: unchanged output with fewer rebuilds; Tests: renderer tests.
+Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 
 ## Milestone 5 (Layout/Polish)
 
