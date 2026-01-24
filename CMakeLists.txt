@@ -129,6 +129,9 @@ target_include_directories(Renderer
 add_library(Engine STATIC
     src/engine/DocumentPipeline.cpp
     src/engine/DocumentInputController.cpp
+    src/engine/DocumentModel.cpp
+    src/engine/DocumentResources.cpp
+    src/engine/DocumentPainter.cpp
     src/engine/ResourceLoader.cpp
     src/engine/Tab.cpp
     src/engine/ResourceStore.cpp

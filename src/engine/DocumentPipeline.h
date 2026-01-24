@@ -8,27 +8,18 @@
 #include <string_view>
 #include <vector>
 
-#include "core/ArenaAllocator.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/InputEvent.h"
 #include "engine/DocumentInputController.h"
+#include "engine/DocumentModel.h"
+#include "engine/DocumentPainter.h"
+#include "engine/DocumentResources.h"
 #include "layout/Geometry.h"
-#include "layout/TreeBuilder.h"
-#include "renderer/Painter.h"
-#include "style/StyleEngine.h"
 
 namespace Hummingbird {
 class IResourceProvider;
 class IGraphicsContext;
 }  // namespace Hummingbird
-
-namespace Hummingbird::DOM {
-class Node;
-}  // namespace Hummingbird::DOM
-
-namespace Hummingbird::Layout {
-class RenderObject;
-}
 
 namespace Hummingbird::Engine {
 
@@ -77,38 +68,19 @@ public:
     InputEditResult handle_key_down(const InputEvent& event);
     std::optional<std::string> focused_input_value() const;
 
-    bool has_dom_tree() const { return static_cast<bool>(dom_tree_); }
-    bool has_render_tree() const { return static_cast<bool>(render_tree_); }
+    bool has_dom_tree() const { return model_.has_dom_tree(); }
+    bool has_render_tree() const { return model_.has_render_tree(); }
     float content_height() const { return content_height_; }
     size_t render_tree_children() const;
-    const std::vector<std::string>& stylesheet_links() const { return stylesheet_links_; }
-    const std::vector<std::string>& image_links() const { return image_links_; }
+    const std::vector<std::string>& stylesheet_links() const { return model_.stylesheet_links(); }
+    const std::vector<std::string>& image_links() const { return model_.image_links(); }
 
 private:
-    static constexpr size_t kDomArenaBlockSize = 2 * 1024 * 1024;
-    static constexpr size_t kDomArenaMaxBlocks = 16;
-
-    std::string build_css_source(std::string_view base_url) const;
-    void parse_and_apply_css(const std::string& css);
-    bool build_render_tree();
-
-    ResourceStore* resource_store_ = nullptr;
-    IResourceProvider* resource_provider_ = nullptr;
-
-    Css::StyleEngine style_engine_;
-    Layout::TreeBuilder tree_builder_;
-    Renderer::Painter painter_;
-
-    Core::ArenaAllocator dom_arena_{kDomArenaBlockSize, kDomArenaMaxBlocks};
-    Core::ArenaPtr<DOM::Node> dom_tree_;
-    std::unique_ptr<Layout::RenderObject> render_tree_;
-
-    std::vector<std::string> style_blocks_;
-    std::vector<std::string> stylesheet_links_;
-    std::vector<std::string> image_links_;
-
     float content_height_ = 0.0f;
     DocumentInputController input_controller_;
+    DocumentResources resources_;
+    DocumentModel model_;
+    DocumentPainter painter_;
 };
 
 }  // namespace Hummingbird::Engine

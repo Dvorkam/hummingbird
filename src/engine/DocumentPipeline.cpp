@@ -1,27 +1,18 @@
 #include "engine/DocumentPipeline.h"
 
-#include <algorithm>
 #include <ostream>
 #include <utility>
 
 #include "core/dom/Element.h"
-#include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
-#include "core/platform_api/IResourceProvider.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
-#include "engine/ResourceStore.h"
 #include "engine/ResourceUrl.h"
 #include "html/HtmlAttributeNames.h"
-#include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
 #include "layout/GeometryUtils.h"
-#include "layout/RenderImage.h"
 #include "layout/RenderObject.h"
 #include "layout/RenderTreeTraversal.h"
-#include "style/CssParser.h"
-#include "style/Stylesheet.h"
-#include "style/StylesheetSource.h"
 
 namespace Hummingbird {
 struct ImageBitmap;
@@ -30,15 +21,6 @@ struct ImageBitmap;
 namespace Hummingbird::Engine {
 
 namespace {
-size_t count_nodes_recursive(const DOM::Node* node) {
-    if (!node) return 0;
-    size_t total = 1;
-    for (const auto& child : node->get_children()) {
-        total += count_nodes_recursive(child.get());
-    }
-    return total;
-}
-
 std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::string_view base_url) {
     const DOM::Node* current = node;
     while (current) {
@@ -60,55 +42,30 @@ std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::strin
 }  // namespace
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider)
-    : resource_store_(resource_store), resource_provider_(resource_provider) {}
+    : resources_(resource_store, resource_provider) {}
 
 DocumentPipeline::~DocumentPipeline() = default;
 
 void DocumentPipeline::reset() {
-    dom_tree_.reset();
-    render_tree_.reset();
-    dom_arena_.reset();
-    style_blocks_.clear();
-    stylesheet_links_.clear();
-    image_links_.clear();
+    model_.reset();
     content_height_ = 0.0f;
     input_controller_.reset();
 }
 
 bool DocumentPipeline::parse_html(std::string_view html) {
-    const auto parse_start = Core::Clock::now();
-    Html::Parser::Result parse_result;
-    Html::Parser parser(dom_arena_, html);
-    parse_result = parser.parse();
-    const auto parse_end = Core::Clock::now();
-
-    dom_tree_ = std::move(parse_result.dom);
-    style_blocks_ = std::move(parse_result.style_blocks);
-    stylesheet_links_ = std::move(parse_result.stylesheet_links);
-    image_links_ = std::move(parse_result.image_links);
-
-    if (!dom_tree_) {
-        if (dom_arena_.failed()) {
-            HB_LOG_ERROR("[pipeline] DOM arena budget exceeded, resetting document");
-            reset();
-        }
-        HB_LOG_WARN("[pipeline] parsed empty DOM");
-        return false;
+    auto result = model_.parse_html(html);
+    if (!result.ok && result.arena_failed) {
+        reset();
     }
-
-    HB_LOG_INFO("[pipeline] parsed DOM children: " << dom_tree_->get_children().size()
-                                                   << " total nodes: " << count_nodes_recursive(dom_tree_.get()));
-    HB_LOG_INFO("[perf] html parse ms=" << Core::duration_ms(parse_start, parse_end));
-
-    return true;
+    return result.ok;
 }
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
-    std::string css = build_css_source(base_url);
-    parse_and_apply_css(css);
+    std::string css = resources_.build_css_source(base_url, model_.style_blocks(), model_.stylesheet_links());
+    model_.apply_styles(css);
 
-    if (!build_render_tree()) {
+    if (!model_.build_render_tree()) {
         return;
     }
 
@@ -117,61 +74,27 @@ void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const
 }
 
 bool DocumentPipeline::update_image_resources(std::string_view base_url) {
-    if (!render_tree_ || !resource_store_) {
-        return false;
-    }
-
-    bool changed = false;
-    Layout::Point offset{0.0f, 0.0f};
-    Layout::Traversal::traverse_render_tree(
-        *render_tree_, offset,
-        [&](Layout::RenderObject& current, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
-            if (auto* image = dynamic_cast<Layout::RenderImage*>(&current)) {
-                const auto* element = static_cast<const DOM::Element*>(image->get_dom_node());
-                const ImageBitmap* bitmap = nullptr;
-                if (const auto* src = element->find_attribute(Hummingbird::Html::AttributeNames::Src);
-                    src && !src->empty()) {
-                    auto resolved = resolve_resource_url(base_url, *src);
-                    const std::string& key = resolved.key;
-                    auto view = resource_store_->view(key, ResourceType::Image);
-                    if (view && view->state == ResourceState::Ready) {
-                        bitmap = view->image;
-                    }
-                }
-                if (image->set_image(bitmap)) {
-                    changed = true;
-                }
-            }
-            return Layout::Traversal::TraverseAction::Continue;
-        });
-
-    return changed;
+    return resources_.update_image_resources(model_.render_tree(), base_url);
 }
 
 void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {
-    if (!render_tree_) return;
+    auto* render_tree = model_.render_tree();
+    if (!render_tree) return;
 
     const auto layout_start = Core::Clock::now();
-    render_tree_->layout(graphics, viewport);
+    render_tree->layout(graphics, viewport);
     const auto layout_end = Core::Clock::now();
-    content_height_ = render_tree_->get_rect().height;
+    content_height_ = render_tree->get_rect().height;
     HB_LOG_INFO("[perf] layout ms=" << Core::duration_ms(layout_start, layout_end) << " viewport=" << viewport.width
                                     << "x" << viewport.height);
 }
 
 void DocumentPipeline::paint(IGraphicsContext& graphics, const PaintContext& context) {
-    if (!render_tree_) return;
-
-    graphics.set_viewport(context.viewport);
-
-    Renderer::PaintOptions opts;
-    opts.debug_outlines = context.debug_outlines;
-    opts.scroll_y = context.scroll_y;
-    opts.viewport = context.viewport;
+    if (!model_.render_tree()) return;
 
     const auto paint_start = Core::Clock::now();
-    painter_.paint(*render_tree_, graphics, opts);
-    input_controller_.paint_controls(render_tree_.get(), graphics, context.viewport, context.scroll_y);
+    painter_.paint(model_.render_tree(), graphics, context.viewport, context.debug_outlines, context.scroll_y,
+                   input_controller_);
     const auto paint_end = Core::Clock::now();
     static int paint_log_counter = 0;
     if (++paint_log_counter % 5 == 0) {
@@ -181,7 +104,8 @@ void DocumentPipeline::paint(IGraphicsContext& graphics, const PaintContext& con
 }
 
 std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext& context) const {
-    if (!render_tree_) {
+    auto* render_tree = model_.render_tree();
+    if (!render_tree) {
         return std::nullopt;
     }
     if (!Layout::rect_contains_point(context.viewport, context.point)) {
@@ -191,7 +115,7 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
     std::optional<std::string> result;
 
     Layout::Traversal::traverse_render_tree(
-        *render_tree_, offset,
+        *render_tree, offset,
         [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
             if (!Layout::rect_intersects(absolute, context.viewport) ||
                 !Layout::rect_contains_point(absolute, context.point)) {
@@ -213,7 +137,7 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
 }
 
 bool DocumentPipeline::focus_input_at(const HitTestContext& context) {
-    return input_controller_.focus_input_at(render_tree_.get(), context.point, context.viewport, context.scroll_y);
+    return input_controller_.focus_input_at(model_.render_tree(), context.point, context.viewport, context.scroll_y);
 }
 
 bool DocumentPipeline::clear_input_focus() {
@@ -235,84 +159,7 @@ std::optional<std::string> DocumentPipeline::focused_input_value() const {
 }
 
 size_t DocumentPipeline::render_tree_children() const {
-    if (!render_tree_) return 0;
-    return render_tree_->get_children().size();
-}
-
-std::string DocumentPipeline::build_css_source(std::string_view base_url) const {
-    std::string ua_css;
-    if (resource_provider_) {
-        if (auto ua = resource_provider_->load_text("assets/ua.css")) {
-            ua_css = std::move(*ua);
-        }
-    }
-    if (ua_css.empty()) {
-        ua_css = "body { padding: 8px; } p { margin: 4px; }";
-    }
-
-    if (!resource_store_) {
-        return Css::merge_css_sources(ua_css, {}, style_blocks_);
-    }
-
-    std::vector<std::string> link_sources;
-    link_sources.reserve(stylesheet_links_.size());
-    size_t ready_count = 0;
-    size_t loading_count = 0;
-    size_t missing_count = 0;
-    size_t failed_count = 0;
-    for (const auto& href : stylesheet_links_) {
-        auto resolved = resolve_resource_url(base_url, href);
-        const std::string& key = resolved.key;
-        auto view = resource_store_->view(key, ResourceType::Stylesheet);
-        if (!view) {
-            ++missing_count;
-            HB_LOG_DEBUG("[resource] stylesheet not in store: " << key);
-            continue;
-        }
-        if (view->state == ResourceState::Ready) {
-            link_sources.emplace_back(view->body);
-            ++ready_count;
-        } else if (view->state == ResourceState::Loading || view->state == ResourceState::Requested) {
-            ++loading_count;
-            HB_LOG_DEBUG("[resource] stylesheet pending: " << key);
-        } else if (view->state == ResourceState::Failed) {
-            ++failed_count;
-            HB_LOG_WARN("[resource] missing stylesheet: " << key);
-        }
-    }
-    if (!stylesheet_links_.empty()) {
-        HB_LOG_DEBUG("[style] link stylesheets ready=" << ready_count << " loading=" << loading_count
-                                                       << " failed=" << failed_count << " missing=" << missing_count);
-    }
-
-    return Css::merge_css_sources(ua_css, link_sources, style_blocks_);
-}
-
-void DocumentPipeline::parse_and_apply_css(const std::string& css) {
-    const auto css_parse_start = Core::Clock::now();
-    Css::Parser css_parser(css);
-    auto stylesheet = css_parser.parse();
-    const auto css_parse_end = Core::Clock::now();
-    HB_LOG_INFO("[perf] css parse ms=" << Core::duration_ms(css_parse_start, css_parse_end)
-                                       << " rules=" << stylesheet.rules.size());
-
-    const auto style_start = Core::Clock::now();
-    style_engine_.apply(stylesheet, dom_tree_.get());
-    const auto style_end = Core::Clock::now();
-    HB_LOG_INFO("[pipeline] applied stylesheet rules: " << stylesheet.rules.size());
-    HB_LOG_INFO("[perf] style apply ms=" << Core::duration_ms(style_start, style_end));
-}
-
-bool DocumentPipeline::build_render_tree() {
-    const auto render_start = Core::Clock::now();
-    render_tree_ = tree_builder_.build(dom_tree_.get());
-    const auto render_end = Core::Clock::now();
-    if (!render_tree_) {
-        HB_LOG_WARN("[pipeline] render tree build skipped");
-        return false;
-    }
-    HB_LOG_INFO("[perf] render tree build ms=" << Core::duration_ms(render_start, render_end));
-    return true;
+    return model_.render_tree_children();
 }
 
 }  // namespace Hummingbird::Engine
