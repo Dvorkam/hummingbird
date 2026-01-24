@@ -12,6 +12,7 @@
 #include "core/platform_api/InputEvent.h"
 #include "core/platform_api/NetworkFactory.h"
 #include "core/platform_api/ResourceProviderFactory.h"
+#include "core/platform_api/ScriptEngineFactory.h"
 #include "core/utils/Log.h"
 
 namespace Hummingbird::App {
@@ -44,7 +45,7 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     : window_(std::move(window)),
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
       tab_(create_network(NetworkBackend::Curl), create_network(NetworkBackend::Stub), create_resource_provider(),
-           create_image_decoder()) {
+           create_image_decoder(), create_script_engine()) {
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
     if (provider && decoder) {

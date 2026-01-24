@@ -9,11 +9,13 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/IScriptEngine.h"
 #include "core/platform_api/InputEvent.h"
 #include "engine/DocumentInputController.h"
 #include "engine/DocumentModel.h"
 #include "engine/DocumentPainter.h"
 #include "engine/DocumentResources.h"
+#include "engine/script/DocumentScriptHost.h"
 #include "layout/Geometry.h"
 
 namespace Hummingbird {
@@ -46,7 +48,8 @@ public:
         std::optional<std::string> submitted_url;
     };
 
-    DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider);
+    DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
+                     ScriptEnginePtr script_engine);
     ~DocumentPipeline();
 
     DocumentPipeline(const DocumentPipeline&) = delete;
@@ -57,6 +60,7 @@ public:
     void reset();
 
     bool parse_html(std::string_view html);
+    bool run_scripts();
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool update_image_resources(std::string_view base_url);
     void relayout(IGraphicsContext& graphics, const Layout::Rect& viewport);
@@ -83,6 +87,8 @@ private:
     DocumentResources resources_;
     DocumentModel model_;
     DocumentPainter painter_;
+    ScriptEnginePtr script_engine_;
+    DocumentScriptHost script_host_;
 };
 
 }  // namespace Hummingbird::Engine

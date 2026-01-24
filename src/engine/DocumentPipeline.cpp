@@ -70,8 +70,9 @@ const DOM::Element* resolve_submit_element(const DOM::Node* node) {
 
 }  // namespace
 
-DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider)
-    : resources_(resource_store, resource_provider) {}
+DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
+                                   ScriptEnginePtr script_engine)
+    : resources_(resource_store, resource_provider), script_engine_(std::move(script_engine)) {}
 
 DocumentPipeline::~DocumentPipeline() = default;
 
@@ -79,6 +80,7 @@ void DocumentPipeline::reset() {
     model_.reset();
     content_height_ = 0.0f;
     input_controller_.reset();
+    script_host_.clear();
 }
 
 bool DocumentPipeline::parse_html(std::string_view html) {
@@ -87,6 +89,33 @@ bool DocumentPipeline::parse_html(std::string_view html) {
         reset();
     }
     return result.ok;
+}
+
+bool DocumentPipeline::run_scripts() {
+    if (!script_engine_) {
+        return false;
+    }
+    if (model_.script_blocks().empty()) {
+        return false;
+    }
+    auto* dom_root = model_.dom_root();
+    if (!dom_root) {
+        return false;
+    }
+    script_host_.reset(dom_root, model_.dom_arena());
+    script_engine_->bind_host(&script_host_);
+
+    for (const auto& script : model_.script_blocks()) {
+        if (script.empty()) {
+            continue;
+        }
+        auto result = script_engine_->eval(script, "inline");
+        if (!result.ok) {
+            HB_LOG_WARN("[script] eval failed: " << result.error);
+        }
+    }
+
+    return script_host_.consume_mutations();
 }
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,

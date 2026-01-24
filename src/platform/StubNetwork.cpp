@@ -72,6 +72,15 @@ std::string build_stub_body(const std::string& url) {
     </form>
     <p>External submit button:</p>
     <button type="submit" form="search-form">Search (external)</button>
+    <h2>JavaScript Demo</h2>
+    <p id="js-demo">Waiting for script...</p>
+    <script>
+      const target = document.getElementById("js-demo");
+      if (target) {
+        target.textContent = "JS updated this text.";
+        target.setAttribute("data-js", "ok");
+      }
+    </script>
     <blockquote>Simple blockquote to show default styling.</blockquote>
     <hr>
     <p>This domain is for use in illustrative examples.</p>

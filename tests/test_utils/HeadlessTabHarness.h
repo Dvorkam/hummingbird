@@ -5,6 +5,7 @@
 #include <string_view>
 #include <utility>
 
+#include "core/platform_api/ScriptEngineFactory.h"
 #include "engine/Tab.h"
 #include "test_utils/TestGraphicsContext.h"
 
@@ -13,8 +14,9 @@ namespace Hummingbird::Test {
 class HeadlessTabHarness {
 public:
     HeadlessTabHarness(NetworkPtr network, NetworkPtr fallback, ResourceProviderPtr provider,
-                       ImageDecoderPtr decoder = nullptr)
-        : tab_(std::move(network), std::move(fallback), std::move(provider), std::move(decoder)) {}
+                       ImageDecoderPtr decoder = nullptr, ScriptEnginePtr script_engine = nullptr)
+        : tab_(std::move(network), std::move(fallback), std::move(provider), std::move(decoder),
+               script_engine ? std::move(script_engine) : Hummingbird::create_script_engine()) {}
 
     void set_viewport(const Layout::Rect& viewport) { viewport_ = viewport; }
     const Layout::Rect& viewport() const { return viewport_; }

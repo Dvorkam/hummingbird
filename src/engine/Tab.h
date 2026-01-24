@@ -14,6 +14,7 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
+#include "core/platform_api/IScriptEngine.h"
 #include "core/platform_api/InputEvent.h"
 #include "engine/DocumentPipeline.h"
 #include "engine/ResourceLoader.h"
@@ -37,7 +38,7 @@ public:
         std::optional<std::string> submitted_url;
     };
     Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
-        ImageDecoderPtr image_decoder);
+        ImageDecoderPtr image_decoder, ScriptEnginePtr script_engine);
     ~Tab();
 
     Tab(const Tab&) = delete;

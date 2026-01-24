@@ -39,7 +39,11 @@ public:
     Layout::RenderObject* render_tree() const { return render_tree_.get(); }
     size_t render_tree_children() const;
 
+    DOM::Node* dom_root() const { return dom_tree_.get(); }
+    Core::ArenaAllocator* dom_arena() { return &dom_arena_; }
+
     const std::vector<std::string>& style_blocks() const { return style_blocks_; }
+    const std::vector<std::string>& script_blocks() const { return script_blocks_; }
     const std::vector<std::string>& stylesheet_links() const { return stylesheet_links_; }
     const std::vector<std::string>& image_links() const { return image_links_; }
 
@@ -55,6 +59,7 @@ private:
     std::unique_ptr<Layout::RenderObject> render_tree_;
 
     std::vector<std::string> style_blocks_;
+    std::vector<std::string> script_blocks_;
     std::vector<std::string> stylesheet_links_;
     std::vector<std::string> image_links_;
 };

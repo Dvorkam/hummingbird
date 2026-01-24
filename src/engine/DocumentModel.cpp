@@ -6,6 +6,7 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
+#include "core/dom/Text.h"
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
 #include "core/utils/Timing.h"
@@ -125,6 +126,36 @@ std::string append_query(std::string base, std::string_view query) {
     base.append(query);
     return base;
 }
+
+void collect_script_text(const DOM::Node* node, std::string& out) {
+    if (!node) return;
+    if (auto* text_node = dynamic_cast<const DOM::Text*>(node)) {
+        out.append(text_node->get_text());
+        return;
+    }
+    for (const auto& child : node->get_children()) {
+        collect_script_text(child.get(), out);
+    }
+}
+
+void collect_script_blocks(const DOM::Node* node, std::vector<std::string>& scripts) {
+    if (!node) return;
+    if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
+        if (element->get_tag_name() == Hummingbird::Html::TagNames::Script) {
+            std::string text;
+            for (const auto& child : element->get_children()) {
+                collect_script_text(child.get(), text);
+            }
+            if (!text.empty()) {
+                scripts.push_back(std::move(text));
+            }
+            return;
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        collect_script_blocks(child.get(), scripts);
+    }
+}
 }  // namespace
 
 void DocumentModel::reset() {
@@ -132,6 +163,7 @@ void DocumentModel::reset() {
     render_tree_.reset();
     dom_arena_.reset();
     style_blocks_.clear();
+    script_blocks_.clear();
     stylesheet_links_.clear();
     image_links_.clear();
 }
@@ -147,6 +179,10 @@ DocumentModel::ParseResult DocumentModel::parse_html(std::string_view html) {
     style_blocks_ = std::move(parse_result.style_blocks);
     stylesheet_links_ = std::move(parse_result.stylesheet_links);
     image_links_ = std::move(parse_result.image_links);
+    script_blocks_.clear();
+    if (dom_tree_) {
+        collect_script_blocks(dom_tree_.get(), script_blocks_);
+    }
 
     if (!dom_tree_) {
         const bool arena_failed = dom_arena_.failed();
