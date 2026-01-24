@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <string>
 
+#include "core/platform_api/InputEvent.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "test_utils/HeadlessTabHarness.h"
 #include "test_utils/TestFakes.h"
@@ -219,6 +220,43 @@ TEST(EngineTabTest, HitTestResolvesLink) {
     auto link = harness.tab().hit_test_link(point, harness.viewport());
     ASSERT_TRUE(link.has_value());
     EXPECT_EQ(*link, "https://example.dev/next");
+}
+
+TEST(EngineTabTest, FocusesInputAndEditsValue) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <input value="hi">
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().has_focused_input());
+
+    EXPECT_TRUE(harness.tab().handle_text_input("!"));
+    auto value = harness.tab().focused_input_value();
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, "hi!");
+
+    Hummingbird::InputEvent backspace_event;
+    backspace_event.type = Hummingbird::EventType::KeyDown;
+    backspace_event.key.key = Hummingbird::Key::Backspace;
+    EXPECT_TRUE(harness.tab().handle_key_down(backspace_event));
+    value = harness.tab().focused_input_value();
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, "hi");
 }
 
 TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {

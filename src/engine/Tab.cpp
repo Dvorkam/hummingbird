@@ -83,6 +83,48 @@ std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const 
     return document_pipeline_.hit_test_link(context);
 }
 
+bool Tab::focus_input_at(const Layout::Point& point, const Layout::Rect& viewport) {
+    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
+    bool was_focused = document_pipeline_.has_focused_input();
+    bool now_focused = document_pipeline_.focus_input_at(context);
+    if (was_focused != now_focused) {
+        dirty_ = true;
+    }
+    return now_focused;
+}
+
+bool Tab::clear_input_focus() {
+    if (document_pipeline_.clear_input_focus()) {
+        dirty_ = true;
+        return true;
+    }
+    return false;
+}
+
+bool Tab::has_focused_input() const {
+    return document_pipeline_.has_focused_input();
+}
+
+bool Tab::handle_text_input(std::string_view text) {
+    auto result = document_pipeline_.handle_text_input(text);
+    if (result.needs_repaint) {
+        dirty_ = true;
+    }
+    return result.handled;
+}
+
+bool Tab::handle_key_down(const InputEvent& event) {
+    auto result = document_pipeline_.handle_key_down(event);
+    if (result.needs_repaint) {
+        dirty_ = true;
+    }
+    return result.handled;
+}
+
+std::optional<std::string> Tab::focused_input_value() const {
+    return document_pipeline_.focused_input_value();
+}
+
 std::optional<ResourceView> Tab::resource_view(std::string_view url, ResourceType type) const {
     return resource_loader_.view(url, type);
 }

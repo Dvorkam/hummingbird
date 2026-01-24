@@ -14,6 +14,7 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
+#include "core/platform_api/InputEvent.h"
 #include "engine/DocumentPipeline.h"
 #include "engine/ResourceLoader.h"
 #include "engine/ResourceStore.h"
@@ -52,6 +53,12 @@ public:
 
     // Returns a resolved link URL for the render node under the window-space point.
     std::optional<std::string> hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const;
+    bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport);
+    bool clear_input_focus();
+    bool has_focused_input() const;
+    bool handle_text_input(std::string_view text);
+    bool handle_key_down(const InputEvent& event);
+    std::optional<std::string> focused_input_value() const;
 
     void scroll_by(float delta_px, float viewport_height);
 

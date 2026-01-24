@@ -8,9 +8,8 @@
 #include <utility>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "core/utils/AssetPath.h"
-#include "core/utils/Log.h"
 #include "layout/LayoutMetricsUtils.h"
+#include "layout/TextStyleUtils.h"
 #include "style/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
@@ -43,38 +42,6 @@ std::string collapse_whitespace(const std::string& text) {
         }
     }
     return out;
-}
-
-std::string resolve_text_font_path(const Css::ComputedStyle* style) {
-    bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
-    bool italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
-    std::string face = style ? style->font_face : std::string{};
-    std::transform(face.begin(), face.end(), face.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    bool face_supported = face.empty() || face == "roboto" || face == "sans-serif" || face == "sans serif";
-    if (!face_supported) {
-        HB_LOG_WARN("[style] Unsupported font face '" << face << "', falling back to Roboto");
-    }
-    const char* font_path = "assets/fonts/Roboto-Regular.ttf";
-    if (bold && italic) {
-        font_path = "assets/fonts/Roboto-BoldItalic.ttf";
-    } else if (bold) {
-        font_path = "assets/fonts/Roboto-Bold.ttf";
-    } else if (italic) {
-        font_path = "assets/fonts/Roboto-Italic.ttf";
-    }
-    return Hummingbird::Core::Utils::resolve_asset_path_string(font_path);
-}
-
-TextStyle build_text_style(const Css::ComputedStyle* style) {
-    TextStyle text_style;
-    text_style.font_path = resolve_text_font_path(style);
-    text_style.font_size = style ? style->font_size : kDefaultFontSizePx;
-    text_style.bold = false;
-    text_style.italic = false;
-    text_style.monospace = style && style->font_monospace;
-    text_style.color = style ? style->color : Color{0, 0, 0, 255};
-    return text_style;
 }
 
 std::vector<std::string> tokenize_text(const std::string& text) {
@@ -219,7 +186,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
     // Assumptions for now: monospace font selection is still hardcoded.
     float font_size = style ? style->font_size : kDefaultFontSizePx;
-    TextStyle text_style = build_text_style(style);
+    TextStyle text_style = TextStyleUtils::build_text_style(style);
     text_style.font_size = font_size;
 
     if (text_style.monospace) {
@@ -287,7 +254,7 @@ void TextBox::measure_inline(IGraphicsContext& context) {
 
     m_rendered_text = collapse_whitespace(text);
     auto tokens = tokenize_text(m_rendered_text);
-    TextStyle text_style = build_text_style(style);
+    TextStyle text_style = TextStyleUtils::build_text_style(style);
     float line_height = context.measure_text("A", text_style).height;
     if (style && style->line_height > 0.0f) {
         line_height = style->line_height;
@@ -358,7 +325,7 @@ void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
     float absolute_x = offset.x + m_rect.x + insets.left;
     float absolute_y = offset.y + m_rect.y + insets.top;
 
-    TextStyle text_style = build_text_style(style);
+    TextStyle text_style = TextStyleUtils::build_text_style(style);
 
     if (style && style->background.has_value()) {
         Hummingbird::Layout::Rect bg{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};

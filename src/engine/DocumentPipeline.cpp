@@ -1,5 +1,6 @@
 #include "engine/DocumentPipeline.h"
 
+#include <algorithm>
 #include <ostream>
 #include <utility>
 
@@ -9,15 +10,18 @@
 #include "core/platform_api/IResourceProvider.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
+#include "core/utils/Utf8Utils.h"
 #include "engine/ResourceStore.h"
 #include "engine/ResourceUrl.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
 #include "layout/GeometryUtils.h"
+#include "layout/LayoutMetricsUtils.h"
 #include "layout/RenderImage.h"
 #include "layout/RenderObject.h"
 #include "layout/RenderTreeTraversal.h"
+#include "layout/TextStyleUtils.h"
 #include "style/CssParser.h"
 #include "style/Stylesheet.h"
 #include "style/StylesheetSource.h"
@@ -56,6 +60,21 @@ std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::strin
     return std::nullopt;
 }
 
+bool is_input_element(const DOM::Element* element) {
+    return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
+}
+
+std::string input_value(const DOM::Element& element) {
+    if (const auto* value = element.find_attribute(Hummingbird::Html::AttributeNames::Value)) {
+        return *value;
+    }
+    return {};
+}
+
+void set_input_value(DOM::Element& element, std::string_view value) {
+    element.set_attribute(Hummingbird::Html::AttributeNames::Value, value);
+}
+
 }  // namespace
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider)
@@ -71,6 +90,8 @@ void DocumentPipeline::reset() {
     stylesheet_links_.clear();
     image_links_.clear();
     content_height_ = 0.0f;
+    focused_input_ = nullptr;
+    input_caret_ = 0;
 }
 
 bool DocumentPipeline::parse_html(std::string_view html) {
@@ -169,6 +190,7 @@ void DocumentPipeline::paint(IGraphicsContext& graphics, const PaintContext& con
 
     const auto paint_start = Core::Clock::now();
     painter_.paint(*render_tree_, graphics, opts);
+    paint_input_controls(graphics, context);
     const auto paint_end = Core::Clock::now();
     static int paint_log_counter = 0;
     if (++paint_log_counter % 5 == 0) {
@@ -207,6 +229,198 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
         Layout::Traversal::ChildOrder::Reverse);
 
     return result;
+}
+
+bool DocumentPipeline::focus_input_at(const HitTestContext& context) {
+    DOM::Element* hit = hit_test_input(context);
+    if (hit == focused_input_) {
+        input_caret_ = focused_input_ ? input_value(*focused_input_).size() : 0;
+        return focused_input_ != nullptr;
+    }
+    focused_input_ = hit;
+    input_caret_ = focused_input_ ? input_value(*focused_input_).size() : 0;
+    return focused_input_ != nullptr;
+}
+
+bool DocumentPipeline::clear_input_focus() {
+    if (!focused_input_) return false;
+    focused_input_ = nullptr;
+    input_caret_ = 0;
+    return true;
+}
+
+DocumentPipeline::InputEditResult DocumentPipeline::handle_text_input(std::string_view text) {
+    InputEditResult result;
+    if (!focused_input_ || text.empty()) return result;
+
+    std::string value = input_value(*focused_input_);
+    input_caret_ = Core::Utils::clamp_caret(input_caret_, value);
+    value.insert(input_caret_, text);
+    input_caret_ += text.size();
+    set_input_value(*focused_input_, value);
+
+    result.handled = true;
+    result.needs_repaint = true;
+    return result;
+}
+
+DocumentPipeline::InputEditResult DocumentPipeline::handle_key_down(const InputEvent& event) {
+    InputEditResult result;
+    if (!focused_input_) return result;
+
+    std::string value = input_value(*focused_input_);
+
+    if (event.key.key == Key::Backspace) {
+        result.handled = true;
+        if (!value.empty()) {
+            input_caret_ = Core::Utils::clamp_caret(input_caret_, value);
+            if (input_caret_ > 0) {
+                auto start = Core::Utils::prev_codepoint(value, input_caret_);
+                value.erase(start, input_caret_ - start);
+                input_caret_ = start;
+                set_input_value(*focused_input_, value);
+            }
+        }
+        result.needs_repaint = true;
+        return result;
+    }
+
+    if (event.key.key == Key::Delete) {
+        result.handled = true;
+        if (!value.empty()) {
+            input_caret_ = Core::Utils::clamp_caret(input_caret_, value);
+            if (input_caret_ < value.size()) {
+                auto end = Core::Utils::next_codepoint(value, input_caret_);
+                value.erase(input_caret_, end - input_caret_);
+                set_input_value(*focused_input_, value);
+            }
+        }
+        result.needs_repaint = true;
+        return result;
+    }
+
+    if (event.key.key == Key::Left) {
+        input_caret_ = Core::Utils::prev_codepoint(value, input_caret_);
+        result.handled = true;
+        result.needs_repaint = true;
+        return result;
+    }
+
+    if (event.key.key == Key::Right) {
+        input_caret_ = Core::Utils::next_codepoint(value, input_caret_);
+        result.handled = true;
+        result.needs_repaint = true;
+        return result;
+    }
+
+    if (event.key.key == Key::Home) {
+        input_caret_ = 0;
+        result.handled = true;
+        result.needs_repaint = true;
+        return result;
+    }
+
+    if (event.key.key == Key::End) {
+        input_caret_ = value.size();
+        result.handled = true;
+        result.needs_repaint = true;
+        return result;
+    }
+
+    return result;
+}
+
+std::optional<std::string> DocumentPipeline::focused_input_value() const {
+    if (!focused_input_) return std::nullopt;
+    return input_value(*focused_input_);
+}
+
+DOM::Element* DocumentPipeline::hit_test_input(const HitTestContext& context) const {
+    if (!render_tree_) {
+        return nullptr;
+    }
+    if (!Layout::rect_contains_point(context.viewport, context.point)) {
+        return nullptr;
+    }
+
+    Layout::Point offset{0.0f, -context.scroll_y};
+    DOM::Element* result = nullptr;
+
+    Layout::Traversal::traverse_render_tree(
+        *render_tree_, offset,
+        [&](const Layout::RenderObject& /*node*/, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+            if (!Layout::rect_intersects(absolute, context.viewport) ||
+                !Layout::rect_contains_point(absolute, context.point)) {
+                return Layout::Traversal::TraverseAction::SkipChildren;
+            }
+            return Layout::Traversal::TraverseAction::Continue;
+        },
+        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+            auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
+            if (!is_input_element(element)) {
+                return Layout::Traversal::TraverseAction::Continue;
+            }
+            result = const_cast<DOM::Element*>(element);
+            return Layout::Traversal::TraverseAction::Stop;
+        },
+        Layout::Traversal::ChildOrder::Reverse);
+
+    return result;
+}
+
+void DocumentPipeline::paint_input_controls(IGraphicsContext& graphics, const PaintContext& context) const {
+    if (!render_tree_) return;
+
+    Layout::Point offset{0.0f, -context.scroll_y};
+    Layout::Traversal::traverse_render_tree(
+        *render_tree_, offset,
+        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+            if (context.viewport.width > 0.0f && context.viewport.height > 0.0f &&
+                !Layout::rect_intersects(absolute, context.viewport)) {
+                return Layout::Traversal::TraverseAction::SkipChildren;
+            }
+
+            auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
+            if (!is_input_element(element)) {
+                return Layout::Traversal::TraverseAction::Continue;
+            }
+
+            const auto* style = node.get_computed_style();
+            Layout::Metrics::Insets insets = Layout::Metrics::compute_insets(style);
+            Layout::Rect content = {absolute.x + insets.left, absolute.y + insets.top,
+                                    absolute.width - insets.left - insets.right,
+                                    absolute.height - insets.top - insets.bottom};
+            if (content.width <= 0.0f || content.height <= 0.0f) {
+                return Layout::Traversal::TraverseAction::Continue;
+            }
+
+            TextStyle text_style = Layout::TextStyleUtils::build_text_style(style);
+            std::string value = input_value(*element);
+            TextMetrics metrics = graphics.measure_text(value, text_style);
+            TextMetrics caret_metrics = metrics.height > 0.0f ? metrics : graphics.measure_text("A", text_style);
+            float text_height = metrics.height > 0.0f ? metrics.height : caret_metrics.height;
+            float text_x = content.x;
+            float text_y = content.y + std::max(0.0f, (content.height - text_height) * 0.5f);
+
+            if (!value.empty()) {
+                graphics.draw_text(value, text_x, text_y, text_style);
+            }
+
+            if (element == focused_input_) {
+                auto caret = Core::Utils::clamp_caret(input_caret_, value);
+                std::string prefix = value.substr(0, caret);
+                float caret_offset = graphics.measure_text(prefix, text_style).width;
+                float caret_x = text_x + caret_offset;
+                float max_caret_x = content.x + std::max(0.0f, content.width - 1.0f);
+                if (caret_x > max_caret_x) {
+                    caret_x = max_caret_x;
+                }
+                Layout::Rect caret_rect{caret_x, text_y, 1.0f, text_height};
+                graphics.fill_rect(caret_rect, text_style.color);
+            }
+
+            return Layout::Traversal::TraverseAction::Continue;
+        });
 }
 
 size_t DocumentPipeline::render_tree_children() const {

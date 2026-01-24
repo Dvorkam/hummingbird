@@ -63,10 +63,6 @@ private:
     float text_start_x() const;
     bool is_security_icon_hit(int x, int y) const;
 
-    static std::string::size_type clamp_caret(std::string::size_type caret, std::string_view text);
-    static std::string::size_type prev_codepoint(std::string_view text, std::string::size_type caret);
-    static std::string::size_type next_codepoint(std::string_view text, std::string::size_type caret);
-
     std::string text_;
     std::string render_text_;
     std::string::size_type caret_ = 0;

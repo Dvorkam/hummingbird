@@ -6,6 +6,7 @@
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
+#include "core/utils/Utf8Utils.h"
 #include "layout/Geometry.h"
 
 namespace Hummingbird::App {
@@ -98,9 +99,9 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     if (event.key.key == Key::Backspace) {
         result.handled = true;
         if (!text_.empty()) {
-            caret_ = clamp_caret(caret_, text_);
+            caret_ = Core::Utils::clamp_caret(caret_, text_);
             if (caret_ > 0) {
-                auto start = prev_codepoint(text_, caret_);
+                auto start = Core::Utils::prev_codepoint(text_, caret_);
                 text_.erase(start, caret_ - start);
                 caret_ = start;
             }
@@ -113,9 +114,9 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     if (event.key.key == Key::Delete) {
         result.handled = true;
         if (!text_.empty()) {
-            caret_ = clamp_caret(caret_, text_);
+            caret_ = Core::Utils::clamp_caret(caret_, text_);
             if (caret_ < text_.size()) {
-                auto end = next_codepoint(text_, caret_);
+                auto end = Core::Utils::next_codepoint(text_, caret_);
                 text_.erase(caret_, end - caret_);
             }
             refresh_render_text();
@@ -125,7 +126,7 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     }
 
     if (event.key.key == Key::Left) {
-        caret_ = prev_codepoint(text_, caret_);
+        caret_ = Core::Utils::prev_codepoint(text_, caret_);
         refresh_render_text();
         result.handled = true;
         result.needs_repaint = true;
@@ -133,7 +134,7 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     }
 
     if (event.key.key == Key::Right) {
-        caret_ = next_codepoint(text_, caret_);
+        caret_ = Core::Utils::next_codepoint(text_, caret_);
         refresh_render_text();
         result.handled = true;
         result.needs_repaint = true;
@@ -204,14 +205,14 @@ void UrlBar::draw(IGraphicsContext& graphics, int win_w) const {
 void UrlBar::refresh_render_text() {
     render_text_.assign(text_);
     if (active_) {
-        caret_ = clamp_caret(caret_, text_);
+        caret_ = Core::Utils::clamp_caret(caret_, text_);
         render_text_.insert(caret_, "|");
     }
 }
 
 void UrlBar::insert_text(std::string_view text) {
     if (text.empty()) return;
-    caret_ = clamp_caret(caret_, text_);
+    caret_ = Core::Utils::clamp_caret(caret_, text_);
     text_.insert(caret_, text);
     caret_ += text.size();
     refresh_render_text();
@@ -240,30 +241,6 @@ bool UrlBar::is_security_icon_hit(int x, int y) const {
     const float icon_y = (static_cast<float>(height_) - kIconSize) * 0.5f;
     return x >= static_cast<int>(kTextPadding) && x <= static_cast<int>(kTextPadding + kIconSize) &&
            y >= static_cast<int>(icon_y) && y <= static_cast<int>(icon_y + kIconSize);
-}
-
-std::string::size_type UrlBar::clamp_caret(std::string::size_type caret, std::string_view text) {
-    return std::min(caret, text.size());
-}
-
-std::string::size_type UrlBar::prev_codepoint(std::string_view text, std::string::size_type caret) {
-    caret = clamp_caret(caret, text);
-    if (caret == 0) return 0;
-    std::string::size_type i = caret - 1;
-    while (i > 0 && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80) {
-        --i;
-    }
-    return i;
-}
-
-std::string::size_type UrlBar::next_codepoint(std::string_view text, std::string::size_type caret) {
-    caret = clamp_caret(caret, text);
-    if (caret >= text.size()) return text.size();
-    std::string::size_type i = caret + 1;
-    while (i < text.size() && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80) {
-        ++i;
-    }
-    return i;
 }
 
 }  // namespace Hummingbird::App

@@ -148,6 +148,10 @@ void BrowserApp::handle_quit_event() {
 void BrowserApp::handle_text_input_event(const InputEvent& event) {
     if (url_bar_.handle_text_input(event.text.text)) {
         needs_repaint_ = true;
+        return;
+    }
+    if (tab_.handle_text_input(event.text.text)) {
+        needs_repaint_ = true;
     }
 }
 
@@ -155,6 +159,7 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (event.key.key == Key::L && event.mods.ctrl) {
         url_bar_.set_active(true, window_.get(), "[ui] URL bar focused");
         url_bar_.move_caret_to_end();
+        tab_.clear_input_focus();
         needs_repaint_ = true;
         return;
     }
@@ -167,6 +172,11 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         if (result.needs_repaint) {
             needs_repaint_ = true;
         }
+        return;
+    }
+
+    if (tab_.handle_key_down(event)) {
+        needs_repaint_ = true;
         return;
     }
 
@@ -188,6 +198,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
                 tab_.navigate(tab_.requested_url());
             }
         }
+        tab_.clear_input_focus();
         if (url_result.needs_repaint) {
             needs_repaint_ = true;
         }
@@ -205,6 +216,21 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     const auto viewport = compute_content_viewport(win_w, win_h);
     Hummingbird::Layout::Point point{static_cast<float>(event.mouse_button.x),
                                      static_cast<float>(event.mouse_button.y)};
+    bool was_focused = tab_.has_focused_input();
+    bool now_focused = tab_.focus_input_at(point, viewport);
+    if (was_focused != now_focused) {
+        if (window_) {
+            if (now_focused) {
+                window_->start_text_input();
+            } else {
+                window_->stop_text_input();
+            }
+        }
+        needs_repaint_ = true;
+    }
+    if (now_focused) {
+        return;
+    }
     auto link = tab_.hit_test_link(point, viewport);
     if (link) {
         url_bar_.set_text(*link);

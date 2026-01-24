@@ -16,6 +16,7 @@ static constexpr std::string_view NoWrap = "nowrap";
 static constexpr std::string_view Rel = "rel";
 static constexpr std::string_view Size = "size";
 static constexpr std::string_view Src = "src";
+static constexpr std::string_view Value = "value";
 static constexpr std::string_view Width = "width";
 
 }  // namespace Hummingbird::Html::AttributeNames
