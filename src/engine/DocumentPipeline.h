@@ -48,6 +48,11 @@ public:
         std::optional<std::string> submitted_url;
     };
 
+    struct ScriptDispatchResult {
+        bool handled = false;
+        bool mutated = false;
+    };
+
     DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
                      ScriptEnginePtr script_engine);
     ~DocumentPipeline();
@@ -61,6 +66,8 @@ public:
 
     bool parse_html(std::string_view html);
     bool run_scripts();
+    ScriptDispatchResult dispatch_click(const HitTestContext& context);
+    ScriptDispatchResult dispatch_load();
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool update_image_resources(std::string_view base_url);
     void relayout(IGraphicsContext& graphics, const Layout::Rect& viewport);
@@ -89,6 +96,9 @@ private:
     DocumentPainter painter_;
     ScriptEnginePtr script_engine_;
     DocumentScriptHost script_host_;
+
+    bool bind_script_host();
+    ScriptDispatchResult eval_inline_script(std::string_view script, std::string_view context_name);
 };
 
 }  // namespace Hummingbird::Engine

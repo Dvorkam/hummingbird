@@ -224,6 +224,10 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     const auto viewport = compute_content_viewport(win_w, win_h);
     Hummingbird::Layout::Point point{static_cast<float>(event.mouse_button.x),
                                      static_cast<float>(event.mouse_button.y)};
+    auto click_result = tab_.dispatch_click(point, viewport, *graphics_);
+    if (click_result.mutated) {
+        needs_repaint_ = true;
+    }
     bool was_focused = tab_.has_focused_input();
     bool now_focused = tab_.focus_input_at(point, viewport);
     if (was_focused != now_focused) {

@@ -37,6 +37,10 @@ public:
         bool needs_repaint = false;
         std::optional<std::string> submitted_url;
     };
+    struct ClickResult {
+        bool handled = false;
+        bool mutated = false;
+    };
     Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
         ImageDecoderPtr image_decoder, ScriptEnginePtr script_engine);
     ~Tab();
@@ -59,6 +63,7 @@ public:
 
     // Returns a resolved link URL for the render node under the window-space point.
     std::optional<std::string> hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const;
+    ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics);
     std::optional<std::string> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport);
     bool clear_input_focus();

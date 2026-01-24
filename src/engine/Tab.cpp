@@ -83,6 +83,20 @@ std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const 
     return document_pipeline_.hit_test_link(context);
 }
 
+Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
+                                     IGraphicsContext& graphics) {
+    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
+    auto result = document_pipeline_.dispatch_click(context);
+    if (result.mutated) {
+        document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
+        if (document_pipeline_.has_render_tree()) {
+            update_layout_state(viewport);
+        }
+        dirty_ = true;
+    }
+    return {result.handled, result.mutated};
+}
+
 std::optional<std::string> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
     DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
     return document_pipeline_.submit_form_at(context);
@@ -196,6 +210,14 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
     if (document_pipeline_.has_render_tree()) {
         update_layout_state(viewport);
+    }
+    auto load_result = document_pipeline_.dispatch_load();
+    if (load_result.mutated) {
+        document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
+        if (document_pipeline_.has_render_tree()) {
+            update_layout_state(viewport);
+        }
+        dirty_ = true;
     }
     HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_.render_tree_children());
     dirty_ = true;

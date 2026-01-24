@@ -40,6 +40,21 @@ std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::strin
     return std::nullopt;
 }
 
+std::optional<std::string> resolve_onclick_handler(const DOM::Node* node) {
+    const DOM::Node* current = node;
+    while (current) {
+        auto* element = dynamic_cast<const DOM::Element*>(current);
+        if (element) {
+            const auto* handler = element->find_attribute("onclick");
+            if (handler && !handler->empty()) {
+                return *handler;
+            }
+        }
+        current = current->get_parent();
+    }
+    return std::nullopt;
+}
+
 const DOM::Element* resolve_submit_element(const DOM::Node* node) {
     const DOM::Node* current = node;
     while (current) {
@@ -66,6 +81,33 @@ const DOM::Element* resolve_submit_element(const DOM::Node* node) {
         current = current->get_parent();
     }
     return nullptr;
+}
+
+const DOM::Element* find_body_element(const DOM::Node* node) {
+    if (!node) return nullptr;
+    if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
+        if (element->get_tag_name() == Hummingbird::Html::TagNames::Body) {
+            return element;
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (auto* match = find_body_element(child.get())) {
+            return match;
+        }
+    }
+    return nullptr;
+}
+
+std::optional<std::string> resolve_onload_handler(const DOM::Node* node) {
+    const DOM::Element* body = find_body_element(node);
+    if (!body) {
+        return std::nullopt;
+    }
+    const auto* handler = body->find_attribute("onload");
+    if (!handler || handler->empty()) {
+        return std::nullopt;
+    }
+    return *handler;
 }
 
 }  // namespace
@@ -98,12 +140,9 @@ bool DocumentPipeline::run_scripts() {
     if (model_.script_blocks().empty()) {
         return false;
     }
-    auto* dom_root = model_.dom_root();
-    if (!dom_root) {
+    if (!bind_script_host()) {
         return false;
     }
-    script_host_.reset(dom_root, model_.dom_arena());
-    script_engine_->bind_host(&script_host_);
 
     for (const auto& script : model_.script_blocks()) {
         if (script.empty()) {
@@ -116,6 +155,53 @@ bool DocumentPipeline::run_scripts() {
     }
 
     return script_host_.consume_mutations();
+}
+
+DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_click(const HitTestContext& context) {
+    auto* render_tree = model_.render_tree();
+    if (!render_tree) {
+        return {};
+    }
+    if (!Layout::rect_contains_point(context.viewport, context.point)) {
+        return {};
+    }
+
+    Layout::Point offset{0.0f, -context.scroll_y};
+    std::optional<std::string> handler;
+
+    Layout::Traversal::traverse_render_tree(
+        *render_tree, offset,
+        [&](const Layout::RenderObject& /*node*/, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+            if (!Layout::rect_intersects(absolute, context.viewport) ||
+                !Layout::rect_contains_point(absolute, context.point)) {
+                return Layout::Traversal::TraverseAction::SkipChildren;
+            }
+            return Layout::Traversal::TraverseAction::Continue;
+        },
+        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+            auto hit = resolve_onclick_handler(node.get_dom_node());
+            if (hit) {
+                handler = std::move(*hit);
+                return Layout::Traversal::TraverseAction::Stop;
+            }
+            return Layout::Traversal::TraverseAction::Continue;
+        },
+        Layout::Traversal::ChildOrder::Reverse);
+
+    if (!handler) {
+        return {};
+    }
+
+    return eval_inline_script(*handler, "onclick");
+}
+
+DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
+    auto handler = resolve_onload_handler(model_.dom_root());
+    if (!handler) {
+        return {};
+    }
+
+    return eval_inline_script(*handler, "onload");
 }
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
@@ -267,6 +353,35 @@ std::optional<std::string> DocumentPipeline::focused_input_value() const {
 
 size_t DocumentPipeline::render_tree_children() const {
     return model_.render_tree_children();
+}
+
+bool DocumentPipeline::bind_script_host() {
+    if (!script_engine_) {
+        return false;
+    }
+    auto* dom_root = model_.dom_root();
+    if (!dom_root) {
+        return false;
+    }
+    script_host_.reset(dom_root, model_.dom_arena());
+    script_engine_->bind_host(&script_host_);
+    return true;
+}
+
+DocumentPipeline::ScriptDispatchResult DocumentPipeline::eval_inline_script(std::string_view script,
+                                                                            std::string_view context_name) {
+    if (script.empty()) {
+        return {};
+    }
+    if (!bind_script_host()) {
+        return {};
+    }
+
+    auto result = script_engine_->eval(script, context_name);
+    if (!result.ok) {
+        HB_LOG_WARN("[script] eval failed: " << result.error);
+    }
+    return {true, script_host_.consume_mutations()};
 }
 
 }  // namespace Hummingbird::Engine

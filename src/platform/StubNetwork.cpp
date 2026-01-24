@@ -22,7 +22,7 @@ std::string build_stub_body(const std::string& url) {
     <meta charset="utf-8">
     <title>Hummingbird Search</title>
   </head>
-  <body>
+  <body onload="const target = document.getElementById('js-demo'); if (target) { target.textContent = 'Load event fired.'; }">
     <h1>Search Results</h1>
     <p>Submitted query: <code>)HTML" +
                query + R"HTML(</code></p>
@@ -74,6 +74,7 @@ std::string build_stub_body(const std::string& url) {
     <button type="submit" form="search-form">Search (external)</button>
     <h2>JavaScript Demo</h2>
     <p id="js-demo">Waiting for script...</p>
+    <button onclick="const target = document.getElementById('js-demo'); if (target) { target.textContent = 'Clicked!'; }">Click to run JS</button>
     <script>
       const target = document.getElementById("js-demo");
       if (target) {
