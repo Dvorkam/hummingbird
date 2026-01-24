@@ -2,12 +2,12 @@
 
 #include <memory>
 
-#include "platform/NullScriptEngine.h"
+#include "platform/script/QuickJSScriptEngine.h"
 
 namespace Hummingbird {
 
 ScriptEnginePtr create_script_engine() {
-    return std::make_unique<Hummingbird::Platform::NullScriptEngine>();
+    return std::make_unique<Hummingbird::Platform::QuickJSScriptEngine>();
 }
 
 }  // namespace Hummingbird

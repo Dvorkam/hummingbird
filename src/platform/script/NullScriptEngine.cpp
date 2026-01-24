@@ -1,4 +1,4 @@
-#include "platform/NullScriptEngine.h"
+#include "platform/script/NullScriptEngine.h"
 
 namespace Hummingbird::Platform {
 
