@@ -11,6 +11,7 @@
 #include "core/ArenaAllocator.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/InputEvent.h"
+#include "engine/DocumentInputController.h"
 #include "layout/Geometry.h"
 #include "layout/TreeBuilder.h"
 #include "renderer/Painter.h"
@@ -22,7 +23,6 @@ class IGraphicsContext;
 }  // namespace Hummingbird
 
 namespace Hummingbird::DOM {
-class Element;
 class Node;
 }  // namespace Hummingbird::DOM
 
@@ -72,7 +72,7 @@ public:
     std::optional<std::string> hit_test_link(const HitTestContext& context) const;
     bool focus_input_at(const HitTestContext& context);
     bool clear_input_focus();
-    bool has_focused_input() const { return focused_input_ != nullptr; }
+    bool has_focused_input() const { return input_controller_.has_focus(); }
     InputEditResult handle_text_input(std::string_view text);
     InputEditResult handle_key_down(const InputEvent& event);
     std::optional<std::string> focused_input_value() const;
@@ -91,8 +91,6 @@ private:
     std::string build_css_source(std::string_view base_url) const;
     void parse_and_apply_css(const std::string& css);
     bool build_render_tree();
-    DOM::Element* hit_test_input(const HitTestContext& context) const;
-    void paint_input_controls(IGraphicsContext& graphics, const PaintContext& context) const;
 
     ResourceStore* resource_store_ = nullptr;
     IResourceProvider* resource_provider_ = nullptr;
@@ -110,8 +108,7 @@ private:
     std::vector<std::string> image_links_;
 
     float content_height_ = 0.0f;
-    DOM::Element* focused_input_ = nullptr;
-    std::string::size_type input_caret_ = 0;
+    DocumentInputController input_controller_;
 };
 
 }  // namespace Hummingbird::Engine
