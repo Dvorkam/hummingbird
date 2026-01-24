@@ -192,7 +192,10 @@ DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_click(const Hi
         return {};
     }
 
-    return eval_inline_script(*handler, "onclick");
+    std::string wrapped = "(function(){";
+    wrapped.append(*handler);
+    wrapped.append("})();");
+    return eval_inline_script(wrapped, "onclick");
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
@@ -201,7 +204,10 @@ DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
         return {};
     }
 
-    return eval_inline_script(*handler, "onload");
+    std::string wrapped = "(function(){";
+    wrapped.append(*handler);
+    wrapped.append("})();");
+    return eval_inline_script(wrapped, "onload");
 }
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
