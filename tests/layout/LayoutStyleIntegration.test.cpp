@@ -145,3 +145,29 @@ TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
     EXPECT_FLOAT_EQ(first.width, 8.0f + 2.0f * (2.0f + 1.0f));
     EXPECT_FLOAT_EQ(second.width, 8.0f + 2.0f * (2.0f + 1.0f));
 }
+
+TEST(LayoutStyleIntegrationTest, AppliesInputDefaultSizing) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto input = DomFactory::create_element(arena, "input");
+    dom_root->append_child(std::move(input));
+
+    Parser parser("");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& children = render_root->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    const auto& rect = children[0]->get_rect();
+    EXPECT_FLOAT_EQ(rect.width, 180.0f + 2.0f * (6.0f + 1.0f));
+    EXPECT_FLOAT_EQ(rect.height, 24.0f + 2.0f * (4.0f + 1.0f));
+}

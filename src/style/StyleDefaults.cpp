@@ -32,6 +32,8 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
             tag == Hummingbird::Html::TagNames::Code || tag == Hummingbird::Html::TagNames::Img ||
             tag == Hummingbird::Html::TagNames::Font) {
             style.display = ComputedStyle::Display::Inline;
+        } else if (tag == Hummingbird::Html::TagNames::Input || tag == Hummingbird::Html::TagNames::Button) {
+            style.display = ComputedStyle::Display::InlineBlock;
         } else if (tag == Hummingbird::Html::TagNames::Li) {
             style.display = ComputedStyle::Display::ListItem;
         }
@@ -67,6 +69,26 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.height = 2.0f;
         style.margin.top = style.margin.bottom = 8.0f;
         style.background = Color{50, 50, 50, 255};
+    } else if (tag == Hummingbird::Html::TagNames::Input) {
+        style.border_style = ComputedStyle::BorderStyle::Solid;
+        style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
+        style.border_color = {120, 120, 120, 255};
+        style.padding.left = 6.0f;
+        style.padding.right = 6.0f;
+        style.padding.top = 4.0f;
+        style.padding.bottom = 4.0f;
+        style.width = 180.0f;
+        style.height = 24.0f;
+        style.background = Color{255, 255, 255, 255};
+    } else if (tag == Hummingbird::Html::TagNames::Button) {
+        style.border_style = ComputedStyle::BorderStyle::Solid;
+        style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
+        style.border_color = {80, 80, 80, 255};
+        style.padding.left = 10.0f;
+        style.padding.right = 10.0f;
+        style.padding.top = 4.0f;
+        style.padding.bottom = 4.0f;
+        style.background = Color{230, 230, 230, 255};
     } else if (tag == Hummingbird::Html::TagNames::Strong) {
         style.weight = ComputedStyle::FontWeight::Bold;
         overrides.weight = true;

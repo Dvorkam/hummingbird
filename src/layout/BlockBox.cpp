@@ -172,6 +172,13 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     BlockBox::layout(context, bounds);
 
     const auto* style = get_computed_style();
+    if (style && style->height.has_value()) {
+        Metrics::Insets insets = Metrics::compute_insets(style);
+        float target_height = *style->height + insets.top + insets.bottom;
+        if (m_rect.height < target_height) {
+            m_rect.height = target_height;
+        }
+    }
     if (style && style->width.has_value()) {
         return;
     }
