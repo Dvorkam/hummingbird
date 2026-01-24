@@ -73,6 +73,8 @@ add_library(Platform STATIC
     src/platform/ResourceProviderFactory.cpp
     src/platform/SDLWindowFactory.cpp
     src/platform/NetworkThreadPool.cpp
+    src/platform/NullScriptEngine.cpp
+    src/platform/ScriptEngineFactory.cpp
 )
 target_include_directories(Platform
     PUBLIC
