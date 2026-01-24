@@ -295,6 +295,39 @@ TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
     EXPECT_EQ(*result.submitted_url, "https://example.dev/search?q=hello%20world&lang=en");
 }
 
+TEST(EngineTabTest, FormWithEmptyMethodDoesNotSubmitYet) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/search" method="">
+      <input name="q" value="test">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+
+    Hummingbird::InputEvent enter_event;
+    enter_event.type = Hummingbird::EventType::KeyDown;
+    enter_event.key.key = Hummingbird::Key::Enter;
+    auto result = harness.tab().handle_key_down(enter_event);
+    EXPECT_TRUE(result.handled);
+    // TODO(M5): method="" should default to GET.
+    EXPECT_FALSE(result.submitted_url.has_value());
+}
+
 TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
     const std::string html = R"HTML(
 <!doctype html>
@@ -321,6 +354,34 @@ TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
     auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
     EXPECT_EQ(*submitted, "https://example.dev/search?q=moon");
+}
+
+TEST(EngineTabTest, ButtonWithEmptyTypeDoesNotSubmitYet) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/search" method="get">
+      <input name="q" value="mars">
+      <button type="">Search</button>
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
+    // TODO(M5): empty button type should default to submit.
+    EXPECT_FALSE(submitted.has_value());
 }
 
 TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {
