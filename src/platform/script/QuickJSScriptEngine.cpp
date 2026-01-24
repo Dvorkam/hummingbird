@@ -15,8 +15,7 @@ static DOM::Element* element_from_value(JSContext* ctx, JSValueConst value, JSCl
     return static_cast<DOM::Element*>(JS_GetOpaque2(ctx, value, class_id));
 }
 
-JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_val*/, int argc,
-                                            JSValueConst* argv) {
+JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv) {
     std::string message;
     for (int i = 0; i < argc; ++i) {
         const char* text = JS_ToCString(ctx, argv[i]);

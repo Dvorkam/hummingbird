@@ -12,7 +12,7 @@ class ArenaAllocator;
 namespace Hummingbird::DOM {
 class Element;
 class Node;
-}
+}  // namespace Hummingbird::DOM
 
 namespace Hummingbird::Engine {
 
