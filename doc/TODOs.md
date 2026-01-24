@@ -14,7 +14,6 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 - [ ] **[M5 P1] T-CSS-VIS-1: opacity (paint-only)**; Goal: apply opacity in paint; Scope: Painter; Acceptance: subtree alpha scales paint; Tests: renderer tests.
 - [ ] **[M5 P2] T-CSS-BOX-1: box-sizing**; Goal: support border-box; Scope: layout sizing; Acceptance: border-box affects width/height calc; Tests: layout tests.
 - [ ] **[M5 P2] T-UI-FORM-1: Form Control Styling Polish**; Goal: native-like input/button visuals (shading, hover, pressed); Scope: renderer + style defaults; Acceptance: inputs/buttons look intentional and stateful; Tests: manual.
-- [ ] **[M5 P2] T-REF-PIPE-1: Split DocumentPipeline Ownerships**; Goal: separate parsing/resources/input/paint concerns; Scope: Engine (DocumentPipeline + helpers); Acceptance: smaller focused components + same behavior; Tests: existing engine tests.
 - [ ] **[M5 P2] T-REF-ENGINE-1: Reshuffle Engine Modules**; Goal: group engine files by domain (document/tab/resources); Scope: Engine folder structure + namespaces; Acceptance: clearer module layout with minimal includes; Tests: existing engine tests.
 - [ ] **[M5 P2] T-CSS-BORDER-2: border-radius (paint)**; Goal: round corners; Scope: Painter; Acceptance: rounded rect paint for background/border; Tests: renderer tests.
 - [ ] **[M5 P2] T-CSS-DECOR-1: outline + outline-offset**; Goal: draw outlines; Scope: Painter; Acceptance: outline draws outside border with offset; Tests: renderer tests.
