@@ -113,12 +113,12 @@ bool Tab::handle_text_input(std::string_view text) {
     return result.handled;
 }
 
-bool Tab::handle_key_down(const InputEvent& event) {
-    auto result = document_pipeline_.handle_key_down(event);
+Tab::KeyResult Tab::handle_key_down(const InputEvent& event) {
+    auto result = document_pipeline_.handle_key_down(event, requested_url_);
     if (result.needs_repaint) {
         dirty_ = true;
     }
-    return result.handled;
+    return {result.handled, result.needs_repaint, std::move(result.submitted_url)};
 }
 
 std::optional<std::string> Tab::focused_input_value() const {

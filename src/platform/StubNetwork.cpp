@@ -9,6 +9,29 @@ namespace Hummingbird::Platform {
 
 namespace {
 std::string build_stub_body(const std::string& url) {
+    if (url.rfind("http://example.dev/search", 0) == 0 || url.rfind("https://example.dev/search", 0) == 0) {
+        std::string query;
+        auto query_pos = url.find('?');
+        if (query_pos != std::string::npos && query_pos + 1 < url.size()) {
+            query = url.substr(query_pos + 1);
+        }
+        return R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird Search</title>
+  </head>
+  <body>
+    <h1>Search Results</h1>
+    <p>Submitted query: <code>)HTML" +
+               query + R"HTML(</code></p>
+    <p><a href="https://example.dev">Back to example.dev</a></p>
+  </body>
+</html>
+)HTML";
+    }
+
     if (url == "http://example.dev" || url == "https://example.dev") {
         return R"HTML(
 <!doctype html>

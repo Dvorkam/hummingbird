@@ -31,6 +31,11 @@ class Node;
 namespace Hummingbird::Engine {
 class Tab {
 public:
+    struct KeyResult {
+        bool handled = false;
+        bool needs_repaint = false;
+        std::optional<std::string> submitted_url;
+    };
     Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
         ImageDecoderPtr image_decoder);
     ~Tab();
@@ -57,7 +62,7 @@ public:
     bool clear_input_focus();
     bool has_focused_input() const;
     bool handle_text_input(std::string_view text);
-    bool handle_key_down(const InputEvent& event);
+    KeyResult handle_key_down(const InputEvent& event);
     std::optional<std::string> focused_input_value() const;
 
     void scroll_by(float delta_px, float viewport_height);

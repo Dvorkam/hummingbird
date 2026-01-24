@@ -253,10 +253,46 @@ TEST(EngineTabTest, FocusesInputAndEditsValue) {
     Hummingbird::InputEvent backspace_event;
     backspace_event.type = Hummingbird::EventType::KeyDown;
     backspace_event.key.key = Hummingbird::Key::Backspace;
-    EXPECT_TRUE(harness.tab().handle_key_down(backspace_event));
+    auto backspace_result = harness.tab().handle_key_down(backspace_event);
+    EXPECT_TRUE(backspace_result.handled);
     value = harness.tab().focused_input_value();
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(*value, "hi");
+}
+
+TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/search" method="GET">
+      <input name="q">
+      <input name="lang" value="en">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("hello world"));
+
+    Hummingbird::InputEvent enter_event;
+    enter_event.type = Hummingbird::EventType::KeyDown;
+    enter_event.key.key = Hummingbird::Key::Enter;
+    auto result = harness.tab().handle_key_down(enter_event);
+    EXPECT_TRUE(result.handled);
+    ASSERT_TRUE(result.submitted_url.has_value());
+    EXPECT_EQ(*result.submitted_url, "https://example.dev/search?q=hello%20world&lang=en");
 }
 
 TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {

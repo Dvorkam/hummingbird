@@ -146,12 +146,23 @@ bool DocumentPipeline::clear_input_focus() {
 
 DocumentPipeline::InputEditResult DocumentPipeline::handle_text_input(std::string_view text) {
     auto result = input_controller_.handle_text_input(text);
-    return {result.handled, result.needs_repaint};
+    return {result.handled, result.needs_repaint, std::nullopt};
 }
 
-DocumentPipeline::InputEditResult DocumentPipeline::handle_key_down(const InputEvent& event) {
+DocumentPipeline::InputEditResult DocumentPipeline::handle_key_down(const InputEvent& event,
+                                                                    std::string_view base_url) {
     auto result = input_controller_.handle_key_down(event);
-    return {result.handled, result.needs_repaint};
+    InputEditResult output{result.handled, result.needs_repaint, std::nullopt};
+
+    if (event.key.key == Key::Enter && input_controller_.has_focus()) {
+        const auto* focused = input_controller_.focused_element();
+        if (focused) {
+            output.submitted_url = model_.build_form_submission_url(*focused, base_url);
+        }
+        output.handled = true;
+    }
+
+    return output;
 }
 
 std::optional<std::string> DocumentPipeline::focused_input_value() const {

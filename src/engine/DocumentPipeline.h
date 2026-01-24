@@ -43,6 +43,7 @@ public:
     struct InputEditResult {
         bool handled = false;
         bool needs_repaint = false;
+        std::optional<std::string> submitted_url;
     };
 
     DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider);
@@ -65,7 +66,7 @@ public:
     bool clear_input_focus();
     bool has_focused_input() const { return input_controller_.has_focus(); }
     InputEditResult handle_text_input(std::string_view text);
-    InputEditResult handle_key_down(const InputEvent& event);
+    InputEditResult handle_key_down(const InputEvent& event, std::string_view base_url);
     std::optional<std::string> focused_input_value() const;
 
     bool has_dom_tree() const { return model_.has_dom_tree(); }

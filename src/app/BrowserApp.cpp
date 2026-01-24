@@ -175,8 +175,14 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         return;
     }
 
-    if (tab_.handle_key_down(event)) {
-        needs_repaint_ = true;
+    auto tab_result = tab_.handle_key_down(event);
+    if (tab_result.handled) {
+        if (tab_result.submitted_url) {
+            tab_.navigate(*tab_result.submitted_url);
+        }
+        if (tab_result.needs_repaint) {
+            needs_repaint_ = true;
+        }
         return;
     }
 

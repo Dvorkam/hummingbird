@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -10,8 +11,9 @@
 #include "style/StyleEngine.h"
 
 namespace Hummingbird::DOM {
+class Element;
 class Node;
-}
+}  // namespace Hummingbird::DOM
 
 namespace Hummingbird::Layout {
 class RenderObject;
@@ -30,6 +32,7 @@ public:
     ParseResult parse_html(std::string_view html);
     void apply_styles(const std::string& css);
     bool build_render_tree();
+    std::optional<std::string> build_form_submission_url(const DOM::Element& input, std::string_view base_url) const;
 
     bool has_dom_tree() const { return static_cast<bool>(dom_tree_); }
     bool has_render_tree() const { return static_cast<bool>(render_tree_); }

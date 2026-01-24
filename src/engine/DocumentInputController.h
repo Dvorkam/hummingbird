@@ -27,6 +27,7 @@ public:
 
     void reset();
     bool has_focus() const { return focused_input_ != nullptr; }
+    const DOM::Element* focused_element() const { return focused_input_; }
     bool focus_input_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
                         const Layout::Rect& viewport, float scroll_y);
     bool clear_focus();
