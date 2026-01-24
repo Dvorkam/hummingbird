@@ -62,6 +62,7 @@ public:
     void relayout(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void paint(IGraphicsContext& graphics, const PaintContext& context);
     std::optional<std::string> hit_test_link(const HitTestContext& context) const;
+    std::optional<std::string> submit_form_at(const HitTestContext& context) const;
     bool focus_input_at(const HitTestContext& context);
     bool clear_input_focus();
     bool has_focused_input() const { return input_controller_.has_focus(); }

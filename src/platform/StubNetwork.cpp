@@ -66,10 +66,12 @@ std::string build_stub_body(const std::string& url) {
       <li>List item two</li>
     </ul>
     <h2>Form Controls</h2>
-    <form action="https://example.dev/search" method="get">
+    <form id="search-form" action="https://example.dev/search" method="get">
       <input name="q">
       <button type="submit">Search</button>
     </form>
+    <p>External submit button:</p>
+    <button type="submit" form="search-form">Search (external)</button>
     <blockquote>Simple blockquote to show default styling.</blockquote>
     <hr>
     <p>This domain is for use in illustrative examples.</p>

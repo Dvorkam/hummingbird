@@ -178,6 +178,7 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     auto tab_result = tab_.handle_key_down(event);
     if (tab_result.handled) {
         if (tab_result.submitted_url) {
+            url_bar_.set_text(*tab_result.submitted_url);
             tab_.navigate(*tab_result.submitted_url);
         }
         if (tab_result.needs_repaint) {
@@ -235,6 +236,13 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
         needs_repaint_ = true;
     }
     if (now_focused) {
+        return;
+    }
+    auto submit = tab_.submit_form_at(point, viewport);
+    if (submit) {
+        url_bar_.set_text(*submit);
+        tab_.navigate(*submit);
+        needs_repaint_ = true;
         return;
     }
     auto link = tab_.hit_test_link(point, viewport);

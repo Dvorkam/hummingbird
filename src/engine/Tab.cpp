@@ -83,6 +83,11 @@ std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const 
     return document_pipeline_.hit_test_link(context);
 }
 
+std::optional<std::string> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
+    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
+    return document_pipeline_.submit_form_at(context);
+}
+
 bool Tab::focus_input_at(const Layout::Point& point, const Layout::Rect& viewport) {
     DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
     bool was_focused = document_pipeline_.has_focused_input();

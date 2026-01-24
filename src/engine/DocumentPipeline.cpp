@@ -6,6 +6,7 @@
 #include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/Log.h"
+#include "core/utils/StringUtils.h"
 #include "core/utils/Timing.h"
 #include "engine/ResourceUrl.h"
 #include "html/HtmlAttributeNames.h"
@@ -37,6 +38,34 @@ std::optional<std::string> resolve_anchor_href(const DOM::Node* node, std::strin
         current = current->get_parent();
     }
     return std::nullopt;
+}
+
+const DOM::Element* resolve_submit_element(const DOM::Node* node) {
+    const DOM::Node* current = node;
+    while (current) {
+        auto* element = dynamic_cast<const DOM::Element*>(current);
+        if (element) {
+            const auto& tag = element->get_tag_name();
+            if (tag == Hummingbird::Html::TagNames::Button) {
+                if (const auto* type = element->find_attribute(Hummingbird::Html::AttributeNames::Type)) {
+                    if (!Core::Utils::equals_ignore_case(*type, "submit")) {
+                        current = current->get_parent();
+                        continue;
+                    }
+                }
+                return element;
+            }
+            if (tag == Hummingbird::Html::TagNames::Input) {
+                if (const auto* type = element->find_attribute(Hummingbird::Html::AttributeNames::Type)) {
+                    if (Core::Utils::equals_ignore_case(*type, "submit")) {
+                        return element;
+                    }
+                }
+            }
+        }
+        current = current->get_parent();
+    }
+    return nullptr;
 }
 
 }  // namespace
@@ -127,6 +156,44 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
             auto hit = resolve_anchor_href(node.get_dom_node(), context.base_url);
             if (hit) {
                 result = std::move(*hit);
+                return Layout::Traversal::TraverseAction::Stop;
+            }
+            return Layout::Traversal::TraverseAction::Continue;
+        },
+        Layout::Traversal::ChildOrder::Reverse);
+
+    return result;
+}
+
+std::optional<std::string> DocumentPipeline::submit_form_at(const HitTestContext& context) const {
+    auto* render_tree = model_.render_tree();
+    if (!render_tree) {
+        return std::nullopt;
+    }
+    if (!Layout::rect_contains_point(context.viewport, context.point)) {
+        return std::nullopt;
+    }
+
+    Layout::Point offset{0.0f, -context.scroll_y};
+    std::optional<std::string> result;
+
+    Layout::Traversal::traverse_render_tree(
+        *render_tree, offset,
+        [&](const Layout::RenderObject& /*node*/, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+            if (!Layout::rect_intersects(absolute, context.viewport) ||
+                !Layout::rect_contains_point(absolute, context.point)) {
+                return Layout::Traversal::TraverseAction::SkipChildren;
+            }
+            return Layout::Traversal::TraverseAction::Continue;
+        },
+        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+            const auto* submit = resolve_submit_element(node.get_dom_node());
+            if (!submit) {
+                return Layout::Traversal::TraverseAction::Continue;
+            }
+            auto url = model_.build_form_submission_url(*submit, context.base_url);
+            if (url) {
+                result = std::move(*url);
                 return Layout::Traversal::TraverseAction::Stop;
             }
             return Layout::Traversal::TraverseAction::Continue;

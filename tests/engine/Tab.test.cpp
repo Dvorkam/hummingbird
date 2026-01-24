@@ -295,6 +295,34 @@ TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
     EXPECT_EQ(*result.submitted_url, "https://example.dev/search?q=hello%20world&lang=en");
 }
 
+TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <button form="search-form">Search</button>
+    <form id="search-form" action="/search" method="get">
+      <input name="q" value="moon">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(*submitted, "https://example.dev/search?q=moon");
+}
+
 TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {
     const std::string html = R"HTML(
 <!doctype html>

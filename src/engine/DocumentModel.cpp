@@ -1,6 +1,7 @@
 #include "engine/DocumentModel.h"
 
 #include <ostream>
+#include <unordered_set>
 #include <utility>
 
 #include "core/dom/Element.h"
@@ -46,22 +47,69 @@ struct FormField {
     std::string_view value;
 };
 
-void collect_form_inputs(const DOM::Node* node, std::vector<FormField>& fields) {
+const DOM::Element* find_form_by_id(const DOM::Node* node, std::string_view id) {
+    auto* element = dynamic_cast<const DOM::Element*>(node);
+    if (element && element->get_tag_name() == Hummingbird::Html::TagNames::Form) {
+        if (const auto* attr = element->find_attribute(Hummingbird::Html::AttributeNames::Id)) {
+            if (*attr == id) {
+                return element;
+            }
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (auto* match = find_form_by_id(child.get(), id)) {
+            return match;
+        }
+    }
+    return nullptr;
+}
+
+void collect_form_inputs(const DOM::Node* node, std::unordered_set<const DOM::Element*>& visited,
+                         std::vector<FormField>& fields) {
     auto* element = dynamic_cast<const DOM::Element*>(node);
     if (element && element->get_tag_name() == Hummingbird::Html::TagNames::Input) {
-        if (const auto* name = element->find_attribute(Hummingbird::Html::AttributeNames::Name)) {
-            if (!name->empty()) {
-                std::string_view value;
-                if (const auto* attr_value = element->find_attribute(Hummingbird::Html::AttributeNames::Value)) {
-                    value = *attr_value;
+        if (visited.insert(element).second) {
+            if (const auto* name = element->find_attribute(Hummingbird::Html::AttributeNames::Name)) {
+                if (!name->empty()) {
+                    std::string_view value;
+                    if (const auto* attr_value = element->find_attribute(Hummingbird::Html::AttributeNames::Value)) {
+                        value = *attr_value;
+                    }
+                    fields.push_back({*name, value});
                 }
-                fields.push_back({*name, value});
             }
         }
     }
 
     for (const auto& child : node->get_children()) {
-        collect_form_inputs(child.get(), fields);
+        collect_form_inputs(child.get(), visited, fields);
+    }
+}
+
+void collect_associated_inputs(const DOM::Node* node, std::string_view form_id,
+                               std::unordered_set<const DOM::Element*>& visited, std::vector<FormField>& fields) {
+    auto* element = dynamic_cast<const DOM::Element*>(node);
+    if (element && element->get_tag_name() == Hummingbird::Html::TagNames::Input) {
+        if (const auto* form_attr = element->find_attribute(Hummingbird::Html::AttributeNames::Form)) {
+            if (*form_attr == form_id) {
+                if (visited.insert(element).second) {
+                    if (const auto* name = element->find_attribute(Hummingbird::Html::AttributeNames::Name)) {
+                        if (!name->empty()) {
+                            std::string_view value;
+                            if (const auto* attr_value =
+                                    element->find_attribute(Hummingbird::Html::AttributeNames::Value)) {
+                                value = *attr_value;
+                            }
+                            fields.push_back({*name, value});
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    for (const auto& child : node->get_children()) {
+        collect_associated_inputs(child.get(), form_id, visited, fields);
     }
 }
 
@@ -153,7 +201,23 @@ std::optional<std::string> DocumentModel::build_form_submission_url(const DOM::E
         return std::nullopt;
     }
 
-    const DOM::Element* form = find_enclosing_form(&input);
+    const DOM::Element* form = nullptr;
+    std::string_view form_id;
+    if (const auto* form_attr = input.find_attribute(Hummingbird::Html::AttributeNames::Form)) {
+        if (!form_attr->empty()) {
+            form_id = *form_attr;
+            if (dom_tree_) {
+                form = find_form_by_id(dom_tree_.get(), form_id);
+            }
+            if (!form) {
+                HB_LOG_WARN("[form] form id not found: " << form_id);
+                return std::nullopt;
+            }
+        }
+    }
+    if (!form) {
+        form = find_enclosing_form(&input);
+    }
     if (!form) {
         return std::nullopt;
     }
@@ -175,7 +239,18 @@ std::optional<std::string> DocumentModel::build_form_submission_url(const DOM::E
     }
 
     std::vector<FormField> fields;
-    collect_form_inputs(form, fields);
+    std::unordered_set<const DOM::Element*> visited;
+    collect_form_inputs(form, visited, fields);
+
+    if (!form_id.empty()) {
+        if (dom_tree_) {
+            collect_associated_inputs(dom_tree_.get(), form_id, visited, fields);
+        }
+    } else if (const auto* id_attr = form->find_attribute(Hummingbird::Html::AttributeNames::Id)) {
+        if (!id_attr->empty() && dom_tree_) {
+            collect_associated_inputs(dom_tree_.get(), *id_attr, visited, fields);
+        }
+    }
 
     std::string query;
     for (size_t i = 0; i < fields.size(); ++i) {
