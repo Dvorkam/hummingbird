@@ -64,21 +64,29 @@ const DOM::Element* find_form_by_id(const DOM::Node* node, std::string_view id) 
     return nullptr;
 }
 
+void maybe_add_input_field(const DOM::Element& element, std::unordered_set<const DOM::Element*>& visited,
+                           std::vector<FormField>& fields) {
+    if (element.get_tag_name() != Hummingbird::Html::TagNames::Input) {
+        return;
+    }
+    if (!visited.insert(&element).second) {
+        return;
+    }
+    const auto* name = element.find_attribute(Hummingbird::Html::AttributeNames::Name);
+    if (!name || name->empty()) {
+        return;
+    }
+    std::string_view value;
+    if (const auto* attr_value = element.find_attribute(Hummingbird::Html::AttributeNames::Value)) {
+        value = *attr_value;
+    }
+    fields.push_back({*name, value});
+}
+
 void collect_form_inputs(const DOM::Node* node, std::unordered_set<const DOM::Element*>& visited,
                          std::vector<FormField>& fields) {
-    auto* element = dynamic_cast<const DOM::Element*>(node);
-    if (element && element->get_tag_name() == Hummingbird::Html::TagNames::Input) {
-        if (visited.insert(element).second) {
-            if (const auto* name = element->find_attribute(Hummingbird::Html::AttributeNames::Name)) {
-                if (!name->empty()) {
-                    std::string_view value;
-                    if (const auto* attr_value = element->find_attribute(Hummingbird::Html::AttributeNames::Value)) {
-                        value = *attr_value;
-                    }
-                    fields.push_back({*name, value});
-                }
-            }
-        }
+    if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
+        maybe_add_input_field(*element, visited, fields);
     }
 
     for (const auto& child : node->get_children()) {
@@ -88,22 +96,10 @@ void collect_form_inputs(const DOM::Node* node, std::unordered_set<const DOM::El
 
 void collect_associated_inputs(const DOM::Node* node, std::string_view form_id,
                                std::unordered_set<const DOM::Element*>& visited, std::vector<FormField>& fields) {
-    auto* element = dynamic_cast<const DOM::Element*>(node);
-    if (element && element->get_tag_name() == Hummingbird::Html::TagNames::Input) {
+    if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
         if (const auto* form_attr = element->find_attribute(Hummingbird::Html::AttributeNames::Form)) {
             if (*form_attr == form_id) {
-                if (visited.insert(element).second) {
-                    if (const auto* name = element->find_attribute(Hummingbird::Html::AttributeNames::Name)) {
-                        if (!name->empty()) {
-                            std::string_view value;
-                            if (const auto* attr_value =
-                                    element->find_attribute(Hummingbird::Html::AttributeNames::Value)) {
-                                value = *attr_value;
-                            }
-                            fields.push_back({*name, value});
-                        }
-                    }
-                }
+                maybe_add_input_field(*element, visited, fields);
             }
         }
     }
