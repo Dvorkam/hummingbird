@@ -136,6 +136,7 @@ add_library(Engine STATIC
     src/engine/DocumentModel.cpp
     src/engine/DocumentResources.cpp
     src/engine/DocumentPainter.cpp
+    src/engine/script/DocumentScriptController.cpp
     src/engine/script/DocumentScriptHost.cpp
     src/engine/ResourceLoader.cpp
     src/engine/Tab.cpp

@@ -15,7 +15,7 @@
 #include "engine/DocumentModel.h"
 #include "engine/DocumentPainter.h"
 #include "engine/DocumentResources.h"
-#include "engine/script/DocumentScriptHost.h"
+#include "engine/script/DocumentScriptController.h"
 #include "layout/Geometry.h"
 
 namespace Hummingbird {
@@ -48,10 +48,7 @@ public:
         std::optional<std::string> submitted_url;
     };
 
-    struct ScriptDispatchResult {
-        bool handled = false;
-        bool mutated = false;
-    };
+    using ScriptDispatchResult = DocumentScriptController::ScriptDispatchResult;
 
     DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
                      ScriptEnginePtr script_engine);
@@ -94,11 +91,7 @@ private:
     DocumentResources resources_;
     DocumentModel model_;
     DocumentPainter painter_;
-    ScriptEnginePtr script_engine_;
-    DocumentScriptHost script_host_;
-
-    bool bind_script_host();
-    ScriptDispatchResult eval_inline_script(std::string_view script, std::string_view context_name);
+    DocumentScriptController script_controller_;
 };
 
 }  // namespace Hummingbird::Engine
