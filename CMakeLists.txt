@@ -35,6 +35,7 @@ find_package(qjs CONFIG REQUIRED)
 add_library(Style STATIC
     src/style/CssTokenizer.cpp
     src/style/CssParser.cpp
+    src/style/CssPropertyRegistry.cpp
     src/style/SelectorMatcher.cpp
     src/style/StyleDefaults.cpp
     src/style/StyleEngine.cpp

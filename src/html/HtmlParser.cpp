@@ -169,7 +169,7 @@ void Parser::append_text_node(DOM::Node* parent, std::string_view text) {
 }
 
 void Parser::track_unsupported_tag(std::string_view tag_name) {
-    if (TagMetadata::is_known_tag(tag_name)) return;
+    if (TagMetadata::is_supported_tag(tag_name)) return;
     std::string name(tag_name);
     if (m_unsupported_tags.insert(name).second) {
         HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << name << ">");

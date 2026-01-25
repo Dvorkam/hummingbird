@@ -16,7 +16,7 @@ inline bool is_void_tag(std::string_view name) {
     return false;
 }
 
-inline bool is_known_tag(std::string_view name) {
+inline bool is_supported_tag(std::string_view name) {
     static constexpr std::string_view kKnownTags[] = {
         Hummingbird::Html::TagNames::Html,   Hummingbird::Html::TagNames::Head,
         Hummingbird::Html::TagNames::Body,   Hummingbird::Html::TagNames::Title,
@@ -43,6 +43,10 @@ inline bool is_known_tag(std::string_view name) {
         if (tag == name) return true;
     }
     return false;
+}
+
+inline bool is_known_tag(std::string_view name) {
+    return is_supported_tag(name);
 }
 
 }  // namespace Hummingbird::Html::TagMetadata
