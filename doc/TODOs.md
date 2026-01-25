@@ -23,6 +23,10 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 - [ ] **[M5 P2] T-IMG-1: Animated GIF/WebP Playback**; Goal: play animated frames; Scope: decoder + renderer scheduling; Acceptance: frames render with timing; Tests: image tests.
 - [ ] **[M5 P2] T-IMG-2: SVG Image Decode (Raster)**; Goal: rasterize SVG `<img>` sources; Scope: IImageDecoder + SVG library; Acceptance: svg renders to ImageBitmap; Tests: image tests.
 - [ ] **[M5 P2] T-PERF-3: Split UI Chrome From Page Render**; Goal: avoid repainting page while editing URL bar; Scope: app render split; Acceptance: URL bar updates without page repaint; Tests: manual.
+- [ ] **[M5 P2] T-CSS-CODE-1: Code/Pre Background Defaults**; Goal: default inline code/pre background should not fight page background; Scope: style defaults + computed style; Acceptance: code/pre render transparent unless author CSS sets a background; Tests: style tests.
+- [ ] **[M5 P2] T-LAYOUT-INLINE-2: Inline-Block Baseline Alignment**; Goal: inline-block aligns to text baseline by default; Scope: inline layout + line box metrics; Acceptance: inline-block does not appear to “sink” below text; Tests: layout tests.
+- [ ] **[M5 P2] T-LIST-1: Ordered List Markers**; Goal: ordered lists show numeric markers instead of bullets; Scope: list marker layout/paint; Acceptance: `<ol>` renders 1., 2., 3.; Tests: layout tests.
+- [ ] **[M5 P2] T-TABLE-1: Table Borders for Visibility**; Goal: make table structure visible without author CSS; Scope: style defaults for `table/td/th` or table paint; Acceptance: tables show cell boundaries in demo; Tests: renderer tests.
 
 ## Milestone 6+ (Big Rocks)
 
