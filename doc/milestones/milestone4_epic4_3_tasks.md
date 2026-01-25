@@ -4,11 +4,11 @@ This checklist expands Epic 4.3 into trackable slices. Keep tasks small and cher
 
 ## Story 4.3.1 — Supported Feature Registry + Deduped Warnings
 
-- [ ] Create a central registry for supported HTML tags (one source of truth).
-- [ ] Create a central registry for supported CSS properties.
-- [ ] Emit unsupported tag warnings once per document.
-- [ ] Emit unsupported CSS property warnings once per document.
-- [ ] Add parser/style tests to prove deduped warnings.
+- [x] Create a central registry for supported HTML tags (one source of truth).
+- [x] Create a central registry for supported CSS properties.
+- [x] Emit unsupported tag warnings once per document.
+- [x] Emit unsupported CSS property warnings once per document.
+- [x] Add parser/style tests to prove deduped warnings.
 
 ## Story 4.3.2 — Selector Coverage
 
