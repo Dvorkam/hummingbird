@@ -136,8 +136,8 @@ aligned.</pre>
     <div class="section">
       <h2>Images</h2>
       <p>Local assets are loaded via stub network:</p>
-      <img src="/assets/icons/page_security/secure.png" width="32" height="32" alt="secure icon">
-      <img src="/assets/icons/page_security/insecure.png" width="32" height="32" alt="insecure icon">
+      <img src="assets/icons/page_security/secure.png" width="32" height="32" alt="secure icon">
+      <img src="assets/icons/page_security/insecure.png" width="32" height="32" alt="insecure icon">
     </div>
 
     <div class="section">
