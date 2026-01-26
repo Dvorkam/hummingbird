@@ -17,6 +17,8 @@ namespace Hummingbird::Css::StyleDefaults {
 struct StyleOverrides {
     bool color = false;
     bool underline = false;
+    bool link_color = false;
+    bool vlink_color = false;
     bool whitespace = false;
     bool font_monospace = false;
     bool weight = false;
@@ -29,7 +31,7 @@ struct StyleOverrides {
 };
 
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,
-                               bool display_set);
+                               bool display_set, const ComputedStyle* parent_style);
 void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides);
 
 }  // namespace Hummingbird::Css::StyleDefaults

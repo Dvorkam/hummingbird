@@ -534,6 +534,48 @@ TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
     EXPECT_EQ(child_style->whitespace, ComputedStyle::WhiteSpace::NoWrap);
 }
 
+TEST(StyleEngineTest, BodyAttributesMapToColors) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
+    body->set_attribute(Attr::BgColor, "#99cc99");
+    body->set_attribute(Attr::Text, "#112233");
+    body->set_attribute(Attr::Link, "#445566");
+    body->set_attribute(Attr::VLink, "#778899");
+
+    auto link = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    link->append_child(DomFactory::create_text(arena, "Link"));
+    body->append_child(std::move(link));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, body.get());
+
+    auto body_style = body->get_computed_style();
+    ASSERT_TRUE(body_style);
+    ASSERT_TRUE(body_style->background.has_value());
+    EXPECT_EQ(body_style->background->r, 0x99);
+    EXPECT_EQ(body_style->background->g, 0xcc);
+    EXPECT_EQ(body_style->background->b, 0x99);
+    EXPECT_EQ(body_style->color.r, 0x11);
+    EXPECT_EQ(body_style->color.g, 0x22);
+    EXPECT_EQ(body_style->color.b, 0x33);
+    ASSERT_TRUE(body_style->link_color.has_value());
+    EXPECT_EQ(body_style->link_color->r, 0x44);
+    EXPECT_EQ(body_style->link_color->g, 0x55);
+    EXPECT_EQ(body_style->link_color->b, 0x66);
+    ASSERT_TRUE(body_style->vlink_color.has_value());
+    EXPECT_EQ(body_style->vlink_color->r, 0x77);
+    EXPECT_EQ(body_style->vlink_color->g, 0x88);
+    EXPECT_EQ(body_style->vlink_color->b, 0x99);
+
+    auto link_style = body->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(link_style);
+    EXPECT_EQ(link_style->color.r, 0x44);
+    EXPECT_EQ(link_style->color.g, 0x55);
+    EXPECT_EQ(link_style->color.b, 0x66);
+    EXPECT_TRUE(link_style->underline);
+}
+
 TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto img = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Img);

@@ -318,6 +318,8 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
                                  const StyleDefaults::StyleOverrides& overrides) {
     if (overrides.color) target.color = source.color;
     if (overrides.underline) target.underline = source.underline;
+    if (overrides.link_color) target.link_color = source.link_color;
+    if (overrides.vlink_color) target.vlink_color = source.vlink_color;
     if (overrides.whitespace) target.whitespace = source.whitespace;
     if (overrides.font_monospace) target.font_monospace = source.font_monospace;
     if (overrides.weight) target.weight = source.weight;
@@ -338,7 +340,7 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, cons
 
     // Minimal UA defaults for basic HTML readability.
     if (const auto* element = dynamic_cast<const DOM::Element*>(node)) {
-        StyleDefaults::apply_user_agent_defaults(*element, style, result.overrides, display_set);
+        StyleDefaults::apply_user_agent_defaults(*element, style, result.overrides, display_set, parent_style);
         StyleDefaults::apply_legacy_attributes(*element, style, result.overrides);
     }
 

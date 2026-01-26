@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/utils/ColorUtils.h"
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
 #include "style/CssPropertyRegistry.h"
@@ -120,36 +121,6 @@ static std::optional<Color> parse_named_color(std::string_view value) {
     return std::nullopt;
 }
 
-static int hex_digit(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
-    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
-    return -1;
-}
-
-static std::optional<Color> parse_hex_color(std::string_view hex) {
-    if (hex.size() == 3) {
-        int r = hex_digit(hex[0]);
-        int g = hex_digit(hex[1]);
-        int b = hex_digit(hex[2]);
-        if (r < 0 || g < 0 || b < 0) return std::nullopt;
-        return Color{static_cast<unsigned char>(r * 17), static_cast<unsigned char>(g * 17),
-                     static_cast<unsigned char>(b * 17), 255};
-    }
-    if (hex.size() == 6) {
-        int r1 = hex_digit(hex[0]);
-        int r2 = hex_digit(hex[1]);
-        int g1 = hex_digit(hex[2]);
-        int g2 = hex_digit(hex[3]);
-        int b1 = hex_digit(hex[4]);
-        int b2 = hex_digit(hex[5]);
-        if (r1 < 0 || r2 < 0 || g1 < 0 || g2 < 0 || b1 < 0 || b2 < 0) return std::nullopt;
-        return Color{static_cast<unsigned char>((r1 << 4) + r2), static_cast<unsigned char>((g1 << 4) + g2),
-                     static_cast<unsigned char>((b1 << 4) + b2), 255};
-    }
-    return std::nullopt;
-}
-
 Property Parser::parse_property() {
     if (peek().type != TokenType::Identifier) return Property::Unknown;
     return parse_property_name(advance().lexeme);
@@ -214,7 +185,7 @@ Value Parser::parse_hash_value() {
         while (peek().type == TokenType::Identifier || peek().type == TokenType::Number) {
             hex.append(advance().lexeme);
         }
-        if (auto color = parse_hex_color(hex)) {
+        if (auto color = Core::Utils::parse_hex_color(hex)) {
             return Value::color_value(*color);
         }
         return Value::identifier("#" + hex);

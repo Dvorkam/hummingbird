@@ -7,6 +7,7 @@ namespace Hummingbird::Html::AttributeNames {
 static constexpr std::string_view Align = "align";
 static constexpr std::string_view Alt = "alt";
 static constexpr std::string_view Action = "action";
+static constexpr std::string_view BgColor = "bgcolor";
 static constexpr std::string_view Class = "class";
 static constexpr std::string_view ColSpan = "colspan";
 static constexpr std::string_view Face = "face";
@@ -14,14 +15,17 @@ static constexpr std::string_view Form = "form";
 static constexpr std::string_view Height = "height";
 static constexpr std::string_view Href = "href";
 static constexpr std::string_view Id = "id";
+static constexpr std::string_view Link = "link";
 static constexpr std::string_view Method = "method";
 static constexpr std::string_view Name = "name";
 static constexpr std::string_view NoWrap = "nowrap";
 static constexpr std::string_view Rel = "rel";
 static constexpr std::string_view Size = "size";
 static constexpr std::string_view Src = "src";
+static constexpr std::string_view Text = "text";
 static constexpr std::string_view Type = "type";
 static constexpr std::string_view Value = "value";
+static constexpr std::string_view VLink = "vlink";
 static constexpr std::string_view Width = "width";
 
 }  // namespace Hummingbird::Html::AttributeNames

@@ -32,6 +32,8 @@ struct ComputedStyle {
     std::optional<float> max_width;
     Color color{0, 0, 0, 255};
     bool underline = false;
+    std::optional<Color> link_color;
+    std::optional<Color> vlink_color;
     bool font_monospace = false;
     enum class WhiteSpace { Normal, Preserve, NoWrap };
     WhiteSpace whitespace = WhiteSpace::Normal;

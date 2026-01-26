@@ -78,7 +78,7 @@ std::string build_stub_body(const std::string& url) {
     <title>Hummingbird Feature Tour</title>
     <link rel="stylesheet" href="assets/stub.css">
     <style>
-      body { margin: 20px; padding: 10px; color: #444; }
+      body { margin: 20px; padding: 10px; }
       h1, h2, .title { margin: 10px; }
       #lead { font-size: 18px; }
       p { margin: 6px; }
@@ -100,7 +100,8 @@ std::string build_stub_body(const std::string& url) {
       .font-demo-bold-italic { font-weight: bold; font-style: italic; }
     </style>
   </head>
-  <body onload="const target = document.getElementById('js-demo'); if (target) { target.textContent = 'Load event fired.'; }">
+  <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
+        onload="const target = document.getElementById('js-demo'); if (target) { target.textContent = 'Load event fired.'; }">
     <h1 class="title">Hummingbird Feature Tour</h1>
     <p id="lead"><strong>Purpose:</strong> This page demonstrates everything the browser currently supports.</p>
 

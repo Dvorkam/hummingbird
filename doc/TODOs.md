@@ -26,6 +26,7 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 - [ ] **[M5 P3] T-FORM-1: Default GET for empty method**; Goal: treat missing/empty form method as GET; Scope: Engine form submit; Acceptance: method="" submits as GET; Tests: engine tests.
 - [ ] **[M5 P3] T-FORM-2: Default submit for empty button type**; Goal: treat empty/invalid button type as submit; Scope: Engine hit-test submit; Acceptance: type="" submits; Tests: engine tests.
 - [ ] **[M5 P3] T-FORM-3: URL-encoded + spaces**; Goal: use application/x-www-form-urlencoded space encoding; Scope: url encoding; Acceptance: spaces become "+"; Tests: core utils tests.
+- [ ] **[M6 P1] T-HIST-1: Visited Link State**; Goal: track visited URLs and apply `vlink` colors appropriately; Scope: history store + style resolution; Acceptance: visited anchors render with `vlink`/`:visited` color; Tests: engine/style tests.
 - [ ] **[M5 P2] T-REF-ENGINE-1: Reshuffle Engine Modules**; Goal: group engine files by domain (document/tab/resources); Scope: Engine folder structure + namespaces; Acceptance: clearer module layout with minimal includes; Tests: existing engine tests.
 - [ ] **[M5 P2] T-CSS-BORDER-2: border-radius (paint)**; Goal: round corners; Scope: Painter; Acceptance: rounded rect paint for background/border; Tests: renderer tests.
 - [ ] **[M5 P2] T-CSS-DECOR-1: outline + outline-offset**; Goal: draw outlines; Scope: Painter; Acceptance: outline draws outside border with offset; Tests: renderer tests.

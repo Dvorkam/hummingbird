@@ -7,6 +7,7 @@
 
 #include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/utils/ColorUtils.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
@@ -16,7 +17,7 @@
 namespace Hummingbird::Css::StyleDefaults {
 
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,
-                               bool display_set) {
+                               bool display_set, const ComputedStyle* parent_style) {
     const auto& tag = element.get_tag_name();
     const auto set_heading = [&](float scale, float margin_em) {
         style.font_size = 16.0f * scale;
@@ -49,7 +50,13 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         overrides.whitespace = true;
         overrides.font_monospace = true;
     } else if (tag == Hummingbird::Html::TagNames::A) {
-        style.color = {0, 0, 255, 255};
+        if (parent_style && parent_style->link_color.has_value()) {
+            style.color = *parent_style->link_color;
+        } else if (parent_style && parent_style->vlink_color.has_value()) {
+            style.color = *parent_style->vlink_color;
+        } else {
+            style.color = {0, 0, 255, 255};
+        }
         style.underline = true;
         overrides.color = true;
         overrides.underline = true;
@@ -161,6 +168,7 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
         return Core::Utils::to_lower(trimmed);
     };
 
+    const bool is_body = element.get_tag_name() == Hummingbird::Html::TagNames::Body;
     for (const auto& [key, value] : element.get_attributes()) {
         if (key == Hummingbird::Html::AttributeNames::Align) {
             std::string normalized = Core::Utils::to_lower(value);
@@ -195,6 +203,28 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
             if (!face.empty()) {
                 style.font_face = std::move(face);
                 overrides.font_face = true;
+            }
+        } else if (is_body) {
+            if (key == Hummingbird::Html::AttributeNames::BgColor) {
+                if (auto parsed = Core::Utils::parse_html_color(value)) {
+                    style.background = *parsed;
+                    overrides.background = true;
+                }
+            } else if (key == Hummingbird::Html::AttributeNames::Text) {
+                if (auto parsed = Core::Utils::parse_html_color(value)) {
+                    style.color = *parsed;
+                    overrides.color = true;
+                }
+            } else if (key == Hummingbird::Html::AttributeNames::Link) {
+                if (auto parsed = Core::Utils::parse_html_color(value)) {
+                    style.link_color = *parsed;
+                    overrides.link_color = true;
+                }
+            } else if (key == Hummingbird::Html::AttributeNames::VLink) {
+                if (auto parsed = Core::Utils::parse_html_color(value)) {
+                    style.vlink_color = *parsed;
+                    overrides.vlink_color = true;
+                }
             }
         }
     }
