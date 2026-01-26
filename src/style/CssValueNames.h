@@ -18,6 +18,7 @@ static constexpr std::string_view Normal = "normal";
 static constexpr std::string_view Bold = "bold";
 static constexpr std::string_view Italic = "italic";
 static constexpr std::string_view NoWrap = "nowrap";
+static constexpr std::string_view Underline = "underline";
 
 static constexpr std::string_view Red = "red";
 static constexpr std::string_view Blue = "blue";

@@ -248,6 +248,18 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         }
     }
 
+    auto text_decoration_it = properties.find(Property::TextDecoration);
+    if (text_decoration_it != properties.end() && text_decoration_it->second.value.type == Value::Type::Identifier) {
+        const auto& ident = text_decoration_it->second.value.ident;
+        if (ident == ValueNames::Underline) {
+            style.underline = true;
+            overrides.underline = true;
+        } else if (ident == ValueNames::None) {
+            style.underline = false;
+            overrides.underline = true;
+        }
+    }
+
     auto whitespace_it = properties.find(Property::WhiteSpace);
     if (whitespace_it != properties.end() && whitespace_it->second.value.type == Value::Type::Identifier) {
         const auto& ident = whitespace_it->second.value.ident;

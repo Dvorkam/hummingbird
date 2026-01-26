@@ -28,6 +28,7 @@ static constexpr std::string_view FontSize = "font-size";
 static constexpr std::string_view LineHeight = "line-height";
 static constexpr std::string_view MaxWidth = "max-width";
 static constexpr std::string_view TextAlign = "text-align";
+static constexpr std::string_view TextDecoration = "text-decoration";
 static constexpr std::string_view WhiteSpace = "white-space";
 static constexpr std::string_view FontFamily = "font-family";
 static constexpr std::string_view FontWeight = "font-weight";

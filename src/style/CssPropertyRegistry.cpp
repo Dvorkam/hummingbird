@@ -34,6 +34,7 @@ static constexpr Mapping kMappings[] = {
     {PropertyNames::LineHeight, Property::LineHeight},
     {PropertyNames::MaxWidth, Property::MaxWidth},
     {PropertyNames::TextAlign, Property::TextAlign},
+    {PropertyNames::TextDecoration, Property::TextDecoration},
     {PropertyNames::WhiteSpace, Property::WhiteSpace},
     {PropertyNames::FontFamily, Property::FontFamily},
     {PropertyNames::FontWeight, Property::FontWeight},

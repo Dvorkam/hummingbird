@@ -150,6 +150,35 @@ TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
     EXPECT_TRUE(style->underline);
 }
 
+TEST(StyleEngineTest, SupportsTextDecorationUnderlineAndNone) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    auto link = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    link->append_child(DomFactory::create_text(arena, "Link"));
+    root->append_child(std::move(link));
+
+    auto span = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    span->set_attribute(Attr::Class, "uline");
+    span->append_child(DomFactory::create_text(arena, "Underlined"));
+    root->append_child(std::move(span));
+
+    std::string css = "a { text-decoration: none; } .uline { text-decoration: underline; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto link_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(link_style);
+    EXPECT_FALSE(link_style->underline);
+
+    auto span_style = root->get_children()[1]->get_computed_style();
+    ASSERT_TRUE(span_style);
+    EXPECT_TRUE(span_style->underline);
+}
+
 TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

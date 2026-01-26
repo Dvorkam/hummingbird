@@ -34,6 +34,7 @@ enum class Property {
     LineHeight,
     MaxWidth,
     TextAlign,
+    TextDecoration,
     WhiteSpace,
     FontFamily,
     FontWeight,
