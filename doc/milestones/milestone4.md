@@ -323,7 +323,7 @@ are already completed.
 - [x] **[M4 P1] T-HTML-CUSTOM-1: Custom Elements as Generic Elements**; Goal: allow dash-named tags; Scope: HtmlParser + TreeBuilder; Acceptance: custom elements parse/render as generic blocks; Tests: parser/layout tests.
 - [x] **[M4 P1] T-HTML-ENT-1: Decode Named Entities**; Goal: decode common HTML entities; Scope: HtmlParser text handling; Acceptance: `&mdash;`, `&nbsp;`, `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;` render correctly; Tests: parser tests.
 - [x] **[M4 P1] T-HTML-ATTR-1: Body Color Attributes**; Goal: map `bgcolor/text/link/vlink`; Scope: StyleDefaults + legacy attribute mapping; Acceptance: body + link colors reflect attributes; Tests: style tests.
-- [ ] **[M4 P1] T-CSS-SEL-1: Selector Coverage**; Goal: add universal selector, descendant combinators, and compound selectors; Scope: CssParser + SelectorMatcher; Acceptance: matching behaves per spec subset; Tests: selector tests.
+- [x] **[M4 P1] T-CSS-SEL-1: Selector Coverage**; Goal: add universal selector, descendant combinators, and compound selectors; Scope: CssParser + SelectorMatcher; Acceptance: matching behaves per spec subset; Tests: selector tests.
 - [ ] **[M4 P1] T-CSS-TEXT-1: text-align**; Goal: align inline runs; Scope: inline layout; Acceptance: left/center/right align inline content; Tests: layout tests.
 - [ ] **[M4 P1] T-CSS-TEXT-2: white-space (nowrap)**; Goal: respect nowrap; Scope: inline layout; Acceptance: nowrap prevents line breaks; Tests: layout tests.
 - [ ] **[M4 P1] T-CSS-TEXT-3: text-decoration (underline/none)**; Goal: render underline for links; Scope: Painter + TextBox; Acceptance: underline draws for inline text and can be disabled; Tests: renderer tests.
