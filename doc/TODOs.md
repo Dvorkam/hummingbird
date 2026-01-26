@@ -38,6 +38,7 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 - [ ] **[M5 P2] T-LAYOUT-INLINE-2: Inline-Block Baseline Alignment**; Goal: inline-block aligns to text baseline by default; Scope: inline layout + line box metrics; Acceptance: inline-block does not appear to “sink” below text; Tests: layout tests.
 - [ ] **[M5 P2] T-LIST-1: Ordered List Markers**; Goal: ordered lists show numeric markers instead of bullets; Scope: list marker layout/paint; Acceptance: `<ol>` renders 1., 2., 3.; Tests: layout tests.
 - [ ] **[M5 P2] T-TABLE-1: Table Borders for Visibility**; Goal: make table structure visible without author CSS; Scope: style defaults for `table/td/th` or table paint; Acceptance: tables show cell boundaries in demo; Tests: renderer tests.
+- [ ] **[M5 P3] T-HTML-SEM-2: Semantic Landmark Roles (A11y)**; Goal: expose `<header/nav/main/section/article/aside/footer>` semantics for accessibility and tooling; Scope: DOM semantics + a11y hooks; Acceptance: semantic tags report correct roles; Tests: DOM/a11y tests.
 
 ## Milestone 6+ (Big Rocks)
 

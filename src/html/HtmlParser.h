@@ -52,6 +52,7 @@ private:
     void apply_attributes(DOM::Element& element, const StartTagToken& tag_data);
     void append_text_node(DOM::Node* parent, std::string_view text);
     void track_unsupported_tag(std::string_view tag_name);
+    void track_semantic_tag(std::string_view tag_name);
     void maybe_close_paragraph(ParseState& state, std::string_view tag_name);
     void pop_to_matching_ancestor(ParseState& state, std::string_view tag_name);
     void maybe_close_list_item(ParseState& state, std::string_view tag_name);
@@ -59,6 +60,7 @@ private:
     Tokenizer m_tokenizer;
     Core::ArenaAllocator& m_arena;
     std::unordered_set<std::string> m_unsupported_tags;
+    std::unordered_set<std::string> m_semantic_tags;
     std::vector<std::string> m_style_blocks;
     std::vector<std::string> m_stylesheet_links;
     std::vector<std::string> m_image_links;

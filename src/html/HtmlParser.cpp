@@ -28,6 +28,7 @@ Parser::Result Parser::parse() {
     m_stylesheet_links.clear();
     m_image_links.clear();
     m_unsupported_tags.clear();
+    m_semantic_tags.clear();
     m_failed = false;
     auto root = DOM::DomFactory::create_element(m_arena, Hummingbird::Html::TagNames::Root);
     if (!root) {
@@ -96,6 +97,7 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
 
     DOM::Node* appended = parent->get_children().back().get();
     track_unsupported_tag(lowered_name);
+    track_semantic_tag(lowered_name);
     if (lowered_name == Hummingbird::Html::TagNames::Link) {
         auto rel = Core::Utils::to_lower(Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
         auto href = Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Href);
@@ -177,6 +179,14 @@ void Parser::track_unsupported_tag(std::string_view tag_name) {
     std::string name(tag_name);
     if (m_unsupported_tags.insert(name).second) {
         HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << name << ">");
+    }
+}
+
+void Parser::track_semantic_tag(std::string_view tag_name) {
+    if (!TagMetadata::is_semantic_block_tag(tag_name)) return;
+    std::string name(tag_name);
+    if (m_semantic_tags.insert(name).second) {
+        HB_LOG_DEBUG("[parser] Semantic tag mapped to block layout (semantics not implemented): <" << name << ">");
     }
 }
 

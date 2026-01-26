@@ -94,6 +94,18 @@ TEST(HtmlParserTest, TracksUnsupportedTags) {
     EXPECT_TRUE(unsupported.count("video"));
 }
 
+TEST(HtmlParserTest, SemanticTagsAreSupported) {
+    std::string_view html = "<main><section><article></article></section></main>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    const auto& unsupported = result.unsupported_tags;
+    EXPECT_FALSE(unsupported.count("main"));
+    EXPECT_FALSE(unsupported.count("section"));
+    EXPECT_FALSE(unsupported.count("article"));
+}
+
 TEST(HtmlParserTest, DedupesUnsupportedTagWarnings) {
     std::string_view html = "<custom></custom><custom></custom>";
     Hummingbird::Core::ArenaAllocator arena(4096);
