@@ -314,8 +314,8 @@ are already completed.
 
 ### P0
 
-- [ ] **[M4 P0] T-HTML-ROBUST-1: Malformed Tag Handling**; Goal: treat malformed tags as text with recovery; Scope: HtmlParser; Acceptance: `<>`, `< >`, `</>`, `<\n>` do not create elements; Tests: parser tests.
-- [ ] **[M4 P0] T-CSS-ROBUST-1: CSS Declaration Recovery**; Goal: skip malformed declarations safely; Scope: CssParser; Acceptance: only `ident ':' value` becomes a declaration, bad rules are skipped; Tests: CSS parser tests.
+- [x] **[M4 P0] T-HTML-ROBUST-1: Malformed Tag Handling**; Goal: treat malformed tags as text with recovery; Scope: HtmlParser; Acceptance: `<>`, `< >`, `</>`, `<\n>` do not create elements; Tests: parser tests.
+- [x] **[M4 P0] T-CSS-ROBUST-1: CSS Declaration Recovery**; Goal: skip malformed declarations safely; Scope: CssParser; Acceptance: only `ident ':' value` becomes a declaration, bad rules are skipped; Tests: CSS parser tests.
 
 ### P1
 

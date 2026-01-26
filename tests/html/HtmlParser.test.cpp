@@ -66,6 +66,21 @@ TEST(HtmlParserTest, HandlesVoidAndSelfClosingTagsWithoutStackingChildren) {
     EXPECT_EQ(img_node->get_tag_name(), TagNames::Img);
 }
 
+TEST(HtmlParserTest, TreatsMalformedTagsAsText) {
+    std::string_view html = "<div><>< > </><\n></div>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(div_node, nullptr);
+    const auto& children = div_node->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(children[0].get());
+    ASSERT_NE(text_node, nullptr);
+    EXPECT_EQ(text_node->get_text(), "<>< > </><\n>");
+}
+
 TEST(HtmlParserTest, TracksUnsupportedTags) {
     std::string_view html = "<custom><inner/></custom><video></video>";
     Hummingbird::Core::ArenaAllocator arena(4096);

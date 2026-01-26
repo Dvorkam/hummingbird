@@ -122,8 +122,22 @@ bool Tokenizer::handle_tag_open_state(Token& out) {
         m_state = State::Data;
         return false;
     }
+    const size_t tag_start = m_pos;
     std::string_view tag_name;
     parse_tag_name(tag_name);
+    if (tag_name.empty()) {
+        size_t end = m_input.find('>', tag_start);
+        const size_t start = tag_start > 0 ? tag_start - 1 : 0;
+        size_t end_pos = m_input.size();
+        if (end != std::string_view::npos) {
+            end_pos = end + 1;
+        }
+        m_pos = end_pos;
+        std::string_view text = m_input.substr(start, end_pos - start);
+        m_state = State::Data;
+        out = Token{TokenType::CharacterData, CharacterDataToken{std::string_view{text}}};
+        return true;
+    }
     std::vector<Attribute> attrs;
     attrs.reserve(8);
     parse_attributes(attrs);
@@ -140,8 +154,22 @@ bool Tokenizer::handle_tag_open_state(Token& out) {
 }
 
 bool Tokenizer::handle_end_tag_open_state(Token& out) {
+    const size_t tag_start = m_pos;
     std::string_view tag_name;
     parse_tag_name(tag_name);
+    if (tag_name.empty()) {
+        size_t end = m_input.find('>', tag_start);
+        const size_t start = tag_start >= 2 ? tag_start - 2 : 0;
+        size_t end_pos = m_input.size();
+        if (end != std::string_view::npos) {
+            end_pos = end + 1;
+        }
+        m_pos = end_pos;
+        std::string_view text = m_input.substr(start, end_pos - start);
+        m_state = State::Data;
+        out = Token{TokenType::CharacterData, CharacterDataToken{std::string_view{text}}};
+        return true;
+    }
     skip_until('>');
     m_state = State::Data;
     out = emit_tag(true, false, tag_name, {});

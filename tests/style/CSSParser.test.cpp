@@ -165,6 +165,15 @@ TEST(CSSParserTest, RecoversMissingSemicolonBetweenDeclarations) {
     EXPECT_EQ(decls[1].property, Property::BackgroundColor);
 }
 
+TEST(CSSParserTest, SkipsMalformedDeclarations) {
+    Parser parser("div { color red; font-size: ; background-color: blue; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+    EXPECT_EQ(decls[0].property, Property::BackgroundColor);
+}
+
 TEST(CSSParserTest, SkipsMalformedRuleAndContinues) {
     Parser parser("div color: red; p { color: blue; }");
     auto sheet = parser.parse();

@@ -296,6 +296,10 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     Property property = parse_property();
     skip_whitespace_tokens();
     if (!match(TokenType::Colon)) {
+        while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+            advance();
+        }
+        match(TokenType::Semicolon);
         return false;
     }
     skip_whitespace_tokens();
@@ -309,12 +313,16 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     }
     std::vector<Value> values = parse_value_list();
     match(TokenType::Semicolon);  // consume if present
+    if (values.empty()) {
+        return false;
+    }
 
     if (property == Property::Unknown && !property_name.empty()) {
         std::string name(property_name);
         if (m_unknown_properties.insert(name).second) {
             HB_LOG_WARN("[parser] Unsupported CSS property encountered: " << name);
         }
+        return true;
     }
 
     auto emit_edges = [&](Property top, Property right, Property bottom, Property left) {
