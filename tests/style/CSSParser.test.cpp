@@ -154,3 +154,24 @@ TEST(CSSParserTest, DedupesUnsupportedPropertyWarnings) {
     }
     EXPECT_EQ(count, 1u);
 }
+
+TEST(CSSParserTest, RecoversMissingSemicolonBetweenDeclarations) {
+    Parser parser("div { color: red background-color: blue; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 2u);
+    EXPECT_EQ(decls[0].property, Property::Color);
+    EXPECT_EQ(decls[1].property, Property::BackgroundColor);
+}
+
+TEST(CSSParserTest, SkipsMalformedRuleAndContinues) {
+    Parser parser("div color: red; p { color: blue; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].selectors.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].selectors[0].parts.size(), 1u);
+    EXPECT_EQ(sheet.rules[0].selectors[0].parts[0].tag, Hummingbird::Html::TagNames::P);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    EXPECT_EQ(sheet.rules[0].declarations[0].property, Property::Color);
+}

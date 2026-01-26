@@ -25,11 +25,11 @@ This checklist expands Epic 4.3 into trackable slices. Keep tasks small and cher
 
 ## Story 4.3.4 — Robust Parsing (HTML/CSS)
 
-- [ ] HTML: tolerate malformed end tags (recover without aborting parse).
-- [ ] HTML: tolerate unclosed tags with best-effort tree recovery.
-- [ ] CSS: skip malformed declarations without stopping the rule.
-- [ ] CSS: skip malformed rules without stopping the sheet.
-- [ ] Add HTML/CSS parser tests for malformed input recovery.
+- [x] HTML: tolerate malformed end tags (recover without aborting parse).
+- [x] HTML: tolerate unclosed tags with best-effort tree recovery.
+- [x] CSS: skip malformed declarations without stopping the rule.
+- [x] CSS: skip malformed rules without stopping the sheet.
+- [x] Add HTML/CSS parser tests for malformed input recovery.
 
 ## Story 4.3.5 — Text Readability
 

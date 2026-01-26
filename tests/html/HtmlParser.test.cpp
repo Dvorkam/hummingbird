@@ -120,6 +120,39 @@ TEST(HtmlParserTest, AutoClosesParagraphBeforeBlockTags) {
     EXPECT_EQ(third->get_tag_name(), TagNames::P);
 }
 
+TEST(HtmlParserTest, HandlesUnclosedTags) {
+    std::string_view html = "<div><span>hello";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    ASSERT_EQ(result.dom->get_children().size(), 1u);
+    auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(div_node, nullptr);
+    EXPECT_EQ(div_node->get_tag_name(), TagNames::Div);
+    ASSERT_EQ(div_node->get_children().size(), 1u);
+    auto span_node = dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[0].get());
+    ASSERT_NE(span_node, nullptr);
+    EXPECT_EQ(span_node->get_tag_name(), TagNames::Span);
+}
+
+TEST(HtmlParserTest, IgnoresUnexpectedEndTags) {
+    std::string_view html = "<div>hi</span><p>ok</p>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    ASSERT_EQ(result.dom->get_children().size(), 1u);
+    auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(div_node, nullptr);
+    EXPECT_EQ(div_node->get_tag_name(), TagNames::Div);
+    ASSERT_GE(div_node->get_children().size(), 2u);
+    auto paragraph_node =
+        dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[1].get());
+    ASSERT_NE(paragraph_node, nullptr);
+    EXPECT_EQ(paragraph_node->get_tag_name(), TagNames::P);
+}
+
 TEST(HtmlParserTest, DecodesNamedEntities) {
     std::string_view html = "<p>A &mdash; B &amp; C &lt; D &gt; E &quot;F&quot; &apos;G&apos; &nbsp;H</p>";
     Hummingbird::Core::ArenaAllocator arena(4096);

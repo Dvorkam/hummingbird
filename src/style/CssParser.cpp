@@ -172,6 +172,15 @@ std::vector<Value> Parser::parse_value_list() {
             advance();
             continue;
         }
+        if (peek().type == TokenType::Identifier) {
+            size_t lookahead = m_pos + 1;
+            while (lookahead < m_tokens.size() && m_tokens[lookahead].type == TokenType::Whitespace) {
+                ++lookahead;
+            }
+            if (lookahead < m_tokens.size() && m_tokens[lookahead].type == TokenType::Colon) {
+                break;
+            }
+        }
         if (peek().type == TokenType::Hash || peek().type == TokenType::Identifier ||
             peek().type == TokenType::Number) {
             values.push_back(parse_value());

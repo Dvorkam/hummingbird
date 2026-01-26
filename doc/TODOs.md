@@ -21,6 +21,7 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 - [ ] **[M5 P2] T-CSS-BORDER-2: border-radius (paint)**; Goal: round corners; Scope: Painter; Acceptance: rounded rect paint for background/border; Tests: renderer tests.
 - [ ] **[M5 P2] T-CSS-DECOR-1: outline + outline-offset**; Goal: draw outlines; Scope: Painter; Acceptance: outline draws outside border with offset; Tests: renderer tests.
 - [ ] **[M5 P2] T-CSS-SEL-2: Child combinator selector (`>`)**; Goal: support direct-child matching; Scope: CssParser + SelectorMatcher; Acceptance: `.parent > .child` matches direct children only; Tests: selector matcher tests.
+- [ ] **[M5 P2] T-LAYOUT-INLINE-4: Inline Baseline Alignment**; Goal: align inline runs on a shared baseline; Scope: text metrics + inline layout; Acceptance: mixed font sizes/weights align without vertical drift; Tests: layout tests.
 - [ ] **[M5 P2] T-IMG-1: Animated GIF/WebP Playback**; Goal: play animated frames; Scope: decoder + renderer scheduling; Acceptance: frames render with timing; Tests: image tests.
 - [ ] **[M5 P2] T-IMG-2: SVG Image Decode (Raster)**; Goal: rasterize SVG `<img>` sources; Scope: IImageDecoder + SVG library; Acceptance: svg renders to ImageBitmap; Tests: image tests.
 - [ ] **[M5 P2] T-PERF-3: Split UI Chrome From Page Render**; Goal: avoid repainting page while editing URL bar; Scope: app render split; Acceptance: URL bar updates without page repaint; Tests: manual.
