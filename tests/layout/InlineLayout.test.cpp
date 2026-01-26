@@ -349,6 +349,36 @@ TEST(InlineLayoutTest, AlignAttributeCentersInlineText) {
     EXPECT_FLOAT_EQ(text_rect.x, 92.0f);
 }
 
+TEST(InlineLayoutTest, TextAlignCssCentersInlineText) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hi"));
+    body->append_child(std::move(p));
+
+    std::string css = "p { text-align: center; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+
+    EXPECT_FLOAT_EQ(text_rect.width, 16.0f);
+    EXPECT_FLOAT_EQ(text_rect.x, 92.0f);
+}
+
 TEST(InlineLayoutTest, NoWrapAttributeKeepsSingleLine) {
     Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
@@ -358,6 +388,36 @@ TEST(InlineLayoutTest, NoWrapAttributeKeepsSingleLine) {
     body->append_child(std::move(p));
 
     Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 60, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 1u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+
+    EXPECT_FLOAT_EQ(text_rect.height, 16.0f);
+    EXPECT_GT(text_rect.width, viewport.width);
+}
+
+TEST(InlineLayoutTest, NoWrapCssKeepsSingleLine) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hello Hello"));
+    body->append_child(std::move(p));
+
+    std::string css = "p { white-space: nowrap; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
     StyleEngine engine;
     engine.apply(sheet, body.get());
 

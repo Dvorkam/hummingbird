@@ -90,6 +90,9 @@ std::string build_stub_body(const std::string& url) {
       .selector-demo { background-color: #fafafa; }
       .selector-demo * { border: 1px solid #ddd; padding: 2px; }
       .selector-demo .title { color: #cc0033; }
+      .align-demo { text-align: center; border: 1px dashed #bbb; padding: 4px; }
+      .nowrap-demo { white-space: nowrap; border: 1px dashed #bbb; padding: 4px; width: 180px; }
+      .em-demo { font-size: 18px; margin-top: 1.5em; padding: 1em; border: 1px solid #888; background-color: #f5f5f5; }
     </style>
   </head>
   <body onload="const target = document.getElementById('js-demo'); if (target) { target.textContent = 'Load event fired.'; }">
@@ -104,6 +107,13 @@ std::string build_stub_body(const std::string& url) {
       <pre>Preformatted
 text stays
 aligned.</pre>
+    </div>
+
+    <div class="section">
+      <h2>Text Readability (CSS)</h2>
+      <p class="align-demo">Centered via CSS text-align.</p>
+      <p class="nowrap-demo">This sentence should stay on one line even in a narrow box.</p>
+      <div class="em-demo">Em-based spacing: padding and margin scale with font-size.</div>
     </div>
 
     <div class="section">

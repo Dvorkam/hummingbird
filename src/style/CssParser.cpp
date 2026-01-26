@@ -239,7 +239,12 @@ Value Parser::parse_number_value() {
     }
     if (peek().type == TokenType::Identifier) {
         std::string unit_text = std::string(advance().lexeme);
-        Unit unit = unit_text == ValueNames::Px ? Unit::Px : Unit::Unknown;
+        Unit unit = Unit::Unknown;
+        if (unit_text == ValueNames::Px) {
+            unit = Unit::Px;
+        } else if (unit_text == ValueNames::Em) {
+            unit = Unit::Em;
+        }
         return Value::length_value(number, unit);
     }
     return Value::number_value(number);

@@ -223,7 +223,7 @@ TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
-    std::string css = "div { max-width: 40em; }";
+    std::string css = "div { max-width: 40ch; }";
     Parser parser(css);
     auto sheet = parser.parse();
 
@@ -233,6 +233,62 @@ TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
     EXPECT_FALSE(style->max_width.has_value());
+}
+
+TEST(StyleEngineTest, SupportsEmUnitsForFontSizeAndSpacing) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto span = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    span->append_child(DomFactory::create_text(arena, "Hello"));
+    root->append_child(std::move(span));
+
+    std::string css = "div { font-size: 20px; } span { font-size: 1.5em; margin-top: 2em; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto root_style = root->get_computed_style();
+    ASSERT_TRUE(root_style);
+    EXPECT_FLOAT_EQ(root_style->font_size, 20.0f);
+
+    auto span_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(span_style);
+    EXPECT_FLOAT_EQ(span_style->font_size, 30.0f);
+    EXPECT_FLOAT_EQ(span_style->margin.top, 60.0f);
+}
+
+TEST(StyleEngineTest, AppliesTextAlignFromCss) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { text-align: center; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->text_align, ComputedStyle::TextAlign::Center);
+}
+
+TEST(StyleEngineTest, AppliesWhiteSpaceNoWrapFromCss) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { white-space: nowrap; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->whitespace, ComputedStyle::WhiteSpace::NoWrap);
 }
 
 TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {

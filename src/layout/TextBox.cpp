@@ -207,6 +207,8 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
         build_preserved_lines(context, m_rendered_text, text_style, m_lines, m_line_widths, content_width);
+    } else if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) {
+        build_wrapped_lines(context, m_rendered_text, text_style, 0.0f, m_lines, m_line_widths, content_width);
     } else {
         build_wrapped_lines(context, m_rendered_text, text_style, available_width, m_lines, m_line_widths,
                             content_width);

@@ -11,6 +11,11 @@ static constexpr std::string_view ListItem = "list-item";
 static constexpr std::string_view Block = "block";
 static constexpr std::string_view Solid = "solid";
 static constexpr std::string_view Auto = "auto";
+static constexpr std::string_view Left = "left";
+static constexpr std::string_view Center = "center";
+static constexpr std::string_view Right = "right";
+static constexpr std::string_view Normal = "normal";
+static constexpr std::string_view NoWrap = "nowrap";
 
 static constexpr std::string_view Red = "red";
 static constexpr std::string_view Blue = "blue";
@@ -18,5 +23,6 @@ static constexpr std::string_view Black = "black";
 static constexpr std::string_view White = "white";
 
 static constexpr std::string_view Px = "px";
+static constexpr std::string_view Em = "em";
 
 }  // namespace Hummingbird::Css::ValueNames

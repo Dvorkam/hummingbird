@@ -33,10 +33,13 @@ enum class Property {
     FontSize,
     LineHeight,
     MaxWidth,
+    TextAlign,
+    WhiteSpace,
 };
 
 enum class Unit {
     Px,
+    Em,
     Unknown,
 };
 

@@ -27,5 +27,7 @@ static constexpr std::string_view BackgroundColor = "background-color";
 static constexpr std::string_view FontSize = "font-size";
 static constexpr std::string_view LineHeight = "line-height";
 static constexpr std::string_view MaxWidth = "max-width";
+static constexpr std::string_view TextAlign = "text-align";
+static constexpr std::string_view WhiteSpace = "white-space";
 
 }  // namespace Hummingbird::Css::PropertyNames

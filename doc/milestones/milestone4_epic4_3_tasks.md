@@ -33,8 +33,8 @@ This checklist expands Epic 4.3 into trackable slices. Keep tasks small and cher
 
 ## Story 4.3.5 — Text Readability
 
-- [ ] Support `text-align` from CSS (not only legacy `align` attribute).
-- [ ] Support `white-space: nowrap` from CSS.
-- [ ] Ensure anchors are underlined by default (if not overridden).
-- [ ] Support `em` units (font-relative lengths) in style parsing.
-- [ ] Add style/layout tests for each readability feature.
+- [x] Support `text-align` from CSS (not only legacy `align` attribute).
+- [x] Support `white-space: nowrap` from CSS.
+- [x] Ensure anchors are underlined by default (if not overridden).
+- [x] Support `em` units (font-relative lengths) in style parsing.
+- [x] Add style/layout tests for each readability feature.
