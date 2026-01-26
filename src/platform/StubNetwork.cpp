@@ -87,6 +87,9 @@ std::string build_stub_body(const std::string& url) {
       .boxed { border-width: 20px; border-style: solid; border-color: #cc0000; padding: 4px; }
       .inline-block { display: inline-block; border-width: 1px; border-style: solid; border-color: #008000; padding: 2px; }
       .external-demo { color: #cc0000; }
+      .selector-demo { background-color: #fafafa; }
+      .selector-demo * { border: 1px solid #ddd; padding: 2px; }
+      .selector-demo .title { color: #cc0033; }
     </style>
   </head>
   <body onload="const target = document.getElementById('js-demo'); if (target) { target.textContent = 'Load event fired.'; }">
@@ -144,6 +147,14 @@ aligned.</pre>
       <h2>External Stylesheet</h2>
       <p class="external-demo">Text color overrides inline, border comes from linked CSS.</p>
       <p class="hidden">You should not see this paragraph.</p>
+    </div>
+
+    <div class="section selector-demo">
+      <h2>Selector Coverage</h2>
+      <p class="title">Descendant selector styles this line.</p>
+      <div class="card">
+        <p><span class="title">Nested title styled via descendant selector.</span></p>
+      </div>
     </div>
 
     <div class="section">

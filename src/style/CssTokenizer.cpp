@@ -69,6 +69,9 @@ Token Tokenizer::emit_single(TokenType type, std::string_view lexeme) {
 
 bool Tokenizer::consume_simple_token(std::vector<Token>& tokens) {
     switch (peek()) {
+        case '*':
+            tokens.push_back(emit_single(TokenType::Star, "*"));
+            return true;
         case '{':
             tokens.push_back(emit_single(TokenType::LBrace, "{"));
             return true;
@@ -99,8 +102,12 @@ std::vector<Token> Tokenizer::tokenize() {
     std::vector<Token> tokens;
     tokens.reserve(m_input.size() + 1);
     while (!eof()) {
-        skip_whitespace();
-        if (eof()) break;
+        if (std::isspace(static_cast<unsigned char>(peek()))) {
+            size_t start = m_pos;
+            skip_whitespace();
+            tokens.push_back({TokenType::Whitespace, m_input.substr(start, m_pos - start)});
+            continue;
+        }
         if (consume_simple_token(tokens)) continue;
         char c = peek();
         if (is_identifier_start(c)) {

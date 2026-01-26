@@ -9,6 +9,7 @@
 namespace Hummingbird::Css {
 
 enum class TokenType {
+    Whitespace,
     Identifier,
     Number,
     LBrace,
@@ -18,6 +19,7 @@ enum class TokenType {
     Semicolon,
     Dot,
     Hash,
+    Star,
     End,
 };
 

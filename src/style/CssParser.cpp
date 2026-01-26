@@ -37,13 +37,39 @@ bool Parser::eof() const {
     return peek().type == TokenType::End;
 }
 
+void Parser::skip_whitespace_tokens() {
+    while (peek().type == TokenType::Whitespace) {
+        advance();
+    }
+}
+
 static bool is_selector_start(TokenType type) {
-    return type == TokenType::Identifier || type == TokenType::Dot || type == TokenType::Hash;
+    return type == TokenType::Identifier || type == TokenType::Dot || type == TokenType::Hash ||
+           type == TokenType::Star;
 }
 
 Selector Parser::parse_selector() {
     Selector selector;
-    if (peek().type == TokenType::Identifier) {
+    skip_whitespace_tokens();
+    while (is_selector_start(peek().type)) {
+        selector.parts.push_back(parse_simple_selector());
+        bool saw_whitespace = false;
+        while (peek().type == TokenType::Whitespace) {
+            saw_whitespace = true;
+            advance();
+        }
+        if (!saw_whitespace) {
+            break;
+        }
+    }
+    return selector;
+}
+
+SelectorPart Parser::parse_simple_selector() {
+    SelectorPart selector;
+    if (match(TokenType::Star)) {
+        selector.tag = "*";
+    } else if (peek().type == TokenType::Identifier) {
         selector.tag = advance().lexeme;
     }
     while (true) {
@@ -68,15 +94,19 @@ Selector Parser::parse_selector() {
 
 std::vector<Selector> Parser::parse_selectors() {
     std::vector<Selector> selectors;
+    skip_whitespace_tokens();
     if (!is_selector_start(peek().type)) {
         return selectors;
     }
     selectors.push_back(parse_selector());
+    skip_whitespace_tokens();
     while (match(TokenType::Comma)) {
+        skip_whitespace_tokens();
         if (!is_selector_start(peek().type)) {
             break;
         }
         selectors.push_back(parse_selector());
+        skip_whitespace_tokens();
     }
     return selectors;
 }
@@ -138,6 +168,10 @@ Value Parser::parse_value() {
 std::vector<Value> Parser::parse_value_list() {
     std::vector<Value> values;
     while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+        if (peek().type == TokenType::Whitespace) {
+            advance();
+            continue;
+        }
         if (peek().type == TokenType::Hash || peek().type == TokenType::Identifier ||
             peek().type == TokenType::Number) {
             values.push_back(parse_value());
@@ -208,9 +242,11 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         property_name = peek().lexeme;
     }
     Property property = parse_property();
+    skip_whitespace_tokens();
     if (!match(TokenType::Colon)) {
         return false;
     }
+    skip_whitespace_tokens();
     std::vector<Value> values = parse_value_list();
     match(TokenType::Semicolon);  // consume if present
 

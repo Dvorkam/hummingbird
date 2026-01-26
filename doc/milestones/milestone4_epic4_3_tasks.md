@@ -12,10 +12,10 @@ This checklist expands Epic 4.3 into trackable slices. Keep tasks small and cher
 
 ## Story 4.3.2 — Selector Coverage
 
-- [ ] Implement universal selector (`*`) matching in selector matcher.
-- [ ] Implement descendant combinator matching (`.a .b`).
-- [ ] Implement compound selector matching (e.g., `div.hero`, `#id.class`).
-- [ ] Add selector matcher tests for each selector type.
+- [x] Implement universal selector (`*`) matching in selector matcher.
+- [x] Implement descendant combinator matching (`.a .b`).
+- [x] Implement compound selector matching (e.g., `div.hero`, `#id.class`).
+- [x] Add selector matcher tests for each selector type.
 
 ## Story 4.3.3 — Decode Named Entities
 

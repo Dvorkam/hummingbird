@@ -23,7 +23,9 @@ private:
     bool match(TokenType type);
     bool eof() const;
 
+    void skip_whitespace_tokens();
     Selector parse_selector();
+    SelectorPart parse_simple_selector();
     std::vector<Selector> parse_selectors();
     Property parse_property();
     Value parse_value();

@@ -88,7 +88,7 @@ struct Value {
     }
 };
 
-struct Selector {
+struct SelectorPart {
     std::string tag;
     std::string id;
     std::vector<std::string> classes;
@@ -97,7 +97,19 @@ struct Selector {
         int spec = 0;
         if (!id.empty()) spec += 100;
         spec += static_cast<int>(classes.size()) * 10;
-        if (!tag.empty()) spec += 1;
+        if (!tag.empty() && tag != "*") spec += 1;
+        return spec;
+    }
+};
+
+struct Selector {
+    std::vector<SelectorPart> parts;
+
+    int specificity() const {
+        int spec = 0;
+        for (const auto& part : parts) {
+            spec += part.specificity();
+        }
         return spec;
     }
 };
