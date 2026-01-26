@@ -35,6 +35,7 @@ static constexpr Mapping kMappings[] = {
     {PropertyNames::MaxWidth, Property::MaxWidth},
     {PropertyNames::TextAlign, Property::TextAlign},
     {PropertyNames::WhiteSpace, Property::WhiteSpace},
+    {PropertyNames::FontFamily, Property::FontFamily},
 };
 
 Property parse_property_name(std::string_view name) {

@@ -6,6 +6,7 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/Log.h"
+#include "core/utils/StringUtils.h"
 #include "style/CssPropertyRegistry.h"
 #include "style/CssValueNames.h"
 
@@ -250,6 +251,43 @@ Value Parser::parse_number_value() {
     return Value::number_value(number);
 }
 
+std::string Parser::parse_font_family_list() {
+    std::string list;
+    std::string current;
+
+    auto push_current = [&]() {
+        if (current.empty()) return;
+        if (!list.empty()) {
+            list.push_back(',');
+        }
+        list += current;
+        current.clear();
+    };
+
+    while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+        if (peek().type == TokenType::Whitespace) {
+            advance();
+            continue;
+        }
+        if (peek().type == TokenType::Comma) {
+            advance();
+            push_current();
+            continue;
+        }
+        if (peek().type == TokenType::Identifier) {
+            std::string ident = Core::Utils::to_lower(advance().lexeme);
+            if (!current.empty()) {
+                current.push_back(' ');
+            }
+            current += ident;
+            continue;
+        }
+        advance();
+    }
+    push_current();
+    return list;
+}
+
 bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     std::string_view property_name;
     if (peek().type == TokenType::Identifier) {
@@ -261,6 +299,14 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         return false;
     }
     skip_whitespace_tokens();
+    if (property == Property::FontFamily) {
+        std::string list = parse_font_family_list();
+        match(TokenType::Semicolon);  // consume if present
+        if (!list.empty()) {
+            decls.push_back({property, Value::identifier(std::move(list))});
+        }
+        return true;
+    }
     std::vector<Value> values = parse_value_list();
     match(TokenType::Semicolon);  // consume if present
 

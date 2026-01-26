@@ -28,6 +28,7 @@ add_executable(HummingbirdTests
     layout/InlineLineBuilder.test.cpp
     layout/ListItemLayout.test.cpp
     layout/TableLayout.test.cpp
+    layout/TextStyleUtils.test.cpp
     renderer/Painter.test.cpp
     style/CSSParser.test.cpp
     style/SelectorMatcher.test.cpp

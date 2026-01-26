@@ -93,6 +93,8 @@ std::string build_stub_body(const std::string& url) {
       .align-demo { text-align: center; border: 1px dashed #bbb; padding: 4px; }
       .nowrap-demo { white-space: nowrap; border: 1px dashed #bbb; padding: 4px; width: 180px; }
       .em-demo { font-size: 18px; margin-top: 1.5em; padding: 1em; border: 1px solid #888; background-color: #f5f5f5; }
+      .font-demo-sans { font-family: roboto, sans-serif; }
+      .font-demo-mono { font-family: "roboto mono", monospace; }
     </style>
   </head>
   <body onload="const target = document.getElementById('js-demo'); if (target) { target.textContent = 'Load event fired.'; }">
@@ -114,6 +116,12 @@ aligned.</pre>
       <p class="align-demo">Centered via CSS text-align.</p>
       <p class="nowrap-demo">This sentence should stay on one line even in a narrow box.</p>
       <div class="em-demo">Em-based spacing: padding and margin scale with font-size.</div>
+    </div>
+
+    <div class="section">
+      <h2>Fonts & Czech Characters</h2>
+      <p class="font-demo-sans">Sans sample: Příliš žluťoučký kůň úpěl ďábelské ódy.</p>
+      <p class="font-demo-mono">Mono sample: 0123456789 !@#$%^&amp;*() [] {};</p>
     </div>
 
     <div class="section">

@@ -35,6 +35,7 @@ enum class Property {
     MaxWidth,
     TextAlign,
     WhiteSpace,
+    FontFamily,
 };
 
 enum class Unit {

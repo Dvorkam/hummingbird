@@ -291,6 +291,22 @@ TEST(StyleEngineTest, AppliesWhiteSpaceNoWrapFromCss) {
     EXPECT_EQ(style->whitespace, ComputedStyle::WhiteSpace::NoWrap);
 }
 
+TEST(StyleEngineTest, AppliesFontFamilyFromCss) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font-family: Roboto Mono, sans-serif; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->font_face, "roboto mono,sans-serif");
+}
+
 TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);

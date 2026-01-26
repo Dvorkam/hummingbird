@@ -35,6 +35,7 @@ private:
     Value parse_hash_value();
     Value parse_identifier_value();
     Value parse_number_value();
+    std::string parse_font_family_list();
     bool consume_declaration(std::vector<Declaration>& decls);
 
     std::string m_buffer;

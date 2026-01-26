@@ -260,6 +260,12 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         }
     }
 
+    auto font_family_it = properties.find(Property::FontFamily);
+    if (font_family_it != properties.end() && font_family_it->second.value.type == Value::Type::Identifier) {
+        style.font_face = font_family_it->second.value.ident;
+        overrides.font_face = true;
+    }
+
     apply_color_property(properties, style, overrides);
     apply_background_property(properties, style, overrides);
 }
