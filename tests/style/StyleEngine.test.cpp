@@ -307,6 +307,39 @@ TEST(StyleEngineTest, AppliesFontFamilyFromCss) {
     EXPECT_EQ(style->font_face, "roboto mono,sans-serif");
 }
 
+TEST(StyleEngineTest, AppliesFontWeightAndStyleFromCss) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font-weight: bold; font-style: italic; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->weight, ComputedStyle::FontWeight::Bold);
+    EXPECT_EQ(style->style, ComputedStyle::FontStyle::Italic);
+}
+
+TEST(StyleEngineTest, AppliesNumericFontWeight) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font-weight: 700; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->weight, ComputedStyle::FontWeight::Bold);
+}
+
 TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);

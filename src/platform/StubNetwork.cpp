@@ -95,6 +95,9 @@ std::string build_stub_body(const std::string& url) {
       .em-demo { font-size: 18px; margin-top: 1.5em; padding: 1em; border: 1px solid #888; background-color: #f5f5f5; }
       .font-demo-sans { font-family: roboto, sans-serif; }
       .font-demo-mono { font-family: "roboto mono", monospace; }
+      .font-demo-bold { font-weight: bold; }
+      .font-demo-italic { font-style: italic; }
+      .font-demo-bold-italic { font-weight: bold; font-style: italic; }
     </style>
   </head>
   <body onload="const target = document.getElementById('js-demo'); if (target) { target.textContent = 'Load event fired.'; }">
@@ -122,6 +125,9 @@ aligned.</pre>
       <h2>Fonts & Czech Characters</h2>
       <p class="font-demo-sans">Sans sample: Příliš žluťoučký kůň úpěl ďábelské ódy.</p>
       <p class="font-demo-mono">Mono sample: 0123456789 !@#$%^&amp;*() [] {};</p>
+      <p class="font-demo-bold">Bold sample: Font weight from CSS.</p>
+      <p class="font-demo-italic">Italic sample: Font style from CSS.</p>
+      <p class="font-demo-bold-italic">Bold italic sample: combined CSS style.</p>
     </div>
 
     <div class="section">

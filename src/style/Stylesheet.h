@@ -36,6 +36,8 @@ enum class Property {
     TextAlign,
     WhiteSpace,
     FontFamily,
+    FontWeight,
+    FontStyle,
 };
 
 enum class Unit {

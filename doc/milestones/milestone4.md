@@ -338,7 +338,7 @@ are already completed.
 - [ ] **[M4 P2] T-CSS-VAR-1: Custom Properties Storage**; Goal: store/inherit `--*` values; Scope: ComputedStyle; Acceptance: custom props are stored and inherited; Tests: style tests.
 - [ ] **[M4 P2] T-CSS-VAR-2: Minimal var() Resolution for Colors**; Goal: resolve var() for color/background-color; Scope: style resolution; Acceptance: var() resolves with fallback; Tests: style tests.
 - [x] **[M4 P2] T-CSS-TYPO-1: font-family Fallback Chain**; Goal: parse font-family lists with fallbacks; Scope: StyleEngine + SDLGraphicsContext mapping; Acceptance: generic families map to real fonts; Tests: style/layout tests.
-- [ ] **[M4 P2] T-CSS-TYPO-2: font-style + font-weight**; Goal: apply bold/italic selection; Scope: font selection; Acceptance: weight/style affects chosen face or best-effort; Tests: style/layout tests.
+- [x] **[M4 P2] T-CSS-TYPO-2: font-style + font-weight**; Goal: apply bold/italic selection; Scope: font selection; Acceptance: weight/style affects chosen face or best-effort; Tests: style/layout tests.
 - [ ] **[M4 P2] T-CSS-BORDER-1: Border Styles Beyond Solid**; Goal: support `outset` and related styles; Scope: Painter; Acceptance: non-solid styles render (MVP can map to solid); Tests: renderer tests.
 - [ ] **[M4 P2] T-SVG-0: SVG Placeholder Box**; Goal: reserve space for `<svg>`; Scope: TreeBuilder + RenderFactory; Acceptance: svg renders placeholder rect and respects width/height; Tests: layout tests.
 - [ ] **[M4 P2] T-FORM-1: Button Element Rendering**; Goal: basic `<button>` UA style; Scope: TreeBuilder + StyleDefaults; Acceptance: button has padding/border/background and participates in layout; Tests: layout tests.

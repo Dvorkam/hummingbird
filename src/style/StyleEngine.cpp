@@ -266,6 +266,35 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         overrides.font_face = true;
     }
 
+    auto font_weight_it = properties.find(Property::FontWeight);
+    if (font_weight_it != properties.end()) {
+        const auto& value = font_weight_it->second.value;
+        if (value.type == Value::Type::Identifier) {
+            if (value.ident == ValueNames::Bold) {
+                style.weight = ComputedStyle::FontWeight::Bold;
+                overrides.weight = true;
+            } else if (value.ident == ValueNames::Normal) {
+                style.weight = ComputedStyle::FontWeight::Normal;
+                overrides.weight = true;
+            }
+        } else if (value.type == Value::Type::Number) {
+            style.weight = value.number >= 600.0f ? ComputedStyle::FontWeight::Bold : ComputedStyle::FontWeight::Normal;
+            overrides.weight = true;
+        }
+    }
+
+    auto font_style_it = properties.find(Property::FontStyle);
+    if (font_style_it != properties.end() && font_style_it->second.value.type == Value::Type::Identifier) {
+        const auto& ident = font_style_it->second.value.ident;
+        if (ident == ValueNames::Italic) {
+            style.style = ComputedStyle::FontStyle::Italic;
+            overrides.style = true;
+        } else if (ident == ValueNames::Normal) {
+            style.style = ComputedStyle::FontStyle::Normal;
+            overrides.style = true;
+        }
+    }
+
     apply_color_property(properties, style, overrides);
     apply_background_property(properties, style, overrides);
 }
