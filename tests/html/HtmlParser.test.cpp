@@ -99,6 +99,27 @@ TEST(HtmlParserTest, DedupesUnsupportedTagWarnings) {
     EXPECT_EQ(count, 1u);
 }
 
+TEST(HtmlParserTest, AutoClosesParagraphBeforeBlockTags) {
+    std::string_view html = "<p>First<p>Second<dl><dt>Term</dt></dl><p>Third</p>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    ASSERT_EQ(result.dom->get_children().size(), 4u);
+    auto first = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    auto second = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[1].get());
+    auto dl = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[2].get());
+    auto third = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[3].get());
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+    ASSERT_NE(dl, nullptr);
+    ASSERT_NE(third, nullptr);
+    EXPECT_EQ(first->get_tag_name(), TagNames::P);
+    EXPECT_EQ(second->get_tag_name(), TagNames::P);
+    EXPECT_EQ(dl->get_tag_name(), TagNames::Dl);
+    EXPECT_EQ(third->get_tag_name(), TagNames::P);
+}
+
 TEST(HtmlParserTest, DecodesNamedEntities) {
     std::string_view html = "<p>A &mdash; B &amp; C &lt; D &gt; E &quot;F&quot; &apos;G&apos; &nbsp;H</p>";
     Hummingbird::Core::ArenaAllocator arena(4096);

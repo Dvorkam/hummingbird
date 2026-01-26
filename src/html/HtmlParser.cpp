@@ -82,6 +82,7 @@ Parser::Result Parser::parse() {
 void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) {
     std::string lowered_name = Core::Utils::to_lower(tag_data.name);
     maybe_close_list_item(state, lowered_name);
+    maybe_close_paragraph(state, lowered_name);
 
     auto new_element = DOM::DomFactory::create_element(m_arena, lowered_name);
     if (!new_element) {
@@ -176,6 +177,18 @@ void Parser::track_unsupported_tag(std::string_view tag_name) {
     std::string name(tag_name);
     if (m_unsupported_tags.insert(name).second) {
         HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << name << ">");
+    }
+}
+
+void Parser::maybe_close_paragraph(ParseState& state, std::string_view tag_name) {
+    if (!TagMetadata::closes_paragraph_on_start(tag_name)) return;
+    if (state.open_elements.size() <= 1) return;
+    for (size_t i = state.open_elements.size(); i-- > 1;) {
+        auto* element = dynamic_cast<DOM::Element*>(state.open_elements[i]);
+        if (element && element->get_tag_name() == Hummingbird::Html::TagNames::P) {
+            state.open_elements.resize(i);
+            break;
+        }
     }
 }
 

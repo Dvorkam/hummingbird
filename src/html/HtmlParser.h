@@ -52,6 +52,7 @@ private:
     void apply_attributes(DOM::Element& element, const StartTagToken& tag_data);
     void append_text_node(DOM::Node* parent, std::string_view text);
     void track_unsupported_tag(std::string_view tag_name);
+    void maybe_close_paragraph(ParseState& state, std::string_view tag_name);
     void pop_to_matching_ancestor(ParseState& state, std::string_view tag_name);
     void maybe_close_list_item(ParseState& state, std::string_view tag_name);
 
