@@ -187,6 +187,12 @@ aligned.</pre>
     </div>
 
     <div class="section">
+      <h2>Custom Elements</h2>
+      <my-card>Custom element should render like a generic block.</my-card>
+      <x-note>Nested custom element with <span>inline content</span>.</x-note>
+    </div>
+
+    <div class="section">
       <h2>Form Controls</h2>
       <form id="search-form" action="https://example.dev/search" method="get">
         <input name="q">

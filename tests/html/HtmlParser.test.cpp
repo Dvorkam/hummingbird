@@ -106,6 +106,17 @@ TEST(HtmlParserTest, SemanticTagsAreSupported) {
     EXPECT_FALSE(unsupported.count("article"));
 }
 
+TEST(HtmlParserTest, CustomElementsAreSupported) {
+    std::string_view html = "<my-widget><x-child></x-child></my-widget>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    const auto& unsupported = result.unsupported_tags;
+    EXPECT_FALSE(unsupported.count("my-widget"));
+    EXPECT_FALSE(unsupported.count("x-child"));
+}
+
 TEST(HtmlParserTest, DedupesUnsupportedTagWarnings) {
     std::string_view html = "<custom></custom><custom></custom>";
     Hummingbird::Core::ArenaAllocator arena(4096);

@@ -16,7 +16,14 @@ inline bool is_void_tag(std::string_view name) {
     return false;
 }
 
+inline bool is_custom_element_tag(std::string_view name) {
+    return name.find('-') != std::string_view::npos;
+}
+
 inline bool is_supported_tag(std::string_view name) {
+    if (is_custom_element_tag(name)) {
+        return true;
+    }
     static constexpr std::string_view kKnownTags[] = {
         Hummingbird::Html::TagNames::Html,       Hummingbird::Html::TagNames::Head,
         Hummingbird::Html::TagNames::Body,       Hummingbird::Html::TagNames::Title,
@@ -67,6 +74,9 @@ inline bool is_semantic_block_tag(std::string_view name) {
 }
 
 inline bool closes_paragraph_on_start(std::string_view name) {
+    if (is_custom_element_tag(name)) {
+        return true;
+    }
     static constexpr std::string_view kParagraphClosingTags[] = {
         Hummingbird::Html::TagNames::P,       Hummingbird::Html::TagNames::Div,
         Hummingbird::Html::TagNames::Dl,      Hummingbird::Html::TagNames::Dt,
