@@ -55,7 +55,10 @@ private:
     // UI state
     UrlBar url_bar_;
     bool debug_outlines_ = false;
-    bool needs_repaint_ = true;
+    bool document_dirty_ = true;
+    bool chrome_dirty_ = true;
+    bool controls_dirty_ = false;
+    bool document_cache_valid_ = false;
 
     // Event draining controls
     int max_events_per_tick_ = 200;

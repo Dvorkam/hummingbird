@@ -47,6 +47,11 @@ public:
         draw_text(text, x, y, style);
     }
     virtual void set_text_cache_owner(std::uint64_t /*owner_id*/) {}
+
+    // Optional document cache hooks for partial redraws.
+    virtual bool begin_document_cache(const Hummingbird::Layout::Rect& /*viewport*/) { return false; }
+    virtual void end_document_cache() {}
+    virtual void draw_document_cache() {}
 };
 
 }  // namespace Hummingbird

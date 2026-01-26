@@ -31,6 +31,9 @@ public:
     void draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
                                 const TextMetrics& metrics) override;
     void set_text_cache_owner(std::uint64_t owner_id) override;
+    bool begin_document_cache(const Hummingbird::Layout::Rect& viewport) override;
+    void end_document_cache() override;
+    void draw_document_cache() override;
 
 private:
     struct ImageCacheKey {
@@ -117,6 +120,9 @@ private:
     size_t text_cache_max_entry_bytes_ = 512 * 1024;
     size_t text_cache_max_text_length_ = 256;
     float text_cache_margin_factor_ = 1.0f;
+    SDL_Texture* document_cache_ = nullptr;
+    int document_cache_width_ = 0;
+    int document_cache_height_ = 0;
 };
 
 }  // namespace Hummingbird::Platform

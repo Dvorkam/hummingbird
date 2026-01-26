@@ -37,7 +37,7 @@ public:
     std::optional<std::string> focused_value() const;
 
     void paint_controls(const Layout::RenderObject* render_tree, IGraphicsContext& graphics,
-                        const Layout::Rect& viewport, float scroll_y) const;
+                        const Layout::Rect& viewport, float scroll_y, bool repaint_background) const;
 
 private:
     DOM::Element* focused_input_ = nullptr;

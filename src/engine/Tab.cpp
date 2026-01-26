@@ -78,6 +78,14 @@ void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool d
     graphics.set_text_cache_owner(0);
 }
 
+void Tab::paint_controls(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    if (!document_pipeline_.has_render_tree()) return;
+    graphics.set_text_cache_owner(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(this)));
+    DocumentPipeline::PaintContext context{viewport, false, scroll_y_};
+    document_pipeline_.paint_controls(graphics, context, true);
+    graphics.set_text_cache_owner(0);
+}
+
 std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const {
     DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
     return document_pipeline_.hit_test_link(context);
@@ -104,20 +112,11 @@ std::optional<std::string> Tab::submit_form_at(const Layout::Point& point, const
 
 bool Tab::focus_input_at(const Layout::Point& point, const Layout::Rect& viewport) {
     DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
-    bool was_focused = document_pipeline_.has_focused_input();
-    bool now_focused = document_pipeline_.focus_input_at(context);
-    if (was_focused != now_focused) {
-        dirty_ = true;
-    }
-    return now_focused;
+    return document_pipeline_.focus_input_at(context);
 }
 
 bool Tab::clear_input_focus() {
-    if (document_pipeline_.clear_input_focus()) {
-        dirty_ = true;
-        return true;
-    }
-    return false;
+    return document_pipeline_.clear_input_focus();
 }
 
 bool Tab::has_focused_input() const {
@@ -126,17 +125,11 @@ bool Tab::has_focused_input() const {
 
 bool Tab::handle_text_input(std::string_view text) {
     auto result = document_pipeline_.handle_text_input(text);
-    if (result.needs_repaint) {
-        dirty_ = true;
-    }
     return result.handled;
 }
 
 Tab::KeyResult Tab::handle_key_down(const InputEvent& event) {
     auto result = document_pipeline_.handle_key_down(event, requested_url_);
-    if (result.needs_repaint) {
-        dirty_ = true;
-    }
     return {result.handled, result.needs_repaint, std::move(result.submitted_url)};
 }
 

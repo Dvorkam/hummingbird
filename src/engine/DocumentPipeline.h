@@ -69,6 +69,7 @@ public:
     bool update_image_resources(std::string_view base_url);
     void relayout(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void paint(IGraphicsContext& graphics, const PaintContext& context);
+    void paint_controls(IGraphicsContext& graphics, const PaintContext& context, bool repaint_background);
     std::optional<std::string> hit_test_link(const HitTestContext& context) const;
     std::optional<std::string> submit_form_at(const HitTestContext& context) const;
     bool focus_input_at(const HitTestContext& context);

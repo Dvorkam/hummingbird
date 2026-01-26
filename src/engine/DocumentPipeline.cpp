@@ -147,6 +147,15 @@ void DocumentPipeline::paint(IGraphicsContext& graphics, const PaintContext& con
     }
 }
 
+void DocumentPipeline::paint_controls(IGraphicsContext& graphics, const PaintContext& context,
+                                      bool repaint_background) {
+    auto* render_tree = model_.render_tree();
+    if (!render_tree) return;
+
+    graphics.set_viewport(context.viewport);
+    input_controller_.paint_controls(render_tree, graphics, context.viewport, context.scroll_y, repaint_background);
+}
+
 std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext& context) const {
     auto* render_tree = model_.render_tree();
     if (!render_tree) {

@@ -116,6 +116,12 @@ SDLGraphicsContext::SDLGraphicsContext(SDL_Renderer* renderer) : m_renderer(rend
 SDLGraphicsContext::~SDLGraphicsContext() {
     clear_image_caches();
     clear_text_caches();
+    if (document_cache_) {
+        SDL_DestroyTexture(document_cache_);
+        document_cache_ = nullptr;
+        document_cache_width_ = 0;
+        document_cache_height_ = 0;
+    }
 }
 
 void SDLGraphicsContext::set_viewport(const Hummingbird::Layout::Rect& viewport) {
@@ -489,6 +495,50 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
 
 void SDLGraphicsContext::set_text_cache_owner(std::uint64_t owner_id) {
     text_cache_owner_ = owner_id;
+}
+
+bool SDLGraphicsContext::begin_document_cache(const Hummingbird::Layout::Rect& viewport) {
+    if (!m_renderer) return false;
+    const int width = static_cast<int>(viewport.width);
+    const int height = static_cast<int>(viewport.height);
+    if (width <= 0 || height <= 0) return false;
+
+    if (!document_cache_ || width != document_cache_width_ || height != document_cache_height_) {
+        if (document_cache_) {
+            SDL_DestroyTexture(document_cache_);
+        }
+        document_cache_ =
+            SDL_CreateTexture(m_renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, width, height);
+        if (!document_cache_) {
+            document_cache_width_ = 0;
+            document_cache_height_ = 0;
+            return false;
+        }
+        SDL_SetTextureBlendMode(document_cache_, SDL_BLENDMODE_BLEND);
+        document_cache_width_ = width;
+        document_cache_height_ = height;
+    }
+
+    if (SDL_SetRenderTarget(m_renderer, document_cache_) != 0) {
+        return false;
+    }
+    SDL_SetRenderDrawBlendMode(m_renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(m_renderer, 0, 0, 0, 0);
+    SDL_RenderClear(m_renderer);
+    SDL_RenderSetClipRect(m_renderer, nullptr);
+    return true;
+}
+
+void SDLGraphicsContext::end_document_cache() {
+    if (!m_renderer) return;
+    SDL_SetRenderTarget(m_renderer, nullptr);
+    SDL_RenderSetClipRect(m_renderer, nullptr);
+}
+
+void SDLGraphicsContext::draw_document_cache() {
+    if (!m_renderer || !document_cache_) return;
+    SDL_Rect dst{0, 0, document_cache_width_, document_cache_height_};
+    SDL_RenderCopy(m_renderer, document_cache_, nullptr, &dst);
 }
 
 }  // namespace Hummingbird::Platform

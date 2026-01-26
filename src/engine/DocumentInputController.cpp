@@ -177,13 +177,14 @@ std::optional<std::string> DocumentInputController::focused_value() const {
 }
 
 void DocumentInputController::paint_controls(const Layout::RenderObject* render_tree, IGraphicsContext& graphics,
-                                             const Layout::Rect& viewport, float scroll_y) const {
+                                             const Layout::Rect& viewport, float scroll_y,
+                                             bool repaint_background) const {
     if (!render_tree) return;
 
     Layout::Point offset{0.0f, -scroll_y};
     Layout::Traversal::traverse_render_tree(
         *render_tree, offset,
-        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& local_offset) {
             if (viewport.width > 0.0f && viewport.height > 0.0f && !Layout::rect_intersects(absolute, viewport)) {
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
@@ -191,6 +192,10 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
             auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
             if (!is_input_element(element)) {
                 return Layout::Traversal::TraverseAction::Continue;
+            }
+
+            if (repaint_background) {
+                node.paint_self(graphics, local_offset);
             }
 
             const auto* style = node.get_computed_style();
@@ -225,6 +230,10 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
                 }
                 Layout::Rect caret_rect{caret_x, text_y, 1.0f, text_height};
                 graphics.fill_rect(caret_rect, text_style.color);
+                HB_LOG_DEBUG("[input] paint focused rect="
+                             << absolute.x << "," << absolute.y << " " << absolute.width << "x" << absolute.height
+                             << " content=" << content.x << "," << content.y << " " << content.width << "x"
+                             << content.height << " scroll_y=" << scroll_y << " repaint_bg=" << repaint_background);
             }
 
             return Layout::Traversal::TraverseAction::Continue;

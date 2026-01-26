@@ -17,7 +17,7 @@ void DocumentPainter::paint(const Layout::RenderObject* render_tree, IGraphicsCo
     opts.viewport = viewport;
 
     painter_.paint(*render_tree, graphics, opts);
-    input_controller.paint_controls(render_tree, graphics, viewport, scroll_y);
+    input_controller.paint_controls(render_tree, graphics, viewport, scroll_y, false);
 }
 
 }  // namespace Hummingbird::Engine

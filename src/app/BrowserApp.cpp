@@ -93,10 +93,10 @@ bool BrowserApp::tick() {
         auto [win_w, win_h] = window_->get_size();
         const auto viewport = compute_content_viewport(win_w, win_h);
         if (tab_.tick(*graphics_, viewport)) {
-            needs_repaint_ = true;
+            document_dirty_ = true;
         }
         if (url_bar_.set_security_state(tab_.security_state())) {
-            needs_repaint_ = true;
+            chrome_dirty_ = true;
         }
     }
     render_if_needed();
@@ -148,11 +148,11 @@ void BrowserApp::handle_quit_event() {
 
 void BrowserApp::handle_text_input_event(const InputEvent& event) {
     if (url_bar_.handle_text_input(event.text.text)) {
-        needs_repaint_ = true;
+        chrome_dirty_ = true;
         return;
     }
     if (tab_.handle_text_input(event.text.text)) {
-        needs_repaint_ = true;
+        controls_dirty_ = true;
     }
 }
 
@@ -160,8 +160,10 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (event.key.key == Key::L && event.mods.ctrl) {
         url_bar_.set_active(true, window_.get(), "[ui] URL bar focused");
         url_bar_.move_caret_to_end();
-        tab_.clear_input_focus();
-        needs_repaint_ = true;
+        if (tab_.clear_input_focus()) {
+            controls_dirty_ = true;
+        }
+        chrome_dirty_ = true;
         return;
     }
 
@@ -169,9 +171,11 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (result.handled) {
         if (result.submitted_url) {
             tab_.navigate(*result.submitted_url);
+            document_dirty_ = true;
+            chrome_dirty_ = true;
         }
         if (result.needs_repaint) {
-            needs_repaint_ = true;
+            chrome_dirty_ = true;
         }
         return;
     }
@@ -181,9 +185,11 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         if (tab_result.submitted_url) {
             url_bar_.set_text(*tab_result.submitted_url);
             tab_.navigate(*tab_result.submitted_url);
+            document_dirty_ = true;
+            chrome_dirty_ = true;
         }
         if (tab_result.needs_repaint) {
-            needs_repaint_ = true;
+            controls_dirty_ = true;
         }
         return;
     }
@@ -191,11 +197,9 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (event.key.key == Key::F1) {
         debug_outlines_ = !debug_outlines_;
         HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines_ ? "ON" : "OFF"));
-        needs_repaint_ = true;
+        document_dirty_ = true;
         return;
     }
-
-    needs_repaint_ = true;
 }
 
 void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
@@ -204,19 +208,23 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
         if (url_result.security_override_requested) {
             if (tab_.allow_insecure_for_current_host()) {
                 tab_.navigate(tab_.requested_url());
+                document_dirty_ = true;
+                chrome_dirty_ = true;
             }
         }
-        tab_.clear_input_focus();
+        if (tab_.clear_input_focus()) {
+            controls_dirty_ = true;
+        }
         if (url_result.needs_repaint) {
-            needs_repaint_ = true;
+            chrome_dirty_ = true;
         }
         return;
     }
 
     url_bar_.set_active(false, window_.get(), nullptr);
+    chrome_dirty_ = true;
 
     if (!graphics_ || !window_) {
-        needs_repaint_ = true;
         return;
     }
 
@@ -226,7 +234,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
                                      static_cast<float>(event.mouse_button.y)};
     auto click_result = tab_.dispatch_click(point, viewport, *graphics_);
     if (click_result.mutated) {
-        needs_repaint_ = true;
+        document_dirty_ = true;
     }
     bool was_focused = tab_.has_focused_input();
     bool now_focused = tab_.focus_input_at(point, viewport);
@@ -238,7 +246,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
                 window_->stop_text_input();
             }
         }
-        needs_repaint_ = true;
+        controls_dirty_ = true;
     }
     if (now_focused) {
         return;
@@ -247,15 +255,17 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     if (submit) {
         url_bar_.set_text(*submit);
         tab_.navigate(*submit);
-        needs_repaint_ = true;
+        document_dirty_ = true;
+        chrome_dirty_ = true;
         return;
     }
     auto link = tab_.hit_test_link(point, viewport);
     if (link) {
         url_bar_.set_text(*link);
         tab_.navigate(*link);
+        document_dirty_ = true;
+        chrome_dirty_ = true;
     }
-    needs_repaint_ = true;
 }
 
 void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
@@ -265,11 +275,12 @@ void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
     const float viewport_h = static_cast<float>(std::max(0, win_h - url_bar_.height()));
     tab_.scroll_by(delta, viewport_h);
 
-    needs_repaint_ = true;
+    document_dirty_ = true;
 }
 
 void BrowserApp::handle_resize_event(const InputEvent& event) {
-    needs_repaint_ = true;
+    document_cache_valid_ = false;
+    document_dirty_ = true;
 }
 
 Hummingbird::Layout::Rect BrowserApp::compute_content_viewport(int win_w, int win_h) const {
@@ -278,25 +289,56 @@ Hummingbird::Layout::Rect BrowserApp::compute_content_viewport(int win_w, int wi
 }
 
 void BrowserApp::render_if_needed() {
-    if (!needs_repaint_ || !graphics_) return;
+    if (!graphics_ || (!document_dirty_ && !chrome_dirty_ && !controls_dirty_)) return;
 
     auto [win_w, win_h] = window_->get_size();
 
-    // Full viewport clear
     Hummingbird::Layout::Rect full{0, 0, static_cast<float>(win_w), static_cast<float>(win_h)};
     graphics_->set_viewport(full);
+    const auto viewport = compute_content_viewport(win_w, win_h);
+    if (!document_cache_valid_) {
+        document_dirty_ = true;
+    }
+    if (document_dirty_) {
+        HB_LOG_DEBUG("[perf] render pass=document chrome=1 controls=1 scroll_y=" << tab_.scroll_y());
+        document_cache_valid_ = false;
+        if (graphics_->begin_document_cache(full)) {
+            tab_.paint(*graphics_, viewport, debug_outlines_);
+            graphics_->end_document_cache();
+            document_cache_valid_ = true;
+        } else {
+            graphics_->clear(kClearColor);
+            graphics_->set_text_cache_owner(0);
+            url_bar_.draw(*graphics_, win_w);
+            tab_.paint(*graphics_, viewport, debug_outlines_);
+            graphics_->present();
+            document_dirty_ = false;
+            chrome_dirty_ = false;
+            controls_dirty_ = false;
+            return;
+        }
+    } else if (chrome_dirty_ && controls_dirty_) {
+        HB_LOG_DEBUG("[perf] render pass=chrome+controls scroll_y=" << tab_.scroll_y());
+    } else if (chrome_dirty_) {
+        HB_LOG_DEBUG("[perf] render pass=chrome scroll_y=" << tab_.scroll_y());
+    } else if (controls_dirty_) {
+        HB_LOG_DEBUG("[perf] render pass=controls scroll_y=" << tab_.scroll_y());
+    }
     graphics_->clear(kClearColor);
-
-    // URL bar
+    if (document_cache_valid_) {
+        graphics_->draw_document_cache();
+    }
+    graphics_->set_viewport(full);
     graphics_->set_text_cache_owner(0);
     url_bar_.draw(*graphics_, win_w);
-
-    // Document paint
-    const auto viewport = compute_content_viewport(win_w, win_h);
-    tab_.paint(*graphics_, viewport, debug_outlines_);
+    if (!document_dirty_ && controls_dirty_) {
+        tab_.paint_controls(*graphics_, viewport);
+    }
 
     graphics_->present();
-    needs_repaint_ = false;
+    document_dirty_ = false;
+    chrome_dirty_ = false;
+    controls_dirty_ = false;
 }
 
 }  // namespace Hummingbird::App
