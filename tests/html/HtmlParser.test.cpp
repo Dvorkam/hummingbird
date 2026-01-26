@@ -147,8 +147,7 @@ TEST(HtmlParserTest, IgnoresUnexpectedEndTags) {
     ASSERT_NE(div_node, nullptr);
     EXPECT_EQ(div_node->get_tag_name(), TagNames::Div);
     ASSERT_GE(div_node->get_children().size(), 2u);
-    auto paragraph_node =
-        dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[1].get());
+    auto paragraph_node = dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[1].get());
     ASSERT_NE(paragraph_node, nullptr);
     EXPECT_EQ(paragraph_node->get_tag_name(), TagNames::P);
 }
