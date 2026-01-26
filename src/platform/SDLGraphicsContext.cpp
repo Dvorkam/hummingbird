@@ -459,7 +459,7 @@ void SDLGraphicsContext::draw_text_with_metrics(const std::string& text, float x
 
 TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const TextStyle& style) {
     if (text.empty()) {
-        return {0, 0};
+        return {};
     }
 
     const std::string& resolved_font = Hummingbird::Core::Utils::resolve_asset_path_string(style.font_path);
@@ -490,7 +490,14 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
         logged = true;
     }
 
-    return {width, height};
+    TextMetrics metrics;
+    metrics.width = width;
+    metrics.height = height;
+    metrics.ascent = font_setup->metrics.ascent;
+    metrics.descent = font_setup->metrics.descent;
+    metrics.underline_position = font_setup->metrics.underlinePosition;
+    metrics.underline_thickness = font_setup->metrics.underlineThickness;
+    return metrics;
 }
 
 void SDLGraphicsContext::set_text_cache_owner(std::uint64_t owner_id) {

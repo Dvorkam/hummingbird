@@ -18,8 +18,12 @@ struct Color {
 };
 
 struct TextMetrics {
-    float width;
-    float height;
+    float width = 0.0f;
+    float height = 0.0f;
+    float ascent = 0.0f;
+    float descent = 0.0f;
+    float underline_position = 0.0f;
+    float underline_thickness = 0.0f;
 };
 
 struct TextStyle {

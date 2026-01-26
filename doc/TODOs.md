@@ -16,6 +16,7 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 - [ ] **[M4 P2] T-CSS-BOX-1: Box-Sizing Support**; Goal: honor `box-sizing` (and vendor-prefixed aliases); Scope: layout sizing; Acceptance: DDG search bar sizing matches CSS; Tests: layout tests.
 - [ ] **[M4 P2] T-CSS-LIST-1: List-Style Reset**; Goal: support `list-style` / `list-style-type` / `list-style-position`; Scope: style + list marker; Acceptance: CSS reset can remove bullets; Tests: layout tests.
 - [ ] **[M4 P2] T-CSS-TEXT-DECOR-2: text-decoration/underline variants**; Goal: support underline + thickness/offset; Scope: painter; Acceptance: hover/visited underline styling matches CSS; Tests: renderer tests.
+- [ ] **[M4 P2] T-CSS-TEXT-DECOR-3: Underline baseline alignment**; Goal: keep underline close to glyphs across all lines; Scope: TextBox + inline layout metrics; Acceptance: no line has an underline noticeably detached from its text; Tests: renderer tests.
 
 ## Milestone 5 (Layout/Polish)
 

@@ -24,6 +24,37 @@ constexpr float kUnderlineThicknessPx = 1.0f;
 
 using Metrics::Insets;
 
+struct UnderlineMetrics {
+    float position = 0.0f;
+    float thickness = kUnderlineThicknessPx;
+};
+
+UnderlineMetrics resolve_underline_metrics(const TextMetrics& metrics) {
+    UnderlineMetrics underline;
+    float position = -metrics.underline_position;
+    float fallback = metrics.descent > 0.0f ? std::max(1.0f, metrics.descent * 0.25f) : kUnderlineOffsetPx;
+    if (position <= 0.0f) {
+        position = fallback;
+    }
+    if (metrics.descent > 0.0f) {
+        position = std::min(position, metrics.descent);
+    }
+    underline.position = position;
+    underline.thickness = metrics.underline_thickness > 0.0f ? metrics.underline_thickness : kUnderlineThicknessPx;
+    if (underline.thickness < kUnderlineThicknessPx) {
+        underline.thickness = kUnderlineThicknessPx;
+    }
+    return underline;
+}
+
+float compute_underline_y(float line_top, float line_height, const TextMetrics& metrics,
+                          const UnderlineMetrics& underline) {
+    if (metrics.ascent > 0.0f) {
+        return line_top + metrics.ascent + underline.position;
+    }
+    return line_top + line_height - kUnderlineOffsetPx;
+}
+
 // Collapse runs of whitespace to a single space; convert newlines/tabs to spaces.
 std::string collapse_whitespace(const std::string& text) {
     std::string out;
@@ -257,7 +288,8 @@ void TextBox::measure_inline(IGraphicsContext& context) {
     m_rendered_text = collapse_whitespace(text);
     auto tokens = tokenize_text(m_rendered_text);
     TextStyle text_style = TextStyleUtils::build_text_style(style);
-    float line_height = context.measure_text("A", text_style).height;
+    m_last_metrics = context.measure_text("A", text_style);
+    float line_height = m_last_metrics.height;
     if (style && style->line_height > 0.0f) {
         line_height = style->line_height;
     }
@@ -347,6 +379,12 @@ void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
 
 void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_style, float absolute_x,
                               float absolute_y, float line_height, bool underline) const {
+    TextMetrics line_metrics = m_last_metrics;
+    if (line_metrics.height <= 0.0f) {
+        line_metrics = context.measure_text("A", text_style);
+    }
+    UnderlineMetrics underline_metrics = resolve_underline_metrics(line_metrics);
+
     std::vector<float> line_widths;
     for (const auto& frag : m_fragments) {
         size_t line_index = frag.line_index;
@@ -368,33 +406,36 @@ void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_s
         if (line_widths[i] <= 0.0f) {
             continue;
         }
-        float underline_y = absolute_y + static_cast<float>(i + 1) * line_height - kUnderlineOffsetPx;
-        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, line_widths[i], kUnderlineThicknessPx};
+        float line_top = absolute_y + static_cast<float>(i) * line_height;
+        float underline_y = compute_underline_y(line_top, line_height, line_metrics, underline_metrics);
+        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, line_widths[i], underline_metrics.thickness};
         context.fill_rect(line_rect, text_style.color);
     }
 }
 
 void TextBox::paint_lines(IGraphicsContext& context, const TextStyle& text_style, float absolute_x, float absolute_y,
                           bool underline) const {
-    float line_height = m_last_metrics.height;
-    float underline_width = 0.0f;
-    for (size_t i = 0; i < m_lines.size(); ++i) {
-        float y = absolute_y + static_cast<float>(i) * line_height;
-        if (!m_lines[i].empty()) {
-            float line_width = 0.0f;
-            if (i < m_line_widths.size()) {
-                line_width = m_line_widths[i];
-            }
-            TextMetrics metrics{line_width, line_height};
-            context.draw_text_with_metrics(m_lines[i], absolute_x, y, text_style, metrics);
-            underline_width = std::max(underline_width, line_width);
-        }
+    float line_height = m_line_height > 0.0f ? m_line_height : m_last_metrics.height;
+    TextMetrics line_metrics = m_last_metrics;
+    if (line_metrics.height <= 0.0f) {
+        line_metrics = context.measure_text("A", text_style);
     }
-
-    if (underline && underline_width > 0) {
-        float underline_y = absolute_y + static_cast<float>(m_lines.size()) * line_height - kUnderlineOffsetPx;
-        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, underline_width, kUnderlineThicknessPx};
-        context.fill_rect(line_rect, text_style.color);
+    UnderlineMetrics underline_metrics = resolve_underline_metrics(line_metrics);
+    for (size_t i = 0; i < m_lines.size(); ++i) {
+        float line_top = absolute_y + static_cast<float>(i) * line_height;
+        float line_width = 0.0f;
+        if (i < m_line_widths.size()) {
+            line_width = m_line_widths[i];
+        }
+        if (!m_lines[i].empty()) {
+            TextMetrics metrics{line_width, line_height};
+            context.draw_text_with_metrics(m_lines[i], absolute_x, line_top, text_style, metrics);
+        }
+        if (underline && line_width > 0.0f) {
+            float underline_y = compute_underline_y(line_top, line_height, line_metrics, underline_metrics);
+            Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, line_width, underline_metrics.thickness};
+            context.fill_rect(line_rect, text_style.color);
+        }
     }
 }
 
