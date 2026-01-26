@@ -91,6 +91,7 @@ target_link_libraries(Platform PUBLIC Core SDL2::SDL2
 add_library(Html STATIC
     src/html/HtmlTokenizer.cpp
     src/html/HtmlParser.cpp
+    src/html/HtmlEntityDecoder.cpp
 )
 target_include_directories(Html
     PUBLIC
