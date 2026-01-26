@@ -99,6 +99,21 @@ TEST(HtmlParserTest, DedupesUnsupportedTagWarnings) {
     EXPECT_EQ(count, 1u);
 }
 
+TEST(HtmlParserTest, DecodesNamedEntities) {
+    std::string_view html = "<p>A &mdash; B &amp; C &lt; D &gt; E &quot;F&quot; &apos;G&apos; &nbsp;H</p>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    auto p_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(p_node, nullptr);
+    ASSERT_EQ(p_node->get_children().size(), 1u);
+    auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(p_node->get_children()[0].get());
+    ASSERT_NE(text_node, nullptr);
+    const std::string expected = "A \u2014 B & C < D > E \"F\" 'G' \u00A0H";
+    EXPECT_EQ(text_node->get_text(), expected);
+}
+
 TEST(HtmlParserTest, PopsToMatchingAncestorOnMismatchedEndTag) {
     // </div> closes both <p> and <span> scopes, then the trailing <p> should attach to root.
     std::string_view html = "<div><span><p>inner</div><p>after</p>";

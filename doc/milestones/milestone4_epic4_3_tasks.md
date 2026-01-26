@@ -19,9 +19,9 @@ This checklist expands Epic 4.3 into trackable slices. Keep tasks small and cher
 
 ## Story 4.3.3 — Decode Named Entities
 
-- [ ] Add a small whitelist of HTML named entities (`&mdash;`, `&nbsp;`, `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`).
-- [ ] Decode entities in text nodes during HTML parsing.
-- [ ] Add parser tests that verify decoding in text content.
+- [x] Add a small whitelist of HTML named entities (`&mdash;`, `&nbsp;`, `&amp;`, `&lt;`, `&gt;`, `&quot;`, `&apos;`).
+- [x] Decode entities in text nodes during HTML parsing.
+- [x] Add parser tests that verify decoding in text content.
 
 ## Story 4.3.4 — Robust Parsing (HTML/CSS)
 

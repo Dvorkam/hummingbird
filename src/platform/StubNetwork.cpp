@@ -158,6 +158,11 @@ aligned.</pre>
     </div>
 
     <div class="section">
+      <h2>HTML Entities</h2>
+      <p>Entity demo: &mdash; &nbsp; &amp; &lt; &gt; &quot; &apos;</p>
+    </div>
+
+    <div class="section">
       <h2>Form Controls</h2>
       <form id="search-form" action="https://example.dev/search" method="get">
         <input name="q">
