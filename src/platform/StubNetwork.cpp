@@ -192,6 +192,7 @@ aligned.</pre>
       <p>Local assets are loaded via stub network:</p>
       <img src="assets/icons/page_security/secure.png" width="32" height="32" alt="secure icon">
       <img src="assets/icons/page_security/insecure.png" width="32" height="32" alt="insecure icon">
+      <img src="assets/logos/hummingbird.svg" width="64" height="64" alt="hummingbird svg">
     </div>
 
     <div class="section">

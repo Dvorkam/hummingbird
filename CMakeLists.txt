@@ -30,6 +30,7 @@ find_package(SDL2_image CONFIG REQUIRED)
 find_package(blend2d REQUIRED)
 find_package(CURL REQUIRED)
 find_package(qjs CONFIG REQUIRED)
+find_package(lunasvg CONFIG REQUIRED)
 
 # --- Style Library ---
 add_library(Style STATIC
@@ -70,6 +71,8 @@ add_library(Platform STATIC
     src/platform/StubNetwork.cpp
     src/platform/NetworkFactory.cpp
     src/platform/SDLImageDecoder.cpp
+    src/platform/SvgImageDecoder.cpp
+    src/platform/CompositeImageDecoder.cpp
     src/platform/ImageDecoderFactory.cpp
     src/platform/FileResourceProvider.cpp
     src/platform/ResourceProviderFactory.cpp
@@ -85,7 +88,7 @@ target_include_directories(Platform
 )
 target_link_libraries(Platform PUBLIC Core SDL2::SDL2
     $<IF:$<TARGET_EXISTS:SDL2_image::SDL2_image>,SDL2_image::SDL2_image,SDL2_image::SDL2_image-static>
-    blend2d::blend2d CURL::libcurl qjs)
+    blend2d::blend2d CURL::libcurl qjs lunasvg::lunasvg)
 
 # --- HTML Parser Library ---
 add_library(Html STATIC

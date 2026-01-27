@@ -12,6 +12,7 @@
       ]
     },
     "gtest",
+    "quickjs-ng",
     "sdl2",
     {
       "name": "sdl2-image",
@@ -20,6 +21,6 @@
         "libwebp"
       ]
     },
-    "quickjs-ng"
+    "lunasvg"
   ]
 }

@@ -2,12 +2,12 @@
 
 #include <memory>
 
-#include "platform/SDLImageDecoder.h"
+#include "platform/CompositeImageDecoder.h"
 
 namespace Hummingbird {
 
 ImageDecoderPtr create_image_decoder() {
-    return std::make_unique<Hummingbird::Platform::SDLImageDecoder>();
+    return std::make_unique<Hummingbird::Platform::CompositeImageDecoder>();
 }
 
 }  // namespace Hummingbird
