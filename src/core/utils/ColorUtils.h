@@ -69,4 +69,18 @@ inline std::optional<Color> parse_html_color(std::string_view value) {
     return std::nullopt;
 }
 
+inline std::string color_to_hex(Color color) {
+    auto hex_digit = [](int v) { return static_cast<char>(v < 10 ? '0' + v : 'a' + (v - 10)); };
+    std::string out;
+    out.reserve(7);
+    out.push_back('#');
+    out.push_back(hex_digit((color.r >> 4) & 0xF));
+    out.push_back(hex_digit(color.r & 0xF));
+    out.push_back(hex_digit((color.g >> 4) & 0xF));
+    out.push_back(hex_digit(color.g & 0xF));
+    out.push_back(hex_digit((color.b >> 4) & 0xF));
+    out.push_back(hex_digit(color.b & 0xF));
+    return out;
+}
+
 }  // namespace Hummingbird::Core::Utils

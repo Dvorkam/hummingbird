@@ -324,17 +324,7 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             return value.ident;
         }
         if (value.type == Value::Type::Color) {
-            auto hex_digit = [](int v) { return static_cast<char>(v < 10 ? '0' + v : 'a' + (v - 10)); };
-            std::string out;
-            out.reserve(7);
-            out.push_back('#');
-            out.push_back(hex_digit((value.color.r >> 4) & 0xF));
-            out.push_back(hex_digit(value.color.r & 0xF));
-            out.push_back(hex_digit((value.color.g >> 4) & 0xF));
-            out.push_back(hex_digit(value.color.g & 0xF));
-            out.push_back(hex_digit((value.color.b >> 4) & 0xF));
-            out.push_back(hex_digit(value.color.b & 0xF));
-            return out;
+            return Core::Utils::color_to_hex(value.color);
         }
         return "";
     };
