@@ -128,6 +128,7 @@ target_link_libraries(Layout PUBLIC Core Style)
 
 # --- Renderer Library ---
 add_library(Renderer STATIC
+    src/renderer/DisplayList.cpp
     src/renderer/Painter.cpp
 )
 target_include_directories(Renderer

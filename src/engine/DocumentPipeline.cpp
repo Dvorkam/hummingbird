@@ -81,6 +81,7 @@ void DocumentPipeline::reset() {
     content_height_ = 0.0f;
     input_controller_.reset();
     script_controller_.clear();
+    painter_.invalidate_display_list();
 }
 
 bool DocumentPipeline::parse_html(std::string_view html) {
@@ -126,6 +127,8 @@ bool DocumentPipeline::update_image_resources(std::string_view base_url) {
 void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     auto* render_tree = model_.render_tree();
     if (!render_tree) return;
+
+    painter_.invalidate_display_list();
 
     const auto layout_start = Core::Clock::now();
     render_tree->layout(graphics, viewport);
