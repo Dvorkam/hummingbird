@@ -14,6 +14,8 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/utils/ColorUtils.h"
+#include "core/utils/StringUtils.h"
 #include "style/ComputedStyle.h"
 #include "style/CssValueNames.h"
 #include "style/SelectorMatcher.h"
@@ -57,6 +59,79 @@ struct MatchedDeclarations {
     PropertyMap properties;
     CustomPropertyMap custom_properties;
 };
+
+struct VarExpression {
+    std::string_view name;
+    std::string_view fallback;
+    bool has_fallback = false;
+};
+
+bool is_var_function(std::string_view value) {
+    auto trimmed = Core::Utils::trim_ascii_whitespace(value);
+    return trimmed.size() >= 5 && trimmed.starts_with("var(") && trimmed.ends_with(")");
+}
+
+std::optional<VarExpression> parse_var_expression(std::string_view value) {
+    auto trimmed = Core::Utils::trim_ascii_whitespace(value);
+    if (!is_var_function(trimmed)) {
+        return std::nullopt;
+    }
+    trimmed.remove_prefix(4);
+    trimmed.remove_suffix(1);
+    if (trimmed.empty()) {
+        return std::nullopt;
+    }
+    size_t comma = trimmed.find(',');
+    if (comma == std::string_view::npos) {
+        auto name = Core::Utils::trim_ascii_whitespace(trimmed);
+        if (name.empty()) {
+            return std::nullopt;
+        }
+        return VarExpression{name, {}, false};
+    }
+    auto name = Core::Utils::trim_ascii_whitespace(trimmed.substr(0, comma));
+    auto fallback = Core::Utils::trim_ascii_whitespace(trimmed.substr(comma + 1));
+    if (name.empty()) {
+        return std::nullopt;
+    }
+    return VarExpression{name, fallback, !fallback.empty()};
+}
+
+std::optional<std::string_view> resolve_custom_property(const ComputedStyle& style, const ComputedStyle* parent_style,
+                                                        std::string_view name) {
+    if (name.empty()) {
+        return std::nullopt;
+    }
+    std::string key(name);
+    auto it = style.custom_properties.find(key);
+    if (it != style.custom_properties.end()) {
+        return it->second;
+    }
+    if (parent_style) {
+        auto parent_it = parent_style->custom_properties.find(key);
+        if (parent_it != parent_style->custom_properties.end()) {
+            return parent_it->second;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<Color> resolve_var_color(const ComputedStyle& style, const ComputedStyle* parent_style,
+                                       std::string_view value) {
+    auto parsed = parse_var_expression(value);
+    if (!parsed) {
+        return std::nullopt;
+    }
+    auto resolved = resolve_custom_property(style, parent_style, parsed->name);
+    std::string_view candidate = resolved.has_value() ? *resolved : parsed->fallback;
+    if (candidate.empty()) {
+        return std::nullopt;
+    }
+    if (is_var_function(candidate)) {
+        return resolve_var_color(style, parent_style, candidate);
+    }
+    return Core::Utils::parse_html_color(candidate);
+}
 
 MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DOM::Node* node) {
     MatchedDeclarations matched;
@@ -162,26 +237,37 @@ bool apply_display_property(const PropertyMap& properties, ComputedStyle& style)
     return true;
 }
 
-void apply_color_property(const PropertyMap& properties, ComputedStyle& style,
-                          StyleDefaults::StyleOverrides& overrides) {
+void apply_color_property(const PropertyMap& properties, ComputedStyle& style, StyleDefaults::StyleOverrides& overrides,
+                          const ComputedStyle* parent_style) {
     auto color_it = properties.find(Property::Color);
     if (color_it != properties.end() && color_it->second.value.type == Value::Type::Color) {
         style.color = color_it->second.value.color;
         overrides.color = true;
+    } else if (color_it != properties.end() && color_it->second.value.type == Value::Type::Identifier) {
+        if (auto resolved = resolve_var_color(style, parent_style, color_it->second.value.ident)) {
+            style.color = *resolved;
+            overrides.color = true;
+        }
     }
 }
 
 void apply_background_property(const PropertyMap& properties, ComputedStyle& style,
-                               StyleDefaults::StyleOverrides& overrides) {
+                               StyleDefaults::StyleOverrides& overrides, const ComputedStyle* parent_style) {
     auto bg_it = properties.find(Property::BackgroundColor);
     if (bg_it != properties.end() && bg_it->second.value.type == Value::Type::Color) {
         style.background = bg_it->second.value.color;
         overrides.background = true;
+    } else if (bg_it != properties.end() && bg_it->second.value.type == Value::Type::Identifier) {
+        if (auto resolved = resolve_var_color(style, parent_style, bg_it->second.value.ident)) {
+            style.background = *resolved;
+            overrides.background = true;
+        }
     }
 }
 
 void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& style,
-                               StyleDefaults::StyleOverrides& overrides, bool& display_set, float parent_font_size) {
+                               StyleDefaults::StyleOverrides& overrides, bool& display_set, float parent_font_size,
+                               const ComputedStyle* parent_style) {
     display_set = apply_display_property(properties, style);
 
     auto font_size_it = properties.find(Property::FontSize);
@@ -338,8 +424,8 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         }
     }
 
-    apply_color_property(properties, style, overrides);
-    apply_background_property(properties, style, overrides);
+    apply_color_property(properties, style, overrides, parent_style);
+    apply_background_property(properties, style, overrides, parent_style);
 }
 
 void apply_custom_properties(const CustomPropertyMap& properties, ComputedStyle& style) {
@@ -394,9 +480,10 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, cons
         StyleDefaults::apply_legacy_attributes(*element, style, result.overrides);
     }
 
-    float parent_font_size = parent_style ? parent_style->font_size : style.font_size;
-    apply_properties_to_style(matched.properties, style, result.overrides, display_set, parent_font_size);
     apply_custom_properties(matched.custom_properties, style);
+
+    float parent_font_size = parent_style ? parent_style->font_size : style.font_size;
+    apply_properties_to_style(matched.properties, style, result.overrides, display_set, parent_font_size, parent_style);
 
     return result;
 }

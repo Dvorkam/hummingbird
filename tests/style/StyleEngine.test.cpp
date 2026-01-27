@@ -147,6 +147,39 @@ TEST(StyleEngineTest, StoresAndInheritsCustomProperties) {
     EXPECT_EQ(grandchild_accent->second, "10px");
 }
 
+TEST(StyleEngineTest, ResolvesVarForColors) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto color_node = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    auto fallback_node = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+
+    root->append_child(std::move(color_node));
+    root->append_child(std::move(fallback_node));
+
+    std::string css = R"(div { --brand: #123; } p { color: var(--brand); }
+                          span { background-color: var(--missing, #ff0000); })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto color_style = root->get_children()[0]->get_computed_style();
+    auto fallback_style = root->get_children()[1]->get_computed_style();
+
+    ASSERT_TRUE(color_style);
+    ASSERT_TRUE(fallback_style);
+
+    EXPECT_EQ(color_style->color.r, 17);
+    EXPECT_EQ(color_style->color.g, 34);
+    EXPECT_EQ(color_style->color.b, 51);
+
+    ASSERT_TRUE(fallback_style->background.has_value());
+    EXPECT_EQ(fallback_style->background->r, 255);
+    EXPECT_EQ(fallback_style->background->g, 0);
+    EXPECT_EQ(fallback_style->background->b, 0);
+}
+
 TEST(StyleEngineTest, AppliesFloatProperty) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

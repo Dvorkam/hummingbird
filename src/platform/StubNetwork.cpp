@@ -78,7 +78,7 @@ std::string build_stub_body(const std::string& url) {
     <title>Hummingbird Feature Tour</title>
     <link rel="stylesheet" href="assets/stub.css">
     <style>
-      body { margin: 20px; padding: 10px; }
+      body { margin: 20px; padding: 10px; --brand: #ffd54d; --panel: #2a3aa0; }
       h1, h2, .title { margin: 10px; }
       #lead { font-size: 18px; }
       p { margin: 6px; }
@@ -100,6 +100,7 @@ std::string build_stub_body(const std::string& url) {
       .font-demo-bold { font-weight: bold; }
       .font-demo-italic { font-style: italic; }
       .font-demo-bold-italic { font-weight: bold; font-style: italic; }
+      .var-demo { color: var(--brand); background-color: var(--panel, #444); padding: 4px; }
       .table-align-demo { border: 1px solid #bbb; }
       .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
       .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
@@ -118,6 +119,11 @@ std::string build_stub_body(const std::string& url) {
       <pre>Preformatted
 text stays
 aligned.</pre>
+    </div>
+
+    <div class="section">
+      <h2>CSS Variables</h2>
+      <p class="var-demo">Custom property demo using var().</p>
     </div>
 
     <div class="section">

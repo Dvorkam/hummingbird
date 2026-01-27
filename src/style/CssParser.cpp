@@ -319,6 +319,57 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         return false;
     }
 
+    auto value_to_text = [](const Value& value) -> std::string {
+        if (value.type == Value::Type::Identifier) {
+            return value.ident;
+        }
+        if (value.type == Value::Type::Color) {
+            auto hex_digit = [](int v) { return static_cast<char>(v < 10 ? '0' + v : 'a' + (v - 10)); };
+            std::string out;
+            out.reserve(7);
+            out.push_back('#');
+            out.push_back(hex_digit((value.color.r >> 4) & 0xF));
+            out.push_back(hex_digit(value.color.r & 0xF));
+            out.push_back(hex_digit((value.color.g >> 4) & 0xF));
+            out.push_back(hex_digit(value.color.g & 0xF));
+            out.push_back(hex_digit((value.color.b >> 4) & 0xF));
+            out.push_back(hex_digit(value.color.b & 0xF));
+            return out;
+        }
+        return "";
+    };
+
+    auto build_var_expression = [&](const std::vector<Value>& list) -> std::string {
+        if (list.empty()) {
+            return "";
+        }
+        if (list[0].type != Value::Type::Identifier || list[0].ident != "var") {
+            return "";
+        }
+        if (list.size() < 2 || list[1].type != Value::Type::Identifier) {
+            return "";
+        }
+        std::string expr = "var(";
+        expr += list[1].ident;
+        if (list.size() >= 3) {
+            std::string fallback = value_to_text(list[2]);
+            if (!fallback.empty()) {
+                expr += ", ";
+                expr += fallback;
+            }
+        }
+        expr += ")";
+        return expr;
+    };
+
+    if (property == Property::Color || property == Property::BackgroundColor || property == Property::Background) {
+        std::string var_expr = build_var_expression(values);
+        if (!var_expr.empty()) {
+            values.clear();
+            values.push_back(Value::identifier(std::move(var_expr)));
+        }
+    }
+
     if (property == Property::Unknown && !property_name.empty()) {
         std::string name(property_name);
         if (m_unknown_properties.insert(name).second) {
@@ -375,6 +426,10 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     if (property == Property::Background) {
         for (const auto& value : values) {
             if (value.type == Value::Type::Color) {
+                push_decl(Property::BackgroundColor, value);
+                break;
+            }
+            if (value.type == Value::Type::Identifier && value.ident.starts_with("var(")) {
                 push_decl(Property::BackgroundColor, value);
                 break;
             }
