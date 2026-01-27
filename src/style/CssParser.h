@@ -36,6 +36,7 @@ private:
     Value parse_identifier_value();
     Value parse_number_value();
     std::string parse_font_family_list();
+    std::string parse_custom_property_value();
     bool consume_declaration(std::vector<Declaration>& decls);
 
     std::string m_buffer;

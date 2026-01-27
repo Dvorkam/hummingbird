@@ -259,12 +259,25 @@ std::string Parser::parse_font_family_list() {
     return list;
 }
 
+std::string Parser::parse_custom_property_value() {
+    std::string raw;
+    while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+        raw.append(advance().lexeme);
+    }
+    auto trimmed = Core::Utils::trim_ascii_whitespace(raw);
+    return std::string(trimmed);
+}
+
 bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     std::string_view property_name;
     if (peek().type == TokenType::Identifier) {
         property_name = peek().lexeme;
     }
     Property property = parse_property();
+    bool is_custom_property = !property_name.empty() && property_name.starts_with("--");
+    if (is_custom_property) {
+        property = Property::Custom;
+    }
     skip_whitespace_tokens();
     if (!match(TokenType::Colon)) {
         while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
@@ -274,11 +287,29 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         return false;
     }
     skip_whitespace_tokens();
+    auto push_decl = [&](Property decl_property, Value value) {
+        Declaration decl;
+        decl.property = decl_property;
+        decl.value = std::move(value);
+        decls.push_back(std::move(decl));
+    };
+    if (property == Property::Custom) {
+        std::string raw_value = parse_custom_property_value();
+        match(TokenType::Semicolon);  // consume if present
+        if (!raw_value.empty()) {
+            Declaration decl;
+            decl.property = Property::Custom;
+            decl.custom_property = std::string(property_name);
+            decl.value = Value::identifier(std::move(raw_value));
+            decls.push_back(std::move(decl));
+        }
+        return true;
+    }
     if (property == Property::FontFamily) {
         std::string list = parse_font_family_list();
         match(TokenType::Semicolon);  // consume if present
         if (!list.empty()) {
-            decls.push_back({property, Value::identifier(std::move(list))});
+            push_decl(property, Value::identifier(std::move(list)));
         }
         return true;
     }
@@ -305,10 +336,10 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         const Value& right_value = count > 1 ? values[1] : values[0];
         const Value& bottom_value = count > 2 ? values[2] : values[0];
         const Value& left_value = count > 3 ? values[3] : (count > 1 ? values[1] : values[0]);
-        decls.push_back({top, top_value});
-        decls.push_back({right, right_value});
-        decls.push_back({bottom, bottom_value});
-        decls.push_back({left, left_value});
+        push_decl(top, top_value);
+        push_decl(right, right_value);
+        push_decl(bottom, bottom_value);
+        push_decl(left, left_value);
     };
 
     if (property == Property::Margin) {
@@ -336,15 +367,15 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                 border_style = value;
             }
         }
-        if (border_width) decls.push_back({Property::BorderWidth, *border_width});
-        if (border_style) decls.push_back({Property::BorderStyle, *border_style});
-        if (border_color) decls.push_back({Property::BorderColor, *border_color});
+        if (border_width) push_decl(Property::BorderWidth, *border_width);
+        if (border_style) push_decl(Property::BorderStyle, *border_style);
+        if (border_color) push_decl(Property::BorderColor, *border_color);
         return true;
     }
     if (property == Property::Background) {
         for (const auto& value : values) {
             if (value.type == Value::Type::Color) {
-                decls.push_back({Property::BackgroundColor, value});
+                push_decl(Property::BackgroundColor, value);
                 break;
             }
         }
@@ -352,7 +383,7 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     }
 
     Value value = values.empty() ? Value::identifier("") : values.front();
-    decls.push_back({property, value});
+    push_decl(property, value);
     return true;
 }
 

@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <unordered_map>
 
 #include "core/platform_api/IGraphicsContext.h"
 
@@ -47,6 +48,7 @@ struct ComputedStyle {
     float line_height = 0.0f;  // px, 0 means use font metrics
     std::string font_face;
     std::optional<Color> background;
+    std::unordered_map<std::string, std::string> custom_properties;
     // Future: background, font family, etc.
 };
 

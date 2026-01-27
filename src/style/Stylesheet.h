@@ -10,6 +10,7 @@ namespace Hummingbird::Css {
 
 enum class Property {
     Unknown,
+    Custom,
     Background,
     Border,
     Display,
@@ -124,6 +125,7 @@ struct Selector {
 
 struct Declaration {
     Property property = Property::Unknown;
+    std::string custom_property;
     Value value;
 };
 

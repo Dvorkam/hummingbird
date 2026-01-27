@@ -105,6 +105,48 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     EXPECT_EQ(h1_style->weight, ComputedStyle::FontWeight::Bold);
 }
 
+TEST(StyleEngineTest, StoresAndInheritsCustomProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    auto grandchild = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+
+    child->append_child(std::move(grandchild));
+    root->append_child(std::move(child));
+
+    std::string css = R"(div { --brand: #123; } span { --accent: 10px; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto root_style = dynamic_cast<Element*>(root.get())->get_computed_style();
+    auto child_style = dynamic_cast<Element*>(root->get_children()[0].get())->get_computed_style();
+    auto grandchild_style =
+        dynamic_cast<Element*>(root->get_children()[0]->get_children()[0].get())->get_computed_style();
+
+    ASSERT_TRUE(root_style);
+    ASSERT_TRUE(child_style);
+    ASSERT_TRUE(grandchild_style);
+
+    auto root_brand = root_style->custom_properties.find("--brand");
+    ASSERT_NE(root_brand, root_style->custom_properties.end());
+    EXPECT_EQ(root_brand->second, "#123");
+
+    auto child_brand = child_style->custom_properties.find("--brand");
+    ASSERT_NE(child_brand, child_style->custom_properties.end());
+    EXPECT_EQ(child_brand->second, "#123");
+
+    auto grandchild_brand = grandchild_style->custom_properties.find("--brand");
+    ASSERT_NE(grandchild_brand, grandchild_style->custom_properties.end());
+    EXPECT_EQ(grandchild_brand->second, "#123");
+
+    auto grandchild_accent = grandchild_style->custom_properties.find("--accent");
+    ASSERT_NE(grandchild_accent, grandchild_style->custom_properties.end());
+    EXPECT_EQ(grandchild_accent->second, "10px");
+}
+
 TEST(StyleEngineTest, AppliesFloatProperty) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

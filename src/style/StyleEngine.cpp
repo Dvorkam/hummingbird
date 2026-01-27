@@ -51,30 +51,49 @@ struct PropertyHash {
 };
 
 using PropertyMap = std::unordered_map<Property, MatchedProperty, PropertyHash>;
+using CustomPropertyMap = std::unordered_map<std::string, MatchedProperty>;
 
-PropertyMap collect_matched_properties(const Stylesheet& sheet, const DOM::Node* node) {
+struct MatchedDeclarations {
     PropertyMap properties;
+    CustomPropertyMap custom_properties;
+};
+
+MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DOM::Node* node) {
+    MatchedDeclarations matched;
     size_t order = 0;
 
     const auto* element = dynamic_cast<const DOM::Element*>(node);
-    if (!element) return properties;
+    if (!element) return matched;
 
     for (const auto& rule : sheet.rules) {
         for (const auto& selector : rule.selectors) {
             if (!matches_selector(node, selector)) continue;
             int spec = selector.specificity();
             for (const auto& decl : rule.declarations) {
-                auto it = properties.find(decl.property);
-                if (it == properties.end() || spec > it->second.specificity ||
+                if (decl.property == Property::Custom) {
+                    if (decl.custom_property.empty()) {
+                        ++order;
+                        continue;
+                    }
+                    auto it = matched.custom_properties.find(decl.custom_property);
+                    if (it == matched.custom_properties.end() || spec > it->second.specificity ||
+                        (spec == it->second.specificity && order > it->second.order)) {
+                        matched.custom_properties[decl.custom_property] = {spec, order, decl.value};
+                    }
+                    ++order;
+                    continue;
+                }
+                auto it = matched.properties.find(decl.property);
+                if (it == matched.properties.end() || spec > it->second.specificity ||
                     (spec == it->second.specificity && order > it->second.order)) {
-                    properties[decl.property] = {spec, order, decl.value};
+                    matched.properties[decl.property] = {spec, order, decl.value};
                 }
                 ++order;
             }
         }
     }
 
-    return properties;
+    return matched;
 }
 
 void apply_length_if_present(const PropertyMap& properties, Property property, float& target, float font_size) {
@@ -323,6 +342,12 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
     apply_background_property(properties, style, overrides);
 }
 
+void apply_custom_properties(const CustomPropertyMap& properties, ComputedStyle& style) {
+    for (const auto& [name, property] : properties) {
+        style.custom_properties[name] = property.value.ident;
+    }
+}
+
 void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.margin = source.margin;
     target.margin_left_auto = source.margin_left_auto;
@@ -360,8 +385,8 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
 StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, const ComputedStyle* parent_style) {
     StyleResult result{default_computed_style(), {}};
     ComputedStyle& style = result.style;
-    PropertyMap properties = collect_matched_properties(sheet, node);
-    bool display_set = properties.find(Property::Display) != properties.end();
+    MatchedDeclarations matched = collect_matched_properties(sheet, node);
+    bool display_set = matched.properties.find(Property::Display) != matched.properties.end();
 
     // Minimal UA defaults for basic HTML readability.
     if (const auto* element = dynamic_cast<const DOM::Element*>(node)) {
@@ -370,7 +395,8 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, cons
     }
 
     float parent_font_size = parent_style ? parent_style->font_size : style.font_size;
-    apply_properties_to_style(properties, style, result.overrides, display_set, parent_font_size);
+    apply_properties_to_style(matched.properties, style, result.overrides, display_set, parent_font_size);
+    apply_custom_properties(matched.custom_properties, style);
 
     return result;
 }
@@ -387,6 +413,10 @@ void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const C
     // Inheritable text properties: only elements introduce overrides; text nodes inherit.
     if (dynamic_cast<DOM::Element*>(node)) {
         apply_inheritable_overrides(base, own.style, own.overrides);
+    }
+
+    for (const auto& [name, value] : own.style.custom_properties) {
+        base.custom_properties[name] = value;
     }
 
     ComputedStyle style = base;
