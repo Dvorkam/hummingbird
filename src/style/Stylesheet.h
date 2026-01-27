@@ -39,6 +39,7 @@ enum class Property {
     FontFamily,
     FontWeight,
     FontStyle,
+    Float,
 };
 
 enum class Unit {

@@ -307,6 +307,18 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         }
     }
 
+    auto float_it = properties.find(Property::Float);
+    if (float_it != properties.end() && float_it->second.value.type == Value::Type::Identifier) {
+        const auto& ident = float_it->second.value.ident;
+        if (ident == ValueNames::Left) {
+            style.float_type = ComputedStyle::Float::Left;
+        } else if (ident == ValueNames::Right) {
+            style.float_type = ComputedStyle::Float::Right;
+        } else if (ident == ValueNames::None) {
+            style.float_type = ComputedStyle::Float::None;
+        }
+    }
+
     apply_color_property(properties, style, overrides);
     apply_background_property(properties, style, overrides);
 }
@@ -324,6 +336,7 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.border_color = source.border_color;
     target.border_style = source.border_style;
     target.background = source.background;
+    target.float_type = source.float_type;
 }
 
 void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& source,

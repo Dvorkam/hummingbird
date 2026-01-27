@@ -105,6 +105,23 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     EXPECT_EQ(h1_style->weight, ComputedStyle::FontWeight::Bold);
 }
 
+TEST(StyleEngineTest, AppliesFloatProperty) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "floaty");
+
+    std::string css = R"(.floaty { float: right; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->float_type, ComputedStyle::Float::Right);
+}
+
 TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);

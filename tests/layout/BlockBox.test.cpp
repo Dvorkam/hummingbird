@@ -7,8 +7,10 @@
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/RenderRule.h"
 #include "layout/TextBox.h"
 #include "layout/TreeBuilder.h"
+#include "style/ComputedStyle.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
@@ -99,4 +101,35 @@ TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
 
     EXPECT_LT(inline_block->get_rect().width, bounds.width);
     EXPECT_GT(inline_block->get_rect().width, 0.0f);
+}
+
+TEST(BlockBoxLayoutTest, FloatLeftShiftsInlineContent) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, "div");
+    auto hr = DomFactory::create_element(arena, "hr");
+    auto text = DomFactory::create_text(arena, "Hello world");
+    root->append_child(std::move(hr));
+    root->append_child(std::move(text));
+
+    auto root_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    root->set_computed_style(root_style);
+
+    auto float_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    float_style->float_type = Hummingbird::Css::ComputedStyle::Float::Left;
+    float_style->width = 50.0f;
+    float_style->height = 10.0f;
+    root->get_children()[0]->set_computed_style(float_style);
+
+    auto render_root = BlockBox::create(root.get());
+    auto render_rule = RenderRule::create(root->get_children()[0].get());
+    auto render_text = TextBox::create(dynamic_cast<Text*>(root->get_children()[1].get()));
+    render_root->append_child(std::move(render_rule));
+    render_root->append_child(std::move(render_text));
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect bounds{0, 0, 200, 0};
+    render_root->layout(context, bounds);
+
+    const auto& text_rect = render_root->get_children()[1]->get_rect();
+    EXPECT_GE(text_rect.x, 50.0f);
 }

@@ -17,6 +17,8 @@ struct EdgeSizes {
 struct ComputedStyle {
     enum class Display { Block, Inline, InlineBlock, ListItem, None };
     Display display = Display::Block;
+    enum class Float { None, Left, Right };
+    Float float_type = Float::None;
     enum class TextAlign { Left, Center, Right };
     TextAlign text_align = TextAlign::Left;
     enum class BorderStyle { None, Solid };
