@@ -242,3 +242,45 @@ TEST(TableLayoutTest, AlignDoesNotInflateIntrinsicWidths) {
     EXPECT_FLOAT_EQ(cell1_render->get_rect().width, 40.0f);
     EXPECT_FLOAT_EQ(cell2_render->get_rect().width, 8.0f);
 }
+
+TEST(TableLayoutTest, AlignsBlockChildrenInCells) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, TagNames::Body);
+    auto table = DomFactory::create_element(arena, TagNames::Table);
+    table->set_attribute(Attr::Width, "100");
+    auto row = DomFactory::create_element(arena, TagNames::Tr);
+    auto cell = DomFactory::create_element(arena, TagNames::Td);
+    cell->set_attribute(Attr::Align, "right");
+    auto block = DomFactory::create_element(arena, TagNames::Div);
+    block->set_attribute(Attr::Width, "20");
+    block->append_child(DomFactory::create_text(arena, "X"));
+    cell->append_child(std::move(block));
+    row->append_child(std::move(cell));
+    table->append_child(std::move(row));
+    body->append_child(std::move(table));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+
+    auto* table_render = dynamic_cast<RenderTable*>(render_root->get_children()[0].get());
+    ASSERT_NE(table_render, nullptr);
+    auto* row_render = dynamic_cast<RenderTableRow*>(table_render->get_children()[0].get());
+    ASSERT_NE(row_render, nullptr);
+    auto* cell_render = dynamic_cast<RenderTableCell*>(row_render->get_children()[0].get());
+    ASSERT_NE(cell_render, nullptr);
+    ASSERT_FALSE(cell_render->get_children().empty());
+
+    EXPECT_FLOAT_EQ(cell_render->get_rect().width, 100.0f);
+    const auto& block_rect = cell_render->get_children()[0]->get_rect();
+    EXPECT_FLOAT_EQ(block_rect.width, 20.0f);
+    EXPECT_FLOAT_EQ(block_rect.x, 80.0f);
+}

@@ -59,6 +59,7 @@ public:
         return std::unique_ptr<RenderTableCell>(new RenderTableCell(dom_node));
     }
 
+    void layout(IGraphicsContext& context, const Rect& bounds) override;
     float measure_intrinsic_width(IGraphicsContext& context);
 
 private:

@@ -318,4 +318,49 @@ float RenderTableCell::measure_intrinsic_width(IGraphicsContext& context) {
     return required_width;
 }
 
+void RenderTableCell::layout(IGraphicsContext& context, const Rect& bounds) {
+    BlockBox::layout(context, bounds);
+
+    const auto* style = get_computed_style();
+    if (!style || style->text_align == Css::ComputedStyle::TextAlign::Left) {
+        return;
+    }
+
+    Metrics::Insets insets = Metrics::compute_insets(style);
+    float content_width = m_rect.width - insets.left - insets.right;
+    if (content_width <= 0.0f) {
+        return;
+    }
+
+    for (const auto& child : m_children) {
+        if (!child || child->Inline()) {
+            continue;
+        }
+        const auto* child_style = child->get_computed_style();
+        if (child_style && child_style->float_type != Css::ComputedStyle::Float::None) {
+            continue;
+        }
+        if (child_style && (child_style->margin_left_auto || child_style->margin_right_auto)) {
+            continue;
+        }
+        float margin_left = child_style ? child_style->margin.left : 0.0f;
+        float margin_right = child_style ? child_style->margin.right : 0.0f;
+        float margin_box_width = child->get_rect().width + margin_left + margin_right;
+        float free_space = content_width - margin_box_width;
+        if (free_space < 0.0f) {
+            free_space = 0.0f;
+        }
+
+        float margin_box_x = insets.left;
+        if (style->text_align == Css::ComputedStyle::TextAlign::Center) {
+            margin_box_x += free_space * 0.5f;
+        } else if (style->text_align == Css::ComputedStyle::TextAlign::Right) {
+            margin_box_x += free_space;
+        }
+
+        float child_x = margin_box_x + margin_left;
+        child->set_rect({child_x, child->get_rect().y, child->get_rect().width, child->get_rect().height});
+    }
+}
+
 }  // namespace Hummingbird::Layout
