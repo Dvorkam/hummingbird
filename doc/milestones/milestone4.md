@@ -340,7 +340,7 @@ are already completed.
 - [x] **[M4 P2] T-CSS-TYPO-1: font-family Fallback Chain**; Goal: parse font-family lists with fallbacks; Scope: StyleEngine + SDLGraphicsContext mapping; Acceptance: generic families map to real fonts; Tests: style/layout tests.
 - [x] **[M4 P2] T-CSS-TYPO-2: font-style + font-weight**; Goal: apply bold/italic selection; Scope: font selection; Acceptance: weight/style affects chosen face or best-effort; Tests: style/layout tests.
 - [x] **[M4 P2] T-CSS-BORDER-1: Border Styles Beyond Solid**; Goal: support `outset` and related styles; Scope: Painter; Acceptance: non-solid styles render (MVP can map to solid); Tests: renderer tests.
-- [ ] **[M4 P2] T-SVG-0: SVG Placeholder Box**; Goal: reserve space for `<svg>`; Scope: TreeBuilder + RenderFactory; Acceptance: svg renders placeholder rect and respects width/height; Tests: layout tests.
+- [x] **[M4 P2] T-SVG-0: SVG Placeholder Box**; Goal: reserve space for `<svg>`; Scope: TreeBuilder + RenderFactory; Acceptance: svg renders placeholder rect and respects width/height; Tests: layout tests.
 - [x] **[M4 P2] T-FORM-1: Button Element Rendering**; Goal: basic `<button>` UA style; Scope: TreeBuilder + StyleDefaults; Acceptance: button has padding/border/background and participates in layout; Tests: layout tests.
 - [ ] **[M4 P2] T-FORM-2: Basic Hit-Test + Click Signal**; Goal: click hit-test returns target element; Scope: hit testing + logging; Acceptance: click logs target (no action yet); Tests: engine tests.
 - [x] **[M4 P2] T-FONT-1: Monospace Font Selection**; Goal: pick real monospace fonts when requested; Scope: TextBox + font mapping; Acceptance: monospace uses actual mono face; Tests: layout tests.
