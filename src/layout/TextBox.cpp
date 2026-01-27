@@ -55,24 +55,6 @@ float compute_underline_y(float line_top, float line_height, const TextMetrics& 
     return line_top + line_height - kUnderlineOffsetPx;
 }
 
-RenderObject* find_inline_background_owner(RenderObject* start) {
-    if (!start) {
-        return nullptr;
-    }
-    RenderObject* current = start->get_parent();
-    while (current) {
-        if (!current->Inline()) {
-            break;
-        }
-        const auto* style = current->get_computed_style();
-        if (style && style->display == Css::ComputedStyle::Display::Inline && style->background.has_value()) {
-            return current;
-        }
-        current = current->get_parent();
-    }
-    return nullptr;
-}
-
 // Collapse runs of whitespace to a single space; convert newlines/tabs to spaces.
 std::string collapse_whitespace(const std::string& text) {
     std::string out;
@@ -291,12 +273,10 @@ void TextBox::measure_inline(IGraphicsContext& context) {
     m_inline_runs.clear();
     const auto* style = get_computed_style();
     const std::string& text = get_dom_node()->get_text();
-    RenderObject* background_owner = find_inline_background_owner(this);
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
         layout(context, {0.0f, 0.0f, kInlineMeasurementWidth, 0.0f});
         InlineRun run;
         run.owner = this;
-        run.background_owner = background_owner;
         run.local_index = 0;
         run.text = m_rendered_text;
         run.width = m_rect.width;
@@ -321,7 +301,6 @@ void TextBox::measure_inline(IGraphicsContext& context) {
     for (size_t i = 0; i < tokens.size(); ++i) {
         InlineRun run;
         run.owner = this;
-        run.background_owner = background_owner;
         run.local_index = i;
         run.text = tokens[i];
         run.width = context.measure_text(tokens[i], text_style).width;

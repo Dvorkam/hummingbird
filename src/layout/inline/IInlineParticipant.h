@@ -20,9 +20,6 @@ public:
     virtual void measure_inline(IGraphicsContext& context) = 0;
     virtual void collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) = 0;
     virtual void apply_inline_fragment(size_t local_index, const InlineFragment& fragment, const InlineRun& run) = 0;
-    virtual void begin_inline_fragments() {}
-    virtual void record_inline_fragment(const InlineFragment& fragment, const InlineRun& run) {}
-    virtual void end_inline_fragments() {}
     virtual void finalize_inline_layout() = 0;
     virtual void offset_inline_layout(float dx, float dy) = 0;
 };

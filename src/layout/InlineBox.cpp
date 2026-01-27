@@ -4,8 +4,6 @@
 #include <utility>
 #include <vector>
 
-#include "core/platform_api/IGraphicsContext.h"
-#include "core/utils/Log.h"
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/inline/InlineRef.h"
 #include "layout/inline/InlineTypes.h"
@@ -38,8 +36,6 @@ void InlineBox::reset_inline_layout() {
     m_inline_atomic = false;
     m_inline_measured_width = 0.0f;
     m_inline_measured_height = 0.0f;
-    m_background_fragments.clear();
-    m_background_lines.clear();
 }
 
 void InlineBox::measure_inline(IGraphicsContext& context) {
@@ -88,69 +84,6 @@ void InlineBox::apply_inline_fragment(size_t index, const InlineFragment& fragme
     m_rect.y = fragment.rect.y;
     m_rect.width = run.width;
     m_rect.height = run.height;
-    const auto* style = get_computed_style();
-    if (style && style->background.has_value()) {
-        const auto& bg = *style->background;
-        HB_LOG_DEBUG("[inline-bg] atomic rect=(" << m_rect.x << "," << m_rect.y << "," << m_rect.width << ","
-                                                 << m_rect.height << ") bg=(" << static_cast<int>(bg.r) << ","
-                                                 << static_cast<int>(bg.g) << "," << static_cast<int>(bg.b) << ","
-                                                 << static_cast<int>(bg.a) << ")");
-    }
-}
-
-void InlineBox::begin_inline_fragments() {
-    m_background_fragments.clear();
-    m_background_lines.clear();
-}
-
-void InlineBox::record_inline_fragment(const InlineFragment& fragment, const InlineRun& /*run*/) {
-    m_background_fragments.push_back(fragment);
-}
-
-void InlineBox::end_inline_fragments() {
-    m_background_lines.clear();
-    if (m_background_fragments.empty()) {
-        return;
-    }
-    const auto* style = get_computed_style();
-    if (!style || !style->background.has_value()) {
-        m_background_fragments.clear();
-        return;
-    }
-
-    Metrics::Insets insets = Metrics::compute_insets(style);
-    size_t current_line = m_background_fragments.front().line_index;
-    Rect line_rect = m_background_fragments.front().rect;
-
-    auto flush_line = [&]() {
-        Rect expanded = line_rect;
-        expanded.x -= insets.left;
-        expanded.y -= insets.top;
-        expanded.width += insets.left + insets.right;
-        expanded.height += insets.top + insets.bottom;
-        m_background_lines.push_back(expanded);
-    };
-
-    for (size_t i = 1; i < m_background_fragments.size(); ++i) {
-        const auto& frag = m_background_fragments[i];
-        if (frag.line_index != current_line) {
-            flush_line();
-            current_line = frag.line_index;
-            line_rect = frag.rect;
-            continue;
-        }
-        float min_x = std::min(line_rect.x, frag.rect.x);
-        float min_y = std::min(line_rect.y, frag.rect.y);
-        float max_x = std::max(line_rect.x + line_rect.width, frag.rect.x + frag.rect.width);
-        float max_y = std::max(line_rect.y + line_rect.height, frag.rect.y + frag.rect.height);
-        line_rect = {min_x, min_y, max_x - min_x, max_y - min_y};
-    }
-    flush_line();
-    m_background_fragments.clear();
-    const auto& bg = *style->background;
-    HB_LOG_DEBUG("[inline-bg] fragments=" << m_background_lines.size() << " bg=(" << static_cast<int>(bg.r) << ","
-                                          << static_cast<int>(bg.g) << "," << static_cast<int>(bg.b) << ","
-                                          << static_cast<int>(bg.a) << ")");
 }
 
 void InlineBox::finalize_inline_layout() {
@@ -198,11 +131,6 @@ void InlineBox::finalize_inline_layout() {
     m_rect.width = max_x - min_x;
     m_rect.height = max_y - min_y;
 
-    for (auto& line : m_background_lines) {
-        line.x -= min_x;
-        line.y -= min_y;
-    }
-
     for (auto& child : m_children) {
         if (auto p = child->Inline()) {
             p.get().offset_inline_layout(-min_x, -min_y);
@@ -234,45 +162,6 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
     m_rect.width = cursor_x + metrics.insets.right;
     m_rect.height = cursor_y + line_height + metrics.insets.bottom;
-}
-
-void InlineBox::paint_self(IGraphicsContext& context, const Point& offset) const {
-    const auto* style = get_computed_style();
-    bool painted_background = false;
-    if (style && style->background.has_value() && !m_background_lines.empty()) {
-        for (const auto& line : m_background_lines) {
-            Rect background{offset.x + m_rect.x + line.x, offset.y + m_rect.y + line.y, line.width, line.height};
-            context.fill_rect(background, *style->background);
-        }
-        painted_background = true;
-    }
-    if (!painted_background) {
-        RenderObject::paint_self(context, offset);
-        return;
-    }
-
-    if (style && style->border_style == Css::ComputedStyle::BorderStyle::Solid) {
-        Rect absolute{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
-        const auto& bw = style->border_width;
-        const auto& color = style->border_color;
-
-        if (bw.top > 0.0f) {
-            Rect top{absolute.x, absolute.y, absolute.width, bw.top};
-            context.fill_rect(top, color);
-        }
-        if (bw.bottom > 0.0f) {
-            Rect bottom{absolute.x, absolute.y + absolute.height - bw.bottom, absolute.width, bw.bottom};
-            context.fill_rect(bottom, color);
-        }
-        if (bw.left > 0.0f) {
-            Rect left{absolute.x, absolute.y, bw.left, absolute.height};
-            context.fill_rect(left, color);
-        }
-        if (bw.right > 0.0f) {
-            Rect right{absolute.x + absolute.width - bw.right, absolute.y, bw.right, absolute.height};
-            context.fill_rect(right, color);
-        }
-    }
 }
 
 }  // namespace Hummingbird::Layout
