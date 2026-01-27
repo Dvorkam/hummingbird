@@ -44,6 +44,7 @@ static constexpr std::string_view Code = "code";
 static constexpr std::string_view A = "a";
 static constexpr std::string_view Blockquote = "blockquote";
 static constexpr std::string_view Font = "font";
+static constexpr std::string_view Svg = "svg";
 static constexpr std::string_view Header = "header";
 static constexpr std::string_view Nav = "nav";
 static constexpr std::string_view Main = "main";

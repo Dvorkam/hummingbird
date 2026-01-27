@@ -31,7 +31,7 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
             tag == Hummingbird::Html::TagNames::Strong || tag == Hummingbird::Html::TagNames::Em ||
             tag == Hummingbird::Html::TagNames::B || tag == Hummingbird::Html::TagNames::I ||
             tag == Hummingbird::Html::TagNames::Code || tag == Hummingbird::Html::TagNames::Img ||
-            tag == Hummingbird::Html::TagNames::Font) {
+            tag == Hummingbird::Html::TagNames::Svg || tag == Hummingbird::Html::TagNames::Font) {
             style.display = ComputedStyle::Display::Inline;
         } else if (tag == Hummingbird::Html::TagNames::Input || tag == Hummingbird::Html::TagNames::Button) {
             style.display = ComputedStyle::Display::InlineBlock;

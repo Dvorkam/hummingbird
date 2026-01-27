@@ -193,6 +193,10 @@ aligned.</pre>
       <img src="assets/icons/page_security/secure.png" width="32" height="32" alt="secure icon">
       <img src="assets/icons/page_security/insecure.png" width="32" height="32" alt="insecure icon">
       <img src="assets/logos/hummingbird.svg" width="64" height="64" alt="hummingbird svg">
+      <svg width="48" height="48" viewBox="0 0 48 48" aria-label="inline svg demo">
+        <rect x="4" y="4" width="40" height="40" rx="6" fill="#4a7a2a"/>
+        <circle cx="24" cy="24" r="12" fill="#f4d35e"/>
+      </svg>
     </div>
 
     <div class="section">

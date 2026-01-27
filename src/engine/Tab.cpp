@@ -30,7 +30,8 @@ Tab::Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr re
          ImageDecoderPtr image_decoder, ScriptEnginePtr script_engine)
     : resource_loader_(std::move(network), std::move(fallback_network), std::move(resource_provider),
                        std::move(image_decoder)),
-      document_pipeline_(&resource_loader_.store(), resource_loader_.resource_provider(), std::move(script_engine)) {}
+      document_pipeline_(&resource_loader_.store(), resource_loader_.resource_provider(),
+                         resource_loader_.image_decoder(), std::move(script_engine)) {}
 
 Tab::~Tab() {
     shutdown();

@@ -39,7 +39,7 @@ TEST(DocumentPipelineTest, DispatchesLoadHandler) {
     auto engine = Hummingbird::create_script_engine();
     ASSERT_NE(engine, nullptr);
 
-    DocumentPipeline pipeline(&store, provider.get(), std::move(engine));
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
     TestGraphicsContext graphics;
     Rect viewport{0, 0, 200, 200};
 
@@ -76,7 +76,7 @@ TEST(DocumentPipelineTest, DispatchesClickHandler) {
     auto engine = Hummingbird::create_script_engine();
     ASSERT_NE(engine, nullptr);
 
-    DocumentPipeline pipeline(&store, provider.get(), std::move(engine));
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
     TestGraphicsContext graphics;
     Rect viewport{0, 0, 200, 200};
 

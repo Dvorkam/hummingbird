@@ -3,13 +3,17 @@
 #include <ostream>
 
 #include "core/dom/Element.h"
+#include "core/dom/Text.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/IResourceProvider.h"
 #include "core/utils/Log.h"
 #include "engine/ResourceStore.h"
 #include "engine/ResourceUrl.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlTagNames.h"
 #include "layout/RenderImage.h"
 #include "layout/RenderObject.h"
+#include "layout/RenderSvg.h"
 #include "layout/RenderTreeTraversal.h"
 #include "style/StylesheetSource.h"
 
@@ -18,6 +22,90 @@ struct ImageBitmap;
 }  // namespace Hummingbird
 
 namespace Hummingbird::Engine {
+
+namespace {
+void append_escaped(std::string& out, std::string_view text, bool attribute) {
+    for (char ch : text) {
+        switch (ch) {
+            case '&':
+                out.append("&amp;");
+                break;
+            case '<':
+                out.append("&lt;");
+                break;
+            case '>':
+                out.append("&gt;");
+                break;
+            case '"':
+                if (attribute) {
+                    out.append("&quot;");
+                } else {
+                    out.push_back(ch);
+                }
+                break;
+            case '\'':
+                if (attribute) {
+                    out.append("&apos;");
+                } else {
+                    out.push_back(ch);
+                }
+                break;
+            default:
+                out.push_back(ch);
+                break;
+        }
+    }
+}
+
+void serialize_svg_node(const DOM::Node* node, std::string& out, bool is_root) {
+    if (!node) {
+        return;
+    }
+
+    if (auto text_node = dynamic_cast<const DOM::Text*>(node)) {
+        append_escaped(out, text_node->get_text(), false);
+        return;
+    }
+
+    auto element = dynamic_cast<const DOM::Element*>(node);
+    if (!element) {
+        return;
+    }
+
+    const auto& tag = element->get_tag_name();
+    out.push_back('<');
+    out.append(tag);
+
+    bool has_xmlns = false;
+    for (const auto& [key, value] : element->get_attributes()) {
+        if (key == "xmlns") {
+            has_xmlns = true;
+        }
+        out.push_back(' ');
+        out.append(key);
+        out.append("=\"");
+        append_escaped(out, value, true);
+        out.push_back('"');
+    }
+    if (is_root && tag == Hummingbird::Html::TagNames::Svg && !has_xmlns) {
+        out.append(" xmlns=\"http://www.w3.org/2000/svg\"");
+    }
+
+    const auto& children = element->get_children();
+    if (children.empty()) {
+        out.append("/>");
+        return;
+    }
+
+    out.push_back('>');
+    for (const auto& child : children) {
+        serialize_svg_node(child.get(), out, false);
+    }
+    out.append("</");
+    out.append(tag);
+    out.push_back('>');
+}
+}  // namespace
 
 std::string DocumentResources::build_css_source(std::string_view base_url, const std::vector<std::string>& style_blocks,
                                                 const std::vector<std::string>& stylesheet_links) const {
@@ -94,6 +182,43 @@ bool DocumentResources::update_image_resources(Layout::RenderObject* render_tree
                 if (image->set_image(bitmap)) {
                     changed = true;
                 }
+            }
+            return Layout::Traversal::TraverseAction::Continue;
+        });
+
+    return changed;
+}
+
+bool DocumentResources::update_svg_resources(Layout::RenderObject* render_tree) const {
+    if (!render_tree || !image_decoder_) {
+        return false;
+    }
+
+    bool changed = false;
+    Layout::Point offset{0.0f, 0.0f};
+    Layout::Traversal::traverse_render_tree(
+        *render_tree, offset,
+        [&](Layout::RenderObject& current, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+            auto* svg = dynamic_cast<Layout::RenderSvg*>(&current);
+            if (!svg) {
+                return Layout::Traversal::TraverseAction::Continue;
+            }
+            auto* element = static_cast<const DOM::Element*>(svg->get_dom_node());
+            if (!element) {
+                return Layout::Traversal::TraverseAction::Continue;
+            }
+
+            std::string markup;
+            serialize_svg_node(element, markup, true);
+            std::unique_ptr<ImageBitmap> decoded_bitmap;
+            if (!markup.empty()) {
+                if (auto decoded = image_decoder_->decode(markup)) {
+                    decoded_bitmap = std::make_unique<ImageBitmap>(std::move(*decoded));
+                }
+            }
+
+            if (svg->set_image(std::move(decoded_bitmap))) {
+                changed = true;
             }
             return Layout::Traversal::TraverseAction::Continue;
         });

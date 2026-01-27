@@ -21,6 +21,7 @@
 namespace Hummingbird {
 class IResourceProvider;
 class IGraphicsContext;
+class IImageDecoder;
 }  // namespace Hummingbird
 
 namespace Hummingbird::Engine {
@@ -50,7 +51,7 @@ public:
 
     using ScriptDispatchResult = DocumentScriptController::ScriptDispatchResult;
 
-    DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
+    DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider, IImageDecoder* image_decoder,
                      ScriptEnginePtr script_engine);
     ~DocumentPipeline();
 

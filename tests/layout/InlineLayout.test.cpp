@@ -7,6 +7,7 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/RenderImage.h"
+#include "layout/RenderSvg.h"
 #include "layout/TreeBuilder.h"
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
@@ -254,6 +255,45 @@ TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
     EXPECT_FLOAT_EQ(image_rect.x, text_rect.x + text_rect.width);
     EXPECT_FLOAT_EQ(bang_rect.x, image_rect.x + image_rect.width);
     EXPECT_FLOAT_EQ(text_rect.y, image_rect.y);
+}
+
+TEST(InlineLayoutTest, InlineSvgUsesAttributeSizeAndFlows) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    p->append_child(DomFactory::create_text(arena, "Hi"));
+    auto svg = DomFactory::create_element(arena, "svg");
+    svg->set_attribute(Attr::Width, "48");
+    svg->set_attribute(Attr::Height, "24");
+    p->append_child(std::move(svg));
+    p->append_child(DomFactory::create_text(arena, "!"));
+    body->append_child(std::move(p));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 3u);
+    const auto& text_rect = para->get_children()[0]->get_rect();
+    auto* svg_box = dynamic_cast<RenderSvg*>(para->get_children()[1].get());
+    ASSERT_NE(svg_box, nullptr);
+    const auto& svg_rect = svg_box->get_rect();
+    const auto& bang_rect = para->get_children()[2]->get_rect();
+
+    EXPECT_FLOAT_EQ(svg_rect.width, 48.0f);
+    EXPECT_FLOAT_EQ(svg_rect.height, 24.0f);
+    EXPECT_FLOAT_EQ(svg_rect.x, text_rect.x + text_rect.width);
+    EXPECT_FLOAT_EQ(bang_rect.x, svg_rect.x + svg_rect.width);
+    EXPECT_FLOAT_EQ(text_rect.y, svg_rect.y);
 }
 
 TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {

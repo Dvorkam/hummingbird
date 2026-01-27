@@ -63,6 +63,7 @@ public:
     ResourceStore& store() { return resource_store_; }
     const ResourceStore& store() const { return resource_store_; }
     IResourceProvider* resource_provider() const { return resource_provider_.get(); }
+    IImageDecoder* image_decoder() const { return image_decoder_.get(); }
 
 private:
     struct ResourceRequestOptions {

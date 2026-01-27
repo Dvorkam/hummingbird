@@ -71,8 +71,8 @@ const DOM::Element* resolve_submit_element(const DOM::Node* node) {
 }  // namespace
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
-                                   ScriptEnginePtr script_engine)
-    : resources_(resource_store, resource_provider), script_controller_(std::move(script_engine)) {}
+                                   IImageDecoder* image_decoder, ScriptEnginePtr script_engine)
+    : resources_(resource_store, resource_provider, image_decoder), script_controller_(std::move(script_engine)) {}
 
 DocumentPipeline::~DocumentPipeline() = default;
 
@@ -118,7 +118,9 @@ void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const
 }
 
 bool DocumentPipeline::update_image_resources(std::string_view base_url) {
-    return resources_.update_image_resources(model_.render_tree(), base_url);
+    bool updated = resources_.update_image_resources(model_.render_tree(), base_url);
+    updated = resources_.update_svg_resources(model_.render_tree()) || updated;
+    return updated;
 }
 
 void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {

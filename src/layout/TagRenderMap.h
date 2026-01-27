@@ -55,6 +55,7 @@ inline constexpr Mapping kSpecialMappings[] = {
     {Hummingbird::Html::TagNames::Br, &create_break_render},
     {Hummingbird::Html::TagNames::Hr, &create_rule_render},
     {Hummingbird::Html::TagNames::Img, &RenderFactory::create_image},
+    {Hummingbird::Html::TagNames::Svg, &RenderFactory::create_svg},
     {Hummingbird::Html::TagNames::Table, &create_table_render},
     {Hummingbird::Html::TagNames::Thead, &create_table_section_render},
     {Hummingbird::Html::TagNames::Tbody, &create_table_section_render},
