@@ -366,6 +366,18 @@ void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
         context.fill_rect(bg, *style->background);
     }
 
+    if (!(style && style->background.has_value())) {
+        if (const auto* parent = get_parent()) {
+            const auto* parent_style = parent->get_computed_style();
+            if (parent_style && parent_style->background.has_value() && parent_style->font_monospace &&
+                parent_style->display == Css::ComputedStyle::Display::Inline) {
+                const auto& parent_rect = parent->get_rect();
+                Hummingbird::Layout::Rect bg{offset.x, offset.y, parent_rect.width, parent_rect.height};
+                context.fill_rect(bg, *parent_style->background);
+            }
+        }
+    }
+
     if (!m_fragments.empty()) {
         float line_height = m_line_height > 0.0f ? m_line_height : m_last_metrics.height;
         paint_fragments(context, text_style, absolute_x, absolute_y, line_height, style && style->underline);
