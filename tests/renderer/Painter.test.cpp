@@ -255,6 +255,81 @@ TEST(PainterTest, PaintsBackgroundForBoxes) {
     EXPECT_TRUE(found);
 }
 
+TEST(PainterTest, PaintsBackgroundForInlineCode) {
+    std::string_view html = "<html><body><p>Inline <code>code</code> text</p></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    Parser css_parser("");
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 300, 200};
+    render_tree->layout(context, viewport);
+
+    auto* code_node = find_tag(render_tree.get(), Hummingbird::Html::TagNames::Code);
+    ASSERT_NE(code_node, nullptr);
+    const auto expected = absolute_rect_for(code_node);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    bool found = false;
+    for (const auto& rect : context.fill_calls) {
+        if (rect_matches(rect, expected)) {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST(PainterTest, PaintsBackgroundForBlockCode) {
+    std::string_view html = "<html><body><code>Block code</code></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "code { display: block; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 300, 200};
+    render_tree->layout(context, viewport);
+
+    auto* code_node = find_tag(render_tree.get(), Hummingbird::Html::TagNames::Code);
+    ASSERT_NE(code_node, nullptr);
+    const auto expected = absolute_rect_for(code_node);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    bool found = false;
+    for (const auto& rect : context.fill_calls) {
+        if (rect_matches(rect, expected)) {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
 TEST(PainterTest, PaintsImagePlaceholderWithAltText) {
     std::string_view html = "<html><body><img alt=\"Logo\" width=\"32\" height=\"16\"></body></html>";
     Hummingbird::Core::ArenaAllocator arena(2048);

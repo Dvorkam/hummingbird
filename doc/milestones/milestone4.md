@@ -334,7 +334,7 @@ are already completed.
 
 ### P2
 
-- [ ] **[M4 P2] T-CODE-1: Code Background Blocks**; Goal: render `<code>` backgrounds consistently; Scope: TextBox/Painter; Acceptance: computed background applies to inline and block code; Tests: renderer tests.
+- [x] **[M4 P2] T-CODE-1: Code Background Blocks**; Goal: render `<code>` backgrounds consistently; Scope: TextBox/Painter; Acceptance: computed background applies to inline and block code; Tests: renderer tests.
 - [ ] **[M4 P2] T-CSS-VAR-1: Custom Properties Storage**; Goal: store/inherit `--*` values; Scope: ComputedStyle; Acceptance: custom props are stored and inherited; Tests: style tests.
 - [ ] **[M4 P2] T-CSS-VAR-2: Minimal var() Resolution for Colors**; Goal: resolve var() for color/background-color; Scope: style resolution; Acceptance: var() resolves with fallback; Tests: style tests.
 - [x] **[M4 P2] T-CSS-TYPO-1: font-family Fallback Chain**; Goal: parse font-family lists with fallbacks; Scope: StyleEngine + SDLGraphicsContext mapping; Acceptance: generic families map to real fonts; Tests: style/layout tests.
