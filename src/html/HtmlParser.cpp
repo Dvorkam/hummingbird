@@ -76,7 +76,7 @@ Parser::Result Parser::parse() {
     result.style_blocks = std::move(m_style_blocks);
     result.stylesheet_links = std::move(m_stylesheet_links);
     result.image_links = std::move(m_image_links);
-    result.unsupported_tags = std::move(m_unsupported_tags);
+    result.unsupported_tags = m_unsupported_tags.seen();
     return result;
 }
 
@@ -176,9 +176,8 @@ void Parser::append_text_node(DOM::Node* parent, std::string_view text) {
 
 void Parser::track_unsupported_tag(std::string_view tag_name) {
     if (TagMetadata::is_supported_tag(tag_name)) return;
-    std::string name(tag_name);
-    if (m_unsupported_tags.insert(name).second) {
-        HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << name << ">");
+    if (m_unsupported_tags.should_log(tag_name)) {
+        HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << tag_name << ">");
     }
 }
 

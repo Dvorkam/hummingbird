@@ -10,6 +10,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/dom/Text.h"
+#include "core/utils/WarnOnce.h"
 #include "html/HtmlTokenizer.h"
 
 namespace Hummingbird {
@@ -59,7 +60,7 @@ private:
 
     Tokenizer m_tokenizer;
     Core::ArenaAllocator& m_arena;
-    std::unordered_set<std::string> m_unsupported_tags;
+    Core::Utils::WarnOnce m_unsupported_tags;
     std::unordered_set<std::string> m_semantic_tags;
     std::vector<std::string> m_style_blocks;
     std::vector<std::string> m_stylesheet_links;

@@ -361,9 +361,8 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     }
 
     if (property == Property::Unknown && !property_name.empty()) {
-        std::string name(property_name);
-        if (m_unknown_properties.insert(name).second) {
-            HB_LOG_WARN("[parser] Unsupported CSS property encountered: " << name);
+        if (m_unknown_properties.should_log(property_name)) {
+            HB_LOG_WARN("[parser] Unsupported CSS property encountered: " << property_name);
         }
         return true;
     }

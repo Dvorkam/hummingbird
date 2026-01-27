@@ -7,6 +7,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "core/utils/WarnOnce.h"
 #include "style/CssTokenizer.h"
 #include "style/Stylesheet.h"
 
@@ -42,7 +43,7 @@ private:
     std::string m_buffer;
     std::vector<Token> m_tokens;
     size_t m_pos = 0;
-    std::unordered_set<std::string> m_unknown_properties;
+    Core::Utils::WarnOnce m_unknown_properties;
 };
 
 }  // namespace Hummingbird::Css
