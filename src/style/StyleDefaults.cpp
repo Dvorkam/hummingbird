@@ -62,11 +62,9 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         overrides.underline = true;
     } else if (tag == Hummingbird::Html::TagNames::Code) {
         style.font_monospace = true;
-        style.background = Color{230, 230, 230, 255};
         style.padding.left = style.padding.right = 2.0f;
         style.padding.top = style.padding.bottom = 1.0f;
         overrides.font_monospace = true;
-        overrides.background = true;
     } else if (tag == Hummingbird::Html::TagNames::Blockquote) {
         style.margin.left = 40.0f;
         style.margin.right = 40.0f;

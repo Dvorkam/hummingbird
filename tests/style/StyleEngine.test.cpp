@@ -94,7 +94,7 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     EXPECT_TRUE(a_style->underline);
 
     EXPECT_TRUE(code_style->font_monospace);
-    ASSERT_TRUE(code_style->background.has_value());
+    EXPECT_FALSE(code_style->background.has_value());
     EXPECT_GT(code_style->padding.left, 0.0f);
 
     EXPECT_FLOAT_EQ(blockquote_style->margin.left, 40.0f);

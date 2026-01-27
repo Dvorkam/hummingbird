@@ -261,7 +261,8 @@ TEST(PainterTest, PaintsBackgroundForInlineCode) {
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
-    Parser css_parser("");
+    std::string css = "code { background: #eeeeee; }";
+    Parser css_parser(css);
     auto sheet = css_parser.parse();
     StyleEngine engine;
     engine.apply(sheet, result.dom.get());
@@ -298,7 +299,7 @@ TEST(PainterTest, PaintsBackgroundForBlockCode) {
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
 
-    std::string css = "code { display: block; }";
+    std::string css = "code { display: block; background: #eeeeee; }";
     Parser css_parser(css);
     auto sheet = css_parser.parse();
     StyleEngine engine;
