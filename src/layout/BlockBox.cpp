@@ -96,8 +96,7 @@ void layout_float_child(IGraphicsContext& context, RenderObject& child, const Ch
     float content_right = metrics.insets.left + metrics.content_width;
     FloatLayout::FloatPlacement placement =
         FloatLayout::place_float(floats, float_type, cursor.y, child.get_rect().width, child.get_rect().height,
-                                 margins.left, margins.right, margins.top, margins.bottom, content_left,
-                                 content_right);
+                                 margins.left, margins.right, margins.top, margins.bottom, content_left, content_right);
     child.set_rect(placement.rect);
     floats.push_back({placement.margin_rect, float_type});
     max_float_bottom = std::max(max_float_bottom, placement.margin_rect.y + placement.margin_rect.height);
@@ -145,9 +144,9 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         if (!child->Inline()) {
             // Control objects like <br> need to break the line before stacking blocks.
             if (!floats.empty()) {
-                FloatLayout::FloatBand band = FloatLayout::compute_float_band(
-                    floats, cursor.y, FloatLayout::kFloatLineHeightFallback, metrics.insets.left,
-                    metrics.insets.left + metrics.content_width);
+                FloatLayout::FloatBand band =
+                    FloatLayout::compute_float_band(floats, cursor.y, FloatLayout::kFloatLineHeightFallback,
+                                                    metrics.insets.left, metrics.insets.left + metrics.content_width);
                 if (band.has_overlap && band.clear_y > cursor.y) {
                     cursor.y = band.clear_y;
                 }

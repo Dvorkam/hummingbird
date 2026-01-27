@@ -51,8 +51,8 @@ FloatPlacement place_float(const std::vector<FloatBox>& floats, Css::ComputedSty
     }
 
     placement.rect = {float_x, float_y, box_width, box_height};
-    placement.margin_rect = {float_x - margin_left, float_y - margin_top,
-                             box_width + margin_left + margin_right, box_height + margin_top + margin_bottom};
+    placement.margin_rect = {float_x - margin_left, float_y - margin_top, box_width + margin_left + margin_right,
+                             box_height + margin_top + margin_bottom};
     placement.band = band;
     return placement;
 }

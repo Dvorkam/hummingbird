@@ -6,8 +6,8 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/Geometry.h"
 #include "layout/FloatLayoutUtils.h"
+#include "layout/Geometry.h"
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/inline/InlineLayoutUtils.h"
 #include "layout/inline/InlineRef.h"
@@ -77,8 +77,7 @@ void layout_float_child(IGraphicsContext& context, RenderObject& child, const Ch
     float content_right = content_left + metrics.content_width;
     FloatLayout::FloatPlacement placement =
         FloatLayout::place_float(floats, float_type, cursor.y, child.get_rect().width, child.get_rect().height,
-                                 margins.left, margins.right, margins.top, margins.bottom, content_left,
-                                 content_right);
+                                 margins.left, margins.right, margins.top, margins.bottom, content_left, content_right);
     child.set_rect(placement.rect);
     floats.push_back({placement.margin_rect, float_type});
     max_float_bottom = std::max(max_float_bottom, placement.margin_rect.y + placement.margin_rect.height);
@@ -181,9 +180,9 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
                                             metrics.insets.left + marker_offset + metrics.content_width);
         if (band.has_overlap && (band.right - band.left) <= 0.0f && band.clear_y > cursor.y) {
             cursor.y = band.clear_y;
-            band = FloatLayout::compute_float_band(floats, cursor.y, line_height_hint,
-                                                   metrics.insets.left + marker_offset,
-                                                   metrics.insets.left + marker_offset + metrics.content_width);
+            band =
+                FloatLayout::compute_float_band(floats, cursor.y, line_height_hint, metrics.insets.left + marker_offset,
+                                                metrics.insets.left + marker_offset + metrics.content_width);
         }
         float wrap_width =
             (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) ? 0.0f : (band.right - band.left);
