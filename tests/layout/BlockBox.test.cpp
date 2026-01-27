@@ -7,6 +7,8 @@
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
+#include "layout/InlineBox.h"
+#include "layout/RenderImage.h"
 #include "layout/RenderRule.h"
 #include "layout/TextBox.h"
 #include "layout/TreeBuilder.h"
@@ -132,4 +134,43 @@ TEST(BlockBoxLayoutTest, FloatLeftShiftsInlineContent) {
 
     const auto& text_rect = render_root->get_children()[1]->get_rect();
     EXPECT_GE(text_rect.x, 50.0f);
+}
+
+TEST(BlockBoxLayoutTest, FloatImageInsideLinkIsFloated) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, "div");
+    auto link = DomFactory::create_element(arena, "a");
+    auto img = DomFactory::create_element(arena, "img");
+    img->set_attribute(Attr::Width, "88");
+    img->set_attribute(Attr::Height, "31");
+    link->append_child(std::move(img));
+    root->append_child(std::move(link));
+    root->append_child(DomFactory::create_text(arena, "Trailing text"));
+
+    auto root_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    root->set_computed_style(root_style);
+
+    auto link_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    link_style->display = Hummingbird::Css::ComputedStyle::Display::Inline;
+    root->get_children()[0]->set_computed_style(link_style);
+
+    auto img_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    img_style->display = Hummingbird::Css::ComputedStyle::Display::Inline;
+    img_style->float_type = Hummingbird::Css::ComputedStyle::Float::Right;
+    root->get_children()[0]->get_children()[0]->set_computed_style(img_style);
+
+    auto render_root = BlockBox::create(root.get());
+    auto render_link = InlineBox::create(dynamic_cast<Element*>(root->get_children()[0].get()));
+    auto render_img = RenderImage::create(dynamic_cast<Element*>(root->get_children()[0]->get_children()[0].get()));
+    render_link->append_child(std::move(render_img));
+    render_root->append_child(std::move(render_link));
+    render_root->append_child(TextBox::create(dynamic_cast<Text*>(root->get_children()[1].get())));
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect bounds{0, 0, 200, 0};
+    render_root->layout(context, bounds);
+
+    const auto& link_rect = render_root->get_children()[0]->get_rect();
+    EXPECT_FLOAT_EQ(link_rect.width, 88.0f);
+    EXPECT_FLOAT_EQ(link_rect.x, 112.0f);
 }

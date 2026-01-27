@@ -40,6 +40,24 @@ ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
             style ? style->margin.bottom : 0.0f};
 }
 
+Css::ComputedStyle::Float resolve_float_type(RenderObject& child) {
+    const auto* style = child.get_computed_style();
+    if (style && style->float_type != Css::ComputedStyle::Float::None) {
+        return style->float_type;
+    }
+    if (!child.Inline()) {
+        return Css::ComputedStyle::Float::None;
+    }
+    if (child.get_children().size() != 1) {
+        return Css::ComputedStyle::Float::None;
+    }
+    const auto* grand_style = child.get_children()[0]->get_computed_style();
+    if (grand_style && grand_style->float_type != Css::ComputedStyle::Float::None) {
+        return grand_style->float_type;
+    }
+    return Css::ComputedStyle::Float::None;
+}
+
 void flush_line(LineCursor& cursor, float inset_left, float marker_offset) {
     cursor.y += cursor.line_height;
     cursor.x = inset_left + marker_offset;
@@ -146,9 +164,10 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         const auto* child_style = child->get_computed_style();
         ChildMargins margins = compute_child_margins(child_style);
 
-        if (child_style && child_style->float_type != Css::ComputedStyle::Float::None) {
-            layout_float_child(context, *child, margins, metrics, marker_offset, cursor, child_style->float_type,
-                               floats, max_float_bottom);
+        Css::ComputedStyle::Float float_type = resolve_float_type(*child);
+        if (float_type != Css::ComputedStyle::Float::None) {
+            layout_float_child(context, *child, margins, metrics, marker_offset, cursor, float_type, floats,
+                               max_float_bottom);
             update_marker_for_block(marker_y_set, marker_y, metrics.insets.top);
             ++i;
             continue;
