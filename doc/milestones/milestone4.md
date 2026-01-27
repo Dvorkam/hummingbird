@@ -342,7 +342,7 @@ are already completed.
 - [x] **[M4 P2] T-CSS-BORDER-1: Border Styles Beyond Solid**; Goal: support `outset` and related styles; Scope: Painter; Acceptance: non-solid styles render (MVP can map to solid); Tests: renderer tests.
 - [x] **[M4 P2] T-SVG-0: SVG Placeholder Box**; Goal: reserve space for `<svg>`; Scope: TreeBuilder + RenderFactory; Acceptance: svg renders placeholder rect and respects width/height; Tests: layout tests.
 - [x] **[M4 P2] T-FORM-1: Button Element Rendering**; Goal: basic `<button>` UA style; Scope: TreeBuilder + StyleDefaults; Acceptance: button has padding/border/background and participates in layout; Tests: layout tests.
-- [ ] **[M4 P2] T-FORM-2: Basic Hit-Test + Click Signal**; Goal: click hit-test returns target element; Scope: hit testing + logging; Acceptance: click logs target (no action yet); Tests: engine tests.
+- [x] **[M4 P2] T-FORM-2: Basic Hit-Test + Click Signal**; Goal: click hit-test returns target element; Scope: hit testing + logging; Acceptance: click logs target (no action yet); Tests: engine tests.
 - [x] **[M4 P2] T-FONT-1: Monospace Font Selection**; Goal: pick real monospace fonts when requested; Scope: TextBox + font mapping; Acceptance: monospace uses actual mono face; Tests: layout tests.
 - [ ] **[M4 P2] T-SUPPORT-REG-1: Supported Feature Registry + Deduped Warnings**; Goal: centralize supported tags/properties and dedupe warnings; Scope: Html/Css support tables + logging; Acceptance: warnings are once-per-(tag/property) per doc; Tests: parser tests.
 - [ ] **[M4 P2] T-PERF-1: Retained Display List (Paint Cache)**; Goal: avoid rebuilding paint commands for static content; Scope: renderer/engine; Acceptance: unchanged output with fewer rebuilds; Tests: renderer tests.
