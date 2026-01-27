@@ -404,7 +404,10 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                 border_color = value;
                 continue;
             }
-            if (!border_style && value.type == Value::Type::Identifier && value.ident == ValueNames::Solid) {
+            if (!border_style && value.type == Value::Type::Identifier &&
+                (value.ident == ValueNames::Solid || value.ident == ValueNames::Outset ||
+                 value.ident == ValueNames::Inset || value.ident == ValueNames::Ridge ||
+                 value.ident == ValueNames::Groove)) {
                 border_style = value;
             }
         }

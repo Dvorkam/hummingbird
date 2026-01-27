@@ -25,7 +25,7 @@ void RenderObject::paint_self(IGraphicsContext& context, const Point& offset) co
         Layout::Rect background{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
         context.fill_rect(background, *style->background);
     }
-    if (style && style->border_style == Css::ComputedStyle::BorderStyle::Solid) {
+    if (style && style->border_style != Css::ComputedStyle::BorderStyle::None) {
         Layout::Rect absolute{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
         const auto& bw = style->border_width;
         const auto& color = style->border_color;

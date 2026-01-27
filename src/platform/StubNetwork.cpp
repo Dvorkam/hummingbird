@@ -101,6 +101,7 @@ std::string build_stub_body(const std::string& url) {
       .font-demo-italic { font-style: italic; }
       .font-demo-bold-italic { font-weight: bold; font-style: italic; }
       .var-demo { color: var(--brand); background-color: var(--panel, #444); padding: 4px; }
+      .border-style-demo { border-width: 3px; border-style: outset; border-color: #5b3a12; padding: 6px; }
       .table-align-demo { border: 1px solid #bbb; }
       .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
       .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
@@ -124,6 +125,11 @@ aligned.</pre>
     <div class="section">
       <h2>CSS Variables</h2>
       <p class="var-demo">Custom property demo using var().</p>
+    </div>
+
+    <div class="section">
+      <h2>Border Styles</h2>
+      <p class="border-style-demo">Outset border demo.</p>
     </div>
 
     <div class="section">

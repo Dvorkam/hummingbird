@@ -22,7 +22,7 @@ struct ComputedStyle {
     Float float_type = Float::None;
     enum class TextAlign { Left, Center, Right };
     TextAlign text_align = TextAlign::Left;
-    enum class BorderStyle { None, Solid };
+    enum class BorderStyle { None, Solid, Outset, Inset, Ridge, Groove };
     BorderStyle border_style = BorderStyle::None;
     EdgeSizes border_width;
     Color border_color{0, 0, 0, 255};

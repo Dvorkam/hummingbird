@@ -213,6 +213,14 @@ void apply_border_style(ComputedStyle& style, const Value& value) {
     if (value.type != Value::Type::Identifier) return;
     if (value.ident == ValueNames::Solid) {
         style.border_style = ComputedStyle::BorderStyle::Solid;
+    } else if (value.ident == ValueNames::Outset) {
+        style.border_style = ComputedStyle::BorderStyle::Outset;
+    } else if (value.ident == ValueNames::Inset) {
+        style.border_style = ComputedStyle::BorderStyle::Inset;
+    } else if (value.ident == ValueNames::Ridge) {
+        style.border_style = ComputedStyle::BorderStyle::Ridge;
+    } else if (value.ident == ValueNames::Groove) {
+        style.border_style = ComputedStyle::BorderStyle::Groove;
     }
 }
 

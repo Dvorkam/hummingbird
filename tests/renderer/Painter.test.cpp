@@ -124,6 +124,33 @@ TEST(PainterTest, PaintsBordersFromComputedStyle) {
     EXPECT_GE(context.fill_calls.size(), 4u);
 }
 
+TEST(PainterTest, PaintsOutsetBordersFromComputedStyle) {
+    std::string_view html = "<html><body><div>Box</div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "div { border-width: 2px; border-style: outset; border-color: red; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_GE(context.fill_calls.size(), 4u);
+}
+
 namespace {
 bool rect_matches(const Hummingbird::Layout::Rect& a, const Hummingbird::Layout::Rect& b) {
     constexpr float kEpsilon = 0.01f;
