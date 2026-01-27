@@ -100,6 +100,9 @@ std::string build_stub_body(const std::string& url) {
       .font-demo-bold { font-weight: bold; }
       .font-demo-italic { font-style: italic; }
       .font-demo-bold-italic { font-weight: bold; font-style: italic; }
+      .table-align-demo { border: 1px solid #bbb; }
+      .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
+      .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -162,6 +165,13 @@ aligned.</pre>
           <tr><td>Layout</td><td>Supported</td></tr>
           <tr><td>Paint</td><td>Supported</td></tr>
         </tbody>
+      </table>
+      <p>Cell block alignment demo:</p>
+      <table class="table-align-demo" width="240">
+        <tr>
+          <td align="right"><div class="cell-block">Right</div></td>
+          <td align="center"><div class="cell-block">Center</div></td>
+        </tr>
       </table>
     </div>
 
