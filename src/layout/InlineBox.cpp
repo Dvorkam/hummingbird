@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/utils/Log.h"
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/inline/InlineRef.h"
 #include "layout/inline/InlineTypes.h"
@@ -87,6 +88,14 @@ void InlineBox::apply_inline_fragment(size_t index, const InlineFragment& fragme
     m_rect.y = fragment.rect.y;
     m_rect.width = run.width;
     m_rect.height = run.height;
+    const auto* style = get_computed_style();
+    if (style && style->background.has_value()) {
+        const auto& bg = *style->background;
+        HB_LOG_DEBUG("[inline-bg] atomic rect=(" << m_rect.x << "," << m_rect.y << "," << m_rect.width << ","
+                                                 << m_rect.height << ") bg=(" << static_cast<int>(bg.r) << ","
+                                                 << static_cast<int>(bg.g) << "," << static_cast<int>(bg.b) << ","
+                                                 << static_cast<int>(bg.a) << ")");
+    }
 }
 
 void InlineBox::begin_inline_fragments() {
@@ -138,6 +147,10 @@ void InlineBox::end_inline_fragments() {
     }
     flush_line();
     m_background_fragments.clear();
+    const auto& bg = *style->background;
+    HB_LOG_DEBUG("[inline-bg] fragments=" << m_background_lines.size() << " bg=(" << static_cast<int>(bg.r) << ","
+                                          << static_cast<int>(bg.g) << "," << static_cast<int>(bg.b) << ","
+                                          << static_cast<int>(bg.a) << ")");
 }
 
 void InlineBox::finalize_inline_layout() {
