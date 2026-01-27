@@ -3,10 +3,12 @@
 #include <stddef.h>
 
 #include <memory>
+#include <vector>
 
 #include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 #include "layout/inline/IInlineParticipant.h"
+#include "layout/inline/InlineTypes.h"
 
 namespace Hummingbird {
 namespace DOM {
@@ -23,6 +25,7 @@ public:
     }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
+    void paint_self(IGraphicsContext& context, const Point& offset) const override;
 
     IInlineParticipant* as_inline_participant() override { return this; }
     const IInlineParticipant* as_inline_participant() const override { return this; }
@@ -32,6 +35,9 @@ protected:
     void measure_inline(IGraphicsContext& context) override;
     void collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) override;
     void apply_inline_fragment(size_t index, const InlineFragment& fragment, const InlineRun& run) override;
+    void begin_inline_fragments() override;
+    void record_inline_fragment(const InlineFragment& fragment, const InlineRun& run) override;
+    void end_inline_fragments() override;
     void finalize_inline_layout() override;
     void offset_inline_layout(float dx, float dy) override {
         m_rect.x += dx;
@@ -44,6 +50,8 @@ private:
     bool m_inline_atomic = false;
     float m_inline_measured_width = 0.0f;
     float m_inline_measured_height = 0.0f;
+    std::vector<InlineFragment> m_background_fragments;
+    std::vector<Rect> m_background_lines;
 };
 
 }  // namespace Hummingbird::Layout

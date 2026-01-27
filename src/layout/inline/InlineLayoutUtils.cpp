@@ -118,8 +118,31 @@ InlineLayoutResult apply_inline_fragments(const std::vector<InlineLine>& lines, 
     }
 
     result.heights.reserve(lines.size());
+    std::vector<RenderObject*> background_owners;
+    background_owners.reserve(runs.size());
+    for (const auto& run : runs) {
+        if (!run.background_owner) {
+            continue;
+        }
+        if (std::find(background_owners.begin(), background_owners.end(), run.background_owner) ==
+            background_owners.end()) {
+            background_owners.push_back(run.background_owner);
+        }
+    }
+    for (auto* owner : background_owners) {
+        if (auto inl = owner->Inline()) {
+            inl.get().begin_inline_fragments();
+        }
+    }
     if (capture_fragments) {
         result.fragments.reserve(runs.size());
+        for (const auto& run : runs) {
+            if (run.owner) {
+                if (auto inl = run.owner->Inline()) {
+                    inl.get().begin_inline_fragments();
+                }
+            }
+        }
     }
     size_t last_line = lines.size() - 1;
 
@@ -129,10 +152,22 @@ InlineLayoutResult apply_inline_fragments(const std::vector<InlineLine>& lines, 
             InlineFragment resolved = fragment;
             resolved.rect.x += base_x;
             resolved.rect.y += base_y;
+            auto& run = runs[resolved.run_index];
+            if (run.background_owner) {
+                if (auto inl = run.background_owner->Inline()) {
+                    inl.get().record_inline_fragment(resolved, run);
+                }
+            }
             if (capture_fragments) {
                 result.fragments.push_back(resolved);
             }
-            auto& run = runs[resolved.run_index];
+            if (capture_fragments) {
+                if (run.owner) {
+                    if (auto inl = run.owner->Inline()) {
+                        inl.get().record_inline_fragment(resolved, run);
+                    }
+                }
+            }
             if (run.owner) {
                 if (auto inl = run.owner->Inline()) {
                     inl.get().apply_inline_fragment(run.local_index, resolved, run);
@@ -142,6 +177,21 @@ InlineLayoutResult apply_inline_fragments(const std::vector<InlineLine>& lines, 
                 float extent = resolved.rect.x + resolved.rect.width - base_x;
                 result.last_line_width = std::max(result.last_line_width, extent);
             }
+        }
+    }
+
+    if (capture_fragments) {
+        for (const auto& run : runs) {
+            if (run.owner) {
+                if (auto inl = run.owner->Inline()) {
+                    inl.get().end_inline_fragments();
+                }
+            }
+        }
+    }
+    for (auto* owner : background_owners) {
+        if (auto inl = owner->Inline()) {
+            inl.get().end_inline_fragments();
         }
     }
 

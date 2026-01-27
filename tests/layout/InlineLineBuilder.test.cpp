@@ -7,9 +7,9 @@ using Hummingbird::Layout::InlineRun;
 
 TEST(InlineLineBuilderTest, WrapsRunsAcrossLines) {
     InlineLineBuilder builder;
-    builder.add_run({nullptr, 0, "", 6.0f, 10.0f});
-    builder.add_run({nullptr, 0, "", 6.0f, 10.0f});
-    builder.add_run({nullptr, 0, "", 4.0f, 12.0f});
+    builder.add_run({nullptr, nullptr, 0, "", 6.0f, 10.0f});
+    builder.add_run({nullptr, nullptr, 0, "", 6.0f, 10.0f});
+    builder.add_run({nullptr, nullptr, 0, "", 4.0f, 12.0f});
 
     auto lines = builder.layout(10.0f);
     ASSERT_EQ(lines.size(), 2u);
@@ -32,8 +32,8 @@ TEST(InlineLineBuilderTest, WrapsRunsAcrossLines) {
 
 TEST(InlineLineBuilderTest, HonorsStartOffset) {
     InlineLineBuilder builder;
-    builder.add_run({nullptr, 0, "", 6.0f, 10.0f});
-    builder.add_run({nullptr, 0, "", 6.0f, 10.0f});
+    builder.add_run({nullptr, nullptr, 0, "", 6.0f, 10.0f});
+    builder.add_run({nullptr, nullptr, 0, "", 6.0f, 10.0f});
 
     auto lines = builder.layout(10.0f, 4.0f);
     ASSERT_EQ(lines.size(), 2u);
