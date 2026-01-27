@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 
+#include "layout/FloatLayoutUtils.h"
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/inline/InlineLayoutUtils.h"
 #include "layout/inline/InlineRef.h"
@@ -33,50 +34,12 @@ struct ChildMargins {
     bool right_auto;
 };
 
-struct FloatBox {
-    Rect rect;
-    Css::ComputedStyle::Float side = Css::ComputedStyle::Float::None;
-};
-
-struct FloatBand {
-    float left = 0.0f;
-    float right = 0.0f;
-    float clear_y = 0.0f;
-    bool has_overlap = false;
-};
-
 constexpr float kInlineAtomicLayoutWidth = 100000.0f;
-constexpr float kFloatLineHeightFallback = 16.0f;
 
 ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
     return {style ? style->margin.left : 0.0f,       style ? style->margin.right : 0.0f,
             style ? style->margin.top : 0.0f,        style ? style->margin.bottom : 0.0f,
             style ? style->margin_left_auto : false, style ? style->margin_right_auto : false};
-}
-
-bool overlaps_vertical(const Rect& rect, float y, float height) {
-    return y < rect.y + rect.height && y + height > rect.y;
-}
-
-FloatBand compute_float_band(const std::vector<FloatBox>& floats, float y, float height, float content_left,
-                             float content_right) {
-    FloatBand band{content_left, content_right, y, false};
-    for (const auto& f : floats) {
-        if (!overlaps_vertical(f.rect, y, height)) {
-            continue;
-        }
-        band.has_overlap = true;
-        band.clear_y = std::max(band.clear_y, f.rect.y + f.rect.height);
-        if (f.side == Css::ComputedStyle::Float::Left) {
-            band.left = std::max(band.left, f.rect.x + f.rect.width);
-        } else if (f.side == Css::ComputedStyle::Float::Right) {
-            band.right = std::min(band.right, f.rect.x);
-        }
-    }
-    if (band.right < band.left) {
-        band.right = band.left;
-    }
-    return band;
 }
 
 void flush_line(LineCursor& cursor, float inset_left) {
@@ -118,9 +81,8 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
 }
 
 void layout_float_child(IGraphicsContext& context, RenderObject& child, const ChildMargins& margins,
-                        const Metrics::BoxMetrics& metrics, LineCursor& cursor,
-                        Css::ComputedStyle::Float float_type, std::vector<FloatBox>& floats,
-                        float& max_float_bottom) {
+                        const Metrics::BoxMetrics& metrics, LineCursor& cursor, Css::ComputedStyle::Float float_type,
+                        std::vector<FloatLayout::FloatBox>& floats, float& max_float_bottom) {
     flush_line(cursor, metrics.insets.left);
 
     float available_width = metrics.content_width - margins.left - margins.right;
@@ -130,32 +92,15 @@ void layout_float_child(IGraphicsContext& context, RenderObject& child, const Ch
     Rect child_bounds = {metrics.insets.left, cursor.y, available_width, 0.0f};
     child.layout(context, child_bounds);
 
-    float float_y = cursor.y + margins.top;
-    float float_height = child.get_rect().height + margins.top + margins.bottom;
     float content_left = metrics.insets.left;
     float content_right = metrics.insets.left + metrics.content_width;
-
-    FloatBand band = compute_float_band(floats, float_y, float_height, content_left, content_right);
-    float required_width = child.get_rect().width + margins.left + margins.right;
-    while (band.has_overlap && (band.right - band.left) < required_width && band.clear_y > float_y) {
-        float_y = band.clear_y;
-        band = compute_float_band(floats, float_y, float_height, content_left, content_right);
-    }
-
-    float float_x = content_left;
-    if (float_type == Css::ComputedStyle::Float::Left) {
-        float_x = band.left + margins.left;
-    } else if (float_type == Css::ComputedStyle::Float::Right) {
-        float_x = band.right - margins.right - child.get_rect().width;
-    }
-
-    child.set_rect({float_x, float_y, child.get_rect().width, child.get_rect().height});
-
-    Rect float_rect{float_x - margins.left, float_y - margins.top,
-                    child.get_rect().width + margins.left + margins.right,
-                    child.get_rect().height + margins.top + margins.bottom};
-    floats.push_back({float_rect, float_type});
-    max_float_bottom = std::max(max_float_bottom, float_rect.y + float_rect.height);
+    FloatLayout::FloatPlacement placement =
+        FloatLayout::place_float(floats, float_type, cursor.y, child.get_rect().width, child.get_rect().height,
+                                 margins.left, margins.right, margins.top, margins.bottom, content_left,
+                                 content_right);
+    child.set_rect(placement.rect);
+    floats.push_back({placement.margin_rect, float_type});
+    max_float_bottom = std::max(max_float_bottom, placement.margin_rect.y + placement.margin_rect.height);
 }
 
 void layout_inline_group(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
@@ -181,7 +126,7 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     Metrics::BoxMetrics metrics =
         Metrics::compute_box_metrics(style, bounds, m_rect, Metrics::BoxWidthPolicy::WidthAndMax);
     LineCursor cursor{metrics.insets.left, metrics.insets.top, 0.0f};
-    std::vector<FloatBox> floats;
+    std::vector<FloatLayout::FloatBox> floats;
     float max_float_bottom = cursor.y;
 
     size_t i = 0;
@@ -200,9 +145,9 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         if (!child->Inline()) {
             // Control objects like <br> need to break the line before stacking blocks.
             if (!floats.empty()) {
-                FloatBand band =
-                    compute_float_band(floats, cursor.y, kFloatLineHeightFallback, metrics.insets.left,
-                                       metrics.insets.left + metrics.content_width);
+                FloatLayout::FloatBand band = FloatLayout::compute_float_band(
+                    floats, cursor.y, FloatLayout::kFloatLineHeightFallback, metrics.insets.left,
+                    metrics.insets.left + metrics.content_width);
                 if (band.has_overlap && band.clear_y > cursor.y) {
                     cursor.y = band.clear_y;
                 }
@@ -218,16 +163,16 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
             align = Css::ComputedStyle::TextAlign::Left;
         }
         float line_height_hint =
-            std::max(cursor.line_height, style ? style->font_size : kFloatLineHeightFallback);
+            std::max(cursor.line_height, style ? style->font_size : FloatLayout::kFloatLineHeightFallback);
         if (line_height_hint <= 0.0f) {
-            line_height_hint = kFloatLineHeightFallback;
+            line_height_hint = FloatLayout::kFloatLineHeightFallback;
         }
-        FloatBand band = compute_float_band(floats, cursor.y, line_height_hint, metrics.insets.left,
-                                            metrics.insets.left + metrics.content_width);
+        FloatLayout::FloatBand band = FloatLayout::compute_float_band(
+            floats, cursor.y, line_height_hint, metrics.insets.left, metrics.insets.left + metrics.content_width);
         if (band.has_overlap && (band.right - band.left) <= 0.0f && band.clear_y > cursor.y) {
             cursor.y = band.clear_y;
-            band = compute_float_band(floats, cursor.y, line_height_hint, metrics.insets.left,
-                                      metrics.insets.left + metrics.content_width);
+            band = FloatLayout::compute_float_band(floats, cursor.y, line_height_hint, metrics.insets.left,
+                                                   metrics.insets.left + metrics.content_width);
         }
         float wrap_width =
             (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) ? 0.0f : (band.right - band.left);

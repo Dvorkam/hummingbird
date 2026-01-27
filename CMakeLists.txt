@@ -105,6 +105,7 @@ add_library(Layout STATIC
     src/layout/RenderFactory.cpp
     src/layout/TreeBuilder.cpp
     src/layout/BlockBox.cpp
+    src/layout/FloatLayoutUtils.cpp
     src/layout/InlineBox.cpp
     src/layout/TextBox.cpp
     src/layout/InlineLineBuilder.cpp
