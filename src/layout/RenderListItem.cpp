@@ -64,15 +64,18 @@ void flush_line(LineCursor& cursor, float inset_left, float marker_offset) {
     cursor.line_height = 0.0f;
 }
 
-void layout_block_child(IGraphicsContext& context, RenderObject& child, const ChildMargins& margins,
-                        const Metrics::BoxMetrics& metrics, float marker_offset, LineCursor& cursor) {
+void layout_block_child(IGraphicsContext& context, RenderObject& child, const ChildMargins& margins, LineCursor& cursor,
+                        float content_left, float content_width) {
     if (margins.top > 0.0f) {
         cursor.y += margins.top;
     }
-    flush_line(cursor, metrics.insets.left, marker_offset);
-    float child_x = metrics.insets.left + marker_offset + margins.left;
+    flush_line(cursor, content_left, 0.0f);
+    float child_x = content_left + margins.left;
     float child_y = cursor.y;
-    float available_width = metrics.content_width - margins.left - margins.right;
+    float available_width = content_width - margins.left - margins.right;
+    if (available_width < 0.0f) {
+        available_width = 0.0f;
+    }
     Rect child_bounds = {child_x, child_y, available_width, 0.0f};
     child.layout(context, child_bounds);
     cursor.y = child_y + child.get_rect().height + margins.bottom;
@@ -174,15 +177,36 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         }
 
         if (!child->Inline()) {
+            float content_left = metrics.insets.left + marker_offset;
+            float content_width = metrics.content_width;
             if (!floats.empty()) {
-                FloatLayout::FloatBand band = FloatLayout::compute_float_band(
-                    floats, cursor.y, FloatLayout::kFloatLineHeightFallback, metrics.insets.left + marker_offset,
-                    metrics.insets.left + marker_offset + metrics.content_width);
-                if (band.has_overlap && band.clear_y > cursor.y) {
-                    cursor.y = band.clear_y;
+                float line_height_hint = FloatLayout::kFloatLineHeightFallback;
+                if (child_style) {
+                    if (child_style->line_height > 0.0f) {
+                        line_height_hint = child_style->line_height;
+                    } else {
+                        line_height_hint = child_style->font_size;
+                    }
                 }
+                if (line_height_hint <= 0.0f) {
+                    line_height_hint = FloatLayout::kFloatLineHeightFallback;
+                }
+                float margin_top = margins.top > 0.0f ? margins.top : 0.0f;
+                float band_y = cursor.y + margin_top;
+                FloatLayout::FloatBand band = FloatLayout::compute_float_band(
+                    floats, band_y, line_height_hint, metrics.insets.left + marker_offset,
+                    metrics.insets.left + marker_offset + metrics.content_width);
+                if (band.has_overlap && (band.right - band.left) <= 0.0f && band.clear_y > band_y) {
+                    cursor.y = band.clear_y;
+                    band_y = cursor.y + margin_top;
+                    band = FloatLayout::compute_float_band(floats, band_y, line_height_hint,
+                                                           metrics.insets.left + marker_offset,
+                                                           metrics.insets.left + marker_offset + metrics.content_width);
+                }
+                content_left = band.left;
+                content_width = band.right - band.left;
             }
-            layout_block_child(context, *child, margins, metrics, marker_offset, cursor);
+            layout_block_child(context, *child, margins, cursor, content_left, content_width);
             update_marker_for_block(marker_y_set, marker_y, metrics.insets.top);
             ++i;
             continue;

@@ -66,20 +66,23 @@ void flush_line(LineCursor& cursor, float inset_left) {
     cursor.line_height = 0.0f;
 }
 
-void layout_block_child(IGraphicsContext& context, RenderObject& child, const ChildMargins& margins,
-                        const Metrics::BoxMetrics& metrics, LineCursor& cursor) {
+void layout_block_child(IGraphicsContext& context, RenderObject& child, const ChildMargins& margins, LineCursor& cursor,
+                        float content_left, float content_width) {
     if (margins.top > 0.0f) {
         cursor.y += margins.top;
     }
-    flush_line(cursor, metrics.insets.left);
-    float child_x = metrics.insets.left + margins.left;
+    flush_line(cursor, content_left);
+    float child_x = content_left + margins.left;
     float child_y = cursor.y;
     float available_width =
-        metrics.content_width - (margins.left_auto ? 0.0f : margins.left) - (margins.right_auto ? 0.0f : margins.right);
+        content_width - (margins.left_auto ? 0.0f : margins.left) - (margins.right_auto ? 0.0f : margins.right);
+    if (available_width < 0.0f) {
+        available_width = 0.0f;
+    }
     Rect child_bounds = {child_x, child_y, available_width, 0.0f};
     child.layout(context, child_bounds);
     if (margins.left_auto || margins.right_auto) {
-        float remaining = metrics.content_width - child.get_rect().width - (margins.left_auto ? 0.0f : margins.left) -
+        float remaining = content_width - child.get_rect().width - (margins.left_auto ? 0.0f : margins.left) -
                           (margins.right_auto ? 0.0f : margins.right);
         if (remaining < 0.0f) remaining = 0.0f;
         float left_margin = margins.left;
@@ -92,7 +95,7 @@ void layout_block_child(IGraphicsContext& context, RenderObject& child, const Ch
         } else if (margins.right_auto) {
             right_margin = remaining;
         }
-        child_x = metrics.insets.left + left_margin;
+        child_x = content_left + left_margin;
         child.set_rect({child_x, child.get_rect().y, child.get_rect().width, child.get_rect().height});
     }
     cursor.y = child_y + child.get_rect().height + margins.bottom;
@@ -160,16 +163,34 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         }
 
         if (!child->Inline()) {
-            // Control objects like <br> need to break the line before stacking blocks.
+            float content_left = metrics.insets.left;
+            float content_width = metrics.content_width;
             if (!floats.empty()) {
-                FloatLayout::FloatBand band =
-                    FloatLayout::compute_float_band(floats, cursor.y, FloatLayout::kFloatLineHeightFallback,
-                                                    metrics.insets.left, metrics.insets.left + metrics.content_width);
-                if (band.has_overlap && band.clear_y > cursor.y) {
-                    cursor.y = band.clear_y;
+                float line_height_hint = FloatLayout::kFloatLineHeightFallback;
+                if (child_style) {
+                    if (child_style->line_height > 0.0f) {
+                        line_height_hint = child_style->line_height;
+                    } else {
+                        line_height_hint = child_style->font_size;
+                    }
                 }
+                if (line_height_hint <= 0.0f) {
+                    line_height_hint = FloatLayout::kFloatLineHeightFallback;
+                }
+                float margin_top = margins.top > 0.0f ? margins.top : 0.0f;
+                float band_y = cursor.y + margin_top;
+                FloatLayout::FloatBand band = FloatLayout::compute_float_band(
+                    floats, band_y, line_height_hint, metrics.insets.left, metrics.insets.left + metrics.content_width);
+                if (band.has_overlap && (band.right - band.left) <= 0.0f && band.clear_y > band_y) {
+                    cursor.y = band.clear_y;
+                    band_y = cursor.y + margin_top;
+                    band = FloatLayout::compute_float_band(floats, band_y, line_height_hint, metrics.insets.left,
+                                                           metrics.insets.left + metrics.content_width);
+                }
+                content_left = band.left;
+                content_width = band.right - band.left;
             }
-            layout_block_child(context, *child, margins, metrics, cursor);
+            layout_block_child(context, *child, margins, cursor, content_left, content_width);
             ++i;
             continue;
         }

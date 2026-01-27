@@ -136,6 +136,39 @@ TEST(BlockBoxLayoutTest, FloatLeftShiftsInlineContent) {
     EXPECT_GE(text_rect.x, 50.0f);
 }
 
+TEST(BlockBoxLayoutTest, BlockStaysBesideFloatWhenRoom) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, "div");
+    auto img = DomFactory::create_element(arena, "img");
+    auto hr = DomFactory::create_element(arena, "hr");
+    img->set_attribute(Attr::Width, "88");
+    img->set_attribute(Attr::Height, "31");
+    root->append_child(std::move(img));
+    root->append_child(std::move(hr));
+
+    auto root_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    root->set_computed_style(root_style);
+
+    auto img_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    img_style->float_type = Hummingbird::Css::ComputedStyle::Float::Right;
+    root->get_children()[0]->set_computed_style(img_style);
+
+    auto render_root = BlockBox::create(root.get());
+    auto render_img = RenderImage::create(dynamic_cast<Element*>(root->get_children()[0].get()));
+    auto render_rule = RenderRule::create(root->get_children()[1].get());
+    render_root->append_child(std::move(render_img));
+    render_root->append_child(std::move(render_rule));
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect bounds{0, 0, 200, 0};
+    render_root->layout(context, bounds);
+
+    const auto& rule_rect = render_root->get_children()[1]->get_rect();
+    EXPECT_FLOAT_EQ(rule_rect.x, 0.0f);
+    EXPECT_FLOAT_EQ(rule_rect.y, 0.0f);
+    EXPECT_FLOAT_EQ(rule_rect.width, 112.0f);
+}
+
 TEST(BlockBoxLayoutTest, FloatImageInsideLinkIsFloated) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, "div");
