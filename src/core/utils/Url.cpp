@@ -97,6 +97,12 @@ std::string normalize_input_url(std::string_view input) {
     input = Utils::trim_ascii_whitespace(input);
     if (input.empty()) return {};
 
+    if (input.rfind("//", 0) == 0) {
+        std::string normalized("https:");
+        normalized.append(input);
+        return normalized;
+    }
+
     if (has_scheme(input)) {
         return std::string(input);
     }

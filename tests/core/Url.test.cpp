@@ -12,6 +12,10 @@ TEST(UrlTest, NormalizeKeepsExistingScheme) {
     EXPECT_EQ(Hummingbird::Core::normalize_input_url("https://example.com"), "https://example.com");
 }
 
+TEST(UrlTest, NormalizeHandlesSchemeRelative) {
+    EXPECT_EQ(Hummingbird::Core::normalize_input_url("//duckduckgo.com/"), "https://duckduckgo.com/");
+}
+
 TEST(UrlTest, ParseAbsoluteUrlSplitsParts) {
     auto parsed = Hummingbird::Core::parse_absolute_url("https://Example.com:8080/path");
     ASSERT_TRUE(parsed.has_value());
