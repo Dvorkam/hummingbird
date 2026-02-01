@@ -376,6 +376,30 @@ TEST(StyleEngineTest, SupportsMarginAutoAndMaxWidth) {
     EXPECT_FLOAT_EQ(style->max_width.value(), 200.0f);
 }
 
+TEST(StyleEngineTest, AppliesMinMaxSizeProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "box");
+
+    std::string css = R"(.box { min-width: 80px; min-height: 20px; max-width: 160px; max-height: 40px; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->min_width.has_value());
+    EXPECT_FLOAT_EQ(style->min_width.value(), 80.0f);
+    ASSERT_TRUE(style->min_height.has_value());
+    EXPECT_FLOAT_EQ(style->min_height.value(), 20.0f);
+    ASSERT_TRUE(style->max_width.has_value());
+    EXPECT_FLOAT_EQ(style->max_width.value(), 160.0f);
+    ASSERT_TRUE(style->max_height.has_value());
+    EXPECT_FLOAT_EQ(style->max_height.value(), 40.0f);
+}
+
 TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

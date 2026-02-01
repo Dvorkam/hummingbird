@@ -115,6 +115,7 @@ std::string build_stub_body(const std::string& url) {
       .box-sizing-border { box-sizing: border-box; background-color: #eaf5ff; }
       .transform-demo { width: 140px; padding: 6px; border: 1px solid #666; background-color: #f8f8f8; }
       .transform-shift { transform: translate(18px, 6px); background-color: #e9f4ff; }
+      .minmax-demo { width: 120px; min-width: 180px; max-width: 200px; min-height: 28px; max-height: 40px; padding: 4px; border: 1px solid #666; background-color: #f0fff0; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -207,6 +208,11 @@ aligned.</pre>
       <h2>Transforms</h2>
       <p class="transform-demo">Original position.</p>
       <p class="transform-demo transform-shift">Translated by transform.</p>
+    </div>
+
+    <div class="section">
+      <h2>Min/Max Sizes</h2>
+      <p class="minmax-demo">Min/Max size clamp demo.</p>
     </div>
 
     <div class="section">

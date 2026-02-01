@@ -53,6 +53,13 @@ inline float resolve_border_box_width(const Css::ComputedStyle* style, float wid
     return width + insets.left + insets.right;
 }
 
+inline float resolve_border_box_height(const Css::ComputedStyle* style, float height, const Insets& insets) {
+    if (style && style->box_sizing == Css::ComputedStyle::BoxSizing::BorderBox) {
+        return height;
+    }
+    return height + insets.top + insets.bottom;
+}
+
 inline BoxMetrics compute_box_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect,
                                       BoxWidthPolicy width_policy = BoxWidthPolicy::WidthOnly,
                                       float extra_width = 0.0f) {
@@ -62,6 +69,10 @@ inline BoxMetrics compute_box_metrics(const Css::ComputedStyle* style, const Rec
 
     if (style && width_policy != BoxWidthPolicy::Ignore && style->width.has_value()) {
         target_width = std::min(target_width, *style->width);
+        constrained = true;
+    }
+    if (style && width_policy != BoxWidthPolicy::Ignore && style->min_width.has_value()) {
+        target_width = std::max(target_width, *style->min_width);
         constrained = true;
     }
     if (style && width_policy == BoxWidthPolicy::WidthAndMax && style->max_width.has_value()) {

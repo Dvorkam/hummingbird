@@ -135,6 +135,37 @@ TEST(LayoutStyleIntegrationTest, HonorsBorderBoxSizingOnBlocks) {
     EXPECT_FLOAT_EQ(rect.width, 100.0f);
 }
 
+TEST(LayoutStyleIntegrationTest, HonorsMinMaxSizes) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto div = DomFactory::create_element(arena, "div");
+    div->append_child(DomFactory::create_text(arena, "Hi"));
+    dom_root->append_child(std::move(div));
+
+    std::string css = R"(
+        div { width: 50px; min-width: 120px; max-width: 140px; min-height: 30px; max-height: 40px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& children = render_root->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    const auto& rect = children[0]->get_rect();
+    EXPECT_FLOAT_EQ(rect.width, 120.0f);
+    EXPECT_GE(rect.height, 30.0f);
+    EXPECT_LE(rect.height, 40.0f);
+}
+
 TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
     // DOM: <body><p><span>A</span><span>B</span></p></body>
     Hummingbird::Core::ArenaAllocator arena(4096);

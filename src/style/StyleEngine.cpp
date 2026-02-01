@@ -741,7 +741,10 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
 
     apply_optional_length_if_present(properties, Property::Width, style.width, style.font_size);
     apply_optional_length_if_present(properties, Property::Height, style.height, style.font_size);
+    apply_optional_length_if_present(properties, Property::MinWidth, style.min_width, style.font_size);
+    apply_optional_length_if_present(properties, Property::MinHeight, style.min_height, style.font_size);
     apply_optional_length_if_present(properties, Property::MaxWidth, style.max_width, style.font_size);
+    apply_optional_length_if_present(properties, Property::MaxHeight, style.max_height, style.font_size);
     apply_optional_length_if_present(properties, Property::Top, style.top, style.font_size);
     apply_optional_length_if_present(properties, Property::Right, style.right, style.font_size);
     apply_optional_length_if_present(properties, Property::Bottom, style.bottom, style.font_size);
@@ -859,7 +862,10 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.transform_translate_y = source.transform_translate_y;
     target.width = source.width;
     target.height = source.height;
+    target.min_width = source.min_width;
+    target.min_height = source.min_height;
     target.max_width = source.max_width;
+    target.max_height = source.max_height;
     target.display = source.display;
     target.border_width = source.border_width;
     target.border_color = source.border_color;

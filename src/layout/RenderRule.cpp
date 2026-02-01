@@ -19,6 +19,9 @@ void RenderRule::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     if (style && style->width.has_value()) {
         width = *style->width;
     }
+    if (style && style->min_width.has_value()) {
+        width = std::max(width, *style->min_width);
+    }
     if (style && style->max_width.has_value()) {
         width = std::min(width, *style->max_width);
     }
@@ -35,6 +38,12 @@ void RenderRule::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
         if (border_height > 0.0f) {
             h = border_height;
         }
+    }
+    if (style && style->min_height.has_value()) {
+        h = std::max(h, *style->min_height);
+    }
+    if (style && style->max_height.has_value()) {
+        h = std::min(h, *style->max_height);
     }
     if (h < 0.0f) {
         h = 0.0f;

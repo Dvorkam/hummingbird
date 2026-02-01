@@ -80,6 +80,23 @@ LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedS
         }
     }
 
+    if (style) {
+        if (style->min_width.has_value()) {
+            total_width = std::max(total_width, Metrics::resolve_border_box_width(style, *style->min_width, insets));
+        }
+        if (style->max_width.has_value()) {
+            total_width = std::min(total_width, Metrics::resolve_border_box_width(style, *style->max_width, insets));
+        }
+        if (style->min_height.has_value()) {
+            total_height =
+                std::max(total_height, Metrics::resolve_border_box_height(style, *style->min_height, insets));
+        }
+        if (style->max_height.has_value()) {
+            total_height =
+                std::min(total_height, Metrics::resolve_border_box_height(style, *style->max_height, insets));
+        }
+    }
+
     return {total_width, total_height};
 }
 }  // namespace

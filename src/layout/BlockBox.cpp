@@ -230,6 +230,21 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     flush_line(cursor, metrics.insets.left);
     float content_bottom = std::max(cursor.y, max_float_bottom);
     m_rect.height = content_bottom + metrics.insets.bottom;
+
+    if (style) {
+        if (style->min_height.has_value()) {
+            float target = Metrics::resolve_border_box_height(style, *style->min_height, metrics.insets);
+            if (m_rect.height < target) {
+                m_rect.height = target;
+            }
+        }
+        if (style->max_height.has_value()) {
+            float target = Metrics::resolve_border_box_height(style, *style->max_height, metrics.insets);
+            if (m_rect.height > target) {
+                m_rect.height = target;
+            }
+        }
+    }
 }
 
 void InlineBlockBox::reset_inline_layout() {
@@ -276,9 +291,24 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
     if (style && style->height.has_value()) {
         Metrics::Insets insets = Metrics::compute_insets(style);
-        float target_height = *style->height + insets.top + insets.bottom;
+        float target_height = Metrics::resolve_border_box_height(style, *style->height, insets);
         if (m_rect.height < target_height) {
             m_rect.height = target_height;
+        }
+    }
+    if (style) {
+        Metrics::Insets insets = Metrics::compute_insets(style);
+        if (style->min_height.has_value()) {
+            float target_height = Metrics::resolve_border_box_height(style, *style->min_height, insets);
+            if (m_rect.height < target_height) {
+                m_rect.height = target_height;
+            }
+        }
+        if (style->max_height.has_value()) {
+            float target_height = Metrics::resolve_border_box_height(style, *style->max_height, insets);
+            if (m_rect.height > target_height) {
+                m_rect.height = target_height;
+            }
         }
     }
     if (style && style->width.has_value()) {

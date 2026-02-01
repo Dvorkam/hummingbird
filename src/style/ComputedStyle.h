@@ -39,7 +39,10 @@ struct ComputedStyle {
     float transform_translate_y = 0.0f;
     std::optional<float> width;
     std::optional<float> height;
+    std::optional<float> min_width;
+    std::optional<float> min_height;
     std::optional<float> max_width;
+    std::optional<float> max_height;
     std::optional<float> top;
     std::optional<float> right;
     std::optional<float> bottom;
