@@ -10,10 +10,9 @@
 #include "core/dom/ElementUtils.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
-#include "core/utils/ParseUtils.h"
 #include "html/HtmlAttributeNames.h"
-#include "layout/LayoutMetricsUtils.h"
 #include "layout/PaintUtils.h"
+#include "layout/ReplacedElementUtils.h"
 #include "layout/inline/InlineTypes.h"
 #include "style/ComputedStyle.h"
 
@@ -27,82 +26,6 @@ constexpr float kAltTextPadding = 4.0f;
 const Color kPlaceholderFill{230, 230, 230, 255};
 const Color kPlaceholderStroke{150, 150, 150, 255};
 
-struct LayoutSize {
-    float width;
-    float height;
-};
-
-std::optional<float> find_attribute_dimension(const DOM::Element& element, std::string_view name) {
-    if (const auto value = DOM::find_attribute_value(element, name)) {
-        return Core::Utils::parse_float(*value, Core::Utils::NumberParseMode::AllowTrailing);
-    }
-    return std::nullopt;
-}
-
-float resolve_width(const DOM::Element& element, const Css::ComputedStyle* style, const ImageBitmap* image) {
-    if (style && style->width.has_value()) {
-        return std::max(0.0f, *style->width);
-    }
-    if (auto attr = find_attribute_dimension(element, Hummingbird::Html::AttributeNames::Width)) {
-        return std::max(0.0f, *attr);
-    }
-    if (image && image->width > 0) {
-        return static_cast<float>(image->width);
-    }
-    return kDefaultImageWidth;
-}
-
-float resolve_height(const DOM::Element& element, const Css::ComputedStyle* style, const ImageBitmap* image) {
-    if (style && style->height.has_value()) {
-        return std::max(0.0f, *style->height);
-    }
-    if (auto attr = find_attribute_dimension(element, Hummingbird::Html::AttributeNames::Height)) {
-        return std::max(0.0f, *attr);
-    }
-    if (image && image->height > 0) {
-        return static_cast<float>(image->height);
-    }
-    return kDefaultImageHeight;
-}
-
-LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedStyle* style, const ImageBitmap* image) {
-    Metrics::Insets insets = Metrics::compute_insets(style);
-    float content_width = resolve_width(element, style, image);
-    float content_height = resolve_height(element, style, image);
-    float total_width = content_width + insets.left + insets.right;
-    float total_height = content_height + insets.top + insets.bottom;
-
-    if (style && style->box_sizing == Css::ComputedStyle::BoxSizing::BorderBox) {
-        if (style->width.has_value()) {
-            total_width = std::max(0.0f, *style->width);
-            content_width = Metrics::content_width(total_width, insets);
-        }
-        if (style->height.has_value()) {
-            total_height = std::max(0.0f, *style->height);
-            content_height = std::max(0.0f, total_height - insets.top - insets.bottom);
-        }
-    }
-
-    if (style) {
-        if (style->min_width.has_value()) {
-            total_width = std::max(total_width, Metrics::resolve_border_box_width(style, *style->min_width, insets));
-        }
-        if (style->max_width.has_value()) {
-            total_width = std::min(total_width, Metrics::resolve_border_box_width(style, *style->max_width, insets));
-        }
-        if (style->min_height.has_value()) {
-            total_height =
-                std::max(total_height, Metrics::resolve_border_box_height(style, *style->min_height, insets));
-        }
-        if (style->max_height.has_value()) {
-            total_height =
-                std::min(total_height, Metrics::resolve_border_box_height(style, *style->max_height, insets));
-        }
-    }
-
-    return {total_width, total_height};
-}
-
 const std::string& resolve_default_font_path() {
     static const std::string kDefaultFontPath =
         Hummingbird::Core::Utils::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
@@ -113,7 +36,16 @@ const std::string& resolve_default_font_path() {
 void RenderImage::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
-    LayoutSize size = compute_layout_size(*element, style, m_image);
+    ReplacedElementUtils::SizeOptions options;
+    options.default_width = kDefaultImageWidth;
+    options.default_height = kDefaultImageHeight;
+    if (m_image && m_image->width > 0) {
+        options.intrinsic_width = static_cast<float>(m_image->width);
+    }
+    if (m_image && m_image->height > 0) {
+        options.intrinsic_height = static_cast<float>(m_image->height);
+    }
+    ReplacedElementUtils::LayoutSize size = ReplacedElementUtils::compute_layout_size(*element, style, options);
 
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
@@ -182,7 +114,16 @@ void RenderImage::reset_inline_layout() {
 void RenderImage::measure_inline(IGraphicsContext& /*context*/) {
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
-    LayoutSize size = compute_layout_size(*element, style, m_image);
+    ReplacedElementUtils::SizeOptions options;
+    options.default_width = kDefaultImageWidth;
+    options.default_height = kDefaultImageHeight;
+    if (m_image && m_image->width > 0) {
+        options.intrinsic_width = static_cast<float>(m_image->width);
+    }
+    if (m_image && m_image->height > 0) {
+        options.intrinsic_height = static_cast<float>(m_image->height);
+    }
+    ReplacedElementUtils::LayoutSize size = ReplacedElementUtils::compute_layout_size(*element, style, options);
     m_inline_measured_width = size.width;
     m_inline_measured_height = size.height;
 }
