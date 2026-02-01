@@ -98,11 +98,8 @@ void RenderSvg::paint_self(IGraphicsContext& context, const Point& offset) const
         return;
     }
 
-    bool has_background = style && style->background.has_value();
-    if (!has_background) {
-        context.fill_rect(content, kPlaceholderFill);
-    }
-    PaintUtils::draw_outline(context, content, kPlaceholderStroke);
+    bool fill_placeholder = !(style && style->background.has_value());
+    PaintUtils::draw_placeholder_box(context, content, kPlaceholderFill, kPlaceholderStroke, fill_placeholder);
 }
 
 IInlineParticipant* RenderSvg::as_inline_participant() {

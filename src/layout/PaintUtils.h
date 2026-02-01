@@ -20,6 +20,14 @@ inline void draw_outline(IGraphicsContext& context, const Rect& rect, const Colo
     context.fill_rect(right, color);
 }
 
+inline void draw_placeholder_box(IGraphicsContext& context, const Rect& rect, const Color& fill_color,
+                                 const Color& stroke_color, bool fill_enabled = true, float stroke_thickness = 1.0f) {
+    if (fill_enabled) {
+        context.fill_rect(rect, fill_color);
+    }
+    draw_outline(context, rect, stroke_color, stroke_thickness);
+}
+
 inline float aligned_offset(float available, float size, Css::ComputedStyle::BackgroundPosition::Horizontal align) {
     if (align == Css::ComputedStyle::BackgroundPosition::Horizontal::Center) {
         return (available - size) * 0.5f;
@@ -117,6 +125,40 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
         if (!repeat_y) break;
         y += dest.height;
     } while (y < area.y + area.height);
+}
+
+inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, const Css::ComputedStyle* style,
+                                const ImageBitmap* background_image) {
+    if (!style) {
+        return;
+    }
+    if (style->background.has_value()) {
+        context.fill_rect(rect, *style->background);
+    }
+    if (background_image && style->background_image.has_value()) {
+        draw_background_image(context, rect, *background_image, *style);
+    }
+    if (style->border_style != Css::ComputedStyle::BorderStyle::None) {
+        const auto& bw = style->border_width;
+        const auto& color = style->border_color;
+
+        if (bw.top > 0.0f) {
+            Rect top{rect.x, rect.y, rect.width, bw.top};
+            context.fill_rect(top, color);
+        }
+        if (bw.bottom > 0.0f) {
+            Rect bottom{rect.x, rect.y + rect.height - bw.bottom, rect.width, bw.bottom};
+            context.fill_rect(bottom, color);
+        }
+        if (bw.left > 0.0f) {
+            Rect left{rect.x, rect.y, bw.left, rect.height};
+            context.fill_rect(left, color);
+        }
+        if (bw.right > 0.0f) {
+            Rect right{rect.x + rect.width - bw.right, rect.y, bw.right, rect.height};
+            context.fill_rect(right, color);
+        }
+    }
 }
 
 }  // namespace Hummingbird::Layout::PaintUtils

@@ -109,11 +109,8 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
         return;
     }
 
-    bool has_background = style && style->background.has_value();
-    if (!has_background) {
-        context.fill_rect(content, kPlaceholderFill);
-    }
-    PaintUtils::draw_outline(context, content, kPlaceholderStroke);
+    bool fill_placeholder = !(style && style->background.has_value());
+    PaintUtils::draw_placeholder_box(context, content, kPlaceholderFill, kPlaceholderStroke, fill_placeholder);
 
     std::string alt_text;
     if (const auto value = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::Alt)) {

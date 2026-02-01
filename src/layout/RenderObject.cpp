@@ -23,36 +23,8 @@ void RenderObject::paint(IGraphicsContext& context, const Point& offset) const {
 
 void RenderObject::paint_self(IGraphicsContext& context, const Point& offset) const {
     const auto* style = get_computed_style();
-    if (style && style->background.has_value()) {
-        Layout::Rect background{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
-        context.fill_rect(background, *style->background);
-    }
-    if (style && m_background_image && style->background_image.has_value()) {
-        Layout::Rect area{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
-        PaintUtils::draw_background_image(context, area, *m_background_image, *style);
-    }
-    if (style && style->border_style != Css::ComputedStyle::BorderStyle::None) {
-        Layout::Rect absolute{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
-        const auto& bw = style->border_width;
-        const auto& color = style->border_color;
-
-        if (bw.top > 0.0f) {
-            Layout::Rect top{absolute.x, absolute.y, absolute.width, bw.top};
-            context.fill_rect(top, color);
-        }
-        if (bw.bottom > 0.0f) {
-            Layout::Rect bottom{absolute.x, absolute.y + absolute.height - bw.bottom, absolute.width, bw.bottom};
-            context.fill_rect(bottom, color);
-        }
-        if (bw.left > 0.0f) {
-            Layout::Rect left{absolute.x, absolute.y, bw.left, absolute.height};
-            context.fill_rect(left, color);
-        }
-        if (bw.right > 0.0f) {
-            Layout::Rect right{absolute.x + absolute.width - bw.right, absolute.y, bw.right, absolute.height};
-            context.fill_rect(right, color);
-        }
-    }
+    Layout::Rect rect{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
+    PaintUtils::draw_box_decoration(context, rect, style, m_background_image);
 }
 
 }  // namespace Hummingbird::Layout
