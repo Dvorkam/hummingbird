@@ -20,6 +20,18 @@ namespace Attr = Hummingbird::Html::AttributeNames;
 using Hummingbird::ImageBitmap;
 using Hummingbird::PixelFormat;
 
+namespace {
+const RenderObject* find_child_by_tag(const RenderObject& parent, std::string_view tag) {
+    for (const auto& child : parent.get_children()) {
+        auto* element = dynamic_cast<const Element*>(child->get_dom_node());
+        if (element && element->get_tag_name() == tag) {
+            return child.get();
+        }
+    }
+    return nullptr;
+}
+}  // namespace
+
 TEST(InlineLayoutTest, LaysOutInlineFlowOnSingleLine) {
     Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");
@@ -519,4 +531,35 @@ TEST(InlineLayoutTest, AlignsInlineTextOnBaseline) {
     const auto& small_rect = small_span->get_rect();
 
     EXPECT_GT(small_rect.y, big_rect.y);
+}
+
+TEST(InlineLayoutTest, AlignsFormControlsOnSharedBaseline) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto form = DomFactory::create_element(arena, "form");
+    form->append_child(DomFactory::create_element(arena, "input"));
+    auto button = DomFactory::create_element(arena, "button");
+    button->append_child(DomFactory::create_text(arena, "Search"));
+    form->append_child(std::move(button));
+    body->append_child(std::move(form));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    const auto& form_box = render_root->get_children()[0];
+    const auto* input_box = find_child_by_tag(*form_box, "input");
+    const auto* button_box = find_child_by_tag(*form_box, "button");
+    ASSERT_NE(input_box, nullptr);
+    ASSERT_NE(button_box, nullptr);
+
+    EXPECT_FLOAT_EQ(input_box->get_rect().y, button_box->get_rect().y);
 }
