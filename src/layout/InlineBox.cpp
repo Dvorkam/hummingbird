@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "layout/InlineBaselineUtils.h"
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/PositioningUtils.h"
 #include "layout/inline/InlineRef.h"
@@ -64,12 +65,15 @@ void InlineBox::measure_inline(IGraphicsContext& context) {
 
 void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) {
     if (m_inline_atomic) {
+        const auto* style = get_computed_style();
+        Metrics::Insets insets = Metrics::compute_insets(style);
         InlineRun run;
         run.owner = this;
         run.local_index = 0;
         run.width = m_inline_measured_width;
         run.height = m_inline_measured_height;
-        run.ascent = m_inline_measured_height;
+        run.ascent =
+            InlineBaselineUtils::resolve_atomic_inline_ascent(context, style, insets, run.height, !m_children.empty());
         runs.push_back(std::move(run));
         return;
     }
