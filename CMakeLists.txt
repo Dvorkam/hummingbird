@@ -105,6 +105,7 @@ target_link_libraries(Html PUBLIC Core)
 # --- Layout Library ---
 add_library(Layout STATIC
     src/layout/RenderObject.cpp
+    src/layout/PositioningUtils.cpp
     src/layout/RenderFactory.cpp
     src/layout/TreeBuilder.cpp
     src/layout/BlockBox.cpp

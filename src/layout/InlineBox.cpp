@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "layout/LayoutMetricsUtils.h"
+#include "layout/PositioningUtils.h"
 #include "layout/inline/InlineRef.h"
 #include "layout/inline/InlineTypes.h"
 #include "style/ComputedStyle.h"
@@ -51,6 +52,9 @@ void InlineBox::measure_inline(IGraphicsContext& context) {
 
     m_inline_atomic = false;
     for (auto& child : m_children) {
+        if (Positioning::is_absolute(child->get_computed_style())) {
+            continue;
+        }
         if (auto p = child->Inline()) {
             p.get().reset_inline_layout();
             p.get().measure_inline(context);
@@ -70,6 +74,9 @@ void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<Inlin
     }
 
     for (auto& child : m_children) {
+        if (Positioning::is_absolute(child->get_computed_style())) {
+            continue;
+        }
         if (auto p = child->Inline()) {
             p.get().collect_inline_runs(context, runs);
         }
@@ -103,6 +110,9 @@ void InlineBox::finalize_inline_layout() {
     float max_y = 0.0f;
 
     for (const auto& child : m_children) {
+        if (Positioning::is_absolute(child->get_computed_style())) {
+            continue;
+        }
         if (auto p = child->Inline()) {
             p.get().finalize_inline_layout();
         }
@@ -132,6 +142,9 @@ void InlineBox::finalize_inline_layout() {
     m_rect.height = max_y - min_y;
 
     for (auto& child : m_children) {
+        if (Positioning::is_absolute(child->get_computed_style())) {
+            continue;
+        }
         if (auto p = child->Inline()) {
             p.get().offset_inline_layout(-min_x, -min_y);
         }
@@ -146,6 +159,9 @@ void InlineBox::layout(IGraphicsContext& context, const Rect& bounds) {
     float line_height = 0.0f;
 
     for (auto& child : m_children) {
+        if (Positioning::is_absolute(child->get_computed_style())) {
+            continue;
+        }
         const auto* child_style = child->get_computed_style();
         ChildMargins margins = compute_child_margins(child_style);
 

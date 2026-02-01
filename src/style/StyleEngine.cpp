@@ -220,11 +220,14 @@ void apply_optional_length_if_present(const PropertyMap& properties, Property pr
         return;
     }
     const auto& value = it->second.value;
-    if (value.type != Value::Type::Length) return;
-    if (value.length.unit == Unit::Px) {
-        target = value.length.value;
-    } else if (value.length.unit == Unit::Em) {
-        target = value.length.value * font_size;
+    if (value.type == Value::Type::Length) {
+        if (value.length.unit == Unit::Px) {
+            target = value.length.value;
+        } else if (value.length.unit == Unit::Em) {
+            target = value.length.value * font_size;
+        }
+    } else if (value.type == Value::Type::Number) {
+        target = value.number;
     }
 }
 
@@ -256,6 +259,34 @@ void apply_border_style(ComputedStyle& style, const Value& value) {
         style.border_style = ComputedStyle::BorderStyle::Ridge;
     } else if (value.ident == ValueNames::Groove) {
         style.border_style = ComputedStyle::BorderStyle::Groove;
+    }
+}
+
+void apply_position_property(const PropertyMap& properties, ComputedStyle& style) {
+    auto it = properties.find(Property::Position);
+    if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
+        return;
+    }
+    const auto& ident = it->second.value.ident;
+    if (ident == ValueNames::Relative) {
+        style.position = ComputedStyle::Position::Relative;
+    } else if (ident == ValueNames::Absolute) {
+        style.position = ComputedStyle::Position::Absolute;
+    } else if (ident == ValueNames::Static) {
+        style.position = ComputedStyle::Position::Static;
+    }
+}
+
+void apply_z_index_property(const PropertyMap& properties, ComputedStyle& style) {
+    auto it = properties.find(Property::ZIndex);
+    if (it == properties.end()) {
+        return;
+    }
+    const auto& value = it->second.value;
+    if (value.type == Value::Type::Number) {
+        style.z_index = static_cast<int>(value.number);
+    } else if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
+        style.z_index.reset();
     }
 }
 
@@ -488,6 +519,7 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
                                StyleDefaults::StyleOverrides& overrides, bool& display_set, float parent_font_size,
                                const ComputedStyle* parent_style) {
     display_set = apply_display_property(properties, style);
+    apply_position_property(properties, style);
 
     auto font_size_it = properties.find(Property::FontSize);
     if (font_size_it != properties.end()) {
@@ -556,6 +588,11 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
     apply_optional_length_if_present(properties, Property::Width, style.width, style.font_size);
     apply_optional_length_if_present(properties, Property::Height, style.height, style.font_size);
     apply_optional_length_if_present(properties, Property::MaxWidth, style.max_width, style.font_size);
+    apply_optional_length_if_present(properties, Property::Top, style.top, style.font_size);
+    apply_optional_length_if_present(properties, Property::Right, style.right, style.font_size);
+    apply_optional_length_if_present(properties, Property::Bottom, style.bottom, style.font_size);
+    apply_optional_length_if_present(properties, Property::Left, style.left, style.font_size);
+    apply_z_index_property(properties, style);
 
     auto text_align_it = properties.find(Property::TextAlign);
     if (text_align_it != properties.end() && text_align_it->second.value.type == Value::Type::Identifier) {
@@ -674,6 +711,12 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.background_repeat = source.background_repeat;
     target.background_position = source.background_position;
     target.background_size = source.background_size;
+    target.position = source.position;
+    target.top = source.top;
+    target.right = source.right;
+    target.bottom = source.bottom;
+    target.left = source.left;
+    target.z_index = source.z_index;
     target.float_type = source.float_type;
 }
 

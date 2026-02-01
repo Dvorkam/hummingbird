@@ -8,8 +8,8 @@
 #include "engine/DocumentModel.h"
 #include "html/HtmlTagNames.h"
 #include "layout/GeometryUtils.h"
+#include "layout/PositioningUtils.h"
 #include "layout/RenderObject.h"
-#include "layout/RenderTreeTraversal.h"
 
 namespace Hummingbird::Engine {
 
@@ -100,7 +100,7 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatc
     Layout::Point offset{0.0f, -scroll_y};
     std::optional<std::string> handler;
 
-    Layout::Traversal::traverse_render_tree(
+    Layout::Positioning::traverse_render_tree_z_order(
         *render_tree, offset,
         [&](const Layout::RenderObject& /*node*/, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
             if (!Layout::rect_intersects(absolute, viewport) || !Layout::rect_contains_point(absolute, point)) {

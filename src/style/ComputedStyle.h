@@ -20,6 +20,8 @@ struct ComputedStyle {
     Display display = Display::Block;
     enum class Float { None, Left, Right };
     Float float_type = Float::None;
+    enum class Position { Static, Relative, Absolute };
+    Position position = Position::Static;
     enum class TextAlign { Left, Center, Right };
     TextAlign text_align = TextAlign::Left;
     enum class BorderStyle { None, Solid, Outset, Inset, Ridge, Groove };
@@ -33,6 +35,11 @@ struct ComputedStyle {
     std::optional<float> width;
     std::optional<float> height;
     std::optional<float> max_width;
+    std::optional<float> top;
+    std::optional<float> right;
+    std::optional<float> bottom;
+    std::optional<float> left;
+    std::optional<int> z_index;
     Color color{0, 0, 0, 255};
     bool underline = false;
     std::optional<Color> link_color;

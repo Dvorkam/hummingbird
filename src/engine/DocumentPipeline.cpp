@@ -12,6 +12,7 @@
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/GeometryUtils.h"
+#include "layout/PositioningUtils.h"
 #include "layout/RenderObject.h"
 #include "layout/RenderTreeTraversal.h"
 
@@ -132,6 +133,7 @@ void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& 
 
     const auto layout_start = Core::Clock::now();
     render_tree->layout(graphics, viewport);
+    Layout::Positioning::apply_positioning(*render_tree, graphics, viewport);
     const auto layout_end = Core::Clock::now();
     content_height_ = render_tree->get_rect().height;
     HB_LOG_INFO("[perf] layout ms=" << Core::duration_ms(layout_start, layout_end) << " viewport=" << viewport.width
@@ -172,7 +174,7 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
     Layout::Point offset{0.0f, -context.scroll_y};
     std::optional<std::string> result;
 
-    Layout::Traversal::traverse_render_tree(
+    Layout::Positioning::traverse_render_tree_z_order(
         *render_tree, offset,
         [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
             if (!Layout::rect_intersects(absolute, context.viewport) ||
@@ -206,7 +208,7 @@ std::optional<std::string> DocumentPipeline::submit_form_at(const HitTestContext
     Layout::Point offset{0.0f, -context.scroll_y};
     std::optional<std::string> result;
 
-    Layout::Traversal::traverse_render_tree(
+    Layout::Positioning::traverse_render_tree_z_order(
         *render_tree, offset,
         [&](const Layout::RenderObject& /*node*/, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
             if (!Layout::rect_intersects(absolute, context.viewport) ||

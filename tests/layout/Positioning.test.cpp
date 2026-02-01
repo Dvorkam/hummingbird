@@ -1,0 +1,159 @@
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <string_view>
+#include <vector>
+
+#include "core/ArenaAllocator.h"
+#include "core/dom/DomFactory.h"
+#include "core/dom/Element.h"
+#include "layout/PositioningUtils.h"
+#include "layout/TreeBuilder.h"
+#include "style/CssParser.h"
+#include "style/StyleEngine.h"
+#include "test_utils/TestGraphicsContext.h"
+
+using namespace Hummingbird::Css;
+using namespace Hummingbird::DOM;
+using namespace Hummingbird::Layout;
+
+namespace {
+RenderObject* find_by_id(RenderObject* node, std::string_view id) {
+    if (!node) return nullptr;
+    if (auto* element = dynamic_cast<const Element*>(node->get_dom_node())) {
+        if (const auto* attr = element->find_attribute("id")) {
+            if (*attr == id) {
+                return node;
+            }
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (auto* found = find_by_id(child.get(), id)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+}  // namespace
+
+TEST(PositioningLayoutTest, PositionsAbsoluteChildrenRelativeToContainingBlock) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto container = DomFactory::create_element(arena, "div");
+    container->set_attribute("id", "container");
+    auto flow = DomFactory::create_element(arena, "div");
+    flow->set_attribute("id", "flow");
+    auto abs = DomFactory::create_element(arena, "div");
+    abs->set_attribute("id", "abs");
+    container->append_child(std::move(flow));
+    container->append_child(std::move(abs));
+    body->append_child(std::move(container));
+
+    std::string css = R"(
+        #container { position: relative; width: 200px; margin: 0; padding: 0; }
+        #flow { height: 20px; margin: 0; padding: 0; }
+        #abs { position: absolute; top: 5px; left: 10px; width: 50px; height: 10px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 300, 200};
+    render_root->layout(context, viewport);
+    Positioning::apply_positioning(*render_root, context, viewport);
+
+    auto* container_render = find_by_id(render_root.get(), "container");
+    auto* flow_render = find_by_id(render_root.get(), "flow");
+    auto* abs_render = find_by_id(render_root.get(), "abs");
+    ASSERT_NE(container_render, nullptr);
+    ASSERT_NE(flow_render, nullptr);
+    ASSERT_NE(abs_render, nullptr);
+
+    EXPECT_FLOAT_EQ(abs_render->get_rect().x, 10.0f);
+    EXPECT_FLOAT_EQ(abs_render->get_rect().y, 5.0f);
+    EXPECT_FLOAT_EQ(container_render->get_rect().height, flow_render->get_rect().height);
+}
+
+TEST(PositioningLayoutTest, RelativeOffsetsShiftVisualRectWithoutAffectingFlow) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto rel = DomFactory::create_element(arena, "div");
+    rel->set_attribute("id", "rel");
+    body->append_child(std::move(rel));
+
+    std::string css = R"(
+        #rel { position: relative; top: 6px; left: 12px; width: 40px; height: 10px; margin: 0; padding: 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+    Positioning::apply_positioning(*render_root, context, viewport);
+
+    auto* rel_render = find_by_id(render_root.get(), "rel");
+    ASSERT_NE(rel_render, nullptr);
+    EXPECT_FLOAT_EQ(rel_render->get_rect().x, 12.0f);
+    EXPECT_FLOAT_EQ(rel_render->get_rect().y, 6.0f);
+}
+
+TEST(PositioningLayoutTest, ZIndexOrdersTraversal) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto container = DomFactory::create_element(arena, "div");
+    auto low = DomFactory::create_element(arena, "div");
+    low->set_attribute("id", "low");
+    auto high = DomFactory::create_element(arena, "div");
+    high->set_attribute("id", "high");
+    container->append_child(std::move(low));
+    container->append_child(std::move(high));
+    body->append_child(std::move(container));
+
+    std::string css = R"(
+        #low { position: absolute; top: 0; left: 0; z-index: 1; width: 10px; height: 10px; }
+        #high { position: absolute; top: 0; left: 0; z-index: 5; width: 10px; height: 10px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+    Positioning::apply_positioning(*render_root, context, viewport);
+
+    std::vector<std::string> ids;
+    Positioning::traverse_render_tree_z_order(
+        *render_root, {0.0f, 0.0f}, [&](const RenderObject& node, const Rect&, const Point&) {
+            if (auto* element = dynamic_cast<const Element*>(node.get_dom_node())) {
+                if (const auto* attr = element->find_attribute("id")) {
+                    ids.push_back(*attr);
+                }
+            }
+            return Traversal::TraverseAction::Continue;
+        });
+
+    auto low_it = std::find(ids.begin(), ids.end(), "low");
+    auto high_it = std::find(ids.begin(), ids.end(), "high");
+    ASSERT_NE(low_it, ids.end());
+    ASSERT_NE(high_it, ids.end());
+    EXPECT_LT(low_it, high_it);
+}

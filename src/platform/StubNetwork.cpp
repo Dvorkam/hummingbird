@@ -107,6 +107,9 @@ std::string build_stub_body(const std::string& url) {
       .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
       .bg-demo { height: 120px; border: 1px solid #aaa; background-image: url(assets/logos/hummingbird.svg); background-repeat: no-repeat; background-position: center; background-size: contain; }
       .bg-demo-tile { height: 80px; border: 1px solid #aaa; background-image: url(assets/icons/page_security/secure.png); background-repeat: repeat; background-position: left top; background-size: 16px 16px; }
+      .pos-demo { position: relative; height: 90px; border: 1px dashed #999; margin: 8px 0; }
+      .pos-base { width: 120px; height: 40px; background-color: #d7e8ff; border: 1px solid #7aa7e3; }
+      .pos-overlay { position: absolute; top: 6px; left: 30px; width: 120px; height: 40px; background-color: #ffd3c6; border: 1px solid #e59680; z-index: 2; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -207,6 +210,14 @@ aligned.</pre>
       <div class="bg-demo"></div>
       <p>Repeated tiles with explicit size:</p>
       <div class="bg-demo-tile"></div>
+    </div>
+
+    <div class="section">
+      <h2>Positioning</h2>
+      <div class="pos-demo">
+        <div class="pos-base">Base block</div>
+        <div class="pos-overlay">Absolute overlay</div>
+      </div>
     </div>
 
     <div class="section">

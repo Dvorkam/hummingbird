@@ -8,6 +8,7 @@
 #include "html/HtmlTagNames.h"
 #include "layout/GeometryUtils.h"
 #include "layout/LayoutMetricsUtils.h"
+#include "layout/PositioningUtils.h"
 #include "layout/RenderObject.h"
 #include "layout/RenderTreeTraversal.h"
 #include "layout/TextStyleUtils.h"
@@ -42,7 +43,7 @@ DOM::Element* hit_test_input(const Layout::RenderObject* render_tree, const Layo
     Layout::Point offset{0.0f, -scroll_y};
     DOM::Element* result = nullptr;
 
-    Layout::Traversal::traverse_render_tree(
+    Layout::Positioning::traverse_render_tree_z_order(
         *render_tree, offset,
         [&](const Layout::RenderObject& /*node*/, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
             if (!Layout::rect_intersects(absolute, viewport) || !Layout::rect_contains_point(absolute, point)) {

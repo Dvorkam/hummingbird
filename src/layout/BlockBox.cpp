@@ -7,6 +7,7 @@
 
 #include "layout/FloatLayoutUtils.h"
 #include "layout/LayoutMetricsUtils.h"
+#include "layout/PositioningUtils.h"
 #include "layout/inline/InlineLayoutUtils.h"
 #include "layout/inline/InlineRef.h"
 #include "layout/inline/InlineTypes.h"
@@ -44,6 +45,9 @@ ChildMargins compute_child_margins(const Css::ComputedStyle* style) {
 
 Css::ComputedStyle::Float resolve_float_type(RenderObject& child) {
     const auto* style = child.get_computed_style();
+    if (Positioning::is_absolute(style)) {
+        return Css::ComputedStyle::Float::None;
+    }
     if (style && style->float_type != Css::ComputedStyle::Float::None) {
         return style->float_type;
     }
@@ -153,6 +157,10 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     while (i < m_children.size()) {
         auto& child = m_children[i];
         const auto* child_style = child->get_computed_style();
+        if (Positioning::is_absolute(child_style)) {
+            ++i;
+            continue;
+        }
         ChildMargins margins = compute_child_margins(child_style);
 
         Css::ComputedStyle::Float float_type = resolve_float_type(*child);

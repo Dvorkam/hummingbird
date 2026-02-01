@@ -5,8 +5,8 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/GeometryUtils.h"
 #include "layout/PaintUtils.h"
+#include "layout/PositioningUtils.h"
 #include "layout/RenderObject.h"
-#include "layout/RenderTreeTraversal.h"
 
 namespace Hummingbird::Renderer {
 
@@ -20,7 +20,7 @@ struct PaintContext {
 };
 
 void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, const PaintContext& paint_context) {
-    Layout::Traversal::traverse_render_tree(
+    Layout::Positioning::traverse_render_tree_z_order(
         node, paint_context.offset,
         [&](const Layout::RenderObject& current, const Layout::Rect& absolute, const Layout::Point& local_offset) {
             if (paint_context.viewport && !Layout::rect_intersects(absolute, *paint_context.viewport)) {

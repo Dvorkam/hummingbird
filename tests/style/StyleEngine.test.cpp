@@ -563,6 +563,28 @@ TEST(StyleEngineTest, AppliesBackgroundColor) {
     EXPECT_EQ(style->background->b, 51);
 }
 
+TEST(StyleEngineTest, AppliesPositionProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { position: absolute; top: 4px; left: 6px; z-index: 3; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->position, ComputedStyle::Position::Absolute);
+    ASSERT_TRUE(style->top.has_value());
+    ASSERT_TRUE(style->left.has_value());
+    EXPECT_FLOAT_EQ(*style->top, 4.0f);
+    EXPECT_FLOAT_EQ(*style->left, 6.0f);
+    ASSERT_TRUE(style->z_index.has_value());
+    EXPECT_EQ(*style->z_index, 3);
+}
+
 TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

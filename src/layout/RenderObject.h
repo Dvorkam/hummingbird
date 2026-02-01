@@ -48,7 +48,13 @@ public:
     RenderObject* get_parent() { return m_parent; }
     const RenderObject* get_parent() const { return m_parent; }
 
-    InlineRef Inline() { return InlineRef(as_inline_participant()); }
+    InlineRef Inline() {
+        const auto* style = get_computed_style();
+        if (style && style->position == Css::ComputedStyle::Position::Absolute) {
+            return InlineRef(nullptr);
+        }
+        return InlineRef(as_inline_participant());
+    }
 
     bool set_background_image(const ImageBitmap* image) {
         if (m_background_image == image) {
