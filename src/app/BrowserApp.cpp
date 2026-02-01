@@ -157,6 +157,12 @@ void BrowserApp::handle_text_input_event(const InputEvent& event) {
 }
 
 void BrowserApp::handle_key_down_event(const InputEvent& event) {
+    if (event.key.key == Key::L && event.mods.ctrl && event.mods.shift) {
+        HB_LOG_INFO("[ui] Forcing document repaint");
+        document_dirty_ = true;
+        return;
+    }
+
     if (event.key.key == Key::L && event.mods.ctrl) {
         url_bar_.set_active(true, window_.get(), "[ui] URL bar focused");
         url_bar_.move_caret_to_end();

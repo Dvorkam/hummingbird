@@ -1,5 +1,6 @@
 #include "engine/DocumentPainter.h"
 
+#include "core/utils/Log.h"
 #include "layout/RenderObject.h"
 
 namespace Hummingbird::Engine {
@@ -34,6 +35,10 @@ void DocumentPainter::paint(const Layout::RenderObject* render_tree, IGraphicsCo
         display_list_viewport_ = viewport;
         display_list_scroll_y_ = scroll_y;
         display_list_debug_outlines_ = debug_outlines;
+    } else {
+        static int reuse_log_counter = 0;
+        ++reuse_log_counter;
+        HB_LOG_DEBUG("[perf] display list reused commands=" << display_list_.size() << " count=" << reuse_log_counter);
     }
 
     display_list_.replay(graphics);
