@@ -18,7 +18,7 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 - [x] **[M4 P2] T-CSS-MINMAX-1: min-width/min-height/max-height**; Goal: honor min/max constraints (except max-width, already supported); Scope: layout sizing; Acceptance: DDG input/button sizing closer to CSS; Tests: layout tests.
 - [x] **[M4 P2] T-CSS-LIST-1: List-Style Reset**; Goal: support `list-style` / `list-style-type` / `list-style-position`; Scope: style + list marker; Acceptance: CSS reset can remove bullets; Tests: layout tests.
 - [x] **[M4 P2] T-CSS-TEXT-DECOR-2: text-decoration/underline variants**; Goal: support underline + thickness/offset; Scope: painter; Acceptance: hover/visited underline styling matches CSS; Tests: renderer tests.
-- [ ] **[M4 P2] T-CSS-TEXT-DECOR-3: Underline baseline alignment**; Goal: keep underline close to glyphs across all lines; Scope: TextBox + inline layout metrics; Acceptance: no line has an underline noticeably detached from its text; Tests: renderer tests.
+- [x] **[M4 P2] T-CSS-TEXT-DECOR-3: Underline baseline alignment**; Goal: keep underline close to glyphs across all lines; Scope: TextBox + inline layout metrics; Acceptance: no line has an underline noticeably detached from its text; Tests: renderer tests.
 - [ ] **[M4 P2] T-LAYOUT-METRICS-1: Centralize Size Resolution**; Goal: consolidate width/height/attrs/intrinsic size resolution into a shared layout/metrics utility; Scope: layout sizing helpers; Acceptance: RenderImage/RenderSvg and future replaced elements use one codepath; Tests: layout tests.
 
 ## Milestone 5 (Layout/Polish)

@@ -54,6 +54,32 @@ public:
     Hummingbird::Layout::Rect viewport_{0, 0, 0, 0};
 };
 
+class FontAwareGraphicsContext : public IGraphicsContext {
+public:
+    void set_viewport(const Hummingbird::Layout::Rect& viewport) override { viewport_ = viewport; }
+    void clear(const Color&) override {}
+    void present() override {}
+    void fill_rect(const Hummingbird::Layout::Rect& rect, const Color&) override { fill_calls.push_back(rect); }
+    void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
+
+    TextMetrics measure_text(const std::string& text, const TextStyle& style) override {
+        const float font_size = style.font_size > 0.0f ? style.font_size : 16.0f;
+        TextMetrics metrics;
+        metrics.width = static_cast<float>(text.size()) * font_size * 0.5f;
+        metrics.height = font_size;
+        metrics.ascent = font_size * 0.8f;
+        metrics.descent = font_size * 0.2f;
+        metrics.underline_position = -metrics.descent * 0.5f;
+        metrics.underline_thickness = 1.0f;
+        return metrics;
+    }
+
+    void draw_text(const std::string&, float, float, const TextStyle&) override {}
+
+    std::vector<Hummingbird::Layout::Rect> fill_calls;
+    Hummingbird::Layout::Rect viewport_{0, 0, 0, 0};
+};
+
 TEST(PainterIntegrationTest, PaintsTextNodesFromParserOutput) {
     // Arrange: parse a simple HTML snippet.
     std::string_view html = "<html><body><p>First line</p><p>Second line</p></body></html>";
@@ -279,6 +305,47 @@ TEST(PainterTest, HonorsUnderlineThicknessAndOffset) {
     EXPECT_NEAR(underline_rect.y, expected_y, 0.01f);
     EXPECT_NEAR(underline_rect.height, 3.0f, 0.01f);
     EXPECT_GT(underline_rect.width, 0.0f);
+}
+
+TEST(PainterTest, AlignsUnderlinesAcrossInlineRuns) {
+    std::string_view html = "<html><body><p class='u'>Big <span class='small'>small</span></p></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "p.u { text-decoration: underline; font-size: 20px; } .small { font-size: 10px; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    FontAwareGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 300, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    std::vector<float> underline_ys;
+    for (const auto& rect : context.fill_calls) {
+        if (std::abs(rect.height - 1.0f) < 0.01f && rect.width > 0.0f) {
+            underline_ys.push_back(rect.y);
+        }
+    }
+
+    ASSERT_GE(underline_ys.size(), 2u);
+    float min_y = underline_ys.front();
+    float max_y = underline_ys.front();
+    for (float y : underline_ys) {
+        min_y = std::min(min_y, y);
+        max_y = std::max(max_y, y);
+    }
+    EXPECT_LE(max_y - min_y, 1.5f);
 }
 
 TEST(PainterTest, PaintsBorderEdgesAtComputedPositions) {
