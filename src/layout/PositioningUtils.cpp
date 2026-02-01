@@ -30,7 +30,7 @@ float resolve_vertical_offset(const Css::ComputedStyle* style, float container_h
     return 0.0f;
 }
 
-void apply_positioning_recursive(RenderObject& node, IGraphicsContext& context, const Rect& viewport,
+bool apply_positioning_recursive(RenderObject& node, IGraphicsContext& context, const Rect& viewport,
                                  const Rect& parent_abs, const ContainingBlock& containing) {
     const auto* style = node.get_computed_style();
     Rect rect = node.get_rect();
@@ -72,9 +72,14 @@ void apply_positioning_recursive(RenderObject& node, IGraphicsContext& context, 
         next_containing = {abs, true};
     }
 
+    bool has_absolute = is_absolute(style);
     for (const auto& child : node.get_children()) {
-        apply_positioning_recursive(*child, context, viewport, abs, next_containing);
+        if (apply_positioning_recursive(*child, context, viewport, abs, next_containing)) {
+            has_absolute = true;
+        }
     }
+    node.set_has_absolute_descendant(has_absolute);
+    return has_absolute;
 }
 }  // namespace
 

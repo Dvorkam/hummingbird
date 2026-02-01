@@ -64,6 +64,8 @@ public:
         return true;
     }
     const ImageBitmap* background_image() const { return m_background_image; }
+    void set_has_absolute_descendant(bool value) { m_has_absolute_descendant = value; }
+    bool has_absolute_descendant() const { return m_has_absolute_descendant; }
 
     virtual void layout(IGraphicsContext& context, const Rect& bounds);
     virtual void paint(IGraphicsContext& context, const Point& offset) const final;
@@ -79,5 +81,6 @@ protected:
     std::vector<std::unique_ptr<RenderObject>> m_children;
     Rect m_rect;
     const ImageBitmap* m_background_image = nullptr;
+    bool m_has_absolute_descendant = false;
 };
 }  // namespace Hummingbird::Layout

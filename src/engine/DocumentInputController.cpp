@@ -45,8 +45,11 @@ DOM::Element* hit_test_input(const Layout::RenderObject* render_tree, const Layo
 
     Layout::Positioning::traverse_render_tree_z_order(
         *render_tree, offset,
-        [&](const Layout::RenderObject& /*node*/, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
             if (!Layout::rect_intersects(absolute, viewport) || !Layout::rect_contains_point(absolute, point)) {
+                if (node.has_absolute_descendant()) {
+                    return Layout::Traversal::TraverseAction::Continue;
+                }
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
             return Layout::Traversal::TraverseAction::Continue;

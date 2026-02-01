@@ -179,6 +179,9 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
         [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
             if (!Layout::rect_intersects(absolute, context.viewport) ||
                 !Layout::rect_contains_point(absolute, context.point)) {
+                if (node.has_absolute_descendant()) {
+                    return Layout::Traversal::TraverseAction::Continue;
+                }
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
             return Layout::Traversal::TraverseAction::Continue;
@@ -210,9 +213,12 @@ std::optional<std::string> DocumentPipeline::submit_form_at(const HitTestContext
 
     Layout::Positioning::traverse_render_tree_z_order(
         *render_tree, offset,
-        [&](const Layout::RenderObject& /*node*/, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
             if (!Layout::rect_intersects(absolute, context.viewport) ||
                 !Layout::rect_contains_point(absolute, context.point)) {
+                if (node.has_absolute_descendant()) {
+                    return Layout::Traversal::TraverseAction::Continue;
+                }
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
             return Layout::Traversal::TraverseAction::Continue;

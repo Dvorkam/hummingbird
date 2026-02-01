@@ -23,7 +23,8 @@ void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, con
     Layout::Positioning::traverse_render_tree_z_order(
         node, paint_context.offset,
         [&](const Layout::RenderObject& current, const Layout::Rect& absolute, const Layout::Point& local_offset) {
-            if (paint_context.viewport && !Layout::rect_intersects(absolute, *paint_context.viewport)) {
+            if (paint_context.viewport && !Layout::rect_intersects(absolute, *paint_context.viewport) &&
+                !current.has_absolute_descendant()) {
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
             current.paint_self(context, local_offset);
