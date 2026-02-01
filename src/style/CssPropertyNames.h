@@ -53,5 +53,8 @@ static constexpr std::string_view FontFamily = "font-family";
 static constexpr std::string_view FontWeight = "font-weight";
 static constexpr std::string_view FontStyle = "font-style";
 static constexpr std::string_view Float = "float";
+static constexpr std::string_view ListStyle = "list-style";
+static constexpr std::string_view ListStyleType = "list-style-type";
+static constexpr std::string_view ListStylePosition = "list-style-position";
 
 }  // namespace Hummingbird::Css::PropertyNames

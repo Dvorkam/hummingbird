@@ -7,6 +7,7 @@
 #include "html/HtmlTagNames.h"
 #include "layout/RenderListItem.h"
 #include "layout/TreeBuilder.h"
+#include "style/CssParser.h"
 #include "style/StyleEngine.h"
 #include "test_utils/TestGraphicsContext.h"
 
@@ -46,6 +47,39 @@ TEST(ListItemLayoutTest, GeneratesMarkerLeftOfContent) {
 
     const auto& text_rect = list_item->get_children()[0]->get_rect();
     EXPECT_LT(marker.x + marker.width, text_rect.x);
+}
+
+TEST(ListItemLayoutTest, SuppressesMarkerWhenListStyleNone) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
+    auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    li->append_child(DomFactory::create_text(arena, "Item"));
+    ul->append_child(std::move(li));
+    body->append_child(std::move(ul));
+
+    Parser parser("ul { list-style: none; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+
+    const auto& ul_box = render_root->get_children()[0];
+    auto* list_item = dynamic_cast<RenderListItem*>(ul_box->get_children()[0].get());
+    ASSERT_NE(list_item, nullptr);
+
+    const auto& marker = list_item->marker_rect();
+    EXPECT_FLOAT_EQ(marker.width, 0.0f);
+
+    const auto& text_rect = list_item->get_children()[0]->get_rect();
+    EXPECT_FLOAT_EQ(text_rect.x, 0.0f);
 }
 
 TEST(ListItemLayoutTest, InlineThenBlockAdvancesCursor) {

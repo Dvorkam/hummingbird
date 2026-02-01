@@ -181,6 +181,29 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
     return std::nullopt;
 }
 
+void apply_list_style_token(std::string_view token, ComputedStyle& style, StyleDefaults::StyleOverrides& overrides) {
+    if (token == ValueNames::None) {
+        style.list_style_type = ComputedStyle::ListStyleType::None;
+        overrides.list_style_type = true;
+        return;
+    }
+    if (token == ValueNames::Disc) {
+        style.list_style_type = ComputedStyle::ListStyleType::Disc;
+        overrides.list_style_type = true;
+        return;
+    }
+    if (token == ValueNames::Inside) {
+        style.list_style_position = ComputedStyle::ListStylePosition::Inside;
+        overrides.list_style_position = true;
+        return;
+    }
+    if (token == ValueNames::Outside) {
+        style.list_style_position = ComputedStyle::ListStylePosition::Outside;
+        overrides.list_style_position = true;
+        return;
+    }
+}
+
 std::vector<std::string_view> split_tokens(std::string_view text) {
     std::vector<std::string_view> tokens;
     size_t i = 0;
@@ -837,6 +860,25 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         }
     }
 
+    auto list_style_it = properties.find(Property::ListStyle);
+    if (list_style_it != properties.end() && list_style_it->second.value.type == Value::Type::Identifier) {
+        auto tokens = split_tokens(list_style_it->second.value.ident);
+        for (auto token : tokens) {
+            apply_list_style_token(token, style, overrides);
+        }
+    }
+
+    auto list_style_type_it = properties.find(Property::ListStyleType);
+    if (list_style_type_it != properties.end() && list_style_type_it->second.value.type == Value::Type::Identifier) {
+        apply_list_style_token(list_style_type_it->second.value.ident, style, overrides);
+    }
+
+    auto list_style_position_it = properties.find(Property::ListStylePosition);
+    if (list_style_position_it != properties.end() &&
+        list_style_position_it->second.value.type == Value::Type::Identifier) {
+        apply_list_style_token(list_style_position_it->second.value.ident, style, overrides);
+    }
+
     apply_color_property(properties, style, overrides, parent_style);
     apply_background_property(properties, style, overrides, parent_style);
     apply_background_image_property(properties, style);
@@ -899,6 +941,8 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
     if (overrides.text_align) target.text_align = source.text_align;
     if (overrides.background) target.background = source.background;
     if (overrides.line_height) target.line_height = source.line_height;
+    if (overrides.list_style_type) target.list_style_type = source.list_style_type;
+    if (overrides.list_style_position) target.list_style_position = source.list_style_position;
 }
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).

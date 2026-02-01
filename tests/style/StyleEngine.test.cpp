@@ -400,6 +400,27 @@ TEST(StyleEngineTest, AppliesMinMaxSizeProperties) {
     EXPECT_FLOAT_EQ(style->max_height.value(), 40.0f);
 }
 
+TEST(StyleEngineTest, InheritsListStyleFromParent) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    ul->append_child(std::move(li));
+
+    std::string css = R"(ul { list-style: none; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, ul.get());
+
+    auto ul_style = ul->get_computed_style();
+    auto li_style = ul->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(ul_style);
+    ASSERT_TRUE(li_style);
+    EXPECT_EQ(ul_style->list_style_type, ComputedStyle::ListStyleType::None);
+    EXPECT_EQ(li_style->list_style_type, ComputedStyle::ListStyleType::None);
+}
+
 TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

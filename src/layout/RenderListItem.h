@@ -6,6 +6,7 @@
 #include "layout/RenderObject.h"
 
 class ListItemLayoutTest_GeneratesMarkerLeftOfContent_Test;
+class ListItemLayoutTest_SuppressesMarkerWhenListStyleNone_Test;
 class PainterTest_PaintsListMarkersWithCulling_Test;
 namespace Hummingbird {
 namespace DOM {
@@ -34,6 +35,7 @@ public:
 
 private:
     friend class ::ListItemLayoutTest_GeneratesMarkerLeftOfContent_Test;
+    friend class ::ListItemLayoutTest_SuppressesMarkerWhenListStyleNone_Test;
     friend class ::PainterTest_PaintsListMarkersWithCulling_Test;
 
     explicit RenderListItem(const DOM::Node* dom_node);

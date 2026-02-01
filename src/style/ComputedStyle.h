@@ -82,6 +82,10 @@ struct ComputedStyle {
         std::optional<float> height;
     };
     BackgroundSize background_size;
+    enum class ListStyleType { Disc, None };
+    enum class ListStylePosition { Outside, Inside };
+    ListStyleType list_style_type = ListStyleType::Disc;
+    ListStylePosition list_style_position = ListStylePosition::Outside;
     std::unordered_map<std::string, std::string> custom_properties;
     // Future: background, font family, etc.
 };

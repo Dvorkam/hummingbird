@@ -59,6 +59,9 @@ static constexpr Mapping kMappings[] = {
     {PropertyNames::FontWeight, Property::FontWeight},
     {PropertyNames::FontStyle, Property::FontStyle},
     {PropertyNames::Float, Property::Float},
+    {PropertyNames::ListStyle, Property::ListStyle},
+    {PropertyNames::ListStyleType, Property::ListStyleType},
+    {PropertyNames::ListStylePosition, Property::ListStylePosition},
 };
 
 Property parse_property_name(std::string_view name) {

@@ -105,6 +105,7 @@ std::string build_stub_body(const std::string& url) {
       .table-align-demo { border: 1px solid #bbb; }
       .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
       .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
+      .list-reset { list-style: none; padding-left: 0; }
       .bg-demo { height: 120px; border: 1px solid #aaa; background-image: url(assets/logos/hummingbird.svg); background-repeat: no-repeat; background-position: center; background-size: contain; }
       .bg-demo-tile { height: 80px; border: 1px solid #aaa; background-image: url(assets/icons/page_security/secure.png); background-repeat: repeat; background-position: left top; background-size: 16px 16px; }
       .pos-demo { position: relative; height: 90px; border: 1px dashed #999; margin: 8px 0; }
@@ -171,6 +172,10 @@ aligned.</pre>
       <ul>
         <li>Unordered item one</li>
         <li>Unordered item two</li>
+      </ul>
+      <ul class="list-reset">
+        <li>Reset list item one</li>
+        <li>Reset list item two</li>
       </ul>
       <ol>
         <li>Ordered item one</li>

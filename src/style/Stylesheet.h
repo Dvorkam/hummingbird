@@ -56,6 +56,9 @@ enum class Property {
     FontWeight,
     FontStyle,
     Float,
+    ListStyle,
+    ListStyleType,
+    ListStylePosition,
 };
 
 enum class Unit {

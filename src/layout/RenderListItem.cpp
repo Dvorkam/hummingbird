@@ -152,7 +152,8 @@ const Rect& RenderListItem::marker_rect() const {
 
 void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
-    float marker_offset = kListMarkerSizePx + kListMarkerGapPx;
+    bool show_marker = !(style && style->list_style_type == Css::ComputedStyle::ListStyleType::None);
+    float marker_offset = show_marker ? (kListMarkerSizePx + kListMarkerGapPx) : 0.0f;
     Metrics::BoxMetrics metrics =
         Metrics::compute_box_metrics(style, bounds, m_rect, Metrics::BoxWidthPolicy::WidthOnly, marker_offset);
     LineCursor cursor{metrics.insets.left + marker_offset, metrics.insets.top, 0.0f};
@@ -240,14 +241,21 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
     float content_bottom = std::max(cursor.y, max_float_bottom);
     m_rect.height = content_bottom + metrics.insets.bottom;
 
-    if (m_marker) {
+    if (m_marker && show_marker) {
         Rect marker_bounds{metrics.insets.left, marker_y, kListMarkerSizePx, kListMarkerSizePx};
+        if (style && style->list_style_position == Css::ComputedStyle::ListStylePosition::Inside) {
+            marker_bounds.x = metrics.insets.left;
+        }
         m_marker->layout(context, marker_bounds);
+    } else if (m_marker) {
+        m_marker->set_rect({});
     }
 }
 
 void RenderListItem::paint_self(IGraphicsContext& context, const Point& offset) const {
-    if (m_marker) {
+    const auto* style = get_computed_style();
+    bool show_marker = !(style && style->list_style_type == Css::ComputedStyle::ListStyleType::None);
+    if (m_marker && show_marker) {
         Point marker_offset{offset.x + m_rect.x, offset.y + m_rect.y};
         m_marker->paint(context, marker_offset);
     }

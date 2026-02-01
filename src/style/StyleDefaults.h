@@ -28,6 +28,8 @@ struct StyleOverrides {
     bool text_align = false;
     bool background = false;
     bool line_height = false;
+    bool list_style_type = false;
+    bool list_style_position = false;
 };
 
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,
