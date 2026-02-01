@@ -167,6 +167,19 @@ bool DocumentResources::update_image_resources(Layout::RenderObject* render_tree
     Layout::Traversal::traverse_render_tree(
         *render_tree, offset,
         [&](Layout::RenderObject& current, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+            const auto* style = current.get_computed_style();
+            const ImageBitmap* background_bitmap = nullptr;
+            if (style && style->background_image && !style->background_image->empty()) {
+                auto resolved = resolve_resource_url(base_url, *style->background_image);
+                const std::string& key = resolved.key;
+                auto view = resource_store_->view(key, ResourceType::Image);
+                if (view && view->state == ResourceState::Ready) {
+                    background_bitmap = view->image;
+                }
+            }
+            if (current.set_background_image(background_bitmap)) {
+                changed = true;
+            }
             if (auto* image = dynamic_cast<Layout::RenderImage*>(&current)) {
                 const auto* element = static_cast<const DOM::Element*>(image->get_dom_node());
                 const ImageBitmap* bitmap = nullptr;

@@ -7,6 +7,7 @@
 
 #include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderListItem.h"
@@ -185,6 +186,42 @@ Hummingbird::Layout::RenderObject* find_tag(Hummingbird::Layout::RenderObject* n
     return nullptr;
 }
 }  // namespace
+
+TEST(PainterTest, PaintsBackgroundImage) {
+    std::string_view html = "<html><body><div>Box</div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css =
+        "div { width: 120px; height: 40px; background-image: url(/img/bg.png); background-repeat: no-repeat; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    auto* div = find_tag(render_tree.get(), Hummingbird::Html::TagNames::Div);
+    ASSERT_NE(div, nullptr);
+
+    ImageBitmap bitmap;
+    bitmap.width = 8;
+    bitmap.height = 8;
+    div->set_background_image(&bitmap);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_GE(context.image_calls, 1);
+}
 
 TEST(PainterTest, PaintsBorderEdgesAtComputedPositions) {
     std::string_view html = "<html><body><div>Box</div></body></html>";

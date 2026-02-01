@@ -202,6 +202,10 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), requested_url_);
     resource_loader_.request_images(document_pipeline_.image_links(), requested_url_);
     document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
+    if (!document_pipeline_.background_image_links().empty()) {
+        HB_LOG_INFO("[pipeline] discovered background images: " << document_pipeline_.background_image_links().size());
+    }
+    resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
     if (document_pipeline_.has_render_tree()) {
         update_layout_state(viewport);
     }
@@ -222,6 +226,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto style_update_start = Core::Clock::now();
     document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
+    resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
     if (document_pipeline_.has_render_tree()) {
         update_layout_state(viewport);
     }

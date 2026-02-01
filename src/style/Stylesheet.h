@@ -12,6 +12,10 @@ enum class Property {
     Unknown,
     Custom,
     Background,
+    BackgroundImage,
+    BackgroundRepeat,
+    BackgroundPosition,
+    BackgroundSize,
     Border,
     Display,
     BorderWidth,
@@ -59,6 +63,7 @@ struct Value {
         Identifier,
         Length,
         Color,
+        Url,
         Number,
     };
 
@@ -86,6 +91,13 @@ struct Value {
         Value v;
         v.type = Type::Color;
         v.color = color;
+        return v;
+    }
+
+    static Value url_value(std::string text) {
+        Value v;
+        v.type = Type::Url;
+        v.ident = std::move(text);
         return v;
     }
 

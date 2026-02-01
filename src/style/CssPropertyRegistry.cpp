@@ -12,6 +12,10 @@ struct Mapping {
 static constexpr Mapping kMappings[] = {
     {PropertyNames::Display, Property::Display},
     {PropertyNames::Background, Property::Background},
+    {PropertyNames::BackgroundImage, Property::BackgroundImage},
+    {PropertyNames::BackgroundRepeat, Property::BackgroundRepeat},
+    {PropertyNames::BackgroundPosition, Property::BackgroundPosition},
+    {PropertyNames::BackgroundSize, Property::BackgroundSize},
     {PropertyNames::Border, Property::Border},
     {PropertyNames::BorderWidth, Property::BorderWidth},
     {PropertyNames::BorderColor, Property::BorderColor},

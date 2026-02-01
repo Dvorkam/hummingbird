@@ -86,6 +86,7 @@ public:
     size_t render_tree_children() const;
     const std::vector<std::string>& stylesheet_links() const { return model_.stylesheet_links(); }
     const std::vector<std::string>& image_links() const { return model_.image_links(); }
+    const std::vector<std::string>& background_image_links() const { return model_.background_image_links(); }
 
 private:
     float content_height_ = 0.0f;

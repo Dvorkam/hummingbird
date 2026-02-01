@@ -67,6 +67,67 @@ Token Tokenizer::emit_single(TokenType type, std::string_view lexeme) {
     return Token{type, lexeme};
 }
 
+bool Tokenizer::try_url_token(std::vector<Token>& tokens) {
+    if (m_pos + 3 > m_input.size()) {
+        return false;
+    }
+    char c0 = static_cast<char>(std::tolower(static_cast<unsigned char>(m_input[m_pos])));
+    char c1 = static_cast<char>(std::tolower(static_cast<unsigned char>(m_input[m_pos + 1])));
+    char c2 = static_cast<char>(std::tolower(static_cast<unsigned char>(m_input[m_pos + 2])));
+    if (c0 != 'u' || c1 != 'r' || c2 != 'l') {
+        return false;
+    }
+    size_t cursor = m_pos + 3;
+    while (cursor < m_input.size() && std::isspace(static_cast<unsigned char>(m_input[cursor]))) {
+        ++cursor;
+    }
+    if (cursor >= m_input.size() || m_input[cursor] != '(') {
+        return false;
+    }
+    ++cursor;
+    while (cursor < m_input.size() && std::isspace(static_cast<unsigned char>(m_input[cursor]))) {
+        ++cursor;
+    }
+    size_t content_start = cursor;
+    char quote = 0;
+    if (cursor < m_input.size() && (m_input[cursor] == '"' || m_input[cursor] == '\'')) {
+        quote = m_input[cursor];
+        ++content_start;
+        cursor = content_start;
+        while (cursor < m_input.size() && m_input[cursor] != quote) {
+            ++cursor;
+        }
+        if (cursor >= m_input.size()) {
+            return false;
+        }
+        size_t content_end = cursor;
+        ++cursor;
+        while (cursor < m_input.size() && std::isspace(static_cast<unsigned char>(m_input[cursor]))) {
+            ++cursor;
+        }
+        if (cursor >= m_input.size() || m_input[cursor] != ')') {
+            return false;
+        }
+        m_pos = cursor + 1;
+        tokens.push_back({TokenType::Url, m_input.substr(content_start, content_end - content_start)});
+        return true;
+    }
+
+    while (cursor < m_input.size() && m_input[cursor] != ')') {
+        ++cursor;
+    }
+    if (cursor >= m_input.size()) {
+        return false;
+    }
+    size_t content_end = cursor;
+    while (content_end > content_start && std::isspace(static_cast<unsigned char>(m_input[content_end - 1]))) {
+        --content_end;
+    }
+    m_pos = cursor + 1;
+    tokens.push_back({TokenType::Url, m_input.substr(content_start, content_end - content_start)});
+    return true;
+}
+
 bool Tokenizer::consume_simple_token(std::vector<Token>& tokens) {
     switch (peek()) {
         case '*':
@@ -106,6 +167,9 @@ std::vector<Token> Tokenizer::tokenize() {
             size_t start = m_pos;
             skip_whitespace();
             tokens.push_back({TokenType::Whitespace, m_input.substr(start, m_pos - start)});
+            continue;
+        }
+        if (try_url_token(tokens)) {
             continue;
         }
         if (consume_simple_token(tokens)) continue;

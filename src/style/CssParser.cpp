@@ -130,6 +130,9 @@ Value Parser::parse_value() {
     if (eof()) return Value::identifier("");
 
     if (match(TokenType::Hash)) return parse_hash_value();
+    if (peek().type == TokenType::Url) {
+        return Value::url_value(std::string(advance().lexeme));
+    }
     if (peek().type == TokenType::Identifier) return parse_identifier_value();
     if (peek().type == TokenType::Number) return parse_number_value();
 
@@ -154,7 +157,7 @@ std::vector<Value> Parser::parse_value_list() {
             }
         }
         if (peek().type == TokenType::Hash || peek().type == TokenType::Identifier ||
-            peek().type == TokenType::Number) {
+            peek().type == TokenType::Number || peek().type == TokenType::Url) {
             values.push_back(parse_value());
             continue;
         }
@@ -326,7 +329,34 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         if (value.type == Value::Type::Color) {
             return Core::Utils::color_to_hex(value.color);
         }
+        if (value.type == Value::Type::Length) {
+            std::string out = std::to_string(value.length.value);
+            if (value.length.unit == Unit::Px) {
+                out += "px";
+            } else if (value.length.unit == Unit::Em) {
+                out += "em";
+            }
+            return out;
+        }
+        if (value.type == Value::Type::Number) {
+            return std::to_string(value.number);
+        }
         return "";
+    };
+
+    auto join_value_list = [&](const std::vector<Value>& list) -> std::string {
+        std::string out;
+        for (const auto& value : list) {
+            std::string piece = value_to_text(value);
+            if (piece.empty()) {
+                continue;
+            }
+            if (!out.empty()) {
+                out.push_back(' ');
+            }
+            out += piece;
+        }
+        return out;
     };
 
     auto build_var_expression = [&](const std::vector<Value>& list) -> std::string {
@@ -415,15 +445,68 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         if (border_color) push_decl(Property::BorderColor, *border_color);
         return true;
     }
+    if (property == Property::BackgroundImage) {
+        for (const auto& value : values) {
+            if (value.type == Value::Type::Url) {
+                push_decl(Property::BackgroundImage, value);
+                return true;
+            }
+            if (value.type == Value::Type::Identifier && value.ident == ValueNames::None) {
+                push_decl(Property::BackgroundImage, value);
+                return true;
+            }
+        }
+        return true;
+    }
+    if (property == Property::BackgroundRepeat || property == Property::BackgroundPosition ||
+        property == Property::BackgroundSize) {
+        std::string text = join_value_list(values);
+        if (!text.empty()) {
+            push_decl(property, Value::identifier(std::move(text)));
+        }
+        return true;
+    }
     if (property == Property::Background) {
+        std::vector<Value> position_values;
         for (const auto& value : values) {
             if (value.type == Value::Type::Color) {
                 push_decl(Property::BackgroundColor, value);
-                break;
+                continue;
             }
             if (value.type == Value::Type::Identifier && value.ident.starts_with("var(")) {
                 push_decl(Property::BackgroundColor, value);
-                break;
+                continue;
+            }
+            if (value.type == Value::Type::Url) {
+                push_decl(Property::BackgroundImage, value);
+                continue;
+            }
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Repeat || value.ident == ValueNames::NoRepeat ||
+                    value.ident == ValueNames::RepeatX || value.ident == ValueNames::RepeatY) {
+                    push_decl(Property::BackgroundRepeat, value);
+                    continue;
+                }
+                if (value.ident == ValueNames::Cover || value.ident == ValueNames::Contain ||
+                    value.ident == ValueNames::Auto) {
+                    push_decl(Property::BackgroundSize, value);
+                    continue;
+                }
+                if (value.ident == ValueNames::Left || value.ident == ValueNames::Right ||
+                    value.ident == ValueNames::Center || value.ident == ValueNames::Top ||
+                    value.ident == ValueNames::Bottom) {
+                    position_values.push_back(value);
+                    continue;
+                }
+            }
+            if (value.type == Value::Type::Length || value.type == Value::Type::Number) {
+                position_values.push_back(value);
+            }
+        }
+        if (!position_values.empty()) {
+            std::string position_text = join_value_list(position_values);
+            if (!position_text.empty()) {
+                push_decl(Property::BackgroundPosition, Value::identifier(std::move(position_text)));
             }
         }
         return true;

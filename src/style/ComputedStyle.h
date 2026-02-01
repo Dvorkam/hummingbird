@@ -48,6 +48,25 @@ struct ComputedStyle {
     float line_height = 0.0f;  // px, 0 means use font metrics
     std::string font_face;
     std::optional<Color> background;
+    std::optional<std::string> background_image;
+    enum class BackgroundRepeat { Repeat, NoRepeat, RepeatX, RepeatY };
+    BackgroundRepeat background_repeat = BackgroundRepeat::Repeat;
+    struct BackgroundPosition {
+        enum class Horizontal { Left, Center, Right };
+        enum class Vertical { Top, Center, Bottom };
+        Horizontal horizontal = Horizontal::Left;
+        Vertical vertical = Vertical::Top;
+        std::optional<float> offset_x;
+        std::optional<float> offset_y;
+    };
+    BackgroundPosition background_position;
+    struct BackgroundSize {
+        enum class Type { Auto, Contain, Cover, Length };
+        Type type = Type::Auto;
+        std::optional<float> width;
+        std::optional<float> height;
+    };
+    BackgroundSize background_size;
     std::unordered_map<std::string, std::string> custom_properties;
     // Future: background, font family, etc.
 };

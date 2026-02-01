@@ -563,6 +563,29 @@ TEST(StyleEngineTest, AppliesBackgroundColor) {
     EXPECT_EQ(style->background->b, 51);
 }
 
+TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css =
+        "div { background-image: url(/img/logo.png); background-repeat: no-repeat; background-position: center; "
+        "background-size: contain; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->background_image.has_value());
+    EXPECT_EQ(*style->background_image, "/img/logo.png");
+    EXPECT_EQ(style->background_repeat, ComputedStyle::BackgroundRepeat::NoRepeat);
+    EXPECT_EQ(style->background_position.horizontal, ComputedStyle::BackgroundPosition::Horizontal::Center);
+    EXPECT_EQ(style->background_position.vertical, ComputedStyle::BackgroundPosition::Vertical::Center);
+    EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Contain);
+}
+
 TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

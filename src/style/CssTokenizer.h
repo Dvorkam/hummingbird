@@ -20,6 +20,7 @@ enum class TokenType {
     Dot,
     Hash,
     Star,
+    Url,
     End,
 };
 
@@ -40,6 +41,7 @@ private:
     void skip_whitespace();
     Token identifier();
     Token number();
+    bool try_url_token(std::vector<Token>& tokens);
     Token emit_single(TokenType type, std::string_view lexeme);
     bool consume_simple_token(std::vector<Token>& tokens);
 

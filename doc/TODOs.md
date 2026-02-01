@@ -11,7 +11,7 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 ### Additional M4 blockers (DDG HTML)
 
 - [x] **[M4 P1] T-URL-REL-2: Scheme-Relative URLs (`//host/path`)**; Goal: resolve protocol-relative URLs using the current document scheme; Scope: Url resolution + resource fetch; Acceptance: `//duckduckgo.com/...` loads via https; Tests: core URL tests.
-- [ ] **[M4 P1] T-CSS-BG-1: Background Images (MVP)**; Goal: render `background-image` with `background-repeat/position/size`; Scope: style + painter; Acceptance: DDG logo + search button render; Tests: renderer tests.
+- [x] **[M4 P1] T-CSS-BG-1: Background Images (MVP)**; Goal: render `background-image` with `background-repeat/position/size`; Scope: style + painter; Acceptance: DDG logo + search button render; Tests: renderer tests.
 - [ ] **[M4 P1] T-CSS-POS-1: Positioning Basics (relative/absolute)**; Goal: support `position` + `top/left/right/bottom` + `z-index` ordering for out-of-flow elements; Scope: layout flow; Acceptance: DDG search button overlays input correctly; Tests: layout tests.
 - [ ] **[M4 P2] T-CSS-BOX-1: Box-Sizing Support**; Goal: honor `box-sizing` (and vendor-prefixed aliases); Scope: layout sizing; Acceptance: DDG search bar sizing matches CSS; Tests: layout tests.
 - [ ] **[M4 P2] T-CSS-LIST-1: List-Style Reset**; Goal: support `list-style` / `list-style-type` / `list-style-position`; Scope: style + list marker; Acceptance: CSS reset can remove bullets; Tests: layout tests.

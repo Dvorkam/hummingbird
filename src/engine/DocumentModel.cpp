@@ -156,6 +156,20 @@ void collect_script_blocks(const DOM::Node* node, std::vector<std::string>& scri
         collect_script_blocks(child.get(), scripts);
     }
 }
+
+void collect_background_image_links(const DOM::Node* node, std::vector<std::string>& links,
+                                    std::unordered_set<std::string>& seen) {
+    if (!node) return;
+    auto style = node->get_computed_style();
+    if (style && style->background_image && !style->background_image->empty()) {
+        if (seen.insert(*style->background_image).second) {
+            links.push_back(*style->background_image);
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        collect_background_image_links(child.get(), links, seen);
+    }
+}
 }  // namespace
 
 void DocumentModel::reset() {
@@ -166,6 +180,7 @@ void DocumentModel::reset() {
     script_blocks_.clear();
     stylesheet_links_.clear();
     image_links_.clear();
+    background_image_links_.clear();
 }
 
 DocumentModel::ParseResult DocumentModel::parse_html(std::string_view html) {
@@ -213,6 +228,10 @@ void DocumentModel::apply_styles(const std::string& css) {
     const auto style_end = Core::Clock::now();
     HB_LOG_INFO("[pipeline] applied stylesheet rules: " << stylesheet.rules.size());
     HB_LOG_INFO("[perf] style apply ms=" << Core::duration_ms(style_start, style_end));
+
+    background_image_links_.clear();
+    std::unordered_set<std::string> seen;
+    collect_background_image_links(dom_tree_.get(), background_image_links_, seen);
 }
 
 bool DocumentModel::build_render_tree() {

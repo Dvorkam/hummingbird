@@ -46,6 +46,7 @@ public:
     const std::vector<std::string>& script_blocks() const { return script_blocks_; }
     const std::vector<std::string>& stylesheet_links() const { return stylesheet_links_; }
     const std::vector<std::string>& image_links() const { return image_links_; }
+    const std::vector<std::string>& background_image_links() const { return background_image_links_; }
 
 private:
     static constexpr size_t kDomArenaBlockSize = 2 * 1024 * 1024;
@@ -62,6 +63,7 @@ private:
     std::vector<std::string> script_blocks_;
     std::vector<std::string> stylesheet_links_;
     std::vector<std::string> image_links_;
+    std::vector<std::string> background_image_links_;
 };
 
 }  // namespace Hummingbird::Engine

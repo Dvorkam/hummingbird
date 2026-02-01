@@ -6,6 +6,10 @@ namespace Hummingbird::Css::PropertyNames {
 
 static constexpr std::string_view Display = "display";
 static constexpr std::string_view Background = "background";
+static constexpr std::string_view BackgroundImage = "background-image";
+static constexpr std::string_view BackgroundRepeat = "background-repeat";
+static constexpr std::string_view BackgroundPosition = "background-position";
+static constexpr std::string_view BackgroundSize = "background-size";
 static constexpr std::string_view Border = "border";
 static constexpr std::string_view BorderWidth = "border-width";
 static constexpr std::string_view BorderColor = "border-color";

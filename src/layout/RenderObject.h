@@ -13,6 +13,7 @@
 // Forward declare IGraphicsContext to break dependency cycle
 namespace Hummingbird {
 class IGraphicsContext;
+struct ImageBitmap;
 namespace Css {
 struct ComputedStyle;
 }  // namespace Css
@@ -49,6 +50,15 @@ public:
 
     InlineRef Inline() { return InlineRef(as_inline_participant()); }
 
+    bool set_background_image(const ImageBitmap* image) {
+        if (m_background_image == image) {
+            return false;
+        }
+        m_background_image = image;
+        return true;
+    }
+    const ImageBitmap* background_image() const { return m_background_image; }
+
     virtual void layout(IGraphicsContext& context, const Rect& bounds);
     virtual void paint(IGraphicsContext& context, const Point& offset) const final;
     virtual void paint_self(IGraphicsContext& context, const Point& offset) const;
@@ -62,5 +72,6 @@ protected:
     RenderObject* m_parent = nullptr;
     std::vector<std::unique_ptr<RenderObject>> m_children;
     Rect m_rect;
+    const ImageBitmap* m_background_image = nullptr;
 };
 }  // namespace Hummingbird::Layout

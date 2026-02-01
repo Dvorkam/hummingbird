@@ -105,6 +105,8 @@ std::string build_stub_body(const std::string& url) {
       .table-align-demo { border: 1px solid #bbb; }
       .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
       .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
+      .bg-demo { height: 120px; border: 1px solid #aaa; background-image: url(assets/logos/hummingbird.svg); background-repeat: no-repeat; background-position: center; background-size: contain; }
+      .bg-demo-tile { height: 80px; border: 1px solid #aaa; background-image: url(assets/icons/page_security/secure.png); background-repeat: repeat; background-position: left top; background-size: 16px 16px; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -197,6 +199,14 @@ aligned.</pre>
         <rect x="4" y="4" width="40" height="40" rx="6" fill="#4a7a2a"/>
         <circle cx="24" cy="24" r="12" fill="#f4d35e"/>
       </svg>
+    </div>
+
+    <div class="section">
+      <h2>Background Images</h2>
+      <p>Center/contain example:</p>
+      <div class="bg-demo"></div>
+      <p>Repeated tiles with explicit size:</p>
+      <div class="bg-demo-tile"></div>
     </div>
 
     <div class="section">

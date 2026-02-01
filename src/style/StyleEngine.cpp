@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include <cctype>
 #include <memory>
 #include <optional>
 #include <string>
@@ -15,6 +16,7 @@
 #include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/ColorUtils.h"
+#include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "style/ComputedStyle.h"
 #include "style/CssValueNames.h"
@@ -31,6 +33,39 @@ float value_to_length(const Value& value, float fallback, float font_size) {
     if (value.length.unit == Unit::Px) return value.length.value;
     if (value.length.unit == Unit::Em) return value.length.value * font_size;
     return fallback;
+}
+
+std::optional<float> parse_length_token(std::string_view token, float font_size) {
+    token = Core::Utils::trim_ascii_whitespace(token);
+    if (token.empty()) return std::nullopt;
+    if (token.size() > 2 && token.ends_with("px")) {
+        auto value = Core::Utils::parse_float(token.substr(0, token.size() - 2));
+        if (value) return *value;
+        return std::nullopt;
+    }
+    if (token.size() > 2 && token.ends_with("em")) {
+        auto value = Core::Utils::parse_float(token.substr(0, token.size() - 2));
+        if (value) return *value * font_size;
+        return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+std::vector<std::string_view> split_tokens(std::string_view text) {
+    std::vector<std::string_view> tokens;
+    size_t i = 0;
+    while (i < text.size()) {
+        while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i]))) {
+            ++i;
+        }
+        if (i >= text.size()) break;
+        size_t start = i;
+        while (i < text.size() && !std::isspace(static_cast<unsigned char>(text[i]))) {
+            ++i;
+        }
+        tokens.push_back(text.substr(start, i - start));
+    }
+    return tokens;
 }
 
 void apply_edge(EdgeSizes& edges, float value) {
@@ -273,6 +308,182 @@ void apply_background_property(const PropertyMap& properties, ComputedStyle& sty
     }
 }
 
+void apply_background_image_property(const PropertyMap& properties, ComputedStyle& style) {
+    auto it = properties.find(Property::BackgroundImage);
+    if (it == properties.end()) {
+        return;
+    }
+    const auto& value = it->second.value;
+    if (value.type == Value::Type::Url) {
+        style.background_image = value.ident;
+        return;
+    }
+    if (value.type == Value::Type::Identifier && value.ident == ValueNames::None) {
+        style.background_image.reset();
+    }
+}
+
+void apply_background_repeat_property(const PropertyMap& properties, ComputedStyle& style) {
+    auto it = properties.find(Property::BackgroundRepeat);
+    if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
+        return;
+    }
+    auto tokens = split_tokens(it->second.value.ident);
+    if (tokens.empty()) {
+        return;
+    }
+    if (tokens.size() >= 2) {
+        const auto& x = tokens[0];
+        const auto& y = tokens[1];
+        if (x == ValueNames::Repeat && y == ValueNames::NoRepeat) {
+            style.background_repeat = ComputedStyle::BackgroundRepeat::RepeatX;
+            return;
+        }
+        if (x == ValueNames::NoRepeat && y == ValueNames::Repeat) {
+            style.background_repeat = ComputedStyle::BackgroundRepeat::RepeatY;
+            return;
+        }
+        if (x == ValueNames::NoRepeat && y == ValueNames::NoRepeat) {
+            style.background_repeat = ComputedStyle::BackgroundRepeat::NoRepeat;
+            return;
+        }
+        if (x == ValueNames::Repeat && y == ValueNames::Repeat) {
+            style.background_repeat = ComputedStyle::BackgroundRepeat::Repeat;
+            return;
+        }
+    }
+    const auto& ident = tokens[0];
+    if (ident == ValueNames::NoRepeat) {
+        style.background_repeat = ComputedStyle::BackgroundRepeat::NoRepeat;
+    } else if (ident == ValueNames::RepeatX) {
+        style.background_repeat = ComputedStyle::BackgroundRepeat::RepeatX;
+    } else if (ident == ValueNames::RepeatY) {
+        style.background_repeat = ComputedStyle::BackgroundRepeat::RepeatY;
+    } else if (ident == ValueNames::Repeat) {
+        style.background_repeat = ComputedStyle::BackgroundRepeat::Repeat;
+    }
+}
+
+void apply_background_position_property(const PropertyMap& properties, ComputedStyle& style) {
+    auto it = properties.find(Property::BackgroundPosition);
+    if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
+        return;
+    }
+    auto tokens = split_tokens(it->second.value.ident);
+    if (tokens.empty()) {
+        return;
+    }
+
+    bool horizontal_set = false;
+    bool vertical_set = false;
+
+    auto apply_keyword = [&](std::string_view token) {
+        if (token == ValueNames::Left) {
+            style.background_position.horizontal = ComputedStyle::BackgroundPosition::Horizontal::Left;
+            horizontal_set = true;
+            return true;
+        }
+        if (token == ValueNames::Right) {
+            style.background_position.horizontal = ComputedStyle::BackgroundPosition::Horizontal::Right;
+            horizontal_set = true;
+            return true;
+        }
+        if (token == ValueNames::Top) {
+            style.background_position.vertical = ComputedStyle::BackgroundPosition::Vertical::Top;
+            vertical_set = true;
+            return true;
+        }
+        if (token == ValueNames::Bottom) {
+            style.background_position.vertical = ComputedStyle::BackgroundPosition::Vertical::Bottom;
+            vertical_set = true;
+            return true;
+        }
+        if (token == ValueNames::Center) {
+            if (!horizontal_set) {
+                style.background_position.horizontal = ComputedStyle::BackgroundPosition::Horizontal::Center;
+                horizontal_set = true;
+                return true;
+            }
+            if (!vertical_set) {
+                style.background_position.vertical = ComputedStyle::BackgroundPosition::Vertical::Center;
+                vertical_set = true;
+                return true;
+            }
+        }
+        return false;
+    };
+
+    const float font_size = style.font_size;
+    size_t index = 0;
+    if (index < tokens.size()) {
+        if (auto length = parse_length_token(tokens[index], font_size)) {
+            style.background_position.offset_x = *length;
+            horizontal_set = true;
+        } else {
+            apply_keyword(tokens[index]);
+        }
+        ++index;
+    }
+    if (index < tokens.size()) {
+        if (auto length = parse_length_token(tokens[index], font_size)) {
+            style.background_position.offset_y = *length;
+            vertical_set = true;
+        } else {
+            apply_keyword(tokens[index]);
+        }
+    }
+
+    if (horizontal_set && !vertical_set) {
+        style.background_position.vertical = ComputedStyle::BackgroundPosition::Vertical::Center;
+    } else if (vertical_set && !horizontal_set) {
+        style.background_position.horizontal = ComputedStyle::BackgroundPosition::Horizontal::Center;
+    }
+}
+
+void apply_background_size_property(const PropertyMap& properties, ComputedStyle& style) {
+    auto it = properties.find(Property::BackgroundSize);
+    if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
+        return;
+    }
+    auto tokens = split_tokens(it->second.value.ident);
+    if (tokens.empty()) {
+        return;
+    }
+
+    if (tokens[0] == ValueNames::Cover) {
+        style.background_size.type = ComputedStyle::BackgroundSize::Type::Cover;
+        style.background_size.width.reset();
+        style.background_size.height.reset();
+        return;
+    }
+    if (tokens[0] == ValueNames::Contain) {
+        style.background_size.type = ComputedStyle::BackgroundSize::Type::Contain;
+        style.background_size.width.reset();
+        style.background_size.height.reset();
+        return;
+    }
+    if (tokens[0] == ValueNames::Auto) {
+        style.background_size.type = ComputedStyle::BackgroundSize::Type::Auto;
+        style.background_size.width.reset();
+        style.background_size.height.reset();
+        return;
+    }
+
+    const float font_size = style.font_size;
+    auto width = parse_length_token(tokens[0], font_size);
+    if (!width) {
+        return;
+    }
+    style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
+    style.background_size.width = *width;
+    style.background_size.height.reset();
+    if (tokens.size() > 1) {
+        if (auto height = parse_length_token(tokens[1], font_size)) {
+            style.background_size.height = *height;
+        }
+    }
+}
+
 void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& style,
                                StyleDefaults::StyleOverrides& overrides, bool& display_set, float parent_font_size,
                                const ComputedStyle* parent_style) {
@@ -434,6 +645,10 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
 
     apply_color_property(properties, style, overrides, parent_style);
     apply_background_property(properties, style, overrides, parent_style);
+    apply_background_image_property(properties, style);
+    apply_background_repeat_property(properties, style);
+    apply_background_position_property(properties, style);
+    apply_background_size_property(properties, style);
 }
 
 void apply_custom_properties(const CustomPropertyMap& properties, ComputedStyle& style) {
@@ -455,6 +670,10 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.border_color = source.border_color;
     target.border_style = source.border_style;
     target.background = source.background;
+    target.background_image = source.background_image;
+    target.background_repeat = source.background_repeat;
+    target.background_position = source.background_position;
+    target.background_size = source.background_size;
     target.float_type = source.float_type;
 }
 

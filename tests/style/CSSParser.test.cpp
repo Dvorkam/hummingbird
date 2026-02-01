@@ -137,6 +137,39 @@ TEST(CSSParserTest, ParsesBackgroundColorAndShortHex) {
     EXPECT_EQ(rule.declarations[1].value.color.b, 255);
 }
 
+TEST(CSSParserTest, ParsesBackgroundImageUrl) {
+    Parser parser("div { background-image: url(/img/logo.png); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+    EXPECT_EQ(decls[0].property, Property::BackgroundImage);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Url);
+    EXPECT_EQ(decls[0].value.ident, "/img/logo.png");
+}
+
+TEST(CSSParserTest, ExpandsBackgroundShorthandForImages) {
+    Parser parser("div { background: url(/img/logo.png) no-repeat center; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    bool has_image = false;
+    bool has_repeat = false;
+    bool has_position = false;
+    for (const auto& decl : decls) {
+        if (decl.property == Property::BackgroundImage) {
+            has_image = true;
+        } else if (decl.property == Property::BackgroundRepeat) {
+            has_repeat = true;
+        } else if (decl.property == Property::BackgroundPosition) {
+            has_position = true;
+        }
+    }
+    EXPECT_TRUE(has_image);
+    EXPECT_TRUE(has_repeat);
+    EXPECT_TRUE(has_position);
+}
+
 TEST(CSSParserTest, DedupesUnsupportedPropertyWarnings) {
     Parser parser("div { bogus: 1; bogus: 2; }");
     std::ostringstream captured;

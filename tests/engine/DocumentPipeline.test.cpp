@@ -88,3 +88,36 @@ TEST(DocumentPipelineTest, DispatchesClickHandler) {
     EXPECT_TRUE(result.handled);
     EXPECT_TRUE(result.mutated);
 }
+
+TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <style>
+      div { background-image: url(/img/background.png); }
+    </style>
+  </head>
+  <body>
+    <div>Box</div>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    TestGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+
+    const auto& links = pipeline.background_image_links();
+    ASSERT_EQ(links.size(), 1u);
+    EXPECT_EQ(links[0], "/img/background.png");
+}
