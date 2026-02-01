@@ -45,9 +45,9 @@ private:
     explicit TextBox(const DOM::Text* dom_node);
 
     void paint_fragments(IGraphicsContext& context, const TextStyle& text_style, float absolute_x, float absolute_y,
-                         float line_height, bool underline) const;
+                         float line_height, const Css::ComputedStyle* style, bool underline) const;
     void paint_lines(IGraphicsContext& context, const TextStyle& text_style, float absolute_x, float absolute_y,
-                     bool underline) const;
+                     const Css::ComputedStyle* style, bool underline) const;
 
     struct TextFragment {
         std::string text;

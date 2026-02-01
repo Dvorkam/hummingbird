@@ -11,6 +11,7 @@
 #include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderListItem.h"
+#include "layout/TextBox.h"
 #include "layout/TreeBuilder.h"
 #include "style/CssParser.h"
 #include "style/StyleEngine.h"
@@ -33,7 +34,12 @@ public:
     void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override { ++image_calls; }
 
     TextMetrics measure_text(const std::string& text, const TextStyle&) override {
-        return {static_cast<float>(text.size()) * 8.0f, 16.0f};
+        TextMetrics metrics;
+        metrics.width = static_cast<float>(text.size()) * 8.0f;
+        metrics.height = 16.0f;
+        metrics.ascent = 12.0f;
+        metrics.descent = 4.0f;
+        return metrics;
     }
 
     void draw_text(const std::string& text, float, float, const TextStyle&) override {
@@ -185,6 +191,19 @@ Hummingbird::Layout::RenderObject* find_tag(Hummingbird::Layout::RenderObject* n
     }
     return nullptr;
 }
+
+Hummingbird::Layout::TextBox* find_text_box(Hummingbird::Layout::RenderObject* node) {
+    if (!node) return nullptr;
+    if (auto* text = dynamic_cast<Hummingbird::Layout::TextBox*>(node)) {
+        return text;
+    }
+    for (const auto& child : node->get_children()) {
+        if (auto* found = find_text_box(child.get())) {
+            return found;
+        }
+    }
+    return nullptr;
+}
 }  // namespace
 
 TEST(PainterTest, PaintsBackgroundImage) {
@@ -221,6 +240,45 @@ TEST(PainterTest, PaintsBackgroundImage) {
     painter.paint(*render_tree, context, opts);
 
     EXPECT_GE(context.image_calls, 1);
+}
+
+TEST(PainterTest, HonorsUnderlineThicknessAndOffset) {
+    std::string_view html = "<html><body><p class='u'>Hi</p></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css =
+        "p.u { text-decoration: underline; text-decoration-thickness: 3px; "
+        "text-underline-offset: 4px; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    auto* text_box = find_text_box(render_tree.get());
+    ASSERT_NE(text_box, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    ASSERT_FALSE(context.fill_calls.empty());
+    const auto& underline_rect = context.fill_calls.back();
+
+    auto text_rect = absolute_rect_for(text_box);
+    float expected_y = text_rect.y + 12.0f + 4.0f;
+    EXPECT_NEAR(underline_rect.y, expected_y, 0.01f);
+    EXPECT_NEAR(underline_rect.height, 3.0f, 0.01f);
+    EXPECT_GT(underline_rect.width, 0.0f);
 }
 
 TEST(PainterTest, PaintsBorderEdgesAtComputedPositions) {

@@ -17,6 +17,8 @@ namespace Hummingbird::Css::StyleDefaults {
 struct StyleOverrides {
     bool color = false;
     bool underline = false;
+    bool underline_thickness = false;
+    bool underline_offset = false;
     bool link_color = false;
     bool vlink_color = false;
     bool whitespace = false;

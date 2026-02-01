@@ -50,6 +50,8 @@ struct ComputedStyle {
     std::optional<int> z_index;
     Color color{0, 0, 0, 255};
     bool underline = false;
+    std::optional<float> underline_thickness;
+    std::optional<float> underline_offset;
     std::optional<Color> link_color;
     std::optional<Color> vlink_color;
     bool font_monospace = false;

@@ -307,6 +307,29 @@ TEST(StyleEngineTest, SupportsTextDecorationUnderlineAndNone) {
     EXPECT_TRUE(span_style->underline);
 }
 
+TEST(StyleEngineTest, AppliesUnderlineThicknessAndOffset) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    root->set_attribute(Attr::Class, "u");
+
+    std::string css =
+        "p.u { text-decoration: underline; text-decoration-thickness: 3px; "
+        "text-underline-offset: 4px; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_TRUE(style->underline);
+    ASSERT_TRUE(style->underline_thickness.has_value());
+    EXPECT_FLOAT_EQ(style->underline_thickness.value(), 3.0f);
+    ASSERT_TRUE(style->underline_offset.has_value());
+    EXPECT_FLOAT_EQ(style->underline_offset.value(), 4.0f);
+}
+
 TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

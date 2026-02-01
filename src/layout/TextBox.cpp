@@ -29,7 +29,7 @@ struct UnderlineMetrics {
     float thickness = kUnderlineThicknessPx;
 };
 
-UnderlineMetrics resolve_underline_metrics(const TextMetrics& metrics) {
+UnderlineMetrics resolve_underline_metrics(const TextMetrics& metrics, const Css::ComputedStyle* style) {
     UnderlineMetrics underline;
     float position = -metrics.underline_position;
     float fallback = metrics.descent > 0.0f ? std::max(1.0f, metrics.descent * 0.25f) : kUnderlineOffsetPx;
@@ -39,8 +39,14 @@ UnderlineMetrics resolve_underline_metrics(const TextMetrics& metrics) {
     if (metrics.descent > 0.0f) {
         position = std::min(position, metrics.descent);
     }
+    if (style && style->underline_offset.has_value()) {
+        position = std::max(0.0f, *style->underline_offset);
+    }
     underline.position = position;
     underline.thickness = metrics.underline_thickness > 0.0f ? metrics.underline_thickness : kUnderlineThicknessPx;
+    if (style && style->underline_thickness.has_value()) {
+        underline.thickness = std::max(kUnderlineThicknessPx, *style->underline_thickness);
+    }
     if (underline.thickness < kUnderlineThicknessPx) {
         underline.thickness = kUnderlineThicknessPx;
     }
@@ -368,22 +374,23 @@ void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
 
     if (!m_fragments.empty()) {
         float line_height = m_line_height > 0.0f ? m_line_height : m_last_metrics.height;
-        paint_fragments(context, text_style, absolute_x, absolute_y, line_height, style && style->underline);
+        paint_fragments(context, text_style, absolute_x, absolute_y, line_height, style, style && style->underline);
         return;
     }
 
     if (m_lines.empty()) return;
 
-    paint_lines(context, text_style, absolute_x, absolute_y, style && style->underline);
+    paint_lines(context, text_style, absolute_x, absolute_y, style, style && style->underline);
 }
 
 void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_style, float absolute_x,
-                              float absolute_y, float line_height, bool underline) const {
+                              float absolute_y, float line_height, const Css::ComputedStyle* style,
+                              bool underline) const {
     TextMetrics line_metrics = m_last_metrics;
     if (line_metrics.height <= 0.0f) {
         line_metrics = context.measure_text("A", text_style);
     }
-    UnderlineMetrics underline_metrics = resolve_underline_metrics(line_metrics);
+    UnderlineMetrics underline_metrics = resolve_underline_metrics(line_metrics, style);
 
     std::vector<float> line_widths;
     for (const auto& frag : m_fragments) {
@@ -414,13 +421,13 @@ void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_s
 }
 
 void TextBox::paint_lines(IGraphicsContext& context, const TextStyle& text_style, float absolute_x, float absolute_y,
-                          bool underline) const {
+                          const Css::ComputedStyle* style, bool underline) const {
     float line_height = m_line_height > 0.0f ? m_line_height : m_last_metrics.height;
     TextMetrics line_metrics = m_last_metrics;
     if (line_metrics.height <= 0.0f) {
         line_metrics = context.measure_text("A", text_style);
     }
-    UnderlineMetrics underline_metrics = resolve_underline_metrics(line_metrics);
+    UnderlineMetrics underline_metrics = resolve_underline_metrics(line_metrics, style);
     for (size_t i = 0; i < m_lines.size(); ++i) {
         float line_top = absolute_y + static_cast<float>(i) * line_height;
         float line_width = 0.0f;

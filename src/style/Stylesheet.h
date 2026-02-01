@@ -51,6 +51,8 @@ enum class Property {
     MaxHeight,
     TextAlign,
     TextDecoration,
+    TextDecorationThickness,
+    TextUnderlineOffset,
     WhiteSpace,
     FontFamily,
     FontWeight,

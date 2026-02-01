@@ -801,6 +801,24 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         }
     }
 
+    if (auto underline_thickness_it = properties.find(Property::TextDecorationThickness);
+        underline_thickness_it != properties.end()) {
+        auto thickness = value_to_length(underline_thickness_it->second.value, 0.0f, style.font_size);
+        if (thickness > 0.0f) {
+            style.underline_thickness = thickness;
+            overrides.underline_thickness = true;
+        }
+    }
+
+    if (auto underline_offset_it = properties.find(Property::TextUnderlineOffset);
+        underline_offset_it != properties.end()) {
+        auto offset = value_to_length(underline_offset_it->second.value, 0.0f, style.font_size);
+        if (offset > 0.0f) {
+            style.underline_offset = offset;
+            overrides.underline_offset = true;
+        }
+    }
+
     auto whitespace_it = properties.find(Property::WhiteSpace);
     if (whitespace_it != properties.end() && whitespace_it->second.value.type == Value::Type::Identifier) {
         const auto& ident = whitespace_it->second.value.ident;
@@ -930,6 +948,8 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
                                  const StyleDefaults::StyleOverrides& overrides) {
     if (overrides.color) target.color = source.color;
     if (overrides.underline) target.underline = source.underline;
+    if (overrides.underline_thickness) target.underline_thickness = source.underline_thickness;
+    if (overrides.underline_offset) target.underline_offset = source.underline_offset;
     if (overrides.link_color) target.link_color = source.link_color;
     if (overrides.vlink_color) target.vlink_color = source.vlink_color;
     if (overrides.whitespace) target.whitespace = source.whitespace;

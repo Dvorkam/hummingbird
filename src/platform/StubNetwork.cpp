@@ -93,6 +93,7 @@ std::string build_stub_body(const std::string& url) {
       .align-demo { text-align: center; border: 1px dashed #bbb; padding: 4px; }
       .nowrap-demo { white-space: nowrap; border: 1px dashed #bbb; padding: 4px; width: 180px; }
       .underline-demo { text-decoration: underline; }
+      .underline-offset-demo { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; }
       .no-underline a { text-decoration: none; }
       .em-demo { font-size: 18px; margin-top: 1.5em; padding: 1em; border: 1px solid #888; background-color: #f5f5f5; }
       .font-demo-sans { font-family: roboto, sans-serif; }
@@ -149,6 +150,7 @@ aligned.</pre>
       <p class="align-demo">Centered via CSS text-align.</p>
       <p class="nowrap-demo">This sentence should stay on one line even in a narrow box.</p>
       <p class="underline-demo">Underlined via CSS text-decoration.</p>
+      <p class="underline-offset-demo">Underline thickness/offset demo.</p>
       <p class="no-underline"><a href="https://example.dev">Link with underline removed.</a></p>
       <div class="em-demo">Em-based spacing: padding and margin scale with font-size.</div>
     </div>
