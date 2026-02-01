@@ -51,6 +51,136 @@ std::optional<float> parse_length_token(std::string_view token, float font_size)
     return std::nullopt;
 }
 
+std::optional<float> parse_length_or_number(std::string_view token, float font_size) {
+    if (auto length = parse_length_token(token, font_size)) {
+        return *length;
+    }
+    if (auto value = Core::Utils::parse_float(token)) {
+        return *value;
+    }
+    return std::nullopt;
+}
+
+std::vector<std::string_view> split_tokens(std::string_view text);
+
+std::optional<std::pair<float, float>> parse_transform_translate(std::string_view text, float font_size) {
+    auto trimmed = Core::Utils::trim_ascii_whitespace(text);
+    if (trimmed.empty() || trimmed == ValueNames::None) {
+        return std::nullopt;
+    }
+
+    auto parse_length_from_tokens = [&](const std::vector<std::string_view>& tokens,
+                                        size_t& index) -> std::optional<float> {
+        if (index >= tokens.size()) {
+            return std::nullopt;
+        }
+        auto value = parse_length_token(tokens[index], font_size);
+        if (value) {
+            ++index;
+            return *value;
+        }
+        auto number = Core::Utils::parse_float(tokens[index]);
+        if (!number) {
+            return std::nullopt;
+        }
+        float out = *number;
+        ++index;
+        if (index < tokens.size()) {
+            if (tokens[index] == ValueNames::Px) {
+                ++index;
+            } else if (tokens[index] == ValueNames::Em) {
+                out *= font_size;
+                ++index;
+            }
+        }
+        return out;
+    };
+
+    auto parse_args = [&](std::string_view args) -> std::optional<std::pair<float, float>> {
+        args = Core::Utils::trim_ascii_whitespace(args);
+        if (args.empty()) {
+            return std::nullopt;
+        }
+        size_t comma = args.find(',');
+        std::string_view first = args;
+        std::string_view second;
+        if (comma != std::string_view::npos) {
+            first = args.substr(0, comma);
+            second = args.substr(comma + 1);
+        }
+        auto x = parse_length_or_number(first, font_size);
+        if (!x) {
+            return std::nullopt;
+        }
+        float y_value = 0.0f;
+        if (!second.empty()) {
+            auto y = parse_length_or_number(second, font_size);
+            if (!y) {
+                return std::nullopt;
+            }
+            y_value = *y;
+        }
+        return std::make_pair(*x, y_value);
+    };
+
+    if (trimmed.starts_with("translate(") && trimmed.ends_with(")")) {
+        auto args = trimmed.substr(10, trimmed.size() - 11);
+        return parse_args(args);
+    }
+    if (trimmed.starts_with("translateX(") && trimmed.ends_with(")")) {
+        auto args = trimmed.substr(11, trimmed.size() - 12);
+        auto value = parse_length_or_number(args, font_size);
+        if (!value) {
+            return std::nullopt;
+        }
+        return std::make_pair(*value, 0.0f);
+    }
+    if (trimmed.starts_with("translateY(") && trimmed.ends_with(")")) {
+        auto args = trimmed.substr(11, trimmed.size() - 12);
+        auto value = parse_length_or_number(args, font_size);
+        if (!value) {
+            return std::nullopt;
+        }
+        return std::make_pair(0.0f, *value);
+    }
+
+    auto tokens = split_tokens(trimmed);
+    if (tokens.empty()) {
+        return std::nullopt;
+    }
+    if (tokens[0] == "translate") {
+        size_t index = 1;
+        auto x = parse_length_from_tokens(tokens, index);
+        if (!x) {
+            return std::nullopt;
+        }
+        float y_value = 0.0f;
+        if (index < tokens.size()) {
+            if (auto y = parse_length_from_tokens(tokens, index)) {
+                y_value = *y;
+            }
+        }
+        return std::make_pair(*x, y_value);
+    }
+    if (tokens[0] == "translateX") {
+        size_t index = 1;
+        auto x = parse_length_from_tokens(tokens, index);
+        if (!x) {
+            return std::nullopt;
+        }
+        return std::make_pair(*x, 0.0f);
+    }
+    if (tokens[0] == "translateY") {
+        size_t index = 1;
+        auto y = parse_length_from_tokens(tokens, index);
+        if (!y) {
+            return std::nullopt;
+        }
+        return std::make_pair(0.0f, *y);
+    }
+    return std::nullopt;
+}
+
 std::vector<std::string_view> split_tokens(std::string_view text) {
     std::vector<std::string_view> tokens;
     size_t i = 0;
@@ -582,6 +712,20 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         }
     }
 
+    auto transform_it = properties.find(Property::Transform);
+    if (transform_it != properties.end() && transform_it->second.value.type == Value::Type::Identifier) {
+        auto translate = parse_transform_translate(transform_it->second.value.ident, style.font_size);
+        if (translate) {
+            style.transform_has_translate = true;
+            style.transform_translate_x = translate->first;
+            style.transform_translate_y = translate->second;
+        } else {
+            style.transform_has_translate = false;
+            style.transform_translate_x = 0.0f;
+            style.transform_translate_y = 0.0f;
+        }
+    }
+
     auto border_width_it = properties.find(Property::BorderWidth);
     if (border_width_it != properties.end()) {
         apply_edge(style.border_width, value_to_length(border_width_it->second.value, 0.0f, style.font_size));
@@ -710,6 +854,9 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.margin_right_auto = source.margin_right_auto;
     target.padding = source.padding;
     target.box_sizing = source.box_sizing;
+    target.transform_has_translate = source.transform_has_translate;
+    target.transform_translate_x = source.transform_translate_x;
+    target.transform_translate_y = source.transform_translate_y;
     target.width = source.width;
     target.height = source.height;
     target.max_width = source.max_width;

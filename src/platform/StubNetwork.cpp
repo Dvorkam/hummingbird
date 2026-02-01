@@ -113,6 +113,8 @@ std::string build_stub_body(const std::string& url) {
       .box-sizing-demo { width: 160px; padding: 8px; border: 2px solid #666; margin: 4px 0; }
       .box-sizing-content { box-sizing: content-box; background-color: #fff4e6; }
       .box-sizing-border { box-sizing: border-box; background-color: #eaf5ff; }
+      .transform-demo { width: 140px; padding: 6px; border: 1px solid #666; background-color: #f8f8f8; }
+      .transform-shift { transform: translate(18px, 6px); background-color: #e9f4ff; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -199,6 +201,12 @@ aligned.</pre>
       <h2>Box Sizing</h2>
       <p class="box-sizing-demo box-sizing-content">content-box (total width grows)</p>
       <p class="box-sizing-demo box-sizing-border">border-box (total width fixed)</p>
+    </div>
+
+    <div class="section">
+      <h2>Transforms</h2>
+      <p class="transform-demo">Original position.</p>
+      <p class="transform-demo transform-shift">Translated by transform.</p>
     </div>
 
     <div class="section">

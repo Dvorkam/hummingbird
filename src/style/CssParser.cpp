@@ -466,6 +466,13 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         }
         return true;
     }
+    if (property == Property::Transform) {
+        std::string text = join_value_list(values);
+        if (!text.empty()) {
+            push_decl(property, Value::identifier(std::move(text)));
+        }
+        return true;
+    }
     if (property == Property::Background) {
         std::vector<Value> position_values;
         for (const auto& value : values) {

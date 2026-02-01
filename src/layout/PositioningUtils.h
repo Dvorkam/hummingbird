@@ -49,9 +49,16 @@ template <Traversal::RenderNode NodeT, typename Enter, typename Exit>
 bool traverse_render_tree_z_order(NodeT& node, const Point& offset, Enter&& enter, Exit&& exit,
                                   Traversal::ChildOrder child_order = Traversal::ChildOrder::Forward) {
     const auto& rect = node.get_rect();
-    Rect absolute{offset.x + rect.x, offset.y + rect.y, rect.width, rect.height};
+    const auto* style = node.get_computed_style();
+    Point transform_offset{};
+    if (style && style->transform_has_translate) {
+        transform_offset.x = style->transform_translate_x;
+        transform_offset.y = style->transform_translate_y;
+    }
+    Point effective_offset{offset.x + transform_offset.x, offset.y + transform_offset.y};
+    Rect absolute{effective_offset.x + rect.x, effective_offset.y + rect.y, rect.width, rect.height};
 
-    Traversal::TraverseAction action = enter(node, absolute, offset);
+    Traversal::TraverseAction action = enter(node, absolute, effective_offset);
     if (action == Traversal::TraverseAction::Stop) return false;
     if (action == Traversal::TraverseAction::SkipChildren) return true;
 
@@ -64,7 +71,7 @@ bool traverse_render_tree_z_order(NodeT& node, const Point& offset, Enter&& ente
         if (!traverse_render_tree_z_order(*child_node, child_offset, enter, exit, child_order)) return false;
     }
 
-    action = exit(node, absolute, offset);
+    action = exit(node, absolute, effective_offset);
     return action != Traversal::TraverseAction::Stop;
 }
 

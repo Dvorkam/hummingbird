@@ -34,6 +34,9 @@ struct ComputedStyle {
     EdgeSizes padding;
     enum class BoxSizing { ContentBox, BorderBox };
     BoxSizing box_sizing = BoxSizing::ContentBox;
+    bool transform_has_translate = false;
+    float transform_translate_x = 0.0f;
+    float transform_translate_y = 0.0f;
     std::optional<float> width;
     std::optional<float> height;
     std::optional<float> max_width;

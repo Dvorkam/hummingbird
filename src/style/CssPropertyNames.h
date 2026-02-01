@@ -35,6 +35,7 @@ static constexpr std::string_view WebkitBoxSizing = "-webkit-box-sizing";
 static constexpr std::string_view MozBoxSizing = "-moz-box-sizing";
 static constexpr std::string_view MsBoxSizing = "-ms-box-sizing";
 static constexpr std::string_view OBoxSizing = "-o-box-sizing";
+static constexpr std::string_view Transform = "transform";
 static constexpr std::string_view Width = "width";
 static constexpr std::string_view Height = "height";
 static constexpr std::string_view Color = "color";

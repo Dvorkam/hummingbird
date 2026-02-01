@@ -14,8 +14,14 @@ void RenderObject::layout(IGraphicsContext& context, const Rect& bounds) {
 }
 
 void RenderObject::paint(IGraphicsContext& context, const Point& offset) const {
-    paint_self(context, offset);
-    Point child_offset = {offset.x + m_rect.x, offset.y + m_rect.y};
+    const auto* style = get_computed_style();
+    Point paint_offset = offset;
+    if (style && style->transform_has_translate) {
+        paint_offset.x += style->transform_translate_x;
+        paint_offset.y += style->transform_translate_y;
+    }
+    paint_self(context, paint_offset);
+    Point child_offset = {paint_offset.x + m_rect.x, paint_offset.y + m_rect.y};
     for (auto& child : m_children) {
         child->paint(context, child_offset);
     }

@@ -214,6 +214,25 @@ TEST(StyleEngineTest, AppliesBoxSizingProperty) {
     EXPECT_EQ(style->box_sizing, ComputedStyle::BoxSizing::BorderBox);
 }
 
+TEST(StyleEngineTest, AppliesTransformTranslate) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "shift");
+
+    std::string css = R"(.shift { transform: translate(12px, 4px); })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_TRUE(style->transform_has_translate);
+    EXPECT_FLOAT_EQ(style->transform_translate_x, 12.0f);
+    EXPECT_FLOAT_EQ(style->transform_translate_y, 4.0f);
+}
+
 TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);

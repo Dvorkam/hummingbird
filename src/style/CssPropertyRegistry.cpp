@@ -41,6 +41,7 @@ static constexpr Mapping kMappings[] = {
     {PropertyNames::MozBoxSizing, Property::BoxSizing},
     {PropertyNames::MsBoxSizing, Property::BoxSizing},
     {PropertyNames::OBoxSizing, Property::BoxSizing},
+    {PropertyNames::Transform, Property::Transform},
     {PropertyNames::Width, Property::Width},
     {PropertyNames::Height, Property::Height},
     {PropertyNames::Color, Property::Color},
