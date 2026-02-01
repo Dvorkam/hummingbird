@@ -264,13 +264,15 @@ void InlineBlockBox::measure_inline(IGraphicsContext& context) {
 void InlineBlockBox::collect_inline_runs(IGraphicsContext& context, std::vector<InlineRun>& runs) {
     const auto* style = get_computed_style();
     Metrics::Insets insets = Metrics::compute_insets(style);
+    const auto* element = dynamic_cast<const DOM::Element*>(get_dom_node());
+    bool use_text_baseline = InlineBaselineUtils::needs_text_baseline(element, !m_children.empty());
     InlineRun run;
     run.owner = this;
     run.local_index = 0;
     run.width = m_inline_measured_width;
     run.height = m_inline_measured_height;
     run.ascent =
-        InlineBaselineUtils::resolve_atomic_inline_ascent(context, style, insets, run.height, !m_children.empty());
+        InlineBaselineUtils::resolve_atomic_inline_ascent(context, style, insets, run.height, use_text_baseline);
     runs.push_back(std::move(run));
 }
 

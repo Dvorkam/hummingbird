@@ -2,7 +2,9 @@
 
 #include <algorithm>
 
+#include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "html/HtmlTagNames.h"
 #include "layout/LayoutMetricsUtils.h"
 #include "layout/TextStyleUtils.h"
 #include "style/ComputedStyle.h"
@@ -33,6 +35,16 @@ inline float resolve_atomic_inline_ascent(IGraphicsContext& context, const Css::
     }
     float ascent = estimate_text_ascent(context, style);
     return std::min(run_height, insets.top + ascent);
+}
+
+inline bool needs_text_baseline(const DOM::Element* element, bool has_children) {
+    if (has_children) {
+        return true;
+    }
+    if (!element) {
+        return false;
+    }
+    return element->get_tag_name() == Hummingbird::Html::TagNames::Input;
 }
 
 }  // namespace Hummingbird::Layout::InlineBaselineUtils
