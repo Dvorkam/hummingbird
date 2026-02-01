@@ -32,6 +32,8 @@ struct ComputedStyle {
     bool margin_left_auto = false;
     bool margin_right_auto = false;
     EdgeSizes padding;
+    enum class BoxSizing { ContentBox, BorderBox };
+    BoxSizing box_sizing = BoxSizing::ContentBox;
     std::optional<float> width;
     std::optional<float> height;
     std::optional<float> max_width;

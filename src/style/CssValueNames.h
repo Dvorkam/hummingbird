@@ -34,6 +34,8 @@ static constexpr std::string_view RepeatX = "repeat-x";
 static constexpr std::string_view RepeatY = "repeat-y";
 static constexpr std::string_view Cover = "cover";
 static constexpr std::string_view Contain = "contain";
+static constexpr std::string_view ContentBox = "content-box";
+static constexpr std::string_view BorderBox = "border-box";
 
 static constexpr std::string_view Red = "red";
 static constexpr std::string_view Blue = "blue";

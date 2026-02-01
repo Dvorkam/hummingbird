@@ -66,7 +66,21 @@ LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedS
     Metrics::Insets insets = Metrics::compute_insets(style);
     float content_width = resolve_width(element, style, image);
     float content_height = resolve_height(element, style, image);
-    return {content_width + insets.left + insets.right, content_height + insets.top + insets.bottom};
+    float total_width = content_width + insets.left + insets.right;
+    float total_height = content_height + insets.top + insets.bottom;
+
+    if (style && style->box_sizing == Css::ComputedStyle::BoxSizing::BorderBox) {
+        if (style->width.has_value()) {
+            total_width = std::max(0.0f, *style->width);
+            content_width = Metrics::content_width(total_width, insets);
+        }
+        if (style->height.has_value()) {
+            total_height = std::max(0.0f, *style->height);
+            content_height = std::max(0.0f, total_height - insets.top - insets.bottom);
+        }
+    }
+
+    return {total_width, total_height};
 }
 }  // namespace
 

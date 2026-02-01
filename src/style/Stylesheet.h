@@ -37,6 +37,7 @@ enum class Property {
     PaddingRight,
     PaddingBottom,
     PaddingLeft,
+    BoxSizing,
     Width,
     Height,
     Color,

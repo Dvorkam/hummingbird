@@ -110,6 +110,9 @@ std::string build_stub_body(const std::string& url) {
       .pos-demo { position: relative; height: 90px; border: 1px dashed #999; margin: 8px 0; }
       .pos-base { width: 120px; height: 40px; background-color: #d7e8ff; border: 1px solid #7aa7e3; }
       .pos-overlay { position: absolute; top: 6px; left: 30px; width: 120px; height: 40px; background-color: #ffd3c6; border: 1px solid #e59680; z-index: 2; }
+      .box-sizing-demo { width: 160px; padding: 8px; border: 2px solid #666; margin: 4px 0; }
+      .box-sizing-content { box-sizing: content-box; background-color: #fff4e6; }
+      .box-sizing-border { box-sizing: border-box; background-color: #eaf5ff; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -190,6 +193,12 @@ aligned.</pre>
           <td align="center"><div class="cell-block">Center</div></td>
         </tr>
       </table>
+    </div>
+
+    <div class="section">
+      <h2>Box Sizing</h2>
+      <p class="box-sizing-demo box-sizing-content">content-box (total width grows)</p>
+      <p class="box-sizing-demo box-sizing-border">border-box (total width fixed)</p>
     </div>
 
     <div class="section">

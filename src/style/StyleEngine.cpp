@@ -572,6 +572,16 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
     apply_length_if_present(properties, Property::PaddingBottom, style.padding.bottom, style.font_size);
     apply_length_if_present(properties, Property::PaddingLeft, style.padding.left, style.font_size);
 
+    auto box_sizing_it = properties.find(Property::BoxSizing);
+    if (box_sizing_it != properties.end() && box_sizing_it->second.value.type == Value::Type::Identifier) {
+        const auto& ident = box_sizing_it->second.value.ident;
+        if (ident == ValueNames::BorderBox) {
+            style.box_sizing = ComputedStyle::BoxSizing::BorderBox;
+        } else if (ident == ValueNames::ContentBox) {
+            style.box_sizing = ComputedStyle::BoxSizing::ContentBox;
+        }
+    }
+
     auto border_width_it = properties.find(Property::BorderWidth);
     if (border_width_it != properties.end()) {
         apply_edge(style.border_width, value_to_length(border_width_it->second.value, 0.0f, style.font_size));
@@ -699,6 +709,7 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.margin_left_auto = source.margin_left_auto;
     target.margin_right_auto = source.margin_right_auto;
     target.padding = source.padding;
+    target.box_sizing = source.box_sizing;
     target.width = source.width;
     target.height = source.height;
     target.max_width = source.max_width;

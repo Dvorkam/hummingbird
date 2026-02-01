@@ -46,6 +46,13 @@ inline float content_width(float total_width, const Insets& insets, float extra 
     return width;
 }
 
+inline float resolve_border_box_width(const Css::ComputedStyle* style, float width, const Insets& insets) {
+    if (style && style->box_sizing == Css::ComputedStyle::BoxSizing::BorderBox) {
+        return width;
+    }
+    return width + insets.left + insets.right;
+}
+
 inline BoxMetrics compute_box_metrics(const Css::ComputedStyle* style, const Rect& bounds, Rect& rect,
                                       BoxWidthPolicy width_policy = BoxWidthPolicy::WidthOnly,
                                       float extra_width = 0.0f) {
@@ -64,7 +71,7 @@ inline BoxMetrics compute_box_metrics(const Css::ComputedStyle* style, const Rec
 
     rect.x = bounds.x;
     rect.y = bounds.y;
-    rect.width = constrained ? target_width + insets.left + insets.right : bounds.width;
+    rect.width = constrained ? resolve_border_box_width(style, target_width, insets) : bounds.width;
 
     float width = content_width(rect.width, insets, extra_width);
     return {insets, width};
