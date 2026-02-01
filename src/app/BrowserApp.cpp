@@ -306,7 +306,7 @@ void BrowserApp::render_if_needed() {
         document_dirty_ = true;
     }
     if (document_dirty_) {
-        HB_LOG_DEBUG("[perf] render pass=document chrome=1 controls=1 scroll_y=" << tab_.scroll_y());
+        // HB_LOG_DEBUG("[perf] render pass=document chrome=1 controls=1 scroll_y=" << tab_.scroll_y());
         document_cache_valid_ = false;
         if (graphics_->begin_document_cache(full)) {
             tab_.paint(*graphics_, viewport, debug_outlines_);
@@ -324,11 +324,11 @@ void BrowserApp::render_if_needed() {
             return;
         }
     } else if (chrome_dirty_ && controls_dirty_) {
-        HB_LOG_DEBUG("[perf] render pass=chrome+controls scroll_y=" << tab_.scroll_y());
+        // HB_LOG_DEBUG("[perf] render pass=chrome+controls scroll_y=" << tab_.scroll_y());
     } else if (chrome_dirty_) {
-        HB_LOG_DEBUG("[perf] render pass=chrome scroll_y=" << tab_.scroll_y());
+        // HB_LOG_DEBUG("[perf] render pass=chrome scroll_y=" << tab_.scroll_y());
     } else if (controls_dirty_) {
-        HB_LOG_DEBUG("[perf] render pass=controls scroll_y=" << tab_.scroll_y());
+        // HB_LOG_DEBUG("[perf] render pass=controls scroll_y=" << tab_.scroll_y());
     }
     graphics_->clear(kClearColor);
     if (document_cache_valid_) {
