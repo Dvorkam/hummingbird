@@ -254,7 +254,7 @@ TEST(InlineLayoutTest, InlineImageUsesAttributeSizeAndFlows) {
     EXPECT_FLOAT_EQ(image_rect.height, 32.0f);
     EXPECT_FLOAT_EQ(image_rect.x, text_rect.x + text_rect.width);
     EXPECT_FLOAT_EQ(bang_rect.x, image_rect.x + image_rect.width);
-    EXPECT_FLOAT_EQ(text_rect.y, image_rect.y);
+    EXPECT_GT(text_rect.y, image_rect.y);
 }
 
 TEST(InlineLayoutTest, InlineSvgUsesAttributeSizeAndFlows) {
@@ -293,7 +293,7 @@ TEST(InlineLayoutTest, InlineSvgUsesAttributeSizeAndFlows) {
     EXPECT_FLOAT_EQ(svg_rect.height, 24.0f);
     EXPECT_FLOAT_EQ(svg_rect.x, text_rect.x + text_rect.width);
     EXPECT_FLOAT_EQ(bang_rect.x, svg_rect.x + svg_rect.width);
-    EXPECT_FLOAT_EQ(text_rect.y, svg_rect.y);
+    EXPECT_GT(text_rect.y, svg_rect.y);
 }
 
 TEST(InlineLayoutTest, InlineImageDefaultsToPlaceholderSize) {
@@ -475,4 +475,48 @@ TEST(InlineLayoutTest, NoWrapCssKeepsSingleLine) {
 
     EXPECT_FLOAT_EQ(text_rect.height, 16.0f);
     EXPECT_GT(text_rect.width, viewport.width);
+}
+
+TEST(InlineLayoutTest, AlignsInlineTextOnBaseline) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+    auto big = DomFactory::create_element(arena, "span");
+    big->set_attribute(Attr::Class, "big");
+    big->append_child(DomFactory::create_text(arena, "Big"));
+    auto small = DomFactory::create_element(arena, "span");
+    small->set_attribute(Attr::Class, "small");
+    small->append_child(DomFactory::create_text(arena, "small"));
+    p->append_child(std::move(big));
+    p->append_child(DomFactory::create_text(arena, " "));
+    p->append_child(std::move(small));
+    body->append_child(std::move(p));
+
+    std::string css = ".big { font-size: 24px; } .small { font-size: 12px; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 2u);
+
+    const auto& big_span = para->get_children()[0];
+    ASSERT_EQ(big_span->get_children().size(), 1u);
+    const auto& big_rect = big_span->get_rect();
+
+    const auto& small_span = para->get_children()[1];
+    ASSERT_EQ(small_span->get_children().size(), 1u);
+    const auto& small_rect = small_span->get_rect();
+
+    EXPECT_GT(small_rect.y, big_rect.y);
 }

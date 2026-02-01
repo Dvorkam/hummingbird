@@ -16,16 +16,20 @@ struct InlineRun {
     std::string text;
     float width = 0.0f;
     float height = 0.0f;
+    float ascent = 0.0f;
 };
 
 struct InlineFragment {
     size_t run_index = 0;
     size_t line_index = 0;
     Rect rect;
+    float ascent = 0.0f;
 };
 
 struct InlineLine {
     float height = 0.0f;
+    float ascent = 0.0f;
+    float descent = 0.0f;
     std::vector<InlineFragment> fragments;
 };
 

@@ -118,6 +118,9 @@ std::string build_stub_body(const std::string& url) {
       .transform-demo { width: 140px; padding: 6px; border: 1px solid #666; background-color: #f8f8f8; }
       .transform-shift { transform: translate(18px, 6px); background-color: #e9f4ff; }
       .minmax-demo { width: 120px; min-width: 180px; max-width: 200px; min-height: 28px; max-height: 40px; padding: 4px; border: 1px solid #666; background-color: #f0fff0; }
+      .baseline-demo { font-size: 16px; }
+      .baseline-demo .big { font-size: 28px; }
+      .baseline-demo .small { font-size: 12px; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -130,6 +133,7 @@ std::string build_stub_body(const std::string& url) {
       <p>Inline <em>emphasis</em>, <strong>strong</strong>, <code>code</code>, and <span class="inline-block">inline-block</span>.</p>
       <p class="boxed">Bordered example paragraph.</p>
       <p><span class="inline-block">Inline</span> <span class="inline-block">Block</span></p>
+      <p class="baseline-demo">Baseline <span class="big">BIG</span> <span class="small">small</span> aligned.</p>
       <pre>Preformatted
 text stays
 aligned.</pre>

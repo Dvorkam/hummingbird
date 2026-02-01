@@ -201,6 +201,24 @@ float measure_text_block(IGraphicsContext& context, const std::string& rendered_
     last_metrics = context.measure_text(rendered_text, text_style);
     return last_metrics.height;
 }
+
+float compute_text_ascent(const TextMetrics& metrics, float line_height) {
+    if (metrics.ascent > 0.0f) {
+        float ascent = metrics.ascent;
+        if (metrics.height > 0.0f && line_height > metrics.height) {
+            float extra = line_height - metrics.height;
+            ascent += extra * 0.5f;
+        }
+        if (line_height > 0.0f) {
+            ascent = std::min(ascent, line_height);
+        }
+        return ascent;
+    }
+    if (line_height > 0.0f) {
+        return line_height;
+    }
+    return metrics.height;
+}
 }  // namespace
 
 void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
@@ -287,6 +305,7 @@ void TextBox::measure_inline(IGraphicsContext& context) {
         run.text = m_rendered_text;
         run.width = m_rect.width;
         run.height = m_rect.height;
+        run.ascent = compute_text_ascent(m_last_metrics, m_line_height);
         m_inline_runs.push_back(std::move(run));
         return;
     }
@@ -305,12 +324,14 @@ void TextBox::measure_inline(IGraphicsContext& context) {
 
     m_inline_runs.reserve(tokens.size());
     for (size_t i = 0; i < tokens.size(); ++i) {
+        TextMetrics metrics = context.measure_text(tokens[i], text_style);
         InlineRun run;
         run.owner = this;
         run.local_index = i;
         run.text = tokens[i];
-        run.width = context.measure_text(tokens[i], text_style).width;
+        run.width = metrics.width;
         run.height = line_height;
+        run.ascent = compute_text_ascent(metrics, line_height);
         m_inline_runs.push_back(std::move(run));
     }
 }
@@ -326,6 +347,7 @@ void TextBox::apply_inline_fragment(size_t index, const InlineFragment& fragment
     m_fragments[index].text = run.text;
     m_fragments[index].rect = fragment.rect;
     m_fragments[index].line_index = fragment.line_index;
+    m_fragments[index].ascent = fragment.ascent;
 }
 
 void TextBox::finalize_inline_layout() {
@@ -374,7 +396,7 @@ void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
 
     if (!m_fragments.empty()) {
         float line_height = m_line_height > 0.0f ? m_line_height : m_last_metrics.height;
-        paint_fragments(context, text_style, absolute_x, absolute_y, line_height, style, style && style->underline);
+        paint_fragments(context, text_style, absolute_x, absolute_y, style, style && style->underline);
         return;
     }
 
@@ -384,22 +406,41 @@ void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
 }
 
 void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_style, float absolute_x,
-                              float absolute_y, float line_height, const Css::ComputedStyle* style,
-                              bool underline) const {
+                              float absolute_y, const Css::ComputedStyle* style, bool underline) const {
     TextMetrics line_metrics = m_last_metrics;
     if (line_metrics.height <= 0.0f) {
         line_metrics = context.measure_text("A", text_style);
     }
     UnderlineMetrics underline_metrics = resolve_underline_metrics(line_metrics, style);
 
-    std::vector<float> line_widths;
+    struct LineInfo {
+        float max_right = 0.0f;
+        float min_y = 0.0f;
+        float max_y = 0.0f;
+        float baseline = 0.0f;
+        bool initialized = false;
+    };
+    std::vector<LineInfo> lines;
     for (const auto& frag : m_fragments) {
         size_t line_index = frag.line_index;
-        if (line_index >= line_widths.size()) {
-            line_widths.resize(line_index + 1, 0.0f);
+        if (line_index >= lines.size()) {
+            lines.resize(line_index + 1);
         }
+        auto& info = lines[line_index];
         float line_right = frag.rect.x + frag.rect.width;
-        line_widths[line_index] = std::max(line_widths[line_index], line_right);
+        info.max_right = std::max(info.max_right, line_right);
+        float frag_top = frag.rect.y;
+        float frag_bottom = frag.rect.y + frag.rect.height;
+        if (!info.initialized) {
+            info.min_y = frag_top;
+            info.max_y = frag_bottom;
+            info.baseline = frag.rect.y + frag.ascent;
+            info.initialized = true;
+        } else {
+            info.min_y = std::min(info.min_y, frag_top);
+            info.max_y = std::max(info.max_y, frag_bottom);
+            info.baseline = std::max(info.baseline, frag.rect.y + frag.ascent);
+        }
         TextMetrics metrics{frag.rect.width, frag.rect.height};
         context.draw_text_with_metrics(frag.text, absolute_x + frag.rect.x, absolute_y + frag.rect.y, text_style,
                                        metrics);
@@ -409,13 +450,13 @@ void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_s
         return;
     }
 
-    for (size_t i = 0; i < line_widths.size(); ++i) {
-        if (line_widths[i] <= 0.0f) {
+    for (const auto& info : lines) {
+        if (!info.initialized || info.max_right <= 0.0f) {
             continue;
         }
-        float line_top = absolute_y + static_cast<float>(i) * line_height;
-        float underline_y = compute_underline_y(line_top, line_height, line_metrics, underline_metrics);
-        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, line_widths[i], underline_metrics.thickness};
+        float baseline_y = absolute_y + info.baseline;
+        float underline_y = baseline_y + underline_metrics.position;
+        Hummingbird::Layout::Rect line_rect{absolute_x, underline_y, info.max_right, underline_metrics.thickness};
         context.fill_rect(line_rect, text_style.color);
     }
 }

@@ -266,6 +266,7 @@ void InlineBlockBox::collect_inline_runs(IGraphicsContext& /*context*/, std::vec
     run.local_index = 0;
     run.width = m_inline_measured_width;
     run.height = m_inline_measured_height;
+    run.ascent = m_inline_measured_height;
     runs.push_back(std::move(run));
 }
 
