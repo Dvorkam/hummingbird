@@ -10,22 +10,10 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 
 ### Additional M4 blockers (DDG HTML)
 
-- [x] **[M4 P1] T-URL-REL-2: Scheme-Relative URLs (`//host/path`)**; Goal: resolve protocol-relative URLs using the current document scheme; Scope: Url resolution + resource fetch; Acceptance: `//duckduckgo.com/...` loads via https; Tests: core URL tests.
-- [x] **[M4 P1] T-CSS-BG-1: Background Images (MVP)**; Goal: render `background-image` with `background-repeat/position/size`; Scope: style + painter; Acceptance: DDG logo + search button render; Tests: renderer tests.
-- [x] **[M4 P1] T-CSS-POS-1: Positioning Basics (relative/absolute)**; Goal: support `position` + `top/left/right/bottom` + `z-index` ordering for out-of-flow elements; Scope: layout flow; Acceptance: DDG search button overlays input correctly; Tests: layout tests.
-- [x] **[M4 P2] T-CSS-BOX-1: Box-Sizing Support**; Goal: honor `box-sizing` (and vendor-prefixed aliases); Scope: layout sizing; Acceptance: DDG search bar sizing matches CSS; Tests: layout tests.
-- [x] **[M4 P2] T-CSS-TRANSFORM-1: Transform Translate (MVP)**; Goal: support `transform: translate(x,y)` (and `translateX/Y`) for centering absolute elements; Scope: style + paint transform on render objects; Acceptance: DDG logo/search center on page; Tests: renderer tests.
-- [x] **[M4 P2] T-CSS-MINMAX-1: min-width/min-height/max-height**; Goal: honor min/max constraints (except max-width, already supported); Scope: layout sizing; Acceptance: DDG input/button sizing closer to CSS; Tests: layout tests.
-- [x] **[M4 P2] T-CSS-LIST-1: List-Style Reset**; Goal: support `list-style` / `list-style-type` / `list-style-position`; Scope: style + list marker; Acceptance: CSS reset can remove bullets; Tests: layout tests.
-- [x] **[M4 P2] T-CSS-TEXT-DECOR-2: text-decoration/underline variants**; Goal: support underline + thickness/offset; Scope: painter; Acceptance: hover/visited underline styling matches CSS; Tests: renderer tests.
-- [x] **[M4 P2] T-CSS-TEXT-DECOR-3: Underline baseline alignment**; Goal: keep underline close to glyphs across all lines; Scope: TextBox + inline layout metrics; Acceptance: no line has an underline noticeably detached from its text; Tests: renderer tests.
-- [x] **[M4 P2] T-LAYOUT-METRICS-1: Centralize Size Resolution**; Goal: consolidate width/height/attrs/intrinsic size resolution into a shared layout/metrics utility; Scope: layout sizing helpers; Acceptance: RenderImage/RenderSvg and future replaced elements use one codepath; Tests: layout tests.
-
 ## Milestone 5 (Layout/Polish)
 
 - [ ] **[M5 P1] T-CSS-POS-1: position:absolute (basic)**; Goal: support absolute positioning; Scope: layout flow; Acceptance: out-of-flow elements positioned by top/left/right/bottom; Tests: layout tests.
 - [ ] **[M5 P1] T-CSS-VIS-1: opacity (paint-only)**; Goal: apply opacity in paint; Scope: Painter; Acceptance: subtree alpha scales paint; Tests: renderer tests.
-- [x] **[M5 P2] T-CSS-BOX-1: box-sizing**; Goal: support border-box; Scope: layout sizing; Acceptance: border-box affects width/height calc; Tests: layout tests. (Completed in M4 P2.)
 - [ ] **[M5 P2] T-UI-FORM-1: Form Control Styling Polish**; Goal: native-like input/button visuals (shading, hover, pressed); Scope: renderer + style defaults; Acceptance: inputs/buttons look intentional and stateful; Tests: manual.
 - [ ] **[M5 P3] T-FORM-1: Default GET for empty method**; Goal: treat missing/empty form method as GET; Scope: Engine form submit; Acceptance: method="" submits as GET; Tests: engine tests.
 - [ ] **[M5 P3] T-FORM-2: Default submit for empty button type**; Goal: treat empty/invalid button type as submit; Scope: Engine hit-test submit; Acceptance: type="" submits; Tests: engine tests.
@@ -36,7 +24,6 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 - [ ] **[M5 P2] T-CSS-DECOR-1: outline + outline-offset**; Goal: draw outlines; Scope: Painter; Acceptance: outline draws outside border with offset; Tests: renderer tests.
 - [ ] **[M5 P2] T-CSS-TEXT-1: Text Effects Polish**; Goal: support `text-transform`, `letter-spacing`, `text-indent`, `text-overflow`, `word-wrap`; Scope: style + text layout/painter; Acceptance: long labels elide/wrap closer to author CSS; Tests: renderer + layout tests.
 - [ ] **[M5 P2] T-CSS-SEL-2: Child combinator selector (`>`)**; Goal: support direct-child matching; Scope: CssParser + SelectorMatcher; Acceptance: `.parent > .child` matches direct children only; Tests: selector matcher tests.
-- [x] **[M5 P2] T-LAYOUT-INLINE-4: Inline Baseline Alignment**; Goal: align inline runs on a shared baseline; Scope: text metrics + inline layout; Acceptance: mixed font sizes/weights align without vertical drift; Tests: layout tests.
 - [ ] **[M5 P2] T-IMG-1: Animated GIF/WebP Playback**; Goal: play animated frames; Scope: decoder + renderer scheduling; Acceptance: frames render with timing; Tests: image tests.
 - [ ] **[M5 P2] T-IMG-2: SVG Image Decode (Raster)**; Goal: rasterize SVG `<img>` sources; Scope: IImageDecoder + SVG library; Acceptance: svg renders to ImageBitmap; Tests: image tests.
 - [ ] **[M5 P2] T-PERF-3: Split UI Chrome From Page Render**; Goal: avoid repainting page while editing URL bar; Scope: app render split; Acceptance: URL bar updates without page repaint; Tests: manual.
