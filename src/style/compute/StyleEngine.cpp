@@ -19,10 +19,10 @@
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "style/compute/ComputedStyle.h"
-#include "style/registry/CssValueNames.h"
-#include "style/selector/SelectorMatcher.h"
 #include "style/compute/StyleDefaults.h"
 #include "style/compute/Stylesheet.h"
+#include "style/registry/CssValueNames.h"
+#include "style/selector/SelectorMatcher.h"
 
 namespace Hummingbird::Css {
 

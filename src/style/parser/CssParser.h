@@ -8,8 +8,8 @@
 #include <vector>
 
 #include "core/utils/WarnOnce.h"
-#include "style/parser/CssTokenizer.h"
 #include "style/compute/Stylesheet.h"
+#include "style/parser/CssTokenizer.h"
 
 namespace Hummingbird::Css {
 

@@ -16,8 +16,8 @@
 #include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
-#include "style/parser/CssParser.h"
 #include "style/compute/Stylesheet.h"
+#include "style/parser/CssParser.h"
 
 namespace Hummingbird::Engine {
 

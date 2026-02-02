@@ -7,14 +7,14 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/IResourceProvider.h"
 #include "core/utils/Log.h"
-#include "engine/resources/ResourceStore.h"
 #include "engine/ResourceUrl.h"
+#include "engine/resources/ResourceStore.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
-#include "layout/replaced/RenderImage.h"
 #include "layout/RenderObject.h"
-#include "layout/replaced/RenderSvg.h"
 #include "layout/RenderTreeTraversal.h"
+#include "layout/replaced/RenderImage.h"
+#include "layout/replaced/RenderSvg.h"
 #include "style/compute/StylesheetSource.h"
 
 namespace Hummingbird {

@@ -10,8 +10,8 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/PaintUtils.h"
-#include "layout/metrics/ReplacedElementUtils.h"
 #include "layout/inline/InlineTypes.h"
+#include "layout/metrics/ReplacedElementUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout {

@@ -7,11 +7,11 @@
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/GeometryUtils.h"
-#include "layout/metrics/LayoutMetricsUtils.h"
 #include "layout/PositioningUtils.h"
 #include "layout/RenderObject.h"
 #include "layout/RenderTreeTraversal.h"
 #include "layout/TextStyleUtils.h"
+#include "layout/metrics/LayoutMetricsUtils.h"
 
 namespace Hummingbird::Engine {
 
