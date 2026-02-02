@@ -7,7 +7,7 @@
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "engine/resources/ResourceStore.h"
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 #include "test_utils/TestGraphicsContext.h"
 
 namespace {

@@ -2,7 +2,7 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "engine/document/DocumentInputController.h"
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 #include "renderer/DisplayList.h"
 #include "renderer/Painter.h"
 

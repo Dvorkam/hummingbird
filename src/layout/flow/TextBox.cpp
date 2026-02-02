@@ -1,4 +1,4 @@
-#include "layout/TextBox.h"
+#include "layout/flow/TextBox.h"
 
 #include <algorithm>
 #include <atomic>
@@ -8,8 +8,8 @@
 #include <utility>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/TextStyleUtils.h"
-#include "layout/metrics/LayoutMetricsUtils.h"
+#include "layout/flow/TextStyleUtils.h"
+#include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout {

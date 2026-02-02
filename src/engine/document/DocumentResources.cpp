@@ -12,7 +12,7 @@
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
-#include "layout/RenderTreeTraversal.h"
+#include "layout/paint/RenderTreeTraversal.h"
 #include "layout/replaced/RenderImage.h"
 #include "layout/replaced/RenderSvg.h"
 #include "style/compute/StylesheetSource.h"

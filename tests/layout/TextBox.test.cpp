@@ -1,4 +1,4 @@
-#include "layout/TextBox.h"
+#include "layout/flow/TextBox.h"
 
 #include <gtest/gtest.h>
 

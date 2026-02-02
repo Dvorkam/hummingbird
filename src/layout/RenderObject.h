@@ -5,9 +5,9 @@
 #include <vector>
 
 #include "core/dom/Node.h"
-#include "layout/Geometry.h"
-#include "layout/inline/IInlineParticipant.h"
-#include "layout/inline/InlineRef.h"
+#include "layout/flow/inline/IInlineParticipant.h"
+#include "layout/flow/inline/InlineRef.h"
+#include "layout/geometry/Geometry.h"
 #include "style/compute/ComputedStyle.h"
 
 // Forward declare IGraphicsContext to break dependency cycle

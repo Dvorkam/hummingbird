@@ -1,4 +1,4 @@
-#include "layout/RenderListItem.h"
+#include "layout/formatting/RenderListItem.h"
 
 #include <stddef.h>
 
@@ -6,11 +6,11 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 #include "layout/block/FloatLayoutUtils.h"
-#include "layout/inline/InlineLayoutUtils.h"
-#include "layout/inline/InlineRef.h"
-#include "layout/metrics/LayoutMetricsUtils.h"
+#include "layout/flow/inline/InlineLayoutUtils.h"
+#include "layout/flow/inline/InlineRef.h"
+#include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird {

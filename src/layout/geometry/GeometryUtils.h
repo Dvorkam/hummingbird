@@ -1,6 +1,6 @@
 #pragma once
 
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::Layout {
 

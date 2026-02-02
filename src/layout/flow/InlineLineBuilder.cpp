@@ -1,9 +1,9 @@
-#include "layout/InlineLineBuilder.h"
+#include "layout/flow/InlineLineBuilder.h"
 
 #include <algorithm>
 #include <utility>
 
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::Layout {
 

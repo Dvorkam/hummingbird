@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-#include "layout/inline/InlineTypes.h"
+#include "layout/flow/inline/InlineTypes.h"
 
 namespace Hummingbird::Layout {
 

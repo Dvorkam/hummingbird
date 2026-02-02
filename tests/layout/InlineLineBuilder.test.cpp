@@ -1,4 +1,4 @@
-#include "layout/InlineLineBuilder.h"
+#include "layout/flow/InlineLineBuilder.h"
 
 #include <gtest/gtest.h>
 

@@ -13,9 +13,9 @@
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 #include "layout/RenderObject.h"
-#include "layout/metrics/LayoutMetricsUtils.h"
+#include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird {

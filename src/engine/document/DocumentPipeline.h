@@ -16,7 +16,7 @@
 #include "engine/document/DocumentPainter.h"
 #include "engine/document/DocumentResources.h"
 #include "engine/script/DocumentScriptController.h"
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
 class IResourceProvider;

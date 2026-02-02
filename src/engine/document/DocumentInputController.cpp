@@ -6,12 +6,12 @@
 #include "core/utils/Utf8Utils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
-#include "layout/GeometryUtils.h"
-#include "layout/PositioningUtils.h"
+#include "layout/geometry/GeometryUtils.h"
+#include "layout/geometry/PositioningUtils.h"
 #include "layout/RenderObject.h"
-#include "layout/RenderTreeTraversal.h"
-#include "layout/TextStyleUtils.h"
-#include "layout/metrics/LayoutMetricsUtils.h"
+#include "layout/paint/RenderTreeTraversal.h"
+#include "layout/flow/TextStyleUtils.h"
+#include "layout/geometry/metrics/LayoutMetricsUtils.h"
 
 namespace Hummingbird::Engine {
 

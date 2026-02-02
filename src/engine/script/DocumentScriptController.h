@@ -4,7 +4,7 @@
 
 #include "core/platform_api/IScriptEngine.h"
 #include "engine/script/DocumentScriptHost.h"
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::Layout {
 class RenderObject;

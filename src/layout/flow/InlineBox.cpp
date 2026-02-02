@@ -1,14 +1,14 @@
-#include "layout/InlineBox.h"
+#include "layout/flow/InlineBox.h"
 
 #include <algorithm>
 #include <utility>
 #include <vector>
 
-#include "layout/PositioningUtils.h"
-#include "layout/inline/InlineRef.h"
-#include "layout/inline/InlineTypes.h"
-#include "layout/metrics/InlineBaselineUtils.h"
-#include "layout/metrics/LayoutMetricsUtils.h"
+#include "layout/geometry/PositioningUtils.h"
+#include "layout/flow/inline/InlineRef.h"
+#include "layout/flow/inline/InlineTypes.h"
+#include "layout/geometry/metrics/InlineBaselineUtils.h"
+#include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout {

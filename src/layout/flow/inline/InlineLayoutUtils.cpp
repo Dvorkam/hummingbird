@@ -1,12 +1,12 @@
-#include "layout/inline/InlineLayoutUtils.h"
+#include "layout/flow/inline/InlineLayoutUtils.h"
 
 #include <algorithm>
 
-#include "layout/Geometry.h"
-#include "layout/InlineLineBuilder.h"
+#include "layout/geometry/Geometry.h"
+#include "layout/flow/InlineLineBuilder.h"
 #include "layout/RenderObject.h"
-#include "layout/inline/IInlineParticipant.h"
-#include "layout/inline/InlineRef.h"
+#include "layout/flow/inline/IInlineParticipant.h"
+#include "layout/flow/inline/InlineRef.h"
 
 namespace Hummingbird {
 class IGraphicsContext;

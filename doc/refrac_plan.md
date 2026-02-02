@@ -122,6 +122,6 @@ No grouping needed.
 ### Phase 1 Implementation (Module Grouping Applied)
 Implemented the proposed groupings:
 - engine/document, engine/resources, engine/tab
-- layout/block, layout/controls, layout/replaced, layout/table, layout/metrics
+- layout/block, layout/controls, layout/replaced, layout/table, layout/formatting, layout/flow, layout/geometry, layout/paint (with layout/geometry/metrics)
 - platform/net, platform/graphics, platform/decoders, platform/resources
 - style/parser, style/selector, style/registry, style/compute

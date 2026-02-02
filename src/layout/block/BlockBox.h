@@ -4,9 +4,9 @@
 
 #include <memory>
 
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 #include "layout/RenderObject.h"
-#include "layout/inline/IInlineParticipant.h"
+#include "layout/flow/inline/IInlineParticipant.h"
 
 namespace Hummingbird {
 namespace DOM {

@@ -7,7 +7,7 @@
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "core/utils/Utf8Utils.h"
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::App {
 

@@ -105,16 +105,16 @@ target_link_libraries(Html PUBLIC Core)
 # --- Layout Library ---
 add_library(Layout STATIC
     src/layout/RenderObject.cpp
-    src/layout/PositioningUtils.cpp
+    src/layout/geometry/PositioningUtils.cpp
     src/layout/RenderFactory.cpp
     src/layout/TreeBuilder.cpp
     src/layout/block/BlockBox.cpp
     src/layout/block/FloatLayoutUtils.cpp
-    src/layout/InlineBox.cpp
-    src/layout/TextBox.cpp
-    src/layout/InlineLineBuilder.cpp
-    src/layout/inline/InlineLayoutUtils.cpp
-    src/layout/RenderListItem.cpp
+    src/layout/flow/InlineBox.cpp
+    src/layout/flow/TextBox.cpp
+    src/layout/flow/InlineLineBuilder.cpp
+    src/layout/flow/inline/InlineLayoutUtils.cpp
+    src/layout/formatting/RenderListItem.cpp
     src/layout/controls/RenderBreak.cpp
     src/layout/controls/RenderRule.cpp
     src/layout/replaced/RenderImage.cpp

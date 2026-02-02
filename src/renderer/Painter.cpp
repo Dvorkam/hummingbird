@@ -3,10 +3,10 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/GeometryUtils.h"
-#include "layout/PaintUtils.h"
-#include "layout/PositioningUtils.h"
 #include "layout/RenderObject.h"
+#include "layout/geometry/GeometryUtils.h"
+#include "layout/geometry/PositioningUtils.h"
+#include "layout/paint/PaintUtils.h"
 
 namespace Hummingbird::Renderer {
 

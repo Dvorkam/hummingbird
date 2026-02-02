@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout::Metrics {

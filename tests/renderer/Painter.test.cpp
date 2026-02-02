@@ -10,9 +10,9 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
-#include "layout/RenderListItem.h"
-#include "layout/TextBox.h"
 #include "layout/TreeBuilder.h"
+#include "layout/flow/TextBox.h"
+#include "layout/formatting/RenderListItem.h"
 #include "style/compute/StyleEngine.h"
 #include "style/parser/CssParser.h"
 

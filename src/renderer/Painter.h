@@ -1,8 +1,8 @@
 #pragma once
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/Geometry.h"
 #include "layout/RenderObject.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
 class IGraphicsContext;

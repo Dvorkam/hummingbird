@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/utils/Assert.h"
-#include "layout/inline/IInlineParticipant.h"
+#include "layout/flow/inline/IInlineParticipant.h"
 
 namespace Hummingbird::Layout {
 

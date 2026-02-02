@@ -5,9 +5,9 @@
 #include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 #include "layout/RenderObject.h"
-#include "layout/inline/IInlineParticipant.h"
+#include "layout/flow/inline/IInlineParticipant.h"
 
 namespace Hummingbird::Layout {
 

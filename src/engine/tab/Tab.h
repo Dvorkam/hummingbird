@@ -19,7 +19,7 @@
 #include "engine/document/DocumentPipeline.h"
 #include "engine/resources/ResourceLoader.h"
 #include "engine/resources/ResourceStore.h"
-#include "layout/Geometry.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
 class IGraphicsContext;

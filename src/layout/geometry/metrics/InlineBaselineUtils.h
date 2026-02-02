@@ -5,8 +5,8 @@
 #include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "html/HtmlTagNames.h"
-#include "layout/TextStyleUtils.h"
-#include "layout/metrics/LayoutMetricsUtils.h"
+#include "layout/flow/TextStyleUtils.h"
+#include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout::InlineBaselineUtils {
