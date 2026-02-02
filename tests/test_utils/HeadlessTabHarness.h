@@ -6,7 +6,7 @@
 #include <utility>
 
 #include "core/platform_api/ScriptEngineFactory.h"
-#include "engine/Tab.h"
+#include "engine/tab/Tab.h"
 #include "test_utils/TestGraphicsContext.h"
 
 namespace Hummingbird::Test {

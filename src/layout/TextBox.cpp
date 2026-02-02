@@ -8,9 +8,9 @@
 #include <utility>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/LayoutMetricsUtils.h"
 #include "layout/TextStyleUtils.h"
-#include "style/ComputedStyle.h"
+#include "layout/metrics/LayoutMetricsUtils.h"
+#include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 

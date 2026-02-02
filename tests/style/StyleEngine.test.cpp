@@ -1,4 +1,4 @@
-#include "style/StyleEngine.h"
+#include "style/compute/StyleEngine.h"
 
 #include <gtest/gtest.h>
 
@@ -8,8 +8,8 @@
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
-#include "style/CssParser.h"
-#include "style/StylesheetSource.h"
+#include "style/compute/StylesheetSource.h"
+#include "style/parser/CssParser.h"
 
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;

@@ -1,15 +1,15 @@
 #include "layout/RenderFactory.h"
 
-#include "layout/BlockBox.h"
 #include "layout/InlineBox.h"
-#include "layout/RenderBreak.h"
-#include "layout/RenderImage.h"
 #include "layout/RenderListItem.h"
 #include "layout/RenderObject.h"
-#include "layout/RenderRule.h"
-#include "layout/RenderSvg.h"
-#include "layout/RenderTable.h"
 #include "layout/TextBox.h"
+#include "layout/block/BlockBox.h"
+#include "layout/controls/RenderBreak.h"
+#include "layout/controls/RenderRule.h"
+#include "layout/replaced/RenderImage.h"
+#include "layout/replaced/RenderSvg.h"
+#include "layout/table/RenderTable.h"
 
 namespace Hummingbird::Layout {
 

@@ -5,7 +5,7 @@
 #include <sstream>
 
 #include "html/HtmlTagNames.h"
-#include "style/CssPropertyNames.h"
+#include "style/registry/CssPropertyNames.h"
 
 using namespace Hummingbird::Html;
 namespace TagNames = Hummingbird::Html::TagNames;

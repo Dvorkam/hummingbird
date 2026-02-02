@@ -1,4 +1,4 @@
-#include "engine/DocumentPipeline.h"
+#include "engine/document/DocumentPipeline.h"
 
 #include <gtest/gtest.h>
 
@@ -6,7 +6,7 @@
 
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
-#include "engine/ResourceStore.h"
+#include "engine/resources/ResourceStore.h"
 #include "layout/Geometry.h"
 #include "test_utils/TestGraphicsContext.h"
 

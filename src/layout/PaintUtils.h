@@ -5,7 +5,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "layout/Geometry.h"
-#include "style/ComputedStyle.h"
+#include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout::PaintUtils {
 

@@ -4,10 +4,10 @@
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
-#include "layout/BlockBox.h"
 #include "layout/TreeBuilder.h"
-#include "style/CssParser.h"
-#include "style/StyleEngine.h"
+#include "layout/block/BlockBox.h"
+#include "style/compute/StyleEngine.h"
+#include "style/parser/CssParser.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;

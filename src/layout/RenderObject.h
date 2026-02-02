@@ -8,7 +8,7 @@
 #include "layout/Geometry.h"
 #include "layout/inline/IInlineParticipant.h"
 #include "layout/inline/InlineRef.h"
-#include "style/ComputedStyle.h"
+#include "style/compute/ComputedStyle.h"
 
 // Forward declare IGraphicsContext to break dependency cycle
 namespace Hummingbird {

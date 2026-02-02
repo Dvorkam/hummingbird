@@ -2,8 +2,8 @@
 
 #include <memory>
 
-#include "layout/BlockBox.h"
 #include "layout/RenderObject.h"
+#include "layout/block/BlockBox.h"
 
 class ListItemLayoutTest_GeneratesMarkerLeftOfContent_Test;
 class ListItemLayoutTest_SuppressesMarkerWhenListStyleNone_Test;

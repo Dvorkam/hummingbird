@@ -3,9 +3,9 @@
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
-#include "layout/RenderBreak.h"
-#include "layout/RenderRule.h"
-#include "style/ComputedStyle.h"
+#include "layout/controls/RenderBreak.h"
+#include "layout/controls/RenderRule.h"
+#include "style/compute/ComputedStyle.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;

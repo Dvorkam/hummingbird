@@ -6,12 +6,12 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/FloatLayoutUtils.h"
 #include "layout/Geometry.h"
-#include "layout/LayoutMetricsUtils.h"
+#include "layout/block/FloatLayoutUtils.h"
 #include "layout/inline/InlineLayoutUtils.h"
 #include "layout/inline/InlineRef.h"
-#include "style/ComputedStyle.h"
+#include "layout/metrics/LayoutMetricsUtils.h"
+#include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird {
 namespace DOM {

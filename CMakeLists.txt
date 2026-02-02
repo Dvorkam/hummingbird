@@ -34,13 +34,13 @@ find_package(lunasvg CONFIG REQUIRED)
 
 # --- Style Library ---
 add_library(Style STATIC
-    src/style/CssTokenizer.cpp
-    src/style/CssParser.cpp
-    src/style/CssPropertyRegistry.cpp
-    src/style/SelectorMatcher.cpp
-    src/style/StyleDefaults.cpp
-    src/style/StyleEngine.cpp
-    src/style/StylesheetSource.cpp
+    src/style/parser/CssTokenizer.cpp
+    src/style/parser/CssParser.cpp
+    src/style/registry/CssPropertyRegistry.cpp
+    src/style/selector/SelectorMatcher.cpp
+    src/style/compute/StyleDefaults.cpp
+    src/style/compute/StyleEngine.cpp
+    src/style/compute/StylesheetSource.cpp
 )
 target_include_directories(Style
     PUBLIC
@@ -63,21 +63,21 @@ target_include_directories(Core
 # --- Platform Library ---
 # This library will contain the platform-specific implementations (e.g., SDL2, Blend2D).
 add_library(Platform STATIC
-    src/platform/SDLWindow.cpp
-    src/platform/SDLGraphicsContext.cpp
-    src/platform/Blend2DFontCache.cpp
-    src/platform/SDLInputTranslation.cpp
-    src/platform/CurlNetwork.cpp
-    src/platform/StubNetwork.cpp
-    src/platform/NetworkFactory.cpp
-    src/platform/SDLImageDecoder.cpp
-    src/platform/SvgImageDecoder.cpp
-    src/platform/CompositeImageDecoder.cpp
-    src/platform/ImageDecoderFactory.cpp
-    src/platform/FileResourceProvider.cpp
-    src/platform/ResourceProviderFactory.cpp
-    src/platform/SDLWindowFactory.cpp
-    src/platform/NetworkThreadPool.cpp
+    src/platform/graphics/SDLWindow.cpp
+    src/platform/graphics/SDLGraphicsContext.cpp
+    src/platform/graphics/Blend2DFontCache.cpp
+    src/platform/graphics/SDLInputTranslation.cpp
+    src/platform/net/CurlNetwork.cpp
+    src/platform/net/StubNetwork.cpp
+    src/platform/net/NetworkFactory.cpp
+    src/platform/decoders/SDLImageDecoder.cpp
+    src/platform/decoders/SvgImageDecoder.cpp
+    src/platform/decoders/CompositeImageDecoder.cpp
+    src/platform/decoders/ImageDecoderFactory.cpp
+    src/platform/resources/FileResourceProvider.cpp
+    src/platform/resources/ResourceProviderFactory.cpp
+    src/platform/graphics/SDLWindowFactory.cpp
+    src/platform/net/NetworkThreadPool.cpp
     src/platform/script/NullScriptEngine.cpp
     src/platform/script/QuickJSScriptEngine.cpp
     src/platform/script/ScriptEngineFactory.cpp
@@ -108,18 +108,18 @@ add_library(Layout STATIC
     src/layout/PositioningUtils.cpp
     src/layout/RenderFactory.cpp
     src/layout/TreeBuilder.cpp
-    src/layout/BlockBox.cpp
-    src/layout/FloatLayoutUtils.cpp
+    src/layout/block/BlockBox.cpp
+    src/layout/block/FloatLayoutUtils.cpp
     src/layout/InlineBox.cpp
     src/layout/TextBox.cpp
     src/layout/InlineLineBuilder.cpp
     src/layout/inline/InlineLayoutUtils.cpp
     src/layout/RenderListItem.cpp
-    src/layout/RenderBreak.cpp
-    src/layout/RenderRule.cpp
-    src/layout/RenderImage.cpp
-    src/layout/RenderSvg.cpp
-    src/layout/RenderTable.cpp
+    src/layout/controls/RenderBreak.cpp
+    src/layout/controls/RenderRule.cpp
+    src/layout/replaced/RenderImage.cpp
+    src/layout/replaced/RenderSvg.cpp
+    src/layout/table/RenderTable.cpp
 )
 target_include_directories(Layout
     PUBLIC
@@ -140,16 +140,16 @@ target_include_directories(Renderer
 # --- Engine Library ---
 # This library owns document lifecycle and orchestration (parsing/style/layout/paint) without platform headers.
 add_library(Engine STATIC
-    src/engine/DocumentPipeline.cpp
-    src/engine/DocumentInputController.cpp
-    src/engine/DocumentModel.cpp
-    src/engine/DocumentResources.cpp
-    src/engine/DocumentPainter.cpp
+    src/engine/document/DocumentPipeline.cpp
+    src/engine/document/DocumentInputController.cpp
+    src/engine/document/DocumentModel.cpp
+    src/engine/document/DocumentResources.cpp
+    src/engine/document/DocumentPainter.cpp
     src/engine/script/DocumentScriptController.cpp
     src/engine/script/DocumentScriptHost.cpp
-    src/engine/ResourceLoader.cpp
-    src/engine/Tab.cpp
-    src/engine/ResourceStore.cpp
+    src/engine/resources/ResourceLoader.cpp
+    src/engine/tab/Tab.cpp
+    src/engine/resources/ResourceStore.cpp
 )
 target_include_directories(Engine
     PUBLIC

@@ -13,8 +13,8 @@
 #include "layout/RenderListItem.h"
 #include "layout/TextBox.h"
 #include "layout/TreeBuilder.h"
-#include "style/CssParser.h"
-#include "style/StyleEngine.h"
+#include "style/compute/StyleEngine.h"
+#include "style/parser/CssParser.h"
 
 using Hummingbird::Color;
 using Hummingbird::IGraphicsContext;

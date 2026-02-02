@@ -9,7 +9,7 @@
 #include "layout/Geometry.h"
 #include "layout/RenderObject.h"
 #include "layout/RenderTreeTraversal.h"
-#include "style/ComputedStyle.h"
+#include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout::Positioning {
 

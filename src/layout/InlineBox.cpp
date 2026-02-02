@@ -4,12 +4,12 @@
 #include <utility>
 #include <vector>
 
-#include "layout/InlineBaselineUtils.h"
-#include "layout/LayoutMetricsUtils.h"
 #include "layout/PositioningUtils.h"
 #include "layout/inline/InlineRef.h"
 #include "layout/inline/InlineTypes.h"
-#include "style/ComputedStyle.h"
+#include "layout/metrics/InlineBaselineUtils.h"
+#include "layout/metrics/LayoutMetricsUtils.h"
+#include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 

@@ -6,11 +6,11 @@
 #include "core/dom/Text.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "html/HtmlAttributeNames.h"
-#include "layout/RenderImage.h"
-#include "layout/RenderSvg.h"
 #include "layout/TreeBuilder.h"
-#include "style/CssParser.h"
-#include "style/StyleEngine.h"
+#include "layout/replaced/RenderImage.h"
+#include "layout/replaced/RenderSvg.h"
+#include "style/compute/StyleEngine.h"
+#include "style/parser/CssParser.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;

@@ -7,8 +7,8 @@
 #include "html/HtmlTagNames.h"
 #include "layout/RenderListItem.h"
 #include "layout/TreeBuilder.h"
-#include "style/CssParser.h"
-#include "style/StyleEngine.h"
+#include "style/compute/StyleEngine.h"
+#include "style/parser/CssParser.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;

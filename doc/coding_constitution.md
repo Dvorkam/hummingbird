@@ -130,7 +130,7 @@ void render() {
 * **No raw HTML/CSS identifiers:** Use centralized constants for tags, attributes, and properties.
   * Tags: `html/HtmlTagNames.h`
   * Attributes: `html/HtmlAttributeNames.h`
-  * CSS properties: `style/CssPropertyNames.h`
+  * CSS properties: `style/registry/CssPropertyNames.h`
 * **No magic layout constants:** Use named `k...` constants for pixel values and thresholds.
 
 ### 3.6. Factory-Only Creation

@@ -1,4 +1,4 @@
-#include "platform/StubNetwork.h"
+#include "platform/net/StubNetwork.h"
 
 #include <gtest/gtest.h>
 

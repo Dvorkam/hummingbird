@@ -1,4 +1,4 @@
-#include "layout/BlockBox.h"
+#include "layout/block/BlockBox.h"
 
 #include <gtest/gtest.h>
 
@@ -8,11 +8,11 @@
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/InlineBox.h"
-#include "layout/RenderImage.h"
-#include "layout/RenderRule.h"
 #include "layout/TextBox.h"
 #include "layout/TreeBuilder.h"
-#include "style/ComputedStyle.h"
+#include "layout/controls/RenderRule.h"
+#include "layout/replaced/RenderImage.h"
+#include "style/compute/ComputedStyle.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;

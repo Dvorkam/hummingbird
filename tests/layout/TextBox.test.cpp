@@ -7,7 +7,7 @@
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Text.h"
-#include "style/ComputedStyle.h"
+#include "style/compute/ComputedStyle.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using Hummingbird::Color;

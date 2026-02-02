@@ -1,4 +1,4 @@
-#include "style/StylesheetSource.h"
+#include "style/compute/StylesheetSource.h"
 
 #include <gtest/gtest.h>
 

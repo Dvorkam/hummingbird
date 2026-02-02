@@ -6,7 +6,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
-#include "engine/Tab.h"
+#include "engine/tab/Tab.h"
 #include "layout/Geometry.h"
 
 namespace Hummingbird {

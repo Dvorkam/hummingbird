@@ -2,7 +2,7 @@
 
 #include <gtest/gtest.h>
 
-#include "style/ComputedStyle.h"
+#include "style/compute/ComputedStyle.h"
 
 using Hummingbird::Css::ComputedStyle;
 using Hummingbird::Layout::TextStyleUtils::resolve_text_font_path;

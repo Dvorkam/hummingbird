@@ -8,12 +8,12 @@
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
-#include "layout/RenderBreak.h"
-#include "layout/RenderRule.h"
-#include "layout/RenderTable.h"
 #include "layout/TextBox.h"
-#include "style/CssParser.h"
-#include "style/StyleEngine.h"
+#include "layout/controls/RenderBreak.h"
+#include "layout/controls/RenderRule.h"
+#include "layout/table/RenderTable.h"
+#include "style/compute/StyleEngine.h"
+#include "style/parser/CssParser.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;

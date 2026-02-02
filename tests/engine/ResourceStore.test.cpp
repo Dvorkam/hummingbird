@@ -1,4 +1,4 @@
-#include "engine/ResourceStore.h"
+#include "engine/resources/ResourceStore.h"
 
 #include <gtest/gtest.h>
 

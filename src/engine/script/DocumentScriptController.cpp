@@ -5,7 +5,7 @@
 
 #include "core/dom/Element.h"
 #include "core/utils/Log.h"
-#include "engine/DocumentModel.h"
+#include "engine/document/DocumentModel.h"
 #include "html/HtmlTagNames.h"
 #include "layout/GeometryUtils.h"
 #include "layout/PositioningUtils.h"
