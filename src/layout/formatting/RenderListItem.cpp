@@ -6,10 +6,10 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/geometry/Geometry.h"
 #include "layout/block/FloatLayoutUtils.h"
 #include "layout/flow/inline/InlineLayoutUtils.h"
 #include "layout/flow/inline/InlineRef.h"
+#include "layout/geometry/Geometry.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "style/compute/ComputedStyle.h"
 

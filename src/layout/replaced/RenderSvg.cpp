@@ -9,9 +9,9 @@
 #include "core/dom/ElementUtils.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "html/HtmlAttributeNames.h"
-#include "layout/paint/PaintUtils.h"
 #include "layout/flow/inline/InlineTypes.h"
 #include "layout/geometry/metrics/ReplacedElementUtils.h"
+#include "layout/paint/PaintUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout {

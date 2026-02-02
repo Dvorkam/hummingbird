@@ -6,8 +6,8 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/geometry/Geometry.h"
 #include "layout/RenderObject.h"
+#include "layout/geometry/Geometry.h"
 #include "layout/paint/RenderTreeTraversal.h"
 #include "style/compute/ComputedStyle.h"
 

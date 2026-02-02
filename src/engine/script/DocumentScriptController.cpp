@@ -7,9 +7,9 @@
 #include "core/utils/Log.h"
 #include "engine/document/DocumentModel.h"
 #include "html/HtmlTagNames.h"
+#include "layout/RenderObject.h"
 #include "layout/geometry/GeometryUtils.h"
 #include "layout/geometry/PositioningUtils.h"
-#include "layout/RenderObject.h"
 
 namespace Hummingbird::Engine {
 

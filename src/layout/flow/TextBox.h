@@ -8,10 +8,10 @@
 
 #include "core/dom/Text.h"
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/geometry/Geometry.h"
 #include "layout/RenderObject.h"
 #include "layout/flow/inline/IInlineParticipant.h"
 #include "layout/flow/inline/InlineTypes.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::Layout {
 

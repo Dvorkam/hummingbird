@@ -4,9 +4,9 @@
 #include <utility>
 #include <vector>
 
-#include "layout/geometry/PositioningUtils.h"
 #include "layout/flow/inline/InlineRef.h"
 #include "layout/flow/inline/InlineTypes.h"
+#include "layout/geometry/PositioningUtils.h"
 #include "layout/geometry/metrics/InlineBaselineUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "style/compute/ComputedStyle.h"

@@ -4,8 +4,8 @@
 #include <type_traits>
 #include <utility>
 
-#include "layout/geometry/Geometry.h"
 #include "layout/RenderObject.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::Layout::Traversal {
 
