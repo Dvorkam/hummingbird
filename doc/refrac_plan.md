@@ -154,21 +154,21 @@ src/app
 
 ## Phase 2 Candidates
 
-### R2-01 [ ] layout: text metrics helper
+### R2-01 [x] layout: text metrics helper
 - Files: `src/layout/flow/TextBox.cpp`, `src/layout/geometry/metrics/InlineBaselineUtils.h`, `src/layout/controls/RenderBreak.cpp`
   - Reuse: text ascent + line-height resolution logic duplicated (TextBox::compute_text_ascent vs InlineBaselineUtils::estimate_text_ascent and RenderBreak’s line-height fallback).
   - Suggested utility: `layout/geometry/metrics/TextMetricsUtils.h` (e.g., `resolve_line_height(style, metrics)` + `resolve_ascent(metrics, line_height)`).
   - Risk: low.
   - Acceptance: baseline-alignment + underline tests continue to pass.
 
-### R2-02 [ ] layout: text layout helpers
+### R2-02 [x] layout: text layout helpers
 - Files: `src/layout/flow/TextBox.cpp`
   - Reuse: whitespace collapse + tokenization + rendered-text normalization is local-only but likely reusable by future text nodes.
   - Suggested utility: `layout/flow/TextLayoutUtils.h` (move `collapse_whitespace`, `tokenize_text`, `build_rendered_text`).
   - Risk: low.
   - Acceptance: TextBox behavior unchanged; tests unchanged.
 
-### R2-03 [ ] layout: shared available-width computation
+### R2-03 [x] layout: shared available-width computation
 - Files: `src/layout/flow/TextBox.cpp`, `src/layout/table/RenderTable.cpp`, `src/layout/geometry/metrics/LayoutMetricsUtils.h`
   - Reuse: available-width calculation duplicates `Metrics::content_width` + CSS width overrides.
   - Suggested utility: extend `LayoutMetricsUtils` with `compute_available_width(style, bounds, insets)` or `resolve_content_width(...)`.

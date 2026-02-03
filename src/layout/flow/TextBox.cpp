@@ -63,22 +63,6 @@ float compute_underline_y(float line_top, float line_height, const TextMetrics& 
     return line_top + line_height - kUnderlineOffsetPx;
 }
 
-float compute_available_width(const Css::ComputedStyle* style, const Rect& bounds, const Insets& insets) {
-    float available_width = bounds.width - insets.left - insets.right;
-    if (available_width <= 0.0f) {
-        available_width = 0.0f;
-    }
-
-    if (style && style->width.has_value()) {
-        available_width = *style->width - insets.left - insets.right;
-        if (available_width < 0.0f) {
-            available_width = 0.0f;
-        }
-    }
-
-    return available_width;
-}
-
 void append_line(std::vector<std::string>& lines, std::vector<float>& line_widths, float& content_width,
                  std::string line_text, float measured_width) {
     lines.push_back(std::move(line_text));
@@ -194,7 +178,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     m_line_height = line_height;
 
     float content_width = 0.0f;
-    float available_width = compute_available_width(style, bounds, insets);
+    float available_width = Metrics::compute_available_width(style, bounds, insets);
 
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
         build_preserved_lines(context, m_rendered_text, text_style, m_lines, m_line_widths, content_width);

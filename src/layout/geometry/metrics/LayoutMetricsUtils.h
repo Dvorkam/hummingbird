@@ -46,6 +46,25 @@ inline float content_width(float total_width, const Insets& insets, float extra 
     return width;
 }
 
+inline float compute_available_width(const Rect& bounds, const Insets& insets) {
+    float available = bounds.width - insets.left - insets.right;
+    if (available < 0.0f) {
+        available = 0.0f;
+    }
+    return available;
+}
+
+inline float compute_available_width(const Css::ComputedStyle* style, const Rect& bounds, const Insets& insets) {
+    float available = compute_available_width(bounds, insets);
+    if (style && style->width.has_value()) {
+        available = *style->width - insets.left - insets.right;
+        if (available < 0.0f) {
+            available = 0.0f;
+        }
+    }
+    return available;
+}
+
 inline float resolve_border_box_width(const Css::ComputedStyle* style, float width, const Insets& insets) {
     if (style && style->box_sizing == Css::ComputedStyle::BoxSizing::BorderBox) {
         return width;

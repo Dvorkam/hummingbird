@@ -123,11 +123,6 @@ float sum_widths(const std::vector<float>& widths) {
     return std::accumulate(widths.begin(), widths.end(), 0.0f);
 }
 
-float compute_available_width(const Rect& bounds, const Metrics::Insets& insets) {
-    float available_width = bounds.width - insets.left - insets.right;
-    return std::max(0.0f, available_width);
-}
-
 std::vector<RenderTableRow*> collect_table_rows(RenderTable& table) {
     std::vector<RenderTableRow*> rows;
     collect_rows(table, rows);
@@ -220,7 +215,7 @@ float layout_table_children(RenderTable& table, IGraphicsContext& context, const
 void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
     Metrics::Insets insets = Metrics::compute_insets(style);
-    float available_width = compute_available_width(bounds, insets);
+    float available_width = Metrics::compute_available_width(bounds, insets);
     auto rows = collect_table_rows(*this);
     size_t column_count = compute_column_count(rows);
     auto column_widths = compute_column_widths(context, rows, column_count);
