@@ -12,6 +12,7 @@
 #include "layout/flow/inline/InlineTypes.h"
 #include "layout/geometry/metrics/ReplacedElementUtils.h"
 #include "layout/paint/PaintUtils.h"
+#include "layout/replaced/ReplacedSizingUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
@@ -28,16 +29,17 @@ const Color kPlaceholderStroke{150, 150, 150, 255};
 void RenderSvg::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
-    ReplacedElementUtils::SizeOptions options;
-    options.default_width = kDefaultSvgWidth;
-    options.default_height = kDefaultSvgHeight;
+    ReplacedSizing::IntrinsicSize intrinsic;
     if (m_image && m_image->width > 0) {
-        options.intrinsic_width = static_cast<float>(m_image->width);
+        intrinsic.width = static_cast<float>(m_image->width);
+        intrinsic.has_width = true;
     }
     if (m_image && m_image->height > 0) {
-        options.intrinsic_height = static_cast<float>(m_image->height);
+        intrinsic.height = static_cast<float>(m_image->height);
+        intrinsic.has_height = true;
     }
-    ReplacedElementUtils::LayoutSize size = ReplacedElementUtils::compute_layout_size(*element, style, options);
+    ReplacedElementUtils::LayoutSize size =
+        ReplacedSizing::compute_layout_size(*element, style, kDefaultSvgWidth, kDefaultSvgHeight, intrinsic);
 
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
@@ -82,16 +84,17 @@ void RenderSvg::reset_inline_layout() {
 void RenderSvg::measure_inline(IGraphicsContext& /*context*/) {
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
-    ReplacedElementUtils::SizeOptions options;
-    options.default_width = kDefaultSvgWidth;
-    options.default_height = kDefaultSvgHeight;
+    ReplacedSizing::IntrinsicSize intrinsic;
     if (m_image && m_image->width > 0) {
-        options.intrinsic_width = static_cast<float>(m_image->width);
+        intrinsic.width = static_cast<float>(m_image->width);
+        intrinsic.has_width = true;
     }
     if (m_image && m_image->height > 0) {
-        options.intrinsic_height = static_cast<float>(m_image->height);
+        intrinsic.height = static_cast<float>(m_image->height);
+        intrinsic.has_height = true;
     }
-    ReplacedElementUtils::LayoutSize size = ReplacedElementUtils::compute_layout_size(*element, style, options);
+    ReplacedElementUtils::LayoutSize size =
+        ReplacedSizing::compute_layout_size(*element, style, kDefaultSvgWidth, kDefaultSvgHeight, intrinsic);
     m_inline_measured_width = size.width;
     m_inline_measured_height = size.height;
 }

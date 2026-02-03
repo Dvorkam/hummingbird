@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "core/dom/Element.h"
+#include "core/dom/ElementUtils.h"
 #include "core/utils/ParseUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"

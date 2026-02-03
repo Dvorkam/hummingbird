@@ -188,7 +188,7 @@ src/app
   - Risk: medium.
   - Acceptance: existing list/float layout tests pass; visual layout unchanged in StubNetwork.
 
-### R2-05 [ ] layout: replaced sizing helper
+### R2-05 [x] layout: replaced sizing helper
 - Files: `src/layout/replaced/RenderImage.cpp`, `src/layout/replaced/RenderSvg.cpp`
   - Reuse: duplicated `SizeOptions` assembly + `compute_layout_size` calls in `layout()` and `measure_inline()`.
   - Suggested utility: `ReplacedElementUtils::resolve_layout_size(...)` or a small helper that accepts default size + intrinsic dims and returns `LayoutSize`.

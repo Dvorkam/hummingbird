@@ -120,6 +120,7 @@ add_library(Layout STATIC
     src/layout/controls/RenderRule.cpp
     src/layout/replaced/RenderImage.cpp
     src/layout/replaced/RenderSvg.cpp
+    src/layout/replaced/ReplacedSizingUtils.cpp
     src/layout/table/RenderTable.cpp
 )
 target_include_directories(Layout
