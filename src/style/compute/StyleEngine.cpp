@@ -22,6 +22,7 @@
 #include "style/compute/StyleDefaults.h"
 #include "style/compute/StyleValueUtils.h"
 #include "style/compute/Stylesheet.h"
+#include "style/registry/CssPropertyRegistry.h"
 #include "style/registry/CssValueNames.h"
 #include "style/selector/SelectorMatcher.h"
 
@@ -308,47 +309,6 @@ MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DO
     return matched;
 }
 
-void apply_length_if_present(const PropertyMap& properties, Property property, float& target, float font_size) {
-    auto it = properties.find(property);
-    if (it != properties.end()) {
-        target = StyleValueUtils::value_to_length(it->second.value, target, font_size);
-    }
-}
-
-void apply_optional_length_if_present(const PropertyMap& properties, Property property, std::optional<float>& target,
-                                      float font_size) {
-    auto it = properties.find(property);
-    if (it == properties.end()) {
-        return;
-    }
-    const auto& value = it->second.value;
-    if (value.type == Value::Type::Length) {
-        if (value.length.unit == Unit::Px) {
-            target = value.length.value;
-        } else if (value.length.unit == Unit::Em) {
-            target = value.length.value * font_size;
-        }
-    } else if (value.type == Value::Type::Number) {
-        target = value.number;
-    }
-}
-
-void apply_margin_if_present(const PropertyMap& properties, Property property, float& target, bool& auto_flag,
-                             float font_size) {
-    auto it = properties.find(property);
-    if (it == properties.end()) {
-        return;
-    }
-    const auto& value = it->second.value;
-    if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
-        auto_flag = true;
-        target = 0.0f;
-        return;
-    }
-    auto_flag = false;
-    target = StyleValueUtils::value_to_length(value, target, font_size);
-}
-
 void apply_border_style(ComputedStyle& style, const Value& value) {
     if (value.type != Value::Type::Identifier) return;
     if (value.ident == ValueNames::Solid) {
@@ -364,12 +324,11 @@ void apply_border_style(ComputedStyle& style, const Value& value) {
     }
 }
 
-void apply_position_property(const PropertyMap& properties, ComputedStyle& style) {
-    auto it = properties.find(Property::Position);
-    if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
+void apply_position_value(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
         return;
     }
-    const auto& ident = it->second.value.ident;
+    const auto& ident = value.ident;
     if (ident == ValueNames::Relative) {
         style.position = ComputedStyle::Position::Relative;
     } else if (ident == ValueNames::Absolute) {
@@ -379,12 +338,7 @@ void apply_position_property(const PropertyMap& properties, ComputedStyle& style
     }
 }
 
-void apply_z_index_property(const PropertyMap& properties, ComputedStyle& style) {
-    auto it = properties.find(Property::ZIndex);
-    if (it == properties.end()) {
-        return;
-    }
-    const auto& value = it->second.value;
+void apply_z_index_value(ComputedStyle& style, const Value& value) {
     if (value.type == Value::Type::Number) {
         style.z_index = static_cast<int>(value.number);
     } else if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
@@ -392,13 +346,12 @@ void apply_z_index_property(const PropertyMap& properties, ComputedStyle& style)
     }
 }
 
-bool apply_display_property(const PropertyMap& properties, ComputedStyle& style) {
-    auto display_it = properties.find(Property::Display);
-    if (display_it == properties.end() || display_it->second.value.type != Value::Type::Identifier) {
+bool apply_display_value(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
         return false;
     }
 
-    const auto& ident = display_it->second.value.ident;
+    const auto& ident = value.ident;
     if (ident == ValueNames::None) {
         style.display = ComputedStyle::Display::None;
     } else if (ident == ValueNames::Inline) {
@@ -413,40 +366,33 @@ bool apply_display_property(const PropertyMap& properties, ComputedStyle& style)
     return true;
 }
 
-void apply_color_property(const PropertyMap& properties, ComputedStyle& style, StyleDefaults::StyleOverrides& overrides,
-                          const ComputedStyle* parent_style) {
-    auto color_it = properties.find(Property::Color);
-    if (color_it != properties.end() && color_it->second.value.type == Value::Type::Color) {
-        style.color = color_it->second.value.color;
+void apply_color_value(const Value& value, ComputedStyle& style, StyleDefaults::StyleOverrides& overrides,
+                       const ComputedStyle* parent_style) {
+    if (value.type == Value::Type::Color) {
+        style.color = value.color;
         overrides.color = true;
-    } else if (color_it != properties.end() && color_it->second.value.type == Value::Type::Identifier) {
-        if (auto resolved = resolve_var_color(style, parent_style, color_it->second.value.ident)) {
+    } else if (value.type == Value::Type::Identifier) {
+        if (auto resolved = resolve_var_color(style, parent_style, value.ident)) {
             style.color = *resolved;
             overrides.color = true;
         }
     }
 }
 
-void apply_background_property(const PropertyMap& properties, ComputedStyle& style,
-                               StyleDefaults::StyleOverrides& overrides, const ComputedStyle* parent_style) {
-    auto bg_it = properties.find(Property::BackgroundColor);
-    if (bg_it != properties.end() && bg_it->second.value.type == Value::Type::Color) {
-        style.background = bg_it->second.value.color;
+void apply_background_color_value(const Value& value, ComputedStyle& style, StyleDefaults::StyleOverrides& overrides,
+                                  const ComputedStyle* parent_style) {
+    if (value.type == Value::Type::Color) {
+        style.background = value.color;
         overrides.background = true;
-    } else if (bg_it != properties.end() && bg_it->second.value.type == Value::Type::Identifier) {
-        if (auto resolved = resolve_var_color(style, parent_style, bg_it->second.value.ident)) {
+    } else if (value.type == Value::Type::Identifier) {
+        if (auto resolved = resolve_var_color(style, parent_style, value.ident)) {
             style.background = *resolved;
             overrides.background = true;
         }
     }
 }
 
-void apply_background_image_property(const PropertyMap& properties, ComputedStyle& style) {
-    auto it = properties.find(Property::BackgroundImage);
-    if (it == properties.end()) {
-        return;
-    }
-    const auto& value = it->second.value;
+void apply_background_image_value(const Value& value, ComputedStyle& style) {
     if (value.type == Value::Type::Url) {
         style.background_image = value.ident;
         return;
@@ -456,12 +402,11 @@ void apply_background_image_property(const PropertyMap& properties, ComputedStyl
     }
 }
 
-void apply_background_repeat_property(const PropertyMap& properties, ComputedStyle& style) {
-    auto it = properties.find(Property::BackgroundRepeat);
-    if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
+void apply_background_repeat_value(const Value& value, ComputedStyle& style) {
+    if (value.type != Value::Type::Identifier) {
         return;
     }
-    auto tokens = StyleValueUtils::split_tokens(it->second.value.ident);
+    auto tokens = StyleValueUtils::split_tokens(value.ident);
     if (tokens.empty()) {
         return;
     }
@@ -497,12 +442,11 @@ void apply_background_repeat_property(const PropertyMap& properties, ComputedSty
     }
 }
 
-void apply_background_position_property(const PropertyMap& properties, ComputedStyle& style) {
-    auto it = properties.find(Property::BackgroundPosition);
-    if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
+void apply_background_position_value(const Value& value, ComputedStyle& style) {
+    if (value.type != Value::Type::Identifier) {
         return;
     }
-    auto tokens = StyleValueUtils::split_tokens(it->second.value.ident);
+    auto tokens = StyleValueUtils::split_tokens(value.ident);
     if (tokens.empty()) {
         return;
     }
@@ -573,12 +517,11 @@ void apply_background_position_property(const PropertyMap& properties, ComputedS
     }
 }
 
-void apply_background_size_property(const PropertyMap& properties, ComputedStyle& style) {
-    auto it = properties.find(Property::BackgroundSize);
-    if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
+void apply_background_size_value(const Value& value, ComputedStyle& style) {
+    if (value.type != Value::Type::Identifier) {
         return;
     }
-    auto tokens = StyleValueUtils::split_tokens(it->second.value.ident);
+    auto tokens = StyleValueUtils::split_tokens(value.ident);
     if (tokens.empty()) {
         return;
     }
@@ -617,242 +560,322 @@ void apply_background_size_property(const PropertyMap& properties, ComputedStyle
     }
 }
 
+struct ApplyContext {
+    float parent_font_size = 0.0f;
+    const ComputedStyle* parent_style = nullptr;
+    bool* display_set = nullptr;
+};
+
+void apply_optional_length(std::optional<float>& target, const Value& value, float font_size) {
+    if (value.type == Value::Type::Length) {
+        if (value.length.unit == Unit::Px) {
+            target = value.length.value;
+        } else if (value.length.unit == Unit::Em) {
+            target = value.length.value * font_size;
+        }
+    } else if (value.type == Value::Type::Number) {
+        target = value.number;
+    }
+}
+
+void apply_length(float& target, const Value& value, float font_size) {
+    target = StyleValueUtils::value_to_length(value, target, font_size);
+}
+
+void apply_margin_value(float& target, bool& auto_flag, const Value& value, float font_size) {
+    if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
+        auto_flag = true;
+        target = 0.0f;
+        return;
+    }
+    auto_flag = false;
+    target = StyleValueUtils::value_to_length(value, target, font_size);
+}
+
+void apply_property_value(Property property, const Value& value, ComputedStyle& style,
+                          StyleDefaults::StyleOverrides& overrides, ApplyContext& context) {
+    switch (property) {
+        case Property::Display:
+            if (apply_display_value(style, value)) {
+                if (context.display_set) {
+                    *context.display_set = true;
+                }
+            }
+            return;
+        case Property::Position:
+            apply_position_value(style, value);
+            return;
+        case Property::FontSize:
+            if (value.type == Value::Type::Length) {
+                if (value.length.unit == Unit::Px) {
+                    style.font_size = value.length.value;
+                    overrides.font_size = true;
+                } else if (value.length.unit == Unit::Em) {
+                    style.font_size = value.length.value * context.parent_font_size;
+                    overrides.font_size = true;
+                }
+            }
+            return;
+        case Property::LineHeight:
+            if (value.type == Value::Type::Length && value.length.unit == Unit::Px) {
+                style.line_height = value.length.value;
+                overrides.line_height = true;
+            } else if (value.type == Value::Type::Length && value.length.unit == Unit::Em) {
+                style.line_height = value.length.value * style.font_size;
+                overrides.line_height = true;
+            } else if (value.type == Value::Type::Number) {
+                style.line_height = value.number * style.font_size;
+                overrides.line_height = true;
+            }
+            return;
+        case Property::Margin:
+            apply_edge(style.margin, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            return;
+        case Property::MarginTop:
+            apply_length(style.margin.top, value, style.font_size);
+            return;
+        case Property::MarginRight:
+            apply_margin_value(style.margin.right, style.margin_right_auto, value, style.font_size);
+            return;
+        case Property::MarginBottom:
+            apply_length(style.margin.bottom, value, style.font_size);
+            return;
+        case Property::MarginLeft:
+            apply_margin_value(style.margin.left, style.margin_left_auto, value, style.font_size);
+            return;
+        case Property::Padding:
+            apply_edge(style.padding, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            return;
+        case Property::PaddingTop:
+            apply_length(style.padding.top, value, style.font_size);
+            return;
+        case Property::PaddingRight:
+            apply_length(style.padding.right, value, style.font_size);
+            return;
+        case Property::PaddingBottom:
+            apply_length(style.padding.bottom, value, style.font_size);
+            return;
+        case Property::PaddingLeft:
+            apply_length(style.padding.left, value, style.font_size);
+            return;
+        case Property::BoxSizing:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::BorderBox) {
+                    style.box_sizing = ComputedStyle::BoxSizing::BorderBox;
+                } else if (value.ident == ValueNames::ContentBox) {
+                    style.box_sizing = ComputedStyle::BoxSizing::ContentBox;
+                }
+            }
+            return;
+        case Property::Transform:
+            if (value.type == Value::Type::Identifier) {
+                auto translate = parse_transform_translate(value.ident, style.font_size);
+                if (translate) {
+                    style.transform_has_translate = true;
+                    style.transform_translate_x = translate->first;
+                    style.transform_translate_y = translate->second;
+                } else {
+                    style.transform_has_translate = false;
+                    style.transform_translate_x = 0.0f;
+                    style.transform_translate_y = 0.0f;
+                }
+            }
+            return;
+        case Property::BorderWidth:
+            apply_edge(style.border_width, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            return;
+        case Property::BorderColor:
+            if (value.type == Value::Type::Color) {
+                style.border_color = value.color;
+            }
+            return;
+        case Property::BorderStyle:
+            apply_border_style(style, value);
+            return;
+        case Property::Width:
+            apply_optional_length(style.width, value, style.font_size);
+            return;
+        case Property::Height:
+            apply_optional_length(style.height, value, style.font_size);
+            return;
+        case Property::MinWidth:
+            apply_optional_length(style.min_width, value, style.font_size);
+            return;
+        case Property::MinHeight:
+            apply_optional_length(style.min_height, value, style.font_size);
+            return;
+        case Property::MaxWidth:
+            apply_optional_length(style.max_width, value, style.font_size);
+            return;
+        case Property::MaxHeight:
+            apply_optional_length(style.max_height, value, style.font_size);
+            return;
+        case Property::Top:
+            apply_optional_length(style.top, value, style.font_size);
+            return;
+        case Property::Right:
+            apply_optional_length(style.right, value, style.font_size);
+            return;
+        case Property::Bottom:
+            apply_optional_length(style.bottom, value, style.font_size);
+            return;
+        case Property::Left:
+            apply_optional_length(style.left, value, style.font_size);
+            return;
+        case Property::ZIndex:
+            apply_z_index_value(style, value);
+            return;
+        case Property::TextAlign:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Left) {
+                    style.text_align = ComputedStyle::TextAlign::Left;
+                    overrides.text_align = true;
+                } else if (value.ident == ValueNames::Center) {
+                    style.text_align = ComputedStyle::TextAlign::Center;
+                    overrides.text_align = true;
+                } else if (value.ident == ValueNames::Right) {
+                    style.text_align = ComputedStyle::TextAlign::Right;
+                    overrides.text_align = true;
+                }
+            }
+            return;
+        case Property::TextDecoration:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Underline) {
+                    style.underline = true;
+                    overrides.underline = true;
+                } else if (value.ident == ValueNames::None) {
+                    style.underline = false;
+                    overrides.underline = true;
+                }
+            }
+            return;
+        case Property::TextDecorationThickness: {
+            auto thickness = StyleValueUtils::value_to_length(value, 0.0f, style.font_size);
+            if (thickness > 0.0f) {
+                style.underline_thickness = thickness;
+                overrides.underline_thickness = true;
+            }
+            return;
+        }
+        case Property::TextUnderlineOffset: {
+            auto offset = StyleValueUtils::value_to_length(value, 0.0f, style.font_size);
+            if (offset > 0.0f) {
+                style.underline_offset = offset;
+                overrides.underline_offset = true;
+            }
+            return;
+        }
+        case Property::WhiteSpace:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Normal) {
+                    style.whitespace = ComputedStyle::WhiteSpace::Normal;
+                    overrides.whitespace = true;
+                } else if (value.ident == ValueNames::NoWrap) {
+                    style.whitespace = ComputedStyle::WhiteSpace::NoWrap;
+                    overrides.whitespace = true;
+                }
+            }
+            return;
+        case Property::FontFamily:
+            if (value.type == Value::Type::Identifier) {
+                style.font_face = value.ident;
+                overrides.font_face = true;
+            }
+            return;
+        case Property::FontWeight:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Bold) {
+                    style.weight = ComputedStyle::FontWeight::Bold;
+                    overrides.weight = true;
+                } else if (value.ident == ValueNames::Normal) {
+                    style.weight = ComputedStyle::FontWeight::Normal;
+                    overrides.weight = true;
+                }
+            } else if (value.type == Value::Type::Number) {
+                style.weight =
+                    value.number >= 600.0f ? ComputedStyle::FontWeight::Bold : ComputedStyle::FontWeight::Normal;
+                overrides.weight = true;
+            }
+            return;
+        case Property::FontStyle:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Italic) {
+                    style.style = ComputedStyle::FontStyle::Italic;
+                    overrides.style = true;
+                } else if (value.ident == ValueNames::Normal) {
+                    style.style = ComputedStyle::FontStyle::Normal;
+                    overrides.style = true;
+                }
+            }
+            return;
+        case Property::Float:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Left) {
+                    style.float_type = ComputedStyle::Float::Left;
+                } else if (value.ident == ValueNames::Right) {
+                    style.float_type = ComputedStyle::Float::Right;
+                } else if (value.ident == ValueNames::None) {
+                    style.float_type = ComputedStyle::Float::None;
+                }
+            }
+            return;
+        case Property::ListStyle:
+            if (value.type == Value::Type::Identifier) {
+                auto tokens = StyleValueUtils::split_tokens(value.ident);
+                for (auto token : tokens) {
+                    apply_list_style_token(token, style, overrides);
+                }
+            }
+            return;
+        case Property::ListStyleType:
+            if (value.type == Value::Type::Identifier) {
+                apply_list_style_token(value.ident, style, overrides);
+            }
+            return;
+        case Property::ListStylePosition:
+            if (value.type == Value::Type::Identifier) {
+                apply_list_style_token(value.ident, style, overrides);
+            }
+            return;
+        case Property::Color:
+            apply_color_value(value, style, overrides, context.parent_style);
+            return;
+        case Property::BackgroundColor:
+            apply_background_color_value(value, style, overrides, context.parent_style);
+            return;
+        case Property::BackgroundImage:
+            apply_background_image_value(value, style);
+            return;
+        case Property::BackgroundRepeat:
+            apply_background_repeat_value(value, style);
+            return;
+        case Property::BackgroundPosition:
+            apply_background_position_value(value, style);
+            return;
+        case Property::BackgroundSize:
+            apply_background_size_value(value, style);
+            return;
+        case Property::Border:
+        case Property::Background:
+            return;
+        default:
+            return;
+    }
+}
+
 void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& style,
                                StyleDefaults::StyleOverrides& overrides, bool& display_set, float parent_font_size,
                                const ComputedStyle* parent_style) {
-    display_set = apply_display_property(properties, style);
-    apply_position_property(properties, style);
-
-    auto font_size_it = properties.find(Property::FontSize);
-    if (font_size_it != properties.end()) {
-        const auto& value = font_size_it->second.value;
-        if (value.type == Value::Type::Length) {
-            if (value.length.unit == Unit::Px) {
-                style.font_size = value.length.value;
-                overrides.font_size = true;
-            } else if (value.length.unit == Unit::Em) {
-                style.font_size = value.length.value * parent_font_size;
-                overrides.font_size = true;
-            }
+    ApplyContext context{parent_font_size, parent_style, &display_set};
+    display_set = false;
+    for (const auto& entry : PropertyRegistry::entries()) {
+        auto it = properties.find(entry.property);
+        if (it == properties.end()) {
+            continue;
         }
+        apply_property_value(entry.property, it->second.value, style, overrides, context);
     }
-
-    auto line_height_it = properties.find(Property::LineHeight);
-    if (line_height_it != properties.end()) {
-        const auto& value = line_height_it->second.value;
-        if (value.type == Value::Type::Length && value.length.unit == Unit::Px) {
-            style.line_height = value.length.value;
-            overrides.line_height = true;
-        } else if (value.type == Value::Type::Length && value.length.unit == Unit::Em) {
-            style.line_height = value.length.value * style.font_size;
-            overrides.line_height = true;
-        } else if (value.type == Value::Type::Number) {
-            style.line_height = value.number * style.font_size;
-            overrides.line_height = true;
-        }
-    }
-
-    // margin / padding shorthand and individual edges
-    auto margin_it = properties.find(Property::Margin);
-    if (margin_it != properties.end()) {
-        apply_edge(style.margin, StyleValueUtils::value_to_length(margin_it->second.value, 0.0f, style.font_size));
-    }
-    auto padding_it = properties.find(Property::Padding);
-    if (padding_it != properties.end()) {
-        apply_edge(style.padding, StyleValueUtils::value_to_length(padding_it->second.value, 0.0f, style.font_size));
-    }
-
-    apply_length_if_present(properties, Property::MarginTop, style.margin.top, style.font_size);
-    apply_margin_if_present(properties, Property::MarginRight, style.margin.right, style.margin_right_auto,
-                            style.font_size);
-    apply_length_if_present(properties, Property::MarginBottom, style.margin.bottom, style.font_size);
-    apply_margin_if_present(properties, Property::MarginLeft, style.margin.left, style.margin_left_auto,
-                            style.font_size);
-
-    apply_length_if_present(properties, Property::PaddingTop, style.padding.top, style.font_size);
-    apply_length_if_present(properties, Property::PaddingRight, style.padding.right, style.font_size);
-    apply_length_if_present(properties, Property::PaddingBottom, style.padding.bottom, style.font_size);
-    apply_length_if_present(properties, Property::PaddingLeft, style.padding.left, style.font_size);
-
-    auto box_sizing_it = properties.find(Property::BoxSizing);
-    if (box_sizing_it != properties.end() && box_sizing_it->second.value.type == Value::Type::Identifier) {
-        const auto& ident = box_sizing_it->second.value.ident;
-        if (ident == ValueNames::BorderBox) {
-            style.box_sizing = ComputedStyle::BoxSizing::BorderBox;
-        } else if (ident == ValueNames::ContentBox) {
-            style.box_sizing = ComputedStyle::BoxSizing::ContentBox;
-        }
-    }
-
-    auto transform_it = properties.find(Property::Transform);
-    if (transform_it != properties.end() && transform_it->second.value.type == Value::Type::Identifier) {
-        auto translate = parse_transform_translate(transform_it->second.value.ident, style.font_size);
-        if (translate) {
-            style.transform_has_translate = true;
-            style.transform_translate_x = translate->first;
-            style.transform_translate_y = translate->second;
-        } else {
-            style.transform_has_translate = false;
-            style.transform_translate_x = 0.0f;
-            style.transform_translate_y = 0.0f;
-        }
-    }
-
-    auto border_width_it = properties.find(Property::BorderWidth);
-    if (border_width_it != properties.end()) {
-        apply_edge(style.border_width,
-                   StyleValueUtils::value_to_length(border_width_it->second.value, 0.0f, style.font_size));
-    }
-    auto border_color_it = properties.find(Property::BorderColor);
-    if (border_color_it != properties.end() && border_color_it->second.value.type == Value::Type::Color) {
-        style.border_color = border_color_it->second.value.color;
-    }
-    auto border_style_it = properties.find(Property::BorderStyle);
-    if (border_style_it != properties.end()) {
-        apply_border_style(style, border_style_it->second.value);
-    }
-
-    apply_optional_length_if_present(properties, Property::Width, style.width, style.font_size);
-    apply_optional_length_if_present(properties, Property::Height, style.height, style.font_size);
-    apply_optional_length_if_present(properties, Property::MinWidth, style.min_width, style.font_size);
-    apply_optional_length_if_present(properties, Property::MinHeight, style.min_height, style.font_size);
-    apply_optional_length_if_present(properties, Property::MaxWidth, style.max_width, style.font_size);
-    apply_optional_length_if_present(properties, Property::MaxHeight, style.max_height, style.font_size);
-    apply_optional_length_if_present(properties, Property::Top, style.top, style.font_size);
-    apply_optional_length_if_present(properties, Property::Right, style.right, style.font_size);
-    apply_optional_length_if_present(properties, Property::Bottom, style.bottom, style.font_size);
-    apply_optional_length_if_present(properties, Property::Left, style.left, style.font_size);
-    apply_z_index_property(properties, style);
-
-    auto text_align_it = properties.find(Property::TextAlign);
-    if (text_align_it != properties.end() && text_align_it->second.value.type == Value::Type::Identifier) {
-        const auto& ident = text_align_it->second.value.ident;
-        if (ident == ValueNames::Left) {
-            style.text_align = ComputedStyle::TextAlign::Left;
-            overrides.text_align = true;
-        } else if (ident == ValueNames::Center) {
-            style.text_align = ComputedStyle::TextAlign::Center;
-            overrides.text_align = true;
-        } else if (ident == ValueNames::Right) {
-            style.text_align = ComputedStyle::TextAlign::Right;
-            overrides.text_align = true;
-        }
-    }
-
-    auto text_decoration_it = properties.find(Property::TextDecoration);
-    if (text_decoration_it != properties.end() && text_decoration_it->second.value.type == Value::Type::Identifier) {
-        const auto& ident = text_decoration_it->second.value.ident;
-        if (ident == ValueNames::Underline) {
-            style.underline = true;
-            overrides.underline = true;
-        } else if (ident == ValueNames::None) {
-            style.underline = false;
-            overrides.underline = true;
-        }
-    }
-
-    if (auto underline_thickness_it = properties.find(Property::TextDecorationThickness);
-        underline_thickness_it != properties.end()) {
-        auto thickness = StyleValueUtils::value_to_length(underline_thickness_it->second.value, 0.0f, style.font_size);
-        if (thickness > 0.0f) {
-            style.underline_thickness = thickness;
-            overrides.underline_thickness = true;
-        }
-    }
-
-    if (auto underline_offset_it = properties.find(Property::TextUnderlineOffset);
-        underline_offset_it != properties.end()) {
-        auto offset = StyleValueUtils::value_to_length(underline_offset_it->second.value, 0.0f, style.font_size);
-        if (offset > 0.0f) {
-            style.underline_offset = offset;
-            overrides.underline_offset = true;
-        }
-    }
-
-    auto whitespace_it = properties.find(Property::WhiteSpace);
-    if (whitespace_it != properties.end() && whitespace_it->second.value.type == Value::Type::Identifier) {
-        const auto& ident = whitespace_it->second.value.ident;
-        if (ident == ValueNames::Normal) {
-            style.whitespace = ComputedStyle::WhiteSpace::Normal;
-            overrides.whitespace = true;
-        } else if (ident == ValueNames::NoWrap) {
-            style.whitespace = ComputedStyle::WhiteSpace::NoWrap;
-            overrides.whitespace = true;
-        }
-    }
-
-    auto font_family_it = properties.find(Property::FontFamily);
-    if (font_family_it != properties.end() && font_family_it->second.value.type == Value::Type::Identifier) {
-        style.font_face = font_family_it->second.value.ident;
-        overrides.font_face = true;
-    }
-
-    auto font_weight_it = properties.find(Property::FontWeight);
-    if (font_weight_it != properties.end()) {
-        const auto& value = font_weight_it->second.value;
-        if (value.type == Value::Type::Identifier) {
-            if (value.ident == ValueNames::Bold) {
-                style.weight = ComputedStyle::FontWeight::Bold;
-                overrides.weight = true;
-            } else if (value.ident == ValueNames::Normal) {
-                style.weight = ComputedStyle::FontWeight::Normal;
-                overrides.weight = true;
-            }
-        } else if (value.type == Value::Type::Number) {
-            style.weight = value.number >= 600.0f ? ComputedStyle::FontWeight::Bold : ComputedStyle::FontWeight::Normal;
-            overrides.weight = true;
-        }
-    }
-
-    auto font_style_it = properties.find(Property::FontStyle);
-    if (font_style_it != properties.end() && font_style_it->second.value.type == Value::Type::Identifier) {
-        const auto& ident = font_style_it->second.value.ident;
-        if (ident == ValueNames::Italic) {
-            style.style = ComputedStyle::FontStyle::Italic;
-            overrides.style = true;
-        } else if (ident == ValueNames::Normal) {
-            style.style = ComputedStyle::FontStyle::Normal;
-            overrides.style = true;
-        }
-    }
-
-    auto float_it = properties.find(Property::Float);
-    if (float_it != properties.end() && float_it->second.value.type == Value::Type::Identifier) {
-        const auto& ident = float_it->second.value.ident;
-        if (ident == ValueNames::Left) {
-            style.float_type = ComputedStyle::Float::Left;
-        } else if (ident == ValueNames::Right) {
-            style.float_type = ComputedStyle::Float::Right;
-        } else if (ident == ValueNames::None) {
-            style.float_type = ComputedStyle::Float::None;
-        }
-    }
-
-    auto list_style_it = properties.find(Property::ListStyle);
-    if (list_style_it != properties.end() && list_style_it->second.value.type == Value::Type::Identifier) {
-        auto tokens = StyleValueUtils::split_tokens(list_style_it->second.value.ident);
-        for (auto token : tokens) {
-            apply_list_style_token(token, style, overrides);
-        }
-    }
-
-    auto list_style_type_it = properties.find(Property::ListStyleType);
-    if (list_style_type_it != properties.end() && list_style_type_it->second.value.type == Value::Type::Identifier) {
-        apply_list_style_token(list_style_type_it->second.value.ident, style, overrides);
-    }
-
-    auto list_style_position_it = properties.find(Property::ListStylePosition);
-    if (list_style_position_it != properties.end() &&
-        list_style_position_it->second.value.type == Value::Type::Identifier) {
-        apply_list_style_token(list_style_position_it->second.value.ident, style, overrides);
-    }
-
-    apply_color_property(properties, style, overrides, parent_style);
-    apply_background_property(properties, style, overrides, parent_style);
-    apply_background_image_property(properties, style);
-    apply_background_repeat_property(properties, style);
-    apply_background_position_property(properties, style);
-    apply_background_size_property(properties, style);
 }
 
 void apply_custom_properties(const CustomPropertyMap& properties, ComputedStyle& style) {

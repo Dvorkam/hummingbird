@@ -209,7 +209,7 @@ src/app
   - Risk: low/medium.
   - Acceptance: CSSParser + StyleEngine tests pass unchanged.
 
-### R2-08 [ ] style: registry-driven property application (Phase 4 Option A)
+### R2-08 [x] style: registry-driven property application (Phase 4 Option A)
 - Files: `src/style/registry/CssPropertyRegistry.cpp`, `src/style/compute/StyleEngine.cpp`, `src/style/parser/CssParser.cpp`
   - Reuse: property name → enum → handling split across files; registry not used to drive application.
   - Suggested utility: extend `CssPropertyRegistry` to include metadata + handler pointers; replace long apply chain with a property-applier table.

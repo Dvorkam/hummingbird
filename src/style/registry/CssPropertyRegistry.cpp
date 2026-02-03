@@ -4,28 +4,11 @@
 
 namespace Hummingbird::Css::PropertyRegistry {
 
-struct Mapping {
-    std::string_view name;
-    Property property;
-};
-
-static constexpr Mapping kMappings[] = {
+static constexpr PropertyEntry kEntries[] = {
     {PropertyNames::Display, Property::Display},
-    {PropertyNames::Background, Property::Background},
-    {PropertyNames::BackgroundImage, Property::BackgroundImage},
-    {PropertyNames::BackgroundRepeat, Property::BackgroundRepeat},
-    {PropertyNames::BackgroundPosition, Property::BackgroundPosition},
-    {PropertyNames::BackgroundSize, Property::BackgroundSize},
     {PropertyNames::Position, Property::Position},
-    {PropertyNames::Top, Property::Top},
-    {PropertyNames::Right, Property::Right},
-    {PropertyNames::Bottom, Property::Bottom},
-    {PropertyNames::Left, Property::Left},
-    {PropertyNames::ZIndex, Property::ZIndex},
-    {PropertyNames::Border, Property::Border},
-    {PropertyNames::BorderWidth, Property::BorderWidth},
-    {PropertyNames::BorderColor, Property::BorderColor},
-    {PropertyNames::BorderStyle, Property::BorderStyle},
+    {PropertyNames::FontSize, Property::FontSize},
+    {PropertyNames::LineHeight, Property::LineHeight},
     {PropertyNames::Margin, Property::Margin},
     {PropertyNames::MarginTop, Property::MarginTop},
     {PropertyNames::MarginRight, Property::MarginRight},
@@ -42,16 +25,21 @@ static constexpr Mapping kMappings[] = {
     {PropertyNames::MsBoxSizing, Property::BoxSizing},
     {PropertyNames::OBoxSizing, Property::BoxSizing},
     {PropertyNames::Transform, Property::Transform},
+    {PropertyNames::Border, Property::Border},
+    {PropertyNames::BorderWidth, Property::BorderWidth},
+    {PropertyNames::BorderColor, Property::BorderColor},
+    {PropertyNames::BorderStyle, Property::BorderStyle},
     {PropertyNames::Width, Property::Width},
     {PropertyNames::Height, Property::Height},
     {PropertyNames::MinWidth, Property::MinWidth},
     {PropertyNames::MinHeight, Property::MinHeight},
-    {PropertyNames::Color, Property::Color},
-    {PropertyNames::BackgroundColor, Property::BackgroundColor},
-    {PropertyNames::FontSize, Property::FontSize},
-    {PropertyNames::LineHeight, Property::LineHeight},
     {PropertyNames::MaxWidth, Property::MaxWidth},
     {PropertyNames::MaxHeight, Property::MaxHeight},
+    {PropertyNames::Top, Property::Top},
+    {PropertyNames::Right, Property::Right},
+    {PropertyNames::Bottom, Property::Bottom},
+    {PropertyNames::Left, Property::Left},
+    {PropertyNames::ZIndex, Property::ZIndex},
     {PropertyNames::TextAlign, Property::TextAlign},
     {PropertyNames::TextDecoration, Property::TextDecoration},
     {PropertyNames::TextDecorationThickness, Property::TextDecorationThickness},
@@ -64,12 +52,19 @@ static constexpr Mapping kMappings[] = {
     {PropertyNames::ListStyle, Property::ListStyle},
     {PropertyNames::ListStyleType, Property::ListStyleType},
     {PropertyNames::ListStylePosition, Property::ListStylePosition},
+    {PropertyNames::Color, Property::Color},
+    {PropertyNames::BackgroundColor, Property::BackgroundColor},
+    {PropertyNames::Background, Property::Background},
+    {PropertyNames::BackgroundImage, Property::BackgroundImage},
+    {PropertyNames::BackgroundRepeat, Property::BackgroundRepeat},
+    {PropertyNames::BackgroundPosition, Property::BackgroundPosition},
+    {PropertyNames::BackgroundSize, Property::BackgroundSize},
 };
 
 Property parse_property_name(std::string_view name) {
-    for (const auto& mapping : kMappings) {
-        if (name == mapping.name) {
-            return mapping.property;
+    for (const auto& entry : kEntries) {
+        if (name == entry.name) {
+            return entry.property;
         }
     }
     return Property::Unknown;
@@ -77,6 +72,10 @@ Property parse_property_name(std::string_view name) {
 
 bool is_supported_property(std::string_view name) {
     return parse_property_name(name) != Property::Unknown;
+}
+
+std::span<const PropertyEntry> entries() {
+    return kEntries;
 }
 
 }  // namespace Hummingbird::Css::PropertyRegistry
