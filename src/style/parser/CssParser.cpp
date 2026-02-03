@@ -8,6 +8,7 @@
 #include "core/utils/ColorUtils.h"
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
+#include "style/compute/StyleValueUtils.h"
 #include "style/registry/CssPropertyRegistry.h"
 #include "style/registry/CssValueNames.h"
 
@@ -215,10 +216,8 @@ Value Parser::parse_number_value() {
     if (peek().type == TokenType::Identifier) {
         std::string unit_text = std::string(advance().lexeme);
         Unit unit = Unit::Unknown;
-        if (unit_text == ValueNames::Px) {
-            unit = Unit::Px;
-        } else if (unit_text == ValueNames::Em) {
-            unit = Unit::Em;
+        if (auto parsed = StyleValueUtils::parse_unit_token(unit_text)) {
+            unit = *parsed;
         }
         return Value::length_value(number, unit);
     }
@@ -332,9 +331,9 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         if (value.type == Value::Type::Length) {
             std::string out = std::to_string(value.length.value);
             if (value.length.unit == Unit::Px) {
-                out += "px";
+                out += ValueNames::Px;
             } else if (value.length.unit == Unit::Em) {
-                out += "em";
+                out += ValueNames::Em;
             }
             return out;
         }

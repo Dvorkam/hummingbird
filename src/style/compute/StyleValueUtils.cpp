@@ -51,6 +51,16 @@ std::optional<float> parse_length_or_number(std::string_view token, float font_s
     return std::nullopt;
 }
 
+std::optional<Unit> parse_unit_token(std::string_view token) {
+    if (token == ValueNames::Px) {
+        return Unit::Px;
+    }
+    if (token == ValueNames::Em) {
+        return Unit::Em;
+    }
+    return std::nullopt;
+}
+
 std::vector<std::string_view> split_tokens(std::string_view text) {
     std::vector<std::string_view> tokens;
     size_t start = 0;
