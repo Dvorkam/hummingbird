@@ -40,6 +40,7 @@ add_library(Style STATIC
     src/style/selector/SelectorMatcher.cpp
     src/style/compute/StyleDefaults.cpp
     src/style/compute/StyleEngine.cpp
+    src/style/compute/StyleValueUtils.cpp
     src/style/compute/StylesheetSource.cpp
 )
 target_include_directories(Style

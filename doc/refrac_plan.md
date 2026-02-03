@@ -202,7 +202,7 @@ src/app
   - Risk: low/medium.
   - Acceptance: paint order tests (if any) unchanged.
 
-### R2-07 [ ] style: shared value parsing helpers
+### R2-07 [x] style: shared value parsing helpers
 - Files: `src/style/parser/CssParser.cpp`, `src/style/compute/StyleEngine.cpp`, `src/style/registry/CssValueNames.h`
   - Reuse: length parsing + token splitting (`parse_length_token`, `parse_length_or_number`, `split_tokens`, `value_to_length`) and value parsing helpers are duplicated.
   - Suggested utility: `style/compute/StyleValueUtils.*` (shared `split_tokens`, `parse_length_*`, `value_to_length`) and/or `style/parser/CssValueParser.*` (color/identifier helpers).

@@ -20,6 +20,7 @@
 #include "core/utils/StringUtils.h"
 #include "style/compute/ComputedStyle.h"
 #include "style/compute/StyleDefaults.h"
+#include "style/compute/StyleValueUtils.h"
 #include "style/compute/Stylesheet.h"
 #include "style/registry/CssValueNames.h"
 #include "style/selector/SelectorMatcher.h"
@@ -27,41 +28,6 @@
 namespace Hummingbird::Css {
 
 namespace {
-
-float value_to_length(const Value& value, float fallback, float font_size) {
-    if (value.type != Value::Type::Length) return fallback;
-    if (value.length.unit == Unit::Px) return value.length.value;
-    if (value.length.unit == Unit::Em) return value.length.value * font_size;
-    return fallback;
-}
-
-std::optional<float> parse_length_token(std::string_view token, float font_size) {
-    token = Core::Utils::trim_ascii_whitespace(token);
-    if (token.empty()) return std::nullopt;
-    if (token.size() > 2 && token.ends_with("px")) {
-        auto value = Core::Utils::parse_float(token.substr(0, token.size() - 2));
-        if (value) return *value;
-        return std::nullopt;
-    }
-    if (token.size() > 2 && token.ends_with("em")) {
-        auto value = Core::Utils::parse_float(token.substr(0, token.size() - 2));
-        if (value) return *value * font_size;
-        return std::nullopt;
-    }
-    return std::nullopt;
-}
-
-std::optional<float> parse_length_or_number(std::string_view token, float font_size) {
-    if (auto length = parse_length_token(token, font_size)) {
-        return *length;
-    }
-    if (auto value = Core::Utils::parse_float(token)) {
-        return *value;
-    }
-    return std::nullopt;
-}
-
-std::vector<std::string_view> split_tokens(std::string_view text);
 
 std::optional<std::pair<float, float>> parse_transform_translate(std::string_view text, float font_size) {
     auto trimmed = Core::Utils::trim_ascii_whitespace(text);
@@ -74,7 +40,7 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
         if (index >= tokens.size()) {
             return std::nullopt;
         }
-        auto value = parse_length_token(tokens[index], font_size);
+        auto value = StyleValueUtils::parse_length_token(tokens[index], font_size);
         if (value) {
             ++index;
             return *value;
@@ -108,13 +74,13 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
             first = args.substr(0, comma);
             second = args.substr(comma + 1);
         }
-        auto x = parse_length_or_number(first, font_size);
+        auto x = StyleValueUtils::parse_length_or_number(first, font_size);
         if (!x) {
             return std::nullopt;
         }
         float y_value = 0.0f;
         if (!second.empty()) {
-            auto y = parse_length_or_number(second, font_size);
+            auto y = StyleValueUtils::parse_length_or_number(second, font_size);
             if (!y) {
                 return std::nullopt;
             }
@@ -129,7 +95,7 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
     }
     if (trimmed.starts_with("translateX(") && trimmed.ends_with(")")) {
         auto args = trimmed.substr(11, trimmed.size() - 12);
-        auto value = parse_length_or_number(args, font_size);
+        auto value = StyleValueUtils::parse_length_or_number(args, font_size);
         if (!value) {
             return std::nullopt;
         }
@@ -137,14 +103,14 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
     }
     if (trimmed.starts_with("translateY(") && trimmed.ends_with(")")) {
         auto args = trimmed.substr(11, trimmed.size() - 12);
-        auto value = parse_length_or_number(args, font_size);
+        auto value = StyleValueUtils::parse_length_or_number(args, font_size);
         if (!value) {
             return std::nullopt;
         }
         return std::make_pair(0.0f, *value);
     }
 
-    auto tokens = split_tokens(trimmed);
+    auto tokens = StyleValueUtils::split_tokens(trimmed);
     if (tokens.empty()) {
         return std::nullopt;
     }
@@ -202,23 +168,6 @@ void apply_list_style_token(std::string_view token, ComputedStyle& style, StyleD
         overrides.list_style_position = true;
         return;
     }
-}
-
-std::vector<std::string_view> split_tokens(std::string_view text) {
-    std::vector<std::string_view> tokens;
-    size_t i = 0;
-    while (i < text.size()) {
-        while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i]))) {
-            ++i;
-        }
-        if (i >= text.size()) break;
-        size_t start = i;
-        while (i < text.size() && !std::isspace(static_cast<unsigned char>(text[i]))) {
-            ++i;
-        }
-        tokens.push_back(text.substr(start, i - start));
-    }
-    return tokens;
 }
 
 void apply_edge(EdgeSizes& edges, float value) {
@@ -362,7 +311,7 @@ MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DO
 void apply_length_if_present(const PropertyMap& properties, Property property, float& target, float font_size) {
     auto it = properties.find(property);
     if (it != properties.end()) {
-        target = value_to_length(it->second.value, target, font_size);
+        target = StyleValueUtils::value_to_length(it->second.value, target, font_size);
     }
 }
 
@@ -397,7 +346,7 @@ void apply_margin_if_present(const PropertyMap& properties, Property property, f
         return;
     }
     auto_flag = false;
-    target = value_to_length(value, target, font_size);
+    target = StyleValueUtils::value_to_length(value, target, font_size);
 }
 
 void apply_border_style(ComputedStyle& style, const Value& value) {
@@ -512,7 +461,7 @@ void apply_background_repeat_property(const PropertyMap& properties, ComputedSty
     if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
         return;
     }
-    auto tokens = split_tokens(it->second.value.ident);
+    auto tokens = StyleValueUtils::split_tokens(it->second.value.ident);
     if (tokens.empty()) {
         return;
     }
@@ -553,7 +502,7 @@ void apply_background_position_property(const PropertyMap& properties, ComputedS
     if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
         return;
     }
-    auto tokens = split_tokens(it->second.value.ident);
+    auto tokens = StyleValueUtils::split_tokens(it->second.value.ident);
     if (tokens.empty()) {
         return;
     }
@@ -600,7 +549,7 @@ void apply_background_position_property(const PropertyMap& properties, ComputedS
     const float font_size = style.font_size;
     size_t index = 0;
     if (index < tokens.size()) {
-        if (auto length = parse_length_token(tokens[index], font_size)) {
+        if (auto length = StyleValueUtils::parse_length_token(tokens[index], font_size)) {
             style.background_position.offset_x = *length;
             horizontal_set = true;
         } else {
@@ -609,7 +558,7 @@ void apply_background_position_property(const PropertyMap& properties, ComputedS
         ++index;
     }
     if (index < tokens.size()) {
-        if (auto length = parse_length_token(tokens[index], font_size)) {
+        if (auto length = StyleValueUtils::parse_length_token(tokens[index], font_size)) {
             style.background_position.offset_y = *length;
             vertical_set = true;
         } else {
@@ -629,7 +578,7 @@ void apply_background_size_property(const PropertyMap& properties, ComputedStyle
     if (it == properties.end() || it->second.value.type != Value::Type::Identifier) {
         return;
     }
-    auto tokens = split_tokens(it->second.value.ident);
+    auto tokens = StyleValueUtils::split_tokens(it->second.value.ident);
     if (tokens.empty()) {
         return;
     }
@@ -654,7 +603,7 @@ void apply_background_size_property(const PropertyMap& properties, ComputedStyle
     }
 
     const float font_size = style.font_size;
-    auto width = parse_length_token(tokens[0], font_size);
+    auto width = StyleValueUtils::parse_length_token(tokens[0], font_size);
     if (!width) {
         return;
     }
@@ -662,7 +611,7 @@ void apply_background_size_property(const PropertyMap& properties, ComputedStyle
     style.background_size.width = *width;
     style.background_size.height.reset();
     if (tokens.size() > 1) {
-        if (auto height = parse_length_token(tokens[1], font_size)) {
+        if (auto height = StyleValueUtils::parse_length_token(tokens[1], font_size)) {
             style.background_size.height = *height;
         }
     }
@@ -706,11 +655,11 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
     // margin / padding shorthand and individual edges
     auto margin_it = properties.find(Property::Margin);
     if (margin_it != properties.end()) {
-        apply_edge(style.margin, value_to_length(margin_it->second.value, 0.0f, style.font_size));
+        apply_edge(style.margin, StyleValueUtils::value_to_length(margin_it->second.value, 0.0f, style.font_size));
     }
     auto padding_it = properties.find(Property::Padding);
     if (padding_it != properties.end()) {
-        apply_edge(style.padding, value_to_length(padding_it->second.value, 0.0f, style.font_size));
+        apply_edge(style.padding, StyleValueUtils::value_to_length(padding_it->second.value, 0.0f, style.font_size));
     }
 
     apply_length_if_present(properties, Property::MarginTop, style.margin.top, style.font_size);
@@ -751,7 +700,8 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
 
     auto border_width_it = properties.find(Property::BorderWidth);
     if (border_width_it != properties.end()) {
-        apply_edge(style.border_width, value_to_length(border_width_it->second.value, 0.0f, style.font_size));
+        apply_edge(style.border_width,
+                   StyleValueUtils::value_to_length(border_width_it->second.value, 0.0f, style.font_size));
     }
     auto border_color_it = properties.find(Property::BorderColor);
     if (border_color_it != properties.end() && border_color_it->second.value.type == Value::Type::Color) {
@@ -803,7 +753,7 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
 
     if (auto underline_thickness_it = properties.find(Property::TextDecorationThickness);
         underline_thickness_it != properties.end()) {
-        auto thickness = value_to_length(underline_thickness_it->second.value, 0.0f, style.font_size);
+        auto thickness = StyleValueUtils::value_to_length(underline_thickness_it->second.value, 0.0f, style.font_size);
         if (thickness > 0.0f) {
             style.underline_thickness = thickness;
             overrides.underline_thickness = true;
@@ -812,7 +762,7 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
 
     if (auto underline_offset_it = properties.find(Property::TextUnderlineOffset);
         underline_offset_it != properties.end()) {
-        auto offset = value_to_length(underline_offset_it->second.value, 0.0f, style.font_size);
+        auto offset = StyleValueUtils::value_to_length(underline_offset_it->second.value, 0.0f, style.font_size);
         if (offset > 0.0f) {
             style.underline_offset = offset;
             overrides.underline_offset = true;
@@ -880,7 +830,7 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
 
     auto list_style_it = properties.find(Property::ListStyle);
     if (list_style_it != properties.end() && list_style_it->second.value.type == Value::Type::Identifier) {
-        auto tokens = split_tokens(list_style_it->second.value.ident);
+        auto tokens = StyleValueUtils::split_tokens(list_style_it->second.value.ident);
         for (auto token : tokens) {
             apply_list_style_token(token, style, overrides);
         }
