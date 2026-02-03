@@ -175,7 +175,7 @@ src/app
   - Risk: low.
   - Acceptance: TextBox + Table layout unchanged.
 
-### R2-04 [ ] layout: shared block/float/inline flow helpers
+### R2-04 [x] layout: shared block/float/inline flow helpers
 - Files: `src/layout/block/BlockBox.cpp`, `src/layout/formatting/RenderListItem.cpp`
   - Reuse: nearly identical block/inline/float flow logic (child margins, float placement, inline group layout, line cursor flushing, float-band handling).
   - Suggested utility: `layout/formatting/FlowLayoutUtils.*` (or `layout/block/BlockFlowUtils.*`) with shared helpers:
