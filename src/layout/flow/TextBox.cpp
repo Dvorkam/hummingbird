@@ -10,6 +10,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
+#include "layout/geometry/metrics/TextMetricsUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
@@ -203,21 +204,7 @@ float measure_text_block(IGraphicsContext& context, const std::string& rendered_
 }
 
 float compute_text_ascent(const TextMetrics& metrics, float line_height) {
-    if (metrics.ascent > 0.0f) {
-        float ascent = metrics.ascent;
-        if (metrics.height > 0.0f && line_height > metrics.height) {
-            float extra = line_height - metrics.height;
-            ascent += extra * 0.5f;
-        }
-        if (line_height > 0.0f) {
-            ascent = std::min(ascent, line_height);
-        }
-        return ascent;
-    }
-    if (line_height > 0.0f) {
-        return line_height;
-    }
-    return metrics.height;
+    return TextMetricsUtils::resolve_text_ascent(metrics, line_height);
 }
 }  // namespace
 
@@ -252,9 +239,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         }
     }
     float line_height = measure_text_block(context, m_rendered_text, text_style, m_last_metrics);
-    if (style && style->line_height > 0.0f) {
-        line_height = style->line_height;
-    }
+    line_height = TextMetricsUtils::resolve_line_height(style, line_height);
     m_line_height = line_height;
 
     float content_width = 0.0f;
@@ -314,10 +299,7 @@ void TextBox::measure_inline(IGraphicsContext& context) {
     auto tokens = tokenize_text(m_rendered_text);
     TextStyle text_style = TextStyleUtils::build_text_style(style);
     m_last_metrics = context.measure_text("A", text_style);
-    float line_height = m_last_metrics.height;
-    if (style && style->line_height > 0.0f) {
-        line_height = style->line_height;
-    }
+    float line_height = TextMetricsUtils::resolve_line_height(style, m_last_metrics.height);
     m_line_height = line_height;
     m_fragments.clear();
     m_fragments.resize(tokens.size());

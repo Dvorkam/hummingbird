@@ -1,6 +1,7 @@
 #include "layout/controls/RenderBreak.h"
 
 #include "layout/geometry/Geometry.h"
+#include "layout/geometry/metrics/TextMetricsUtils.h"
 #include "style/compute/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
@@ -11,10 +12,8 @@ constexpr float kDefaultLineHeight = 16.0f;
 
 void RenderBreak::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     const auto* style = get_computed_style();
-    float line_height = style ? style->font_size : kDefaultLineHeight;
-    if (style && style->line_height > 0.0f) {
-        line_height = style->line_height;
-    }
+    float fallback = style ? style->font_size : kDefaultLineHeight;
+    float line_height = TextMetricsUtils::resolve_line_height(style, fallback);
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
     m_rect.width = 0.0f;
