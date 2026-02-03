@@ -8,6 +8,7 @@
 #include <utility>
 
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/flow/TextLayoutUtils.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "layout/geometry/metrics/TextMetricsUtils.h"
@@ -62,56 +63,6 @@ float compute_underline_y(float line_top, float line_height, const TextMetrics& 
     return line_top + line_height - kUnderlineOffsetPx;
 }
 
-// Collapse runs of whitespace to a single space; convert newlines/tabs to spaces.
-std::string collapse_whitespace(const std::string& text) {
-    std::string out;
-    out.reserve(text.size());
-    bool in_space = false;
-    for (char c : text) {
-        bool is_space = c == ' ' || c == '\n' || c == '\r' || c == '\t';
-        if (is_space) {
-            if (!in_space) {
-                out.push_back(' ');
-            }
-            in_space = true;
-        } else {
-            out.push_back(c);
-            in_space = false;
-        }
-    }
-    return out;
-}
-
-std::vector<std::string> tokenize_text(const std::string& text) {
-    std::vector<std::string> tokens;
-    std::string current;
-    for (char c : text) {
-        if (c == ' ') {
-            if (!current.empty()) {
-                tokens.push_back(current);
-                current.clear();
-            }
-            tokens.emplace_back(" ");
-        } else {
-            current.push_back(c);
-        }
-    }
-    if (!current.empty()) {
-        tokens.push_back(current);
-    }
-    if (tokens.empty()) {
-        tokens.emplace_back(" ");
-    }
-    return tokens;
-}
-
-std::string build_rendered_text(const std::string& text, const Css::ComputedStyle* style) {
-    if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
-        return text;
-    }
-    return collapse_whitespace(text);
-}
-
 float compute_available_width(const Css::ComputedStyle* style, const Rect& bounds, const Insets& insets) {
     float available_width = bounds.width - insets.left - insets.right;
     if (available_width <= 0.0f) {
@@ -155,7 +106,7 @@ void build_wrapped_lines(IGraphicsContext& context, const std::string& text, con
                          float available_width, std::vector<std::string>& lines, std::vector<float>& line_widths,
                          float& content_width) {
     // Greedy wrap by tokens (words and explicit spaces) to preserve spacing around inline elements.
-    auto tokens = tokenize_text(text);
+    auto tokens = TextLayoutUtils::tokenize_text(text);
 
     auto measure_word = [&](const std::string& w) { return context.measure_text(w, text_style).width; };
     float space_width = context.measure_text(" ", text_style).width;
@@ -215,7 +166,7 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
     Insets insets = Metrics::compute_insets(style);
 
-    m_rendered_text = build_rendered_text(get_dom_node()->get_text(), style);
+    m_rendered_text = TextLayoutUtils::build_rendered_text(get_dom_node()->get_text(), style);
 
     m_lines.clear();
     m_line_widths.clear();
@@ -295,8 +246,8 @@ void TextBox::measure_inline(IGraphicsContext& context) {
         return;
     }
 
-    m_rendered_text = collapse_whitespace(text);
-    auto tokens = tokenize_text(m_rendered_text);
+    m_rendered_text = TextLayoutUtils::collapse_whitespace(text);
+    auto tokens = TextLayoutUtils::tokenize_text(m_rendered_text);
     TextStyle text_style = TextStyleUtils::build_text_style(style);
     m_last_metrics = context.measure_text("A", text_style);
     float line_height = TextMetricsUtils::resolve_line_height(style, m_last_metrics.height);
