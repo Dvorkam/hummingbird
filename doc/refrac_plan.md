@@ -195,7 +195,7 @@ src/app
   - Risk: low.
   - Acceptance: image/svg size tests pass; inline sizing unchanged.
 
-### R2-06 [ ] layout: traversal helper consolidation
+### R2-06 [x] layout: traversal helper consolidation
 - Files: `src/layout/paint/RenderTreeTraversal.h`, `src/layout/geometry/PositioningUtils.h`
   - Reuse: tree traversal + z-order traversal coupling suggests consolidating traversal helpers into a single utility namespace to avoid drift.
   - Suggested utility: `layout/paint/TraversalUtils.*` (merge shared traversal patterns, keep z-order in Positioning).

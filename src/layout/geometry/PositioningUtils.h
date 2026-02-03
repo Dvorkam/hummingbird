@@ -48,31 +48,29 @@ inline void collect_children_in_paint_order(const RenderObject& node, std::vecto
 template <Traversal::RenderNode NodeT, typename Enter, typename Exit>
 bool traverse_render_tree_z_order(NodeT& node, const Point& offset, Enter&& enter, Exit&& exit,
                                   Traversal::ChildOrder child_order = Traversal::ChildOrder::Forward) {
-    const auto& rect = node.get_rect();
-    const auto* style = node.get_computed_style();
-    Point transform_offset{};
-    if (style && style->transform_has_translate) {
-        transform_offset.x = style->transform_translate_x;
-        transform_offset.y = style->transform_translate_y;
-    }
-    Point effective_offset{offset.x + transform_offset.x, offset.y + transform_offset.y};
-    Rect absolute{effective_offset.x + rect.x, effective_offset.y + rect.y, rect.width, rect.height};
-
-    Traversal::TraverseAction action = enter(node, absolute, effective_offset);
-    if (action == Traversal::TraverseAction::Stop) return false;
-    if (action == Traversal::TraverseAction::SkipChildren) return true;
-
-    std::vector<RenderObject*> ordered_children;
-    collect_children_in_paint_order(node, ordered_children, child_order);
     using ChildT = std::conditional_t<std::is_const_v<NodeT>, const RenderObject, RenderObject>;
-    for (auto* child_ptr : ordered_children) {
-        auto* child_node = static_cast<ChildT*>(child_ptr);
-        Point child_offset{absolute.x, absolute.y};
-        if (!traverse_render_tree_z_order(*child_node, child_offset, enter, exit, child_order)) return false;
-    }
-
-    action = exit(node, absolute, effective_offset);
-    return action != Traversal::TraverseAction::Stop;
+    auto resolve_offset = [](const auto& current, const Point& current_offset) {
+        const auto* style = current.get_computed_style();
+        Point transform_offset{};
+        if (style && style->transform_has_translate) {
+            transform_offset.x = style->transform_translate_x;
+            transform_offset.y = style->transform_translate_y;
+        }
+        return Point{current_offset.x + transform_offset.x, current_offset.y + transform_offset.y};
+    };
+    auto for_each_child = [child_order](NodeT& current, auto&& visitor) {
+        std::vector<RenderObject*> ordered_children;
+        collect_children_in_paint_order(current, ordered_children, child_order);
+        for (auto* child_ptr : ordered_children) {
+            auto* child_node = static_cast<ChildT*>(child_ptr);
+            if (!visitor(child_node)) {
+                return false;
+            }
+        }
+        return true;
+    };
+    return Traversal::traverse_render_tree_custom(node, offset, std::forward<Enter>(enter), std::forward<Exit>(exit),
+                                                  for_each_child, resolve_offset);
 }
 
 template <Traversal::RenderNode NodeT, typename Enter>
