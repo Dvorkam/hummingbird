@@ -272,7 +272,7 @@ src/app
   - Risk: low/medium.
   - Acceptance: text/image cache behavior unchanged.
 
-### R2-17 [ ] platform/script: shared base helpers
+### R2-17 [x] platform/script: shared base helpers
 - Files: `src/platform/script/QuickJSScriptEngine.cpp`, `src/platform/script/NullScriptEngine.cpp`
   - Reuse: similar interface scaffolding and error path handling.
   - Suggested utility: `ScriptEngineBase` with shared helpers (e.g., build error result).

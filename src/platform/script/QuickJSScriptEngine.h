@@ -2,7 +2,7 @@
 
 #include <string_view>
 
-#include "core/platform_api/IScriptEngine.h"
+#include "platform/script/ScriptEngineBase.h"
 
 extern "C" {
 #include <quickjs.h>
@@ -10,7 +10,7 @@ extern "C" {
 
 namespace Hummingbird::Platform {
 
-class QuickJSScriptEngine final : public IScriptEngine {
+class QuickJSScriptEngine final : public ScriptEngineBase {
 public:
     QuickJSScriptEngine();
     ~QuickJSScriptEngine() override;
@@ -32,7 +32,6 @@ private:
 
     JSRuntime* runtime_ = nullptr;
     JSContext* context_ = nullptr;
-    IScriptHost* host_ = nullptr;
     JSClassID element_class_id_ = 0;
     bool bindings_ready_ = false;
 };

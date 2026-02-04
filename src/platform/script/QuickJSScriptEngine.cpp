@@ -143,7 +143,7 @@ QuickJSScriptEngine::~QuickJSScriptEngine() {
 }
 
 void QuickJSScriptEngine::bind_host(IScriptHost* host) {
-    host_ = host;
+    ScriptEngineBase::bind_host(host);
     if (!context_) {
         return;
     }
@@ -152,7 +152,7 @@ void QuickJSScriptEngine::bind_host(IScriptHost* host) {
 
 ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_view filename) {
     if (!context_) {
-        return {false, "QuickJS runtime unavailable"};
+        return error_result("QuickJS runtime unavailable");
     }
     std::string filename_str(filename);
     JSValue result = JS_Eval(context_, source.data(), source.size(), filename_str.c_str(), JS_EVAL_TYPE_GLOBAL);
@@ -165,10 +165,10 @@ ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_
         }
         JS_FreeValue(context_, exception);
         JS_FreeValue(context_, result);
-        return {false, std::move(error)};
+        return error_result(std::move(error));
     }
     JS_FreeValue(context_, result);
-    return {true, {}};
+    return ok_result();
 }
 
 void QuickJSScriptEngine::install_bindings() {
