@@ -7,6 +7,7 @@
 #include "layout/geometry/GeometryUtils.h"
 #include "layout/geometry/PositioningUtils.h"
 #include "layout/paint/PaintUtils.h"
+#include "renderer/RenderCommandUtils.h"
 
 namespace Hummingbird::Renderer {
 
@@ -29,7 +30,7 @@ void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, con
             }
             current.paint_self(context, local_offset);
             if (paint_context.debug_outlines) {
-                Layout::PaintUtils::draw_outline(context, absolute, kOutlineColor);
+                RenderCommandUtils::draw_outline(context, absolute, kOutlineColor);
             }
             return Layout::Traversal::TraverseAction::Continue;
         });

@@ -136,6 +136,7 @@ target_link_libraries(Layout PUBLIC Core Style)
 add_library(Renderer STATIC
     src/renderer/DisplayList.cpp
     src/renderer/Painter.cpp
+    src/renderer/RenderCommandUtils.cpp
 )
 target_include_directories(Renderer
     PUBLIC

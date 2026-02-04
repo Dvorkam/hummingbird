@@ -286,7 +286,7 @@ src/app
   - Risk: low.
   - Acceptance: HtmlTokenizer/HtmlParser tests unchanged.
 
-### R2-19 [ ] renderer: command helpers
+### R2-19 [x] renderer: command helpers
 - Files: `src/renderer/Painter.cpp`, `src/renderer/DisplayList.cpp`
   - Reuse: draw command wiring (fill rect, draw image/text) could be centralized into a small helper so Painter and DisplayList stay consistent.
   - Risk: low.
