@@ -76,8 +76,8 @@ public:
 
     void scroll_by(float delta_px, float viewport_height);
 
-    float scroll_y() const { return scroll_y_; }
-    float content_height() const { return content_height_; }
+    float scroll_y() const { return layout_state_.scroll_y; }
+    float content_height() const { return layout_state_.content_height; }
     std::string_view requested_url() const { return requested_url_; }
     SecurityState security_state() const { return security_state_; }
     std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
@@ -85,8 +85,6 @@ public:
     bool allow_insecure_for_current_host();
 
 private:
-    void clamp_scroll(float viewport_height);
-
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_document_ready(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
                                const Layout::Rect& viewport);
@@ -96,6 +94,19 @@ private:
     void update_layout_state(const Layout::Rect& viewport);
 
 private:
+    struct LayoutState {
+        float scroll_y = 0.0f;
+        float content_height = 0.0f;
+        Layout::Rect last_viewport{0, 0, 0, 0};
+        bool has_viewport = false;
+
+        bool viewport_changed(const Layout::Rect& viewport) const;
+        void reset();
+        void update(const Layout::Rect& viewport, float new_content_height);
+        void clamp_scroll(float viewport_height);
+        void scroll_by(float delta_px, float viewport_height);
+    };
+
     std::atomic<bool> shutting_down_{false};
 
     ResourceLoader resource_loader_;
@@ -103,10 +114,7 @@ private:
 
     std::string requested_url_;
     SecurityState security_state_ = SecurityState::Unknown;
-    float scroll_y_ = 0.0f;
-    float content_height_ = 0.0f;
-    Layout::Rect last_viewport_{0, 0, 0, 0};
-    bool has_viewport_ = false;
+    LayoutState layout_state_{};
 
     bool dirty_ = true;
 };

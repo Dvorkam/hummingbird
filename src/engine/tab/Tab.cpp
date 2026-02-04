@@ -58,9 +58,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     consume_pending_resources(graphics, viewport);
 
     if (document_pipeline_.has_render_tree()) {
-        bool viewport_changed = !has_viewport_ || viewport.x != last_viewport_.x || viewport.y != last_viewport_.y ||
-                                viewport.width != last_viewport_.width || viewport.height != last_viewport_.height;
-        if (viewport_changed) {
+        if (layout_state_.viewport_changed(viewport)) {
             document_pipeline_.relayout(graphics, viewport);
             update_layout_state(viewport);
         }
@@ -74,7 +72,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
 void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool debug_outlines) {
     if (!document_pipeline_.has_render_tree()) return;
     graphics.set_text_cache_owner(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(this)));
-    DocumentPipeline::PaintContext context{viewport, debug_outlines, scroll_y_};
+    DocumentPipeline::PaintContext context{viewport, debug_outlines, layout_state_.scroll_y};
     document_pipeline_.paint(graphics, context);
     graphics.set_text_cache_owner(0);
 }
@@ -82,19 +80,19 @@ void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool d
 void Tab::paint_controls(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (!document_pipeline_.has_render_tree()) return;
     graphics.set_text_cache_owner(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(this)));
-    DocumentPipeline::PaintContext context{viewport, false, scroll_y_};
+    DocumentPipeline::PaintContext context{viewport, false, layout_state_.scroll_y};
     document_pipeline_.paint_controls(graphics, context, true);
     graphics.set_text_cache_owner(0);
 }
 
 std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const {
-    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
+    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
     return document_pipeline_.hit_test_link(context);
 }
 
 Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
                                      IGraphicsContext& graphics) {
-    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
+    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
     auto result = document_pipeline_.dispatch_click(context);
     if (result.mutated) {
         if (document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_)) {
@@ -106,12 +104,12 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
 }
 
 std::optional<std::string> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
-    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
+    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
     return document_pipeline_.submit_form_at(context);
 }
 
 bool Tab::focus_input_at(const Layout::Point& point, const Layout::Rect& viewport) {
-    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
+    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
     return document_pipeline_.focus_input_at(context);
 }
 
@@ -142,14 +140,8 @@ std::optional<ResourceView> Tab::resource_view(std::string_view url, ResourceTyp
 }
 
 void Tab::scroll_by(float delta_px, float viewport_height) {
-    scroll_y_ -= delta_px;
-    clamp_scroll(viewport_height);
+    layout_state_.scroll_by(delta_px, viewport_height);
     dirty_ = true;
-}
-
-void Tab::clamp_scroll(float viewport_height) {
-    const float max_scroll = std::max(0.0f, content_height_ - viewport_height);
-    scroll_y_ = std::clamp(scroll_y_, 0.0f, max_scroll);
 }
 
 void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -249,17 +241,12 @@ void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& vie
 void Tab::reset_document_state() {
     document_pipeline_.reset();
     resource_loader_.reset();
-    scroll_y_ = 0.0f;
-    content_height_ = 0.0f;
-    has_viewport_ = false;
+    layout_state_.reset();
     dirty_ = true;
 }
 
 void Tab::update_layout_state(const Layout::Rect& viewport) {
-    content_height_ = document_pipeline_.content_height();
-    last_viewport_ = viewport;
-    has_viewport_ = true;
-    clamp_scroll(viewport.height);
+    layout_state_.update(viewport, document_pipeline_.content_height());
     dirty_ = true;
 }
 
@@ -271,6 +258,35 @@ bool Tab::allow_insecure_for_current_host() {
     resource_loader_.allow_insecure_host(parsed->host);
     security_state_ = SecurityState::InsecureTls;
     return true;
+}
+
+bool Tab::LayoutState::viewport_changed(const Layout::Rect& viewport) const {
+    return !has_viewport || viewport.x != last_viewport.x || viewport.y != last_viewport.y ||
+           viewport.width != last_viewport.width || viewport.height != last_viewport.height;
+}
+
+void Tab::LayoutState::reset() {
+    scroll_y = 0.0f;
+    content_height = 0.0f;
+    has_viewport = false;
+    last_viewport = Layout::Rect{0, 0, 0, 0};
+}
+
+void Tab::LayoutState::update(const Layout::Rect& viewport, float new_content_height) {
+    content_height = new_content_height;
+    last_viewport = viewport;
+    has_viewport = true;
+    clamp_scroll(viewport.height);
+}
+
+void Tab::LayoutState::clamp_scroll(float viewport_height) {
+    const float max_scroll = std::max(0.0f, content_height - viewport_height);
+    scroll_y = std::clamp(scroll_y, 0.0f, max_scroll);
+}
+
+void Tab::LayoutState::scroll_by(float delta_px, float viewport_height) {
+    scroll_y -= delta_px;
+    clamp_scroll(viewport_height);
 }
 
 }  // namespace Hummingbird::Engine

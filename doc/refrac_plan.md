@@ -244,7 +244,7 @@ src/app
   - Risk: low.
   - Acceptance: resource request logging + state transitions unchanged.
 
-### R2-13 [ ] engine/tab: layout state helper
+### R2-13 [x] engine/tab: layout state helper
 - Files: `src/engine/tab/Tab.cpp`, `src/engine/document/DocumentPipeline.cpp`
   - Reuse: viewport change handling + relayout + state update could be centralized.
   - Suggested utility: `TabLayoutState` (track viewport, content height, scroll clamping).
