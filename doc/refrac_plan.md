@@ -216,7 +216,7 @@ src/app
   - Risk: medium.
   - Acceptance: all style tests pass; computed style output unchanged.
 
-### R2-09 [ ] style/selector: shared whitespace token splitting
+### R2-09 [x] style/selector: shared whitespace token splitting
 - Files: `src/style/selector/SelectorMatcher.cpp`, `src/core/utils/StringUtils.h`
   - Reuse: class splitting / whitespace tokenization is custom; similar logic exists in other modules.
   - Suggested utility: `Core::Utils::split_ascii_whitespace` used by selector + style.

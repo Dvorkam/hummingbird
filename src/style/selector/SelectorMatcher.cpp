@@ -9,6 +9,7 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
+#include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "style/compute/Stylesheet.h"
 
@@ -20,25 +21,6 @@ bool has_id(const DOM::Element& element, const std::string& expected) {
     return value && *value == expected;
 }
 
-std::vector<std::string_view> split_classes(std::string_view class_list) {
-    std::vector<std::string_view> tokens;
-    size_t i = 0;
-    while (i < class_list.size()) {
-        while (i < class_list.size() && std::isspace(static_cast<unsigned char>(class_list[i])) != 0) {
-            ++i;
-        }
-        if (i >= class_list.size()) {
-            break;
-        }
-        size_t start = i;
-        while (i < class_list.size() && std::isspace(static_cast<unsigned char>(class_list[i])) == 0) {
-            ++i;
-        }
-        tokens.emplace_back(class_list.substr(start, i - start));
-    }
-    return tokens;
-}
-
 bool has_all_classes(const DOM::Element& element, const std::vector<std::string>& expected) {
     if (expected.empty()) {
         return true;
@@ -47,7 +29,7 @@ bool has_all_classes(const DOM::Element& element, const std::vector<std::string>
     if (!value || value->empty()) {
         return false;
     }
-    auto tokens = split_classes(*value);
+    auto tokens = Core::Utils::split_ascii_whitespace(*value);
     for (const auto& cls : expected) {
         bool found = false;
         for (auto token : tokens) {

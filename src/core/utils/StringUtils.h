@@ -4,6 +4,7 @@
 #include <cctype>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace Hummingbird::Core::Utils {
 
@@ -32,6 +33,25 @@ inline std::string_view trim_ascii_whitespace(std::string_view input) {
         input.remove_suffix(1);
     }
     return input;
+}
+
+inline std::vector<std::string_view> split_ascii_whitespace(std::string_view input) {
+    std::vector<std::string_view> tokens;
+    size_t i = 0;
+    while (i < input.size()) {
+        while (i < input.size() && std::isspace(static_cast<unsigned char>(input[i])) != 0) {
+            ++i;
+        }
+        if (i >= input.size()) {
+            break;
+        }
+        size_t start = i;
+        while (i < input.size() && std::isspace(static_cast<unsigned char>(input[i])) == 0) {
+            ++i;
+        }
+        tokens.emplace_back(input.substr(start, i - start));
+    }
+    return tokens;
 }
 
 }  // namespace Hummingbird::Core::Utils
