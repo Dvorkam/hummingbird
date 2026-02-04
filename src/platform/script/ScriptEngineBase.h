@@ -15,7 +15,7 @@ protected:
     static ScriptEvalResult ok_result() { return {true, {}}; }
     static ScriptEvalResult error_result(std::string message) { return {false, std::move(message)}; }
 
-    IScriptHost* host_ = nullptr;
+    [[maybe_unused]] IScriptHost* host_ = nullptr;
 };
 
 }  // namespace Hummingbird::Platform
