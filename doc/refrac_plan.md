@@ -292,7 +292,7 @@ src/app
   - Risk: low.
   - Acceptance: renderer tests unchanged.
 
-### R2-20 [ ] app/core: shared UTF-8 text editing helper
+### R2-20 [x] app/core: shared UTF-8 text editing helper
 - Files: `src/app/UrlBar.cpp`, `src/engine/document/DocumentInputController.cpp`
   - Reuse: UTF-8 text editing (insert/delete/caret movement) duplicated at a high level.
   - Suggested utility: `core/utils/TextEditBuffer.*` wrapping caret + UTF-8 mutations for reuse in URL bar and form inputs.

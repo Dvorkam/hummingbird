@@ -3,7 +3,7 @@
 #include <algorithm>
 
 #include "core/dom/Element.h"
-#include "core/utils/Utf8Utils.h"
+#include "core/utils/TextEditBuffer.h"
 #include "engine/document/HitTestUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
@@ -75,10 +75,9 @@ DocumentInputController::EditResult DocumentInputController::handle_text_input(s
     if (!focused_input_ || text.empty()) return result;
 
     std::string value = input_value(*focused_input_);
-    caret_ = Core::Utils::clamp_caret(caret_, value);
-    value.insert(caret_, text);
-    caret_ += text.size();
-    set_input_value(*focused_input_, value);
+    if (Core::Utils::TextEditBuffer::insert_text(value, caret_, text)) {
+        set_input_value(*focused_input_, value);
+    }
 
     result.handled = true;
     result.needs_repaint = true;
@@ -93,14 +92,8 @@ DocumentInputController::EditResult DocumentInputController::handle_key_down(con
 
     if (event.key.key == Key::Backspace) {
         result.handled = true;
-        if (!value.empty()) {
-            caret_ = Core::Utils::clamp_caret(caret_, value);
-            if (caret_ > 0) {
-                auto start = Core::Utils::prev_codepoint(value, caret_);
-                value.erase(start, caret_ - start);
-                caret_ = start;
-                set_input_value(*focused_input_, value);
-            }
+        if (Core::Utils::TextEditBuffer::backspace(value, caret_)) {
+            set_input_value(*focused_input_, value);
         }
         result.needs_repaint = true;
         return result;
@@ -108,41 +101,36 @@ DocumentInputController::EditResult DocumentInputController::handle_key_down(con
 
     if (event.key.key == Key::Delete) {
         result.handled = true;
-        if (!value.empty()) {
-            caret_ = Core::Utils::clamp_caret(caret_, value);
-            if (caret_ < value.size()) {
-                auto end = Core::Utils::next_codepoint(value, caret_);
-                value.erase(caret_, end - caret_);
-                set_input_value(*focused_input_, value);
-            }
+        if (Core::Utils::TextEditBuffer::delete_forward(value, caret_)) {
+            set_input_value(*focused_input_, value);
         }
         result.needs_repaint = true;
         return result;
     }
 
     if (event.key.key == Key::Left) {
-        caret_ = Core::Utils::prev_codepoint(value, caret_);
+        Core::Utils::TextEditBuffer::move_left(value, caret_);
         result.handled = true;
         result.needs_repaint = true;
         return result;
     }
 
     if (event.key.key == Key::Right) {
-        caret_ = Core::Utils::next_codepoint(value, caret_);
+        Core::Utils::TextEditBuffer::move_right(value, caret_);
         result.handled = true;
         result.needs_repaint = true;
         return result;
     }
 
     if (event.key.key == Key::Home) {
-        caret_ = 0;
+        Core::Utils::TextEditBuffer::move_home(caret_);
         result.handled = true;
         result.needs_repaint = true;
         return result;
     }
 
     if (event.key.key == Key::End) {
-        caret_ = value.size();
+        Core::Utils::TextEditBuffer::move_end(value, caret_);
         result.handled = true;
         result.needs_repaint = true;
         return result;
@@ -200,7 +188,7 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
             }
 
             if (element == focused_input_) {
-                auto caret = Core::Utils::clamp_caret(caret_, value);
+                auto caret = Core::Utils::TextEditBuffer::clamp_caret_for(value, caret_);
                 std::string prefix = value.substr(0, caret);
                 float caret_offset = graphics.measure_text(prefix, text_style).width;
                 float caret_x = text_x + caret_offset;

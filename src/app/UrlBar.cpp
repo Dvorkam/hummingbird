@@ -6,7 +6,7 @@
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
-#include "core/utils/Utf8Utils.h"
+#include "core/utils/TextEditBuffer.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::App {
@@ -98,13 +98,7 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
 
     if (event.key.key == Key::Backspace) {
         result.handled = true;
-        if (!text_.empty()) {
-            caret_ = Core::Utils::clamp_caret(caret_, text_);
-            if (caret_ > 0) {
-                auto start = Core::Utils::prev_codepoint(text_, caret_);
-                text_.erase(start, caret_ - start);
-                caret_ = start;
-            }
+        if (Core::Utils::TextEditBuffer::backspace(text_, caret_)) {
             refresh_render_text();
         }
         result.needs_repaint = true;
@@ -113,12 +107,7 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
 
     if (event.key.key == Key::Delete) {
         result.handled = true;
-        if (!text_.empty()) {
-            caret_ = Core::Utils::clamp_caret(caret_, text_);
-            if (caret_ < text_.size()) {
-                auto end = Core::Utils::next_codepoint(text_, caret_);
-                text_.erase(caret_, end - caret_);
-            }
+        if (Core::Utils::TextEditBuffer::delete_forward(text_, caret_)) {
             refresh_render_text();
         }
         result.needs_repaint = true;
@@ -126,7 +115,7 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     }
 
     if (event.key.key == Key::Left) {
-        caret_ = Core::Utils::prev_codepoint(text_, caret_);
+        Core::Utils::TextEditBuffer::move_left(text_, caret_);
         refresh_render_text();
         result.handled = true;
         result.needs_repaint = true;
@@ -134,7 +123,7 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     }
 
     if (event.key.key == Key::Right) {
-        caret_ = Core::Utils::next_codepoint(text_, caret_);
+        Core::Utils::TextEditBuffer::move_right(text_, caret_);
         refresh_render_text();
         result.handled = true;
         result.needs_repaint = true;
@@ -142,7 +131,7 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     }
 
     if (event.key.key == Key::Home) {
-        caret_ = 0;
+        Core::Utils::TextEditBuffer::move_home(caret_);
         refresh_render_text();
         result.handled = true;
         result.needs_repaint = true;
@@ -150,7 +139,7 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     }
 
     if (event.key.key == Key::End) {
-        caret_ = text_.size();
+        Core::Utils::TextEditBuffer::move_end(text_, caret_);
         refresh_render_text();
         result.handled = true;
         result.needs_repaint = true;
@@ -205,17 +194,15 @@ void UrlBar::draw(IGraphicsContext& graphics, int win_w) const {
 void UrlBar::refresh_render_text() {
     render_text_.assign(text_);
     if (active_) {
-        caret_ = Core::Utils::clamp_caret(caret_, text_);
+        caret_ = Core::Utils::TextEditBuffer::clamp_caret_for(text_, caret_);
         render_text_.insert(caret_, "|");
     }
 }
 
 void UrlBar::insert_text(std::string_view text) {
-    if (text.empty()) return;
-    caret_ = Core::Utils::clamp_caret(caret_, text_);
-    text_.insert(caret_, text);
-    caret_ += text.size();
-    refresh_render_text();
+    if (Core::Utils::TextEditBuffer::insert_text(text_, caret_, text)) {
+        refresh_render_text();
+    }
 }
 
 const ImageBitmap* UrlBar::current_icon() const {

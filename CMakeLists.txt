@@ -55,6 +55,7 @@ add_library(Core STATIC
     src/core/dom/DomFactory.cpp
     src/core/utils/AssetLoader.cpp
     src/core/utils/AssetPath.cpp
+    src/core/utils/TextEditBuffer.cpp
     src/core/utils/Url.cpp
 )
 target_include_directories(Core
