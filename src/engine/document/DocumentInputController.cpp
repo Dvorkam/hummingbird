@@ -4,14 +4,13 @@
 
 #include "core/dom/Element.h"
 #include "core/utils/Utf8Utils.h"
+#include "engine/document/HitTestUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/geometry/GeometryUtils.h"
-#include "layout/geometry/PositioningUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
-#include "layout/paint/RenderTreeTraversal.h"
 
 namespace Hummingbird::Engine {
 
@@ -33,38 +32,15 @@ void set_input_value(DOM::Element& element, std::string_view value) {
 
 DOM::Element* hit_test_input(const Layout::RenderObject* render_tree, const Layout::Point& point,
                              const Layout::Rect& viewport, float scroll_y) {
-    if (!render_tree) {
-        return nullptr;
-    }
-    if (!Layout::rect_contains_point(viewport, point)) {
-        return nullptr;
-    }
-
-    Layout::Point offset{0.0f, -scroll_y};
-    DOM::Element* result = nullptr;
-
-    Layout::Positioning::traverse_render_tree_z_order(
-        *render_tree, offset,
-        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
-            if (!Layout::rect_intersects(absolute, viewport) || !Layout::rect_contains_point(absolute, point)) {
-                if (node.has_absolute_descendant()) {
-                    return Layout::Traversal::TraverseAction::Continue;
-                }
-                return Layout::Traversal::TraverseAction::SkipChildren;
-            }
-            return Layout::Traversal::TraverseAction::Continue;
-        },
-        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+    auto hit = HitTest::hit_test_z_order<DOM::Element*>(
+        render_tree, point, viewport, scroll_y, [&](const Layout::RenderObject& node) -> std::optional<DOM::Element*> {
             auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
             if (!is_input_element(element)) {
-                return Layout::Traversal::TraverseAction::Continue;
+                return std::nullopt;
             }
-            result = const_cast<DOM::Element*>(element);
-            return Layout::Traversal::TraverseAction::Stop;
-        },
-        Layout::Traversal::ChildOrder::Reverse);
-
-    return result;
+            return const_cast<DOM::Element*>(element);
+        });
+    return hit.value_or(nullptr);
 }
 }  // namespace
 

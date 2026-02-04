@@ -9,12 +9,11 @@
 #include "core/utils/StringUtils.h"
 #include "core/utils/Timing.h"
 #include "engine/ResourceUrl.h"
+#include "engine/document/HitTestUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
 #include "layout/geometry/GeometryUtils.h"
-#include "layout/geometry/PositioningUtils.h"
-#include "layout/paint/RenderTreeTraversal.h"
 
 namespace Hummingbird {
 struct ImageBitmap;
@@ -164,80 +163,21 @@ void DocumentPipeline::paint_controls(IGraphicsContext& graphics, const PaintCon
 }
 
 std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext& context) const {
-    auto* render_tree = model_.render_tree();
-    if (!render_tree) {
-        return std::nullopt;
-    }
-    if (!Layout::rect_contains_point(context.viewport, context.point)) {
-        return std::nullopt;
-    }
-    Layout::Point offset{0.0f, -context.scroll_y};
-    std::optional<std::string> result;
-
-    Layout::Positioning::traverse_render_tree_z_order(
-        *render_tree, offset,
-        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
-            if (!Layout::rect_intersects(absolute, context.viewport) ||
-                !Layout::rect_contains_point(absolute, context.point)) {
-                if (node.has_absolute_descendant()) {
-                    return Layout::Traversal::TraverseAction::Continue;
-                }
-                return Layout::Traversal::TraverseAction::SkipChildren;
-            }
-            return Layout::Traversal::TraverseAction::Continue;
-        },
-        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
-            auto hit = resolve_anchor_href(node.get_dom_node(), context.base_url);
-            if (hit) {
-                result = std::move(*hit);
-                return Layout::Traversal::TraverseAction::Stop;
-            }
-            return Layout::Traversal::TraverseAction::Continue;
-        },
-        Layout::Traversal::ChildOrder::Reverse);
-
-    return result;
+    return HitTest::hit_test_z_order<std::string>(
+        model_.render_tree(), context.point, context.viewport, context.scroll_y,
+        [&](const Layout::RenderObject& node) { return resolve_anchor_href(node.get_dom_node(), context.base_url); });
 }
 
 std::optional<std::string> DocumentPipeline::submit_form_at(const HitTestContext& context) const {
-    auto* render_tree = model_.render_tree();
-    if (!render_tree) {
-        return std::nullopt;
-    }
-    if (!Layout::rect_contains_point(context.viewport, context.point)) {
-        return std::nullopt;
-    }
-
-    Layout::Point offset{0.0f, -context.scroll_y};
-    std::optional<std::string> result;
-
-    Layout::Positioning::traverse_render_tree_z_order(
-        *render_tree, offset,
-        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
-            if (!Layout::rect_intersects(absolute, context.viewport) ||
-                !Layout::rect_contains_point(absolute, context.point)) {
-                if (node.has_absolute_descendant()) {
-                    return Layout::Traversal::TraverseAction::Continue;
-                }
-                return Layout::Traversal::TraverseAction::SkipChildren;
-            }
-            return Layout::Traversal::TraverseAction::Continue;
-        },
-        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+    return HitTest::hit_test_z_order<std::string>(
+        model_.render_tree(), context.point, context.viewport, context.scroll_y,
+        [&](const Layout::RenderObject& node) -> std::optional<std::string> {
             const auto* submit = resolve_submit_element(node.get_dom_node());
             if (!submit) {
-                return Layout::Traversal::TraverseAction::Continue;
+                return std::nullopt;
             }
-            auto url = model_.build_form_submission_url(*submit, context.base_url);
-            if (url) {
-                result = std::move(*url);
-                return Layout::Traversal::TraverseAction::Stop;
-            }
-            return Layout::Traversal::TraverseAction::Continue;
-        },
-        Layout::Traversal::ChildOrder::Reverse);
-
-    return result;
+            return model_.build_form_submission_url(*submit, context.base_url);
+        });
 }
 
 bool DocumentPipeline::focus_input_at(const HitTestContext& context) {

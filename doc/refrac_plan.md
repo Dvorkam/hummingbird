@@ -223,7 +223,7 @@ src/app
   - Risk: low.
   - Acceptance: selector matching tests pass unchanged.
 
-### R2-10 [ ] engine: shared hit-test traversal
+### R2-10 [x] engine: shared hit-test traversal
 - Files: `src/engine/document/DocumentPipeline.cpp`, `src/engine/document/DocumentInputController.cpp`
   - Reuse: hit-test traversal pattern duplicated (z-order traversal with early-exit + viewport culling).
   - Suggested utility: `engine/document/HitTestUtils.*` (wrap common traversal + culling; accept predicate callbacks).
