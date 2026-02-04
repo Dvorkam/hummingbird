@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "core/utils/Log.h"
+#include "platform/graphics/CacheUtils.h"
 
 namespace Hummingbird::Platform {
 
@@ -68,12 +69,7 @@ bool Blend2DFontCache::load_font_setup(const std::string& font_path, float font_
 
 void Blend2DFontCache::evict_if_needed() {
     while (entries_.size() > max_entries_) {
-        auto victim = entries_.end();
-        for (auto it = entries_.begin(); it != entries_.end(); ++it) {
-            if (victim == entries_.end() || it->second.last_used < victim->second.last_used) {
-                victim = it;
-            }
-        }
+        auto victim = CacheUtils::find_lru_entry(entries_, [](const Entry& entry) { return entry.last_used; });
         if (victim == entries_.end()) {
             break;
         }

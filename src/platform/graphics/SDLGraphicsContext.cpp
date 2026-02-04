@@ -28,6 +28,7 @@
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "platform/graphics/Blend2DFontCache.h"
+#include "platform/graphics/CacheUtils.h"
 
 namespace Hummingbird::Platform {
 
@@ -209,12 +210,8 @@ bool SDLGraphicsContext::should_cache_image(const Hummingbird::Layout::Rect& des
 
 void SDLGraphicsContext::evict_image_cache(ImageCache& cache) {
     while (cache.bytes > image_cache_max_bytes_ && !cache.entries.empty()) {
-        auto victim = cache.entries.end();
-        for (auto it = cache.entries.begin(); it != cache.entries.end(); ++it) {
-            if (victim == cache.entries.end() || it->second.last_used < victim->second.last_used) {
-                victim = it;
-            }
-        }
+        auto victim =
+            CacheUtils::find_lru_entry(cache.entries, [](const ImageCacheEntry& entry) { return entry.last_used; });
         if (victim == cache.entries.end()) {
             break;
         }
@@ -259,12 +256,8 @@ bool SDLGraphicsContext::should_cache_text(const Hummingbird::Layout::Rect& dest
 
 void SDLGraphicsContext::evict_text_cache(TextCache& cache) {
     while (cache.bytes > text_cache_max_bytes_ && !cache.entries.empty()) {
-        auto victim = cache.entries.end();
-        for (auto it = cache.entries.begin(); it != cache.entries.end(); ++it) {
-            if (victim == cache.entries.end() || it->second.last_used < victim->second.last_used) {
-                victim = it;
-            }
-        }
+        auto victim =
+            CacheUtils::find_lru_entry(cache.entries, [](const TextCacheEntry& entry) { return entry.last_used; });
         if (victim == cache.entries.end()) {
             break;
         }

@@ -265,7 +265,7 @@ src/app
   - Risk: low.
   - Acceptance: image decoder tests unchanged.
 
-### R2-16 [ ] platform/graphics: cache eviction helper
+### R2-16 [x] platform/graphics: cache eviction helper
 - Files: `src/platform/graphics/SDLGraphicsContext.cpp`, `src/platform/graphics/Blend2DFontCache.cpp`
   - Reuse: LRU-style cache eviction logic duplicated (scan entries by last_used).
   - Suggested utility: `core/utils/LruCache.h` or `platform/graphics/CacheUtils.*`.
