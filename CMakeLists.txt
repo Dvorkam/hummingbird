@@ -74,6 +74,7 @@ add_library(Platform STATIC
     src/platform/net/NetworkFactory.cpp
     src/platform/decoders/SDLImageDecoder.cpp
     src/platform/decoders/SvgImageDecoder.cpp
+    src/platform/decoders/ImageDecodeUtils.cpp
     src/platform/decoders/CompositeImageDecoder.cpp
     src/platform/decoders/ImageDecoderFactory.cpp
     src/platform/resources/FileResourceProvider.cpp

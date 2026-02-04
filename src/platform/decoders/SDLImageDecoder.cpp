@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "core/utils/Log.h"
+#include "platform/decoders/ImageDecodeUtils.h"
 
 namespace Hummingbird::Platform {
 
@@ -65,22 +66,13 @@ std::optional<ImageBitmap> SDLImageDecoder::decode(std::string_view bytes) {
         return std::nullopt;
     }
 
-    ImageBitmap bitmap;
-    bitmap.width = converted->w;
-    bitmap.height = converted->h;
-    bitmap.stride = converted->pitch;
-    bitmap.format = PixelFormat::BGRA32;
-
-    if (bitmap.width <= 0 || bitmap.height <= 0 || bitmap.stride == 0) {
+    auto bitmap = allocate_bitmap(converted->w, converted->h, converted->pitch, PixelFormat::BGRA32);
+    if (!bitmap) {
         SDL_FreeSurface(converted);
         return std::nullopt;
     }
 
-    const size_t row_bytes = static_cast<size_t>(bitmap.stride);
-    const size_t total_bytes = row_bytes * static_cast<size_t>(bitmap.height);
-    bitmap.pixels.resize(total_bytes);
-
-    std::memcpy(bitmap.pixels.data(), converted->pixels, total_bytes);
+    std::memcpy(bitmap->pixels.data(), converted->pixels, bitmap->pixels.size());
     SDL_FreeSurface(converted);
 
     return bitmap;

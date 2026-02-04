@@ -7,6 +7,8 @@
 #include <cmath>
 #include <cstddef>
 
+#include "platform/decoders/ImageDecodeUtils.h"
+
 namespace Hummingbird::Platform {
 
 namespace {
@@ -117,18 +119,20 @@ std::optional<ImageBitmap> SvgImageDecoder::decode(std::string_view bytes) {
 
     bitmap.convertToRGBA();
 
-    ImageBitmap out;
-    out.width = width;
-    out.height = height;
-    out.stride = width * 4;
-    out.format = PixelFormat::BGRA32;
-    out.pixels.resize(static_cast<size_t>(out.stride) * static_cast<size_t>(out.height));
+    auto stride = checked_stride(width, 4);
+    if (!stride) {
+        return std::nullopt;
+    }
+    auto out = allocate_bitmap(width, height, *stride, PixelFormat::BGRA32);
+    if (!out) {
+        return std::nullopt;
+    }
 
     const uint8_t* src = bitmap.data();
     const int src_stride = bitmap.stride();
     for (int y = 0; y < height; ++y) {
         const uint8_t* src_row = src + y * src_stride;
-        uint8_t* dst_row = out.pixels.data() + static_cast<size_t>(y) * static_cast<size_t>(out.stride);
+        uint8_t* dst_row = out->pixels.data() + static_cast<size_t>(y) * static_cast<size_t>(out->stride);
         for (int x = 0; x < width; ++x) {
             const size_t idx = static_cast<size_t>(x) * 4;
             dst_row[idx + 0] = src_row[idx + 2];

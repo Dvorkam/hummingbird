@@ -258,7 +258,7 @@ src/app
   - Risk: low.
   - Acceptance: stub network + file provider tests unchanged.
 
-### R2-15 [ ] platform/decoders: image decode helpers
+### R2-15 [x] platform/decoders: image decode helpers
 - Files: `src/platform/decoders/SDLImageDecoder.cpp`, `src/platform/decoders/SvgImageDecoder.cpp`
   - Reuse: constructing `ImageBitmap` and validating dimensions/stride repeats across decoders.
   - Suggested utility: `platform/decoders/ImageDecodeUtils.*` (helpers to validate dimensions and allocate/copy pixel buffers).
