@@ -88,6 +88,8 @@ private:
                              double& image_decode_ms);
     void handle_failed_update(const PendingResourceUpdate& update);
     static std::string normalize_host(std::string_view host);
+    static ResourceRequestOptions stylesheet_request_options();
+    static ResourceRequestOptions image_request_options();
 
     std::atomic<uint64_t> nav_counter_{0};
     std::atomic<uint64_t> active_nav_{0};

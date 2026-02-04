@@ -155,31 +155,11 @@ void ResourceLoader::allow_insecure_host(std::string_view host) {
 }
 
 void ResourceLoader::request_stylesheets(const std::vector<std::string>& links, std::string_view base_url) {
-    ResourceRequestOptions options{};
-    options.type = ResourceType::Stylesheet;
-    options.type_label = "stylesheet";
-    options.attr_label = "href";
-    options.allow_fallback_network = false;
-    options.log_duplicates = true;
-    options.log_asset_load = true;
-    options.mark_ready_on_asset = true;
-    options.use_binary = false;
-
-    request_resources(links, base_url, options);
+    request_resources(links, base_url, stylesheet_request_options());
 }
 
 void ResourceLoader::request_images(const std::vector<std::string>& links, std::string_view base_url) {
-    ResourceRequestOptions options{};
-    options.type = ResourceType::Image;
-    options.type_label = "image";
-    options.attr_label = "src";
-    options.allow_fallback_network = true;
-    options.log_duplicates = false;
-    options.log_asset_load = false;
-    options.mark_ready_on_asset = false;
-    options.use_binary = true;
-
-    request_resources(links, base_url, options);
+    request_resources(links, base_url, image_request_options());
 }
 
 ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
@@ -365,6 +345,32 @@ std::vector<ResourceLoader::PendingResourceUpdate> ResourceLoader::take_pending_
     std::lock_guard<std::mutex> lg(pending_mutex_);
     pending.swap(pending_resources_);
     return pending;
+}
+
+ResourceLoader::ResourceRequestOptions ResourceLoader::stylesheet_request_options() {
+    ResourceRequestOptions options{};
+    options.type = ResourceType::Stylesheet;
+    options.type_label = "stylesheet";
+    options.attr_label = "href";
+    options.allow_fallback_network = false;
+    options.log_duplicates = true;
+    options.log_asset_load = true;
+    options.mark_ready_on_asset = true;
+    options.use_binary = false;
+    return options;
+}
+
+ResourceLoader::ResourceRequestOptions ResourceLoader::image_request_options() {
+    ResourceRequestOptions options{};
+    options.type = ResourceType::Image;
+    options.type_label = "image";
+    options.attr_label = "src";
+    options.allow_fallback_network = true;
+    options.log_duplicates = false;
+    options.log_asset_load = false;
+    options.mark_ready_on_asset = false;
+    options.use_binary = true;
+    return options;
 }
 
 bool ResourceLoader::is_insecure_allowed_for_url(std::string_view url) const {

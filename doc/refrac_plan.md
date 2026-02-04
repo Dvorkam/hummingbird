@@ -237,7 +237,7 @@ src/app
   - Risk: medium.
   - Acceptance: no change in pipeline timing logs or invalidation behavior.
 
-### R2-12 [ ] engine/resources: request options helper
+### R2-12 [x] engine/resources: request options helper
 - Files: `src/engine/resources/ResourceLoader.cpp`, `src/engine/resources/ResourceStore.cpp`
   - Reuse: request state transitions and logging are split; `ResourceLoader::request_resources` has repeated option setup for styles/images.
   - Suggested utility: `ResourceRequestBuilder` (prebaked options for Stylesheet/Image) or small helper constructors.
