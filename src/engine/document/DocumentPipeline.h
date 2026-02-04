@@ -67,6 +67,7 @@ public:
     ScriptDispatchResult dispatch_click(const HitTestContext& context);
     ScriptDispatchResult dispatch_load();
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
+    bool rebuild_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool update_image_resources(std::string_view base_url);
     void relayout(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void paint(IGraphicsContext& graphics, const PaintContext& context);

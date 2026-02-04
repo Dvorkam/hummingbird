@@ -97,8 +97,7 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
     DocumentPipeline::HitTestContext context{point, viewport, requested_url_, scroll_y_};
     auto result = document_pipeline_.dispatch_click(context);
     if (result.mutated) {
-        document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
-        if (document_pipeline_.has_render_tree()) {
+        if (document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_)) {
             update_layout_state(viewport);
         }
         dirty_ = true;
@@ -201,18 +200,17 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 
     resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), requested_url_);
     resource_loader_.request_images(document_pipeline_.image_links(), requested_url_);
-    document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
+    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
     if (!document_pipeline_.background_image_links().empty()) {
         HB_LOG_INFO("[pipeline] discovered background images: " << document_pipeline_.background_image_links().size());
     }
     resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
-    if (document_pipeline_.has_render_tree()) {
+    if (has_render_tree) {
         update_layout_state(viewport);
     }
     auto load_result = document_pipeline_.dispatch_load();
     if (load_result.mutated) {
-        document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
-        if (document_pipeline_.has_render_tree()) {
+        if (document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_)) {
             update_layout_state(viewport);
         }
         dirty_ = true;
@@ -225,9 +223,9 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto style_update_start = Core::Clock::now();
-    document_pipeline_.apply_styles_and_layout(graphics, viewport, requested_url_);
+    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
     resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
-    if (document_pipeline_.has_render_tree()) {
+    if (has_render_tree) {
         update_layout_state(viewport);
     }
     const auto style_update_end = Core::Clock::now();

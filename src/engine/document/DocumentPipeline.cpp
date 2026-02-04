@@ -118,6 +118,12 @@ void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const
     relayout(graphics, viewport);
 }
 
+bool DocumentPipeline::rebuild_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
+                                          std::string_view base_url) {
+    apply_styles_and_layout(graphics, viewport, base_url);
+    return model_.has_render_tree();
+}
+
 bool DocumentPipeline::update_image_resources(std::string_view base_url) {
     bool updated = resources_.update_image_resources(model_.render_tree(), base_url);
     updated = resources_.update_svg_resources(model_.render_tree()) || updated;

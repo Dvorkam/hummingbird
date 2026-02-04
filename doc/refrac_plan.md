@@ -230,7 +230,7 @@ src/app
   - Risk: low/medium.
   - Acceptance: link/input/form hit tests unchanged.
 
-### R2-11 [ ] engine: pipeline step helper
+### R2-11 [x] engine: pipeline step helper
 - Files: `src/engine/document/DocumentPipeline.cpp`, `src/engine/tab/Tab.cpp`
   - Reuse: repeated “apply styles + layout + update layout state + dirty” flows.
   - Suggested utility: `DocumentPipeline::rebuild_and_layout(...)` or a small `PipelineSteps` helper.
