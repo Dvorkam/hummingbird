@@ -251,7 +251,7 @@ src/app
   - Risk: low/medium.
   - Acceptance: scroll clamp behavior unchanged.
 
-### R2-14 [ ] core: shared asset loader
+### R2-14 [x] core: shared asset loader
 - Files: `src/platform/net/StubNetwork.cpp`, `src/platform/resources/FileResourceProvider.cpp`, `src/core/utils/AssetPath.*`
   - Reuse: asset file loading logic duplicated (resolve asset path + read bytes).
   - Suggested utility: `core/utils/AssetLoader.*` (`load_asset_bytes` / `load_asset_text`) used by both stub network and file provider.

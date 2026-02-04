@@ -1,26 +1,15 @@
 #include "platform/net/StubNetwork.h"
 
-#include <fstream>
 #include <functional>
 #include <optional>
 #include <utility>
 
-#include "core/utils/AssetPath.h"
+#include "core/utils/AssetLoader.h"
 #include "platform/net/NetworkRequestUtils.h"
 
 namespace Hummingbird::Platform {
 
 namespace {
-std::optional<std::string> load_asset_body(std::string_view relative_path) {
-    auto path = Hummingbird::Core::Utils::resolve_asset_path(relative_path);
-    std::ifstream file(path, std::ios::binary);
-    if (!file) {
-        return std::nullopt;
-    }
-    std::string bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    return bytes;
-}
-
 std::optional<std::string> try_load_example_asset(const std::string& url) {
     constexpr std::string_view kHttp = "http://example.dev/";
     constexpr std::string_view kHttps = "https://example.dev/";
@@ -42,7 +31,7 @@ std::optional<std::string> try_load_example_asset(const std::string& url) {
         return std::nullopt;
     }
 
-    return load_asset_body(rest);
+    return Hummingbird::Core::Utils::load_asset_bytes(rest, false);
 }
 
 std::string build_stub_body(const std::string& url) {
