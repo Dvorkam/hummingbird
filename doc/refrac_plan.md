@@ -279,7 +279,7 @@ src/app
   - Risk: low.
   - Acceptance: script engine tests unchanged.
 
-### R2-18 [ ] html: shared character-class helpers
+### R2-18 [x] html: shared character-class helpers
 - Files: `src/html/HtmlTokenizer.cpp`, `src/html/HtmlParser.cpp`, `src/html/HtmlStringUtils.h`
   - Reuse: repeated character-class logic (whitespace checks, tag/attribute name character tests).
   - Suggested utility: expand `HtmlStringUtils` (e.g., `is_name_char`, `skip_whitespace`) used by tokenizer + parser.

@@ -1,8 +1,9 @@
 #include "html/HtmlTokenizer.h"
 
-#include <cctype>
 #include <utility>
 #include <variant>
+
+#include "html/HtmlStringUtils.h"
 
 namespace Hummingbird::Html {
 
@@ -25,15 +26,14 @@ bool Tokenizer::eof() const {
 }
 
 void Tokenizer::skip_whitespace() {
-    while (!eof() && std::isspace(static_cast<unsigned char>(peek_char()))) {
+    while (!eof() && Utils::is_html_whitespace(peek_char())) {
         consume_char();
     }
 }
 
 void Tokenizer::parse_tag_name(std::string_view& out_name) {
     size_t start = m_pos;
-    while (!eof() &&
-           (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == ':' || peek_char() == '-')) {
+    while (!eof() && Utils::is_tag_name_char(peek_char())) {
         consume_char();
     }
     out_name = m_input.substr(start, m_pos - start);
@@ -46,8 +46,7 @@ void Tokenizer::parse_attributes(std::vector<Attribute>& attrs) {
             break;
         }
         size_t name_start = m_pos;
-        while (!eof() && (std::isalnum(static_cast<unsigned char>(peek_char())) || peek_char() == '-' ||
-                          peek_char() == '_' || peek_char() == ':')) {
+        while (!eof() && Utils::is_attr_name_char(peek_char())) {
             consume_char();
         }
         std::string_view name = m_input.substr(name_start, m_pos - name_start);
@@ -65,9 +64,8 @@ void Tokenizer::parse_attributes(std::vector<Attribute>& attrs) {
                 quote = consume_char();
             }
             size_t val_start = m_pos;
-            while (!eof() &&
-                   ((quote && peek_char() != quote) ||
-                    (!quote && !std::isspace(static_cast<unsigned char>(peek_char())) && peek_char() != '>'))) {
+            while (!eof() && ((quote && peek_char() != quote) ||
+                              (!quote && !Utils::is_html_whitespace(peek_char()) && peek_char() != '>'))) {
                 consume_char();
             }
             value = m_input.substr(val_start, m_pos - val_start);
