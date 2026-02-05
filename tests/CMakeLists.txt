@@ -17,6 +17,7 @@ add_executable(HummingbirdTests
     engine/ResourceStore.test.cpp
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp
+    core/TextEditBuffer.test.cpp
     core/Url.test.cpp
     core/Timing.test.cpp
     core/WarnOnce.test.cpp

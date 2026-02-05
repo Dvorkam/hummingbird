@@ -57,7 +57,7 @@
   - Gap: no unit coverage for caret movement, UTF‑8 insert/delete, clipboard paste path, or submit/cancel behavior.
   - Suggested tests: key handling (left/right/home/end/backspace/delete/enter/escape), UTF‑8 insertion, paste path with mock window.
 
-### P3-02 [ ] core/utils: TextEditBuffer tests
+### P3-02 [x] core/utils: TextEditBuffer tests
 - Files: `src/core/utils/TextEditBuffer.*`, tests missing.
   - Gap: no direct unit coverage for UTF‑8 caret clamp/insert/delete paths.
   - Suggested tests: ASCII + multi‑byte (e.g., “á”, emoji) insert/delete/backspace/forward-delete semantics.
