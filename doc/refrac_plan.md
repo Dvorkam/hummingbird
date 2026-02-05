@@ -109,6 +109,28 @@
   - Concern: a few literal pixel values remain (e.g., text baseline offset, caret width/height math).
   - Suggested refactor: replace with named `k...` constants to align with constitution.
 
+#### Phase 3 Candidates (Scope Pass 3)
+
+### P3X-01 [ ] engine/html: form default method + button type gaps
+- Files: `tests/engine/Tab.test.cpp`, form submission path (likely `src/engine/document/DocumentModel.cpp`).
+  - Gap: TODOs note missing defaults for `method=""` and empty `button type=""`.
+  - Suggested fix/tests: implement defaults per HTML spec (GET + submit), add focused tests.
+
+### P3X-02 [ ] layout/platform: monospace font selection TODO
+- Files: `src/layout/flow/TextBox.cpp`, `src/layout/flow/TextStyleUtils.h`
+  - Gap: monospace font selection is hardcoded; TODO in TextBox.
+  - Suggested fix/tests: real font-family list handling for `monospace` with tests in TextStyleUtils or layout.
+
+### P3X-03 [ ] engine/renderer: background-image integration
+- Files: `src/engine/document/DocumentPipeline.cpp`, `src/engine/resources/ResourceLoader.cpp`, `src/renderer/Painter.cpp`
+  - Gap: background-image is parsed and collected, but no end-to-end test verifying resource fetch + paint.
+  - Suggested tests: headless tab or pipeline integration that loads a background image and asserts an image draw call.
+
+### P3X-04 [ ] engine/platform: SVG image pipeline integration
+- Files: `src/platform/decoders/SvgImageDecoder.cpp`, `src/engine/resources/ResourceLoader.cpp`, `src/layout/replaced/RenderImage.cpp`
+  - Gap: decoder is tested in isolation; no integration coverage for `<img src="...svg">`.
+  - Suggested tests: resource load of SVG via Tab or pipeline with render check for decoded dimensions.
+
 ### Phase 4: CSS Property Registry Rework (Opinion + Options)
 - Current flow: name -> enum -> behavior (multiple files).
 - Option A (incremental): keep enums, add a single “property registry” table that includes string, enum, parser, applier.
