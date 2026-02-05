@@ -44,6 +44,71 @@
   - Coverage gaps list with suggested tests.
   - Constitution deviation list with fix ideas.
 
+#### Phase 3 Plan (High Level)
+- Scope pass 1: verify high‑level test coverage for each module group (app, core, engine, html, layout, platform, renderer, style).
+- Scope pass 2: check constitution adherence per group (module boundaries, error handling, logging, naming, string handling, magic numbers).
+- Scope pass 3: cross‑cutting checks (shared utilities usage, duplication hot‑spots, missing integration tests).
+- Output: a short checklist per group with green/yellow/red status, and a list of candidate fixes (to be detailed in Phase 3 step 2).
+
+#### Phase 3 Candidates (Scope Pass 1)
+
+### P3-01 [ ] app: UrlBar editing coverage
+- Files: `src/app/UrlBar.cpp`, tests missing.
+  - Gap: no unit coverage for caret movement, UTF‑8 insert/delete, clipboard paste path, or submit/cancel behavior.
+  - Suggested tests: key handling (left/right/home/end/backspace/delete/enter/escape), UTF‑8 insertion, paste path with mock window.
+
+### P3-02 [ ] core/utils: TextEditBuffer tests
+- Files: `src/core/utils/TextEditBuffer.*`, tests missing.
+  - Gap: no direct unit coverage for UTF‑8 caret clamp/insert/delete paths.
+  - Suggested tests: ASCII + multi‑byte (e.g., “á”, emoji) insert/delete/backspace/forward-delete semantics.
+
+### P3-03 [ ] layout: RenderObject sanity tests
+- Files: `src/layout/RenderObject.*`, `tests/layout/RenderObject.test.cpp` (currently commented out).
+  - Gap: RenderObject tests disabled; no coverage for inline/block status helpers.
+  - Suggested tests: re‑enable and validate inline status reporting.
+
+### P3-04 [ ] platform/graphics: cache eviction behavior
+- Files: `src/platform/graphics/SDLGraphicsContext.cpp`, `src/platform/graphics/Blend2DFontCache.cpp`
+  - Gap: no tests for cache eviction logic (LRU ordering, byte caps, texture cleanup).
+  - Suggested tests: small cache sizes, verify eviction order + byte accounting; could be unit tests around cache containers if SDL textures are hard to instantiate.
+
+### P3-05 [ ] core/utils: AssetLoader coverage
+- Files: `src/core/utils/AssetLoader.*`
+  - Gap: no direct tests for AssetLoader path handling, missing file logging gating, URL rejection.
+  - Suggested tests: empty id, URL id, missing file (no crash), successful load (fixtures).
+
+### P3-06 [ ] engine/document: DocumentInputController focus/edit coverage
+- Files: `src/engine/document/DocumentInputController.cpp`
+  - Gap: behavior mostly covered indirectly via EngineTab tests; no focused unit tests for caret clamping or backspace/delete when empty.
+  - Suggested tests: focus/clear focus, caret clamp with UTF‑8, delete/backspace on boundaries.
+
+### P3-07 [ ] engine/document: DocumentPainter display list reuse
+- Files: `src/engine/document/DocumentPainter.cpp`
+  - Gap: no direct tests for display list invalidation/reuse (owner changes, viewport change, scroll/debug flags).
+  - Suggested tests: reuse on identical inputs; invalidate on viewport/scroll/debug flag changes.
+
+### P3-08 [ ] engine/resources: ResourceLoader request behavior
+- Files: `src/engine/resources/ResourceLoader.cpp`
+  - Gap: ResourceLoader behavior covered indirectly via Tab tests; no direct unit coverage for asset fallback/log paths or request option differences.
+  - Suggested tests: stylesheet vs image request option wiring, missing asset behavior, fallback network path for documents.
+
+#### Phase 3 Candidates (Scope Pass 2)
+
+### P3C-01 [ ] engine/document: split paint_controls (SLAP + length)
+- Files: `src/engine/document/DocumentInputController.cpp`
+  - Concern: `paint_controls` is long and mixes traversal, layout math, text measurement, and painting.
+  - Suggested refactor: extract caret computation + text paint into helpers; keep traversal high‑level.
+
+### P3C-02 [ ] app: UrlBar key handling helper
+- Files: `src/app/UrlBar.cpp`
+  - Concern: `handle_key_down` is long and mixes clipboard, editing, and submission logic.
+  - Suggested refactor: split into helpers (clipboard handling, editing keys, submit/cancel).
+
+### P3C-03 [ ] app/engine: magic pixel constants audit
+- Files: `src/app/UrlBar.cpp`, `src/engine/document/DocumentInputController.cpp`
+  - Concern: a few literal pixel values remain (e.g., text baseline offset, caret width/height math).
+  - Suggested refactor: replace with named `k...` constants to align with constitution.
+
 ### Phase 4: CSS Property Registry Rework (Opinion + Options)
 - Current flow: name -> enum -> behavior (multiple files).
 - Option A (incremental): keep enums, add a single “property registry” table that includes string, enum, parser, applier.
