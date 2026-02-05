@@ -52,7 +52,7 @@
 
 #### Phase 3 Candidates (Scope Pass 1)
 
-### P3-01 [ ] app: UrlBar editing coverage
+### P3-01 [x] app: UrlBar editing coverage
 - Files: `src/app/UrlBar.cpp`, tests missing.
   - Gap: no unit coverage for caret movement, UTF‑8 insert/delete, clipboard paste path, or submit/cancel behavior.
   - Suggested tests: key handling (left/right/home/end/backspace/delete/enter/escape), UTF‑8 insertion, paste path with mock window.
