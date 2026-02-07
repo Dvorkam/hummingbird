@@ -52,8 +52,10 @@ TEST(SmokeMainTest, StartsAndTicks) {
     window->open();
     ASSERT_TRUE(window->is_open());
 
-    auto gfx = window->get_graphics_context();
-    ASSERT_NE(gfx, nullptr);
+    {
+        auto gfx = window->get_graphics_context();
+        ASSERT_NE(gfx, nullptr);
+    }
 
     Hummingbird::App::BrowserApp app(std::move(window));
     app.start();
