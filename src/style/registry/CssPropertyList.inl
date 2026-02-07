@@ -89,7 +89,7 @@ HB_CSS_PROPERTY(Background, Background, "background", "background", ParserHook::
                 PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BackgroundImage, BackgroundImage, "background-image", "background-image", ParserHook::parse_background_image,
                 ApplyHook::apply_background_image, PropertyFlags::LayoutAffecting)
-HB_CSS_PROPERTY(BackgroundRepeat, BackgroundRepeat, "background-repeat", "background-repeat", ParserHook::parse_identifier,
+HB_CSS_PROPERTY(BackgroundRepeat, BackgroundRepeat, "background-repeat", "background-repeat", ParserHook::parse_background_repeat,
                 ApplyHook::apply_background_repeat, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BackgroundPosition, BackgroundPosition, "background-position", "background-position",
                 ParserHook::parse_background_position, ApplyHook::apply_background_position, PropertyFlags::LayoutAffecting)
