@@ -184,7 +184,7 @@
 - Add checks for invalid/missing hooks and alias/canonical consistency.
 - Acceptance: bad registry entries fail in CI.
 
-### R4-10 [ ] tests: exhaustive typed-dispatch coverage
+### R4-10 [x] tests: exhaustive typed-dispatch coverage
 - Validate every property entry has valid typed parser/applier hooks and roundtrip mapping.
 - Acceptance: test fails if registry metadata is incomplete or inconsistent.
 

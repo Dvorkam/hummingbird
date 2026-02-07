@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <array>
+
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
@@ -12,6 +14,15 @@
 
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
+
+namespace {
+
+template <typename Enum>
+constexpr size_t enum_index(Enum value) {
+    return static_cast<size_t>(value);
+}
+
+}  // namespace
 
 TEST(CssPropertyRegistryTest, MapsCanonicalAndAliasNames) {
     EXPECT_EQ(PropertyRegistry::parse_property_name("margin"), Property::Margin);
@@ -26,6 +37,33 @@ TEST(CssPropertyRegistryTest, EntriesRoundTripAndHooksExist) {
         EXPECT_FALSE(PropertyRegistry::canonical_property_name(entry.property).empty());
         EXPECT_NE(PropertyRegistry::parser_hook(entry.property), PropertyRegistry::ParserHook::Unknown);
         EXPECT_NE(PropertyRegistry::applier_hook(entry.property), PropertyRegistry::ApplyHook::Unknown);
+    }
+}
+
+TEST(CssPropertyRegistryTest, PropertyListMetadataMatchesRegistryAccessors) {
+    for (const auto& entry : PropertyRegistry::property_list()) {
+        EXPECT_EQ(PropertyRegistry::parse_property_name(entry.name), entry.property);
+        EXPECT_EQ(PropertyRegistry::parse_property_name(entry.canonical_name), entry.property);
+        EXPECT_EQ(PropertyRegistry::canonical_property_name(entry.property), entry.canonical_name);
+        EXPECT_EQ(PropertyRegistry::parser_hook(entry.property), entry.parser_hook);
+        EXPECT_EQ(PropertyRegistry::applier_hook(entry.property), entry.applier_hook);
+    }
+}
+
+TEST(CssPropertyRegistryTest, EveryTypedHookIsUsedByAtLeastOneProperty) {
+    std::array<bool, enum_index(PropertyRegistry::ParserHook::parse_background_size) + 1> parser_seen{};
+    std::array<bool, enum_index(PropertyRegistry::ApplyHook::apply_background_size) + 1> applier_seen{};
+
+    for (const auto& entry : PropertyRegistry::property_list()) {
+        parser_seen[enum_index(entry.parser_hook)] = true;
+        applier_seen[enum_index(entry.applier_hook)] = true;
+    }
+
+    for (size_t i = enum_index(PropertyRegistry::ParserHook::parse_identifier); i < parser_seen.size(); ++i) {
+        EXPECT_TRUE(parser_seen[i]) << "Missing parser hook coverage for id " << i;
+    }
+    for (size_t i = enum_index(PropertyRegistry::ApplyHook::apply_display); i < applier_seen.size(); ++i) {
+        EXPECT_TRUE(applier_seen[i]) << "Missing applier hook coverage for id " << i;
     }
 }
 
