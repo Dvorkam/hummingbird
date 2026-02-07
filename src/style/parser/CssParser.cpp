@@ -7,6 +7,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/ColorUtils.h"
 #include "core/utils/Log.h"
+#include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "style/compute/StyleValueUtils.h"
 #include "style/registry/CssPropertyRegistry.h"
@@ -267,12 +268,7 @@ Value Parser::parse_identifier_value() {
 
 Value Parser::parse_number_value() {
     std::string number_text = std::string(advance().lexeme);
-    float number = 0.0f;
-    try {
-        number = std::stof(number_text);
-    } catch (...) {
-        number = 0.0f;
-    }
+    float number = Core::Utils::parse_float(number_text).value_or(0.0f);
     if (peek().type == TokenType::Identifier) {
         std::string unit_text = std::string(advance().lexeme);
         Unit unit = Unit::Unknown;

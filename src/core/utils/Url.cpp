@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 
 namespace Hummingbird::Core {
@@ -78,13 +79,12 @@ std::optional<UrlParts> parse_absolute_url(std::string_view url) {
         out.host = Utils::to_lower(authority.substr(0, port_pos));
         std::string_view port_str = authority.substr(port_pos + 1);
         if (!port_str.empty()) {
-            try {
-                int port = std::stoi(std::string(port_str));
-                if (port > 0 && port <= 65535) {
-                    out.port = static_cast<uint16_t>(port);
-                }
-            } catch (...) {
+            auto parsed_port = Utils::parse_long(port_str, Utils::NumberParseMode::Strict);
+            if (!parsed_port.has_value()) {
                 return std::nullopt;
+            }
+            if (*parsed_port > 0 && *parsed_port <= 65535) {
+                out.port = static_cast<uint16_t>(*parsed_port);
             }
         }
     }
