@@ -136,19 +136,41 @@ enum class ParseHookKind {
     Color,
 };
 
-ParseHookKind parse_hook_kind(std::string_view hook) {
-    if (hook == "parse_font_family") return ParseHookKind::FontFamily;
-    if (hook == "parse_margin_shorthand") return ParseHookKind::MarginShorthand;
-    if (hook == "parse_padding_shorthand") return ParseHookKind::PaddingShorthand;
-    if (hook == "parse_border_shorthand") return ParseHookKind::BorderShorthand;
-    if (hook == "parse_background_image") return ParseHookKind::BackgroundImage;
-    if (hook == "parse_background_repeat" || hook == "parse_background_position" || hook == "parse_background_size") {
-        return ParseHookKind::BackgroundJoin;
+ParseHookKind parse_hook_kind(PropertyRegistry::ParserHook hook) {
+    switch (hook) {
+        case PropertyRegistry::ParserHook::parse_font_family:
+            return ParseHookKind::FontFamily;
+        case PropertyRegistry::ParserHook::parse_margin_shorthand:
+            return ParseHookKind::MarginShorthand;
+        case PropertyRegistry::ParserHook::parse_padding_shorthand:
+            return ParseHookKind::PaddingShorthand;
+        case PropertyRegistry::ParserHook::parse_border_shorthand:
+            return ParseHookKind::BorderShorthand;
+        case PropertyRegistry::ParserHook::parse_background_image:
+            return ParseHookKind::BackgroundImage;
+        case PropertyRegistry::ParserHook::parse_background_repeat:
+        case PropertyRegistry::ParserHook::parse_background_position:
+        case PropertyRegistry::ParserHook::parse_background_size:
+            return ParseHookKind::BackgroundJoin;
+        case PropertyRegistry::ParserHook::parse_list_style_shorthand:
+            return ParseHookKind::ListStyleShorthand;
+        case PropertyRegistry::ParserHook::parse_transform:
+            return ParseHookKind::Transform;
+        case PropertyRegistry::ParserHook::parse_background_shorthand:
+            return ParseHookKind::BackgroundShorthand;
+        case PropertyRegistry::ParserHook::parse_color:
+            return ParseHookKind::Color;
+        case PropertyRegistry::ParserHook::Unknown:
+        case PropertyRegistry::ParserHook::parse_identifier:
+        case PropertyRegistry::ParserHook::parse_font_size:
+        case PropertyRegistry::ParserHook::parse_length_number:
+        case PropertyRegistry::ParserHook::parse_length_auto:
+        case PropertyRegistry::ParserHook::parse_length:
+        case PropertyRegistry::ParserHook::parse_number_auto:
+        case PropertyRegistry::ParserHook::parse_text_decoration:
+        case PropertyRegistry::ParserHook::parse_font_weight:
+            return ParseHookKind::Generic;
     }
-    if (hook == "parse_list_style_shorthand") return ParseHookKind::ListStyleShorthand;
-    if (hook == "parse_transform") return ParseHookKind::Transform;
-    if (hook == "parse_background_shorthand") return ParseHookKind::BackgroundShorthand;
-    if (hook == "parse_color") return ParseHookKind::Color;
     return ParseHookKind::Generic;
 }
 
@@ -398,8 +420,7 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         return true;
     }
 
-    std::string_view parser_hook = PropertyRegistry::parser_hook(property);
-    ParseHookKind hook_kind = parse_hook_kind(parser_hook);
+    ParseHookKind hook_kind = parse_hook_kind(PropertyRegistry::parser_hook(property));
     if (hook_kind == ParseHookKind::FontFamily) {
         std::string list = parse_font_family_list();
         match(TokenType::Semicolon);  // consume if present

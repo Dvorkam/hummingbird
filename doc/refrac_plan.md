@@ -166,6 +166,28 @@
 - Add unit tests for: name↔enum mapping, parser hook dispatch, applier dispatch.
 - Acceptance: tests verify registry is the single authoritative source.
 
+### Phase 4b: Meaning-Level Completion (Single Wiring Path)
+
+### R4-06 [x] style/registry: replace string hooks with typed hook IDs
+- Replace parser/applier hook strings with typed enums (`ParserHook`, `ApplyHook`) in the property list.
+- Acceptance: no string-based hook comparisons remain in registry/parser wiring.
+
+### R4-07 [ ] style/parser: switch parser dispatch to typed hook IDs
+- Parser dispatches purely via `ParserHook` switch paths.
+- Acceptance: no parser dispatch logic keyed on hook strings.
+
+### R4-08 [ ] style/compute: switch applier dispatch to typed hook IDs
+- Property application dispatches via `ApplyHook` from registry metadata.
+- Acceptance: adding a property that reuses existing apply behavior requires only registry entry changes.
+
+### R4-09 [ ] style/registry: add compile-time metadata invariants
+- Add checks for invalid/missing hooks and alias/canonical consistency.
+- Acceptance: bad registry entries fail in CI.
+
+### R4-10 [ ] tests: exhaustive typed-dispatch coverage
+- Validate every property entry has valid typed parser/applier hooks and roundtrip mapping.
+- Acceptance: test fails if registry metadata is incomplete or inconsistent.
+
 ## Deliverables
 - This plan (doc/refrac_plan.md).
 - A follow-up “scaffolding” doc listing refactor candidates with owners/priority (to be created after Phase 1–3 review).

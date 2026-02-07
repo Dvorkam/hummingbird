@@ -40,22 +40,22 @@ std::string_view canonical_property_name(Property property) {
     return {};
 }
 
-std::string_view parser_hook(Property property) {
+ParserHook parser_hook(Property property) {
     for (const auto& entry : property_list()) {
         if (entry.property == property) {
             return entry.parser_hook;
         }
     }
-    return {};
+    return ParserHook::Unknown;
 }
 
-std::string_view applier_hook(Property property) {
+ApplyHook applier_hook(Property property) {
     for (const auto& entry : property_list()) {
         if (entry.property == property) {
             return entry.applier_hook;
         }
     }
-    return {};
+    return ApplyHook::Unknown;
 }
 
 }  // namespace Hummingbird::Css::PropertyRegistry

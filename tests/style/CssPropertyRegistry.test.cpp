@@ -24,13 +24,13 @@ TEST(CssPropertyRegistryTest, EntriesRoundTripAndHooksExist) {
     for (const auto& entry : PropertyRegistry::entries()) {
         EXPECT_EQ(PropertyRegistry::parse_property_name(entry.name), entry.property);
         EXPECT_FALSE(PropertyRegistry::canonical_property_name(entry.property).empty());
-        EXPECT_FALSE(PropertyRegistry::parser_hook(entry.property).empty());
-        EXPECT_FALSE(PropertyRegistry::applier_hook(entry.property).empty());
+        EXPECT_NE(PropertyRegistry::parser_hook(entry.property), PropertyRegistry::ParserHook::Unknown);
+        EXPECT_NE(PropertyRegistry::applier_hook(entry.property), PropertyRegistry::ApplyHook::Unknown);
     }
 }
 
 TEST(CssPropertyRegistryTest, ParserDispatchesMarginThroughHook) {
-    ASSERT_EQ(PropertyRegistry::parser_hook(Property::Margin), "parse_margin_shorthand");
+    ASSERT_EQ(PropertyRegistry::parser_hook(Property::Margin), PropertyRegistry::ParserHook::parse_margin_shorthand);
 
     Parser parser("div { margin: 1px 2px; }");
     auto sheet = parser.parse();
@@ -45,7 +45,7 @@ TEST(CssPropertyRegistryTest, ParserDispatchesMarginThroughHook) {
 
 TEST(CssPropertyRegistryTest, ApplierDispatchesAliasThroughHook) {
     ASSERT_EQ(PropertyRegistry::parse_property_name("-webkit-box-sizing"), Property::BoxSizing);
-    ASSERT_EQ(PropertyRegistry::applier_hook(Property::BoxSizing), "apply_box_sizing");
+    ASSERT_EQ(PropertyRegistry::applier_hook(Property::BoxSizing), PropertyRegistry::ApplyHook::apply_box_sizing);
 
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

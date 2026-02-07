@@ -3,7 +3,7 @@
 #include <span>
 #include <string_view>
 
-#include "style/compute/Stylesheet.h"
+#include "style/registry/CssPropertyList.h"
 
 namespace Hummingbird::Css::PropertyRegistry {
 
@@ -16,7 +16,7 @@ Property parse_property_name(std::string_view name);
 bool is_supported_property(std::string_view name);
 std::span<const PropertyEntry> entries();
 std::string_view canonical_property_name(Property property);
-std::string_view parser_hook(Property property);
-std::string_view applier_hook(Property property);
+ParserHook parser_hook(Property property);
+ApplyHook applier_hook(Property property);
 
 }  // namespace Hummingbird::Css::PropertyRegistry
