@@ -1,64 +1,17 @@
 #include "style/registry/CssPropertyRegistry.h"
 
-#include "style/registry/CssPropertyNames.h"
+#include "style/registry/CssPropertyList.h"
 
 namespace Hummingbird::Css::PropertyRegistry {
 
 static constexpr PropertyEntry kEntries[] = {
-    {PropertyNames::Display, Property::Display},
-    {PropertyNames::Position, Property::Position},
-    {PropertyNames::FontSize, Property::FontSize},
-    {PropertyNames::LineHeight, Property::LineHeight},
-    {PropertyNames::Margin, Property::Margin},
-    {PropertyNames::MarginTop, Property::MarginTop},
-    {PropertyNames::MarginRight, Property::MarginRight},
-    {PropertyNames::MarginBottom, Property::MarginBottom},
-    {PropertyNames::MarginLeft, Property::MarginLeft},
-    {PropertyNames::Padding, Property::Padding},
-    {PropertyNames::PaddingTop, Property::PaddingTop},
-    {PropertyNames::PaddingRight, Property::PaddingRight},
-    {PropertyNames::PaddingBottom, Property::PaddingBottom},
-    {PropertyNames::PaddingLeft, Property::PaddingLeft},
-    {PropertyNames::BoxSizing, Property::BoxSizing},
-    {PropertyNames::WebkitBoxSizing, Property::BoxSizing},
-    {PropertyNames::MozBoxSizing, Property::BoxSizing},
-    {PropertyNames::MsBoxSizing, Property::BoxSizing},
-    {PropertyNames::OBoxSizing, Property::BoxSizing},
-    {PropertyNames::Transform, Property::Transform},
-    {PropertyNames::Border, Property::Border},
-    {PropertyNames::BorderWidth, Property::BorderWidth},
-    {PropertyNames::BorderColor, Property::BorderColor},
-    {PropertyNames::BorderStyle, Property::BorderStyle},
-    {PropertyNames::Width, Property::Width},
-    {PropertyNames::Height, Property::Height},
-    {PropertyNames::MinWidth, Property::MinWidth},
-    {PropertyNames::MinHeight, Property::MinHeight},
-    {PropertyNames::MaxWidth, Property::MaxWidth},
-    {PropertyNames::MaxHeight, Property::MaxHeight},
-    {PropertyNames::Top, Property::Top},
-    {PropertyNames::Right, Property::Right},
-    {PropertyNames::Bottom, Property::Bottom},
-    {PropertyNames::Left, Property::Left},
-    {PropertyNames::ZIndex, Property::ZIndex},
-    {PropertyNames::TextAlign, Property::TextAlign},
-    {PropertyNames::TextDecoration, Property::TextDecoration},
-    {PropertyNames::TextDecorationThickness, Property::TextDecorationThickness},
-    {PropertyNames::TextUnderlineOffset, Property::TextUnderlineOffset},
-    {PropertyNames::WhiteSpace, Property::WhiteSpace},
-    {PropertyNames::FontFamily, Property::FontFamily},
-    {PropertyNames::FontWeight, Property::FontWeight},
-    {PropertyNames::FontStyle, Property::FontStyle},
-    {PropertyNames::Float, Property::Float},
-    {PropertyNames::ListStyle, Property::ListStyle},
-    {PropertyNames::ListStyleType, Property::ListStyleType},
-    {PropertyNames::ListStylePosition, Property::ListStylePosition},
-    {PropertyNames::Color, Property::Color},
-    {PropertyNames::BackgroundColor, Property::BackgroundColor},
-    {PropertyNames::Background, Property::Background},
-    {PropertyNames::BackgroundImage, Property::BackgroundImage},
-    {PropertyNames::BackgroundRepeat, Property::BackgroundRepeat},
-    {PropertyNames::BackgroundPosition, Property::BackgroundPosition},
-    {PropertyNames::BackgroundSize, Property::BackgroundSize},
+#define HB_CSS_PROPERTY(property_id, name_id, css_name, canonical_name, parser_hook, applier_hook, flags) \
+    {css_name, Property::property_id},
+#define HB_CSS_PROPERTY_ALIAS(property_id, name_id, css_name, canonical_name, parser_hook, applier_hook, flags) \
+    {css_name, Property::property_id},
+#include "style/registry/CssPropertyList.inl"
+#undef HB_CSS_PROPERTY_ALIAS
+#undef HB_CSS_PROPERTY
 };
 
 Property parse_property_name(std::string_view name) {
@@ -76,6 +29,15 @@ bool is_supported_property(std::string_view name) {
 
 std::span<const PropertyEntry> entries() {
     return kEntries;
+}
+
+std::string_view canonical_property_name(Property property) {
+    for (const auto& entry : property_list()) {
+        if (entry.property == property) {
+            return entry.canonical_name;
+        }
+    }
+    return {};
 }
 
 }  // namespace Hummingbird::Css::PropertyRegistry

@@ -140,6 +140,32 @@
 - Output:
   - Concrete proposal with tradeoffs and migration steps.
 
+#### Phase 4 Stories (Proposed)
+
+### R4-01 [x] style/registry: introduce property list (single source of truth)
+- Create `style/registry/CssPropertyList.inl` (X-macro/constexpr table).
+- Each entry includes: enum id, CSS name string, parser hook, applier hook, flags (inherited/layout-affecting).
+- Acceptance: list compiles, no behavior changes yet.
+
+### R4-02 [x] style/registry: generate enum + name map from registry
+- Replace `CssPropertyNames` and enum wiring with generated output from the list.
+- Centralize string→Property lookup in `CssPropertyRegistry`.
+- Acceptance: parser and tests still pass, no new duplication.
+
+### R4-03 [ ] style/compute: move property application to apply modules
+- Extract property family appliers (e.g., `ApplyBox`, `ApplyBackground`, `ApplyFont`, `ApplyText`).
+- StyleEngine becomes a thin dispatcher using registry entries.
+- Acceptance: StyleEngine shrinks; behavior unchanged.
+
+### R4-04 [ ] style/parser: route property parsing through registry
+- Parser resolves property via registry and calls the registered parser hook.
+- Remove any leftover hardcoded property switch chains.
+- Acceptance: CSS parsing coverage unchanged.
+
+### R4-05 [ ] tests: registry mapping + dispatch sanity
+- Add unit tests for: name↔enum mapping, parser hook dispatch, applier dispatch.
+- Acceptance: tests verify registry is the single authoritative source.
+
 ## Deliverables
 - This plan (doc/refrac_plan.md).
 - A follow-up “scaffolding” doc listing refactor candidates with owners/priority (to be created after Phase 1–3 review).

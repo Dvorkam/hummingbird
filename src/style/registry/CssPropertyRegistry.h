@@ -15,5 +15,6 @@ struct PropertyEntry {
 Property parse_property_name(std::string_view name);
 bool is_supported_property(std::string_view name);
 std::span<const PropertyEntry> entries();
+std::string_view canonical_property_name(Property property);
 
 }  // namespace Hummingbird::Css::PropertyRegistry
