@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <initializer_list>
 #include <memory>
 
 #include "core/ArenaAllocator.h"
@@ -19,8 +20,8 @@ using Hummingbird::Layout::BlockBox;
 using Hummingbird::Layout::Point;
 using Hummingbird::Layout::Rect;
 
-std::string utf8(const char8_t* text) {
-    return std::string(reinterpret_cast<const char*>(text));
+std::string utf8_bytes(std::initializer_list<unsigned char> bytes) {
+    return std::string(reinterpret_cast<const char*>(bytes.begin()), bytes.size());
 }
 
 InputEvent make_key_event(Key key) {
@@ -69,7 +70,8 @@ TEST(DocumentInputControllerTest, FocusesAndClearsInput) {
 
 TEST(DocumentInputControllerTest, EditsUtf8ValuesWithCaretMoves) {
     InputRenderTree tree;
-    tree.input->set_attribute("value", utf8(u8"aá"));
+    const std::string a_acute = utf8_bytes({0xC3, 0xA1});
+    tree.input->set_attribute("value", std::string("a") + a_acute);
 
     DocumentInputController controller;
     Rect viewport{0.0f, 0.0f, 200.0f, 50.0f};
@@ -80,7 +82,7 @@ TEST(DocumentInputControllerTest, EditsUtf8ValuesWithCaretMoves) {
     controller.handle_key_down(make_key_event(Key::Backspace));
 
     ASSERT_TRUE(controller.focused_value().has_value());
-    EXPECT_EQ(*controller.focused_value(), utf8(u8"á"));
+    EXPECT_EQ(*controller.focused_value(), a_acute);
 
     controller.handle_key_down(make_key_event(Key::Home));
     controller.handle_key_down(make_key_event(Key::Delete));

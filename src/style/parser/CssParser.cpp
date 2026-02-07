@@ -545,6 +545,7 @@ Stylesheet Parser::parse() {
             sheet.rules.push_back({selectors, declarations});
         }
     }
+    sheet.unknown_properties = m_unknown_properties.seen();
     return sheet;
 }
 

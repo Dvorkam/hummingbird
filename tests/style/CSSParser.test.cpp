@@ -2,8 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include <sstream>
-
 #include "html/HtmlTagNames.h"
 
 using namespace Hummingbird::Css;
@@ -172,20 +170,10 @@ TEST(CSSParserTest, ExpandsBackgroundShorthandForImages) {
 
 TEST(CSSParserTest, DedupesUnsupportedPropertyWarnings) {
     Parser parser("div { bogus: 1; bogus: 2; }");
-    std::ostringstream captured;
-    auto* old_buf = std::cerr.rdbuf(captured.rdbuf());
     auto sheet = parser.parse();
-    std::cerr.rdbuf(old_buf);
     ASSERT_EQ(sheet.rules.size(), 1u);
-    const std::string output = captured.str();
-    const std::string needle = "Unsupported CSS property encountered: bogus";
-    size_t count = 0;
-    size_t pos = 0;
-    while ((pos = output.find(needle, pos)) != std::string::npos) {
-        ++count;
-        pos += needle.size();
-    }
-    EXPECT_EQ(count, 1u);
+    EXPECT_EQ(sheet.unknown_properties.size(), 1u);
+    EXPECT_TRUE(sheet.unknown_properties.count("bogus"));
 }
 
 TEST(CSSParserTest, RecoversMissingSemicolonBetweenDeclarations) {

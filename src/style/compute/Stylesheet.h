@@ -2,6 +2,7 @@
 
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
@@ -119,6 +120,7 @@ struct Rule {
 
 struct Stylesheet {
     std::vector<Rule> rules;
+    std::unordered_set<std::string> unknown_properties;
 };
 
 }  // namespace Hummingbird::Css

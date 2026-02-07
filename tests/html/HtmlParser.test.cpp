@@ -2,8 +2,6 @@
 
 #include <gtest/gtest.h>
 
-#include <sstream>
-
 #include "html/HtmlTagNames.h"
 #include "style/registry/CssPropertyNames.h"
 
@@ -121,20 +119,10 @@ TEST(HtmlParserTest, DedupesUnsupportedTagWarnings) {
     std::string_view html = "<custom></custom><custom></custom>";
     Hummingbird::Core::ArenaAllocator arena(4096);
     Parser parser(arena, html);
-    std::ostringstream captured;
-    auto* old_buf = std::cerr.rdbuf(captured.rdbuf());
     auto result = parser.parse();
-    std::cerr.rdbuf(old_buf);
     ASSERT_NE(result.dom, nullptr);
-    const std::string output = captured.str();
-    const std::string needle = "Unsupported HTML Tag encountered: <custom>";
-    size_t count = 0;
-    size_t pos = 0;
-    while ((pos = output.find(needle, pos)) != std::string::npos) {
-        ++count;
-        pos += needle.size();
-    }
-    EXPECT_EQ(count, 1u);
+    EXPECT_EQ(result.unsupported_tags.size(), 1u);
+    EXPECT_TRUE(result.unsupported_tags.count("custom"));
 }
 
 TEST(HtmlParserTest, AutoClosesParagraphBeforeBlockTags) {

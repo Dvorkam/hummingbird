@@ -24,12 +24,28 @@ bool is_truthy_env(const char* value) {
     };
     return equals("1") || equals("true") || equals("yes") || equals("on");
 }
+
+void set_env_if_missing(const char* key, const char* value) {
+    const char* existing = std::getenv(key);
+    if (existing && existing[0] != '\0') {
+        return;
+    }
+#ifdef _WIN32
+    _putenv_s(key, value);
+#else
+    setenv(key, value, 0);
+#endif
+}
 }  // namespace
 
 TEST(SmokeMainTest, StartsAndTicks) {
     if (!is_truthy_env(std::getenv("HB_RUN_SMOKE_TEST"))) {
         GTEST_SKIP() << "Set HB_RUN_SMOKE_TEST=1 to enable the smoke test.";
     }
+
+    // Make smoke runs deterministic in headless CI if callers did not provide SDL env.
+    set_env_if_missing("SDL_VIDEODRIVER", "dummy");
+    set_env_if_missing("SDL_RENDER_DRIVER", "software");
 
     auto window = Hummingbird::create_window();
     ASSERT_NE(window, nullptr);
