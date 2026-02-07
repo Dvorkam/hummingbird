@@ -18,15 +18,15 @@ TEST(CacheUtilsTest, FindsOldestEntryByLastUsed) {
     entries[2] = Entry{3};
     entries[3] = Entry{7};
 
-    auto it = Hummingbird::Platform::CacheUtils::find_lru_entry(entries,
-                                                                [](const Entry& entry) { return entry.last_used; });
+    auto it =
+        Hummingbird::Platform::CacheUtils::find_lru_entry(entries, [](const Entry& entry) { return entry.last_used; });
     ASSERT_NE(it, entries.end());
     EXPECT_EQ(it->first, 2);
 }
 
 TEST(CacheUtilsTest, ReturnsEndForEmptyMap) {
     std::unordered_map<int, Entry> entries;
-    auto it = Hummingbird::Platform::CacheUtils::find_lru_entry(entries,
-                                                                [](const Entry& entry) { return entry.last_used; });
+    auto it =
+        Hummingbird::Platform::CacheUtils::find_lru_entry(entries, [](const Entry& entry) { return entry.last_used; });
     EXPECT_EQ(it, entries.end());
 }

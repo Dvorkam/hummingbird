@@ -14,8 +14,7 @@ TEST(Blend2DFontCacheTest, EvictsLeastRecentlyUsedWhenOverLimit) {
     auto& cache = Blend2DFontCache::instance();
     cache.set_max_entries(1);
 
-    const std::string regular =
-        Hummingbird::Core::Utils::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
+    const std::string regular = Hummingbird::Core::Utils::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
     const std::string bold = Hummingbird::Core::Utils::resolve_asset_path_string("assets/fonts/Roboto-Bold.ttf");
 
     ASSERT_NE(cache.get_or_load(regular, 12.0f, true), nullptr);

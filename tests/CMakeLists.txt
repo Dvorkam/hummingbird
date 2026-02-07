@@ -41,6 +41,8 @@ add_executable(HummingbirdTests
     style/StylesheetSource.test.cpp
     layout/LayoutStyleIntegration.test.cpp
     engine/DocumentPipeline.test.cpp
+    engine/DocumentInputController.test.cpp
+    engine/DocumentPainter.test.cpp
     engine/ScriptHost.test.cpp
     platform/ResourceProvider.test.cpp
     platform/ImageDecoder.test.cpp

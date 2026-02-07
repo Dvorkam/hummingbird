@@ -31,6 +31,7 @@ void DocumentPainter::paint(const Layout::RenderObject* render_tree, IGraphicsCo
         painter_.paint(*render_tree, recorder, opts);
 
         display_list_valid_ = true;
+        ++display_list_generation_;
         display_list_owner_ = render_tree;
         display_list_viewport_ = viewport;
         display_list_scroll_y_ = scroll_y;

@@ -20,7 +20,7 @@ using Hummingbird::Layout::TextBox;
 }  // namespace
 
 TEST(RenderObjectTest, InlineRefReportsInlineParticipants) {
-    ArenaAllocator arena;
+    ArenaAllocator arena(1024);
     ArenaPtr<Text> text_node = Text::create(arena, "Inline");
     auto text_box = TextBox::create(text_node.get());
     EXPECT_TRUE(text_box->Inline());
@@ -31,7 +31,7 @@ TEST(RenderObjectTest, InlineRefReportsInlineParticipants) {
 }
 
 TEST(RenderObjectTest, InlineRefSkipsAbsolutelyPositionedInline) {
-    ArenaAllocator arena;
+    ArenaAllocator arena(1024);
     ArenaPtr<Text> text_node = Text::create(arena, "Inline");
     auto text_box = TextBox::create(text_node.get());
     auto style = std::make_shared<ComputedStyle>(Hummingbird::Css::default_computed_style());

@@ -77,12 +77,12 @@
   - Gap: no direct tests for AssetLoader path handling, missing file logging gating, URL rejection.
   - Suggested tests: empty id, URL id, missing file (no crash), successful load (fixtures).
 
-### P3-06 [ ] engine/document: DocumentInputController focus/edit coverage
+### P3-06 [x] engine/document: DocumentInputController focus/edit coverage
 - Files: `src/engine/document/DocumentInputController.cpp`
   - Gap: behavior mostly covered indirectly via EngineTab tests; no focused unit tests for caret clamping or backspace/delete when empty.
   - Suggested tests: focus/clear focus, caret clamp with UTF‑8, delete/backspace on boundaries.
 
-### P3-07 [ ] engine/document: DocumentPainter display list reuse
+### P3-07 [x] engine/document: DocumentPainter display list reuse
 - Files: `src/engine/document/DocumentPainter.cpp`
   - Gap: no direct tests for display list invalidation/reuse (owner changes, viewport change, scroll/debug flags).
   - Suggested tests: reuse on identical inputs; invalidate on viewport/scroll/debug flag changes.
