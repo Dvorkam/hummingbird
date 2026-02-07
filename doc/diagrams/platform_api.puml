@@ -1,0 +1,919 @@
+@startuml
+title Platform API (interfaces & factories)
+package [src] as C_0016921741234196091272 {
+package [core] as C_0012207904346887387097 {
+package [platform_api] as C_0008385907264976467286 {
+class "basic_string<char>" as C_0001275076681856179721
+class C_0001275076681856179721 {
+__
+}
+class "basic_string_view<char>" as C_0013247086971467822611
+class C_0013247086971467822611 {
+__
+}
+class "InputEvent::(key)" as C_0005579660843512488124
+class C_0005579660843512488124 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(text)" as C_0005397229223025960703
+class C_0005397229223025960703 {
+__
++text : std::string
+}
+class "InputEvent::(mouse_button)" as C_0002398716621973723738
+class C_0002398716621973723738 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(wheel)" as C_0018307331949580876346
+class C_0018307331949580876346 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(resize)" as C_0008078855434326568288
+class C_0008078855434326568288 {
+__
++height : int
++width : int
+}
+class "Rect" as C_0000637076819464377630
+class C_0000637076819464377630 {
+__
+}
+class "Element" as C_0014137508159529085425
+class C_0014137508159529085425 {
+__
+}
+class "InputEvent::(anonymous_2690310)" as C_0001220460971585531119
+class C_0001220460971585531119 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_2690412)" as C_0008062382071487553603
+class C_0008062382071487553603 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_2690816)" as C_0018175830847459861053
+class C_0018175830847459861053 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_2690932)" as C_0009956485301884742942
+class C_0009956485301884742942 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_2691028)" as C_0001425129268654072506
+class C_0001425129268654072506 {
+__
++height : int
++width : int
+}
+class "function<void(Hummingbird::NetworkResponse)>" as C_0007328147589714729172
+class C_0007328147589714729172 {
+__
+}
+class "vector<uint8_t>" as C_0008792284403202452050
+class C_0008792284403202452050 {
+__
+}
+class "optional<Hummingbird::ImageBitmap>" as C_0000156754085787923516
+class C_0000156754085787923516 {
+__
+}
+class "InputEvent::(anonymous_2707826)" as C_0016791209043098044686
+class C_0016791209043098044686 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_2707928)" as C_0008771633057986766779
+class C_0008771633057986766779 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_2708340)" as C_0010098200686708576639
+class C_0010098200686708576639 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_2708456)" as C_0006779340524339537611
+class C_0006779340524339537611 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_2708552)" as C_0008178034931128850742
+class C_0008178034931128850742 {
+__
++height : int
++width : int
+}
+class "unique_ptr<Hummingbird::IGraphicsContext>" as C_0008303605641667688967
+class C_0008303605641667688967 {
+__
+}
+class "pair<int,int>" as C_0006524010458157121833
+class C_0006524010458157121833 {
+__
+}
+class "optional<std::string>" as C_0010842192065616564749
+class C_0010842192065616564749 {
+__
+}
+class "InputEvent::(anonymous_2709486)" as C_0018025300448535659823
+class C_0018025300448535659823 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_2709588)" as C_0009744566922772060826
+class C_0009744566922772060826 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_2710000)" as C_0001374741527079641174
+class C_0001374741527079641174 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_2710116)" as C_0014316920743192409678
+class C_0014316920743192409678 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_2710212)" as C_0013430229992178342093
+class C_0013430229992178342093 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_3555329)" as C_0015310521837023302605
+class C_0015310521837023302605 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_3555430)" as C_0007489840375066488599
+class C_0007489840375066488599 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_3555834)" as C_0008286007801989694379
+class C_0008286007801989694379 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_3555950)" as C_0017063513121337967299
+class C_0017063513121337967299 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_3556046)" as C_0001957242237490560626
+class C_0001957242237490560626 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_3556648)" as C_0006792301607660788854
+class C_0006792301607660788854 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_3556750)" as C_0015546757578131133058
+class C_0015546757578131133058 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_3557154)" as C_0015547291442520884527
+class C_0015547291442520884527 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_3557270)" as C_0013039318307448113500
+class C_0013039318307448113500 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_3557366)" as C_0011498833386788509266
+class C_0011498833386788509266 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_1727220)" as C_0015143914542063165451
+class C_0015143914542063165451 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_1727322)" as C_0014397381151144153182
+class C_0014397381151144153182 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_1727726)" as C_0003119913479729491793
+class C_0003119913479729491793 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_1727842)" as C_0004407634721187772673
+class C_0004407634721187772673 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_1727938)" as C_0009772048714230860012
+class C_0009772048714230860012 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_1730652)" as C_0014367504006113808599
+class C_0014367504006113808599 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_1730754)" as C_0006108620223858360000
+class C_0006108620223858360000 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_1731158)" as C_0005444050732758350076
+class C_0005444050732758350076 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_1731274)" as C_0018088125715254282913
+class C_0018088125715254282913 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_1731370)" as C_0018050798154144367562
+class C_0018050798154144367562 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_2707938)" as C_0015874198193971652688
+class C_0015874198193971652688 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_2708040)" as C_0004721186252783916683
+class C_0004721186252783916683 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_2708452)" as C_0013242930617943172990
+class C_0013242930617943172990 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_2708568)" as C_0008083136938042297847
+class C_0008083136938042297847 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_2708664)" as C_0001657366048420755712
+class C_0001657366048420755712 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_2709608)" as C_0014212799905790396595
+class C_0014212799905790396595 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_2709710)" as C_0006726557041578465477
+class C_0006726557041578465477 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_2710122)" as C_0010054238283952469067
+class C_0010054238283952469067 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_2710238)" as C_0008396886872336717643
+class C_0008396886872336717643 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_2710334)" as C_0014040720763455172861
+class C_0014040720763455172861 {
+__
++height : int
++width : int
+}
+enum "NetworkBackend" as C_0009230370220012586172
+enum C_0009230370220012586172 {
+Curl
+Stub
+}
+class "InputEvent::(anonymous_2346846)" as C_0009729688940291261212
+class C_0009729688940291261212 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_2346948)" as C_0001654294918724676212
+class C_0001654294918724676212 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_2347352)" as C_0006436887406219313388
+class C_0006436887406219313388 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_2347468)" as C_0016728137235516283285
+class C_0016728137235516283285 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_2347564)" as C_0010711438768826345647
+class C_0010711438768826345647 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_2349032)" as C_0008886931049156351222
+class C_0008886931049156351222 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_2349134)" as C_0012250416671712676023
+class C_0012250416671712676023 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_2349538)" as C_0016032249647068681706
+class C_0016032249647068681706 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_2349654)" as C_0005730744641606583292
+class C_0005730744641606583292 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_2349750)" as C_0001788486860883815964
+class C_0001788486860883815964 {
+__
++height : int
++width : int
+}
+class "ScriptEvalResult" as C_0014658709363114959891
+class C_0014658709363114959891 {
+__
++error : std::string
++ok : bool
+}
+abstract "IScriptEngine" as C_0007917915995348791895
+abstract C_0007917915995348791895 {
++~IScriptEngine() constexpr = default : void
+..
+{abstract} +bind_host() = 0 : void
+{abstract} +eval() = 0 : ScriptEvalResult
+__
+}
+abstract "IScriptHost" as C_0003061956712846038978
+abstract C_0003061956712846038978 {
++~IScriptHost() constexpr = default : void
+..
+{abstract} +get_element_by_id() = 0 : DOM::Element *
+{abstract} +get_text_content() = 0 : std::string
+{abstract} +set_attribute() = 0 : void
+{abstract} +set_text_content() = 0 : void
+__
+}
+enum "NetworkError" as C_0016119747649034996440
+enum C_0016119747649034996440 {
+None
+TlsVerificationFailed
+CurlError
+}
+class "NetworkRequestOptions" as C_0004914775716279038941
+class C_0004914775716279038941 {
+__
++allow_insecure : bool
+}
+class "NetworkResponse" as C_0008293214118790373329
+class C_0008293214118790373329 {
+__
++body : std::string
++effective_url : std::string
++error : NetworkError
++status : long
++url : std::string
+}
+abstract "INetwork" as C_0010080200350501854846
+abstract C_0010080200350501854846 {
++~INetwork() constexpr = default : void
+..
+{abstract} +get() = 0 : void
+{abstract} +shutdown() = 0 : void
+__
+}
+class "InputEvent::(anonymous_1724556)" as C_0018317174141061251027
+class C_0018317174141061251027 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_1724658)" as C_0017455095319676806282
+class C_0017455095319676806282 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_1725070)" as C_0015293965249969313362
+class C_0015293965249969313362 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_1725186)" as C_0007802520201094927142
+class C_0007802520201094927142 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_1725282)" as C_0011735320617474377000
+class C_0011735320617474377000 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_1728166)" as C_0016322404721537552055
+class C_0016322404721537552055 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_1728268)" as C_0001168640869761954388
+class C_0001168640869761954388 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_1728694)" as C_0015764096959322247153
+class C_0015764096959322247153 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_1728810)" as C_0018167721076479473198
+class C_0018167721076479473198 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_1728906)" as C_0005730230308509786082
+class C_0005730230308509786082 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_3446798)" as C_0001808399669007121331
+class C_0001808399669007121331 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_3446900)" as C_0005346678838018843513
+class C_0005346678838018843513 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_3449570)" as C_0014163911437746774464
+class C_0014163911437746774464 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_3449686)" as C_0002745484911920974849
+class C_0002745484911920974849 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_3449782)" as C_0009474830633086742026
+class C_0009474830633086742026 {
+__
++height : int
++width : int
+}
+class "InputEvent::(anonymous_3452362)" as C_0010165739238614633831
+class C_0010165739238614633831 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_3452464)" as C_0017976849327254589700
+class C_0017976849327254589700 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_3455134)" as C_0009932002922825207232
+class C_0009932002922825207232 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_3455250)" as C_0007888348805705460221
+class C_0007888348805705460221 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_3455346)" as C_0012239576998101206945
+class C_0012239576998101206945 {
+__
++height : int
++width : int
+}
+abstract "IResourceProvider" as C_0002947512765916896257
+abstract C_0002947512765916896257 {
++~IResourceProvider() constexpr = default : void
+..
++load_bytes() : std::optional<std::string>
+{abstract} +load_text() = 0 : std::optional<std::string>
+__
+}
+class "InputEvent::(anonymous_2713614)" as C_0011308420299413727022
+class C_0011308420299413727022 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_2713716)" as C_0006404190235504641612
+class C_0006404190235504641612 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_2714128)" as C_0011525712435974549137
+class C_0011525712435974549137 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_2714244)" as C_0002383525597790294168
+class C_0002383525597790294168 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_2714340)" as C_0016219074234130414769
+class C_0016219074234130414769 {
+__
++height : int
++width : int
+}
+class "Color" as C_0008854618260704589470
+class C_0008854618260704589470 {
+__
++a : unsigned char
++b : unsigned char
++g : unsigned char
++r : unsigned char
+}
+class "TextMetrics" as C_0017386028726102156538
+class C_0017386028726102156538 {
+__
++ascent : float
++descent : float
++height : float
++underline_position : float
++underline_thickness : float
++width : float
+}
+class "TextStyle" as C_0011056857798928109881
+class C_0011056857798928109881 {
+__
++bold : bool
++color : Color
++font_path : std::string
++font_size : float
++italic : bool
++monospace : bool
+}
+abstract "IGraphicsContext" as C_0014168624343704847680
+abstract C_0014168624343704847680 {
++~IGraphicsContext() constexpr = default : void
+..
++begin_document_cache() : bool
+{abstract} +clear() = 0 : void
++draw_document_cache() : void
+{abstract} +draw_image() = 0 : void
+{abstract} +draw_text() = 0 : void
++draw_text_with_metrics() : void
++end_document_cache() : void
+{abstract} +fill_rect() = 0 : void
+{abstract} +measure_text() = 0 : TextMetrics
+{abstract} +present() = 0 : void
++set_text_cache_owner() : void
+{abstract} +set_viewport() = 0 : void
+__
+}
+enum "EventType" as C_0007799470698034900506
+enum C_0007799470698034900506 {
+None
+Quit
+TextInput
+KeyDown
+KeyUp
+MouseDown
+MouseUp
+MouseWheel
+Resize
+}
+enum "Key" as C_0010128459834398517817
+enum C_0010128459834398517817 {
+Unknown
+A
+B
+C
+D
+E
+F
+G
+H
+I
+J
+K
+L
+M
+N
+O
+P
+Q
+R
+S
+T
+U
+V
+W
+X
+Y
+Z
+Backspace
+Delete
+Insert
+Home
+End
+Left
+Right
+Enter
+Escape
+F1
+}
+enum "MouseButton" as C_0013047896586637730942
+enum C_0013047896586637730942 {
+Unknown
+Left
+Middle
+Right
+X1
+X2
+}
+class "Modifiers" as C_0002326062858005277359
+class C_0002326062858005277359 {
+__
++alt : bool
++ctrl : bool
++meta : bool
++shift : bool
+}
+class "InputEvent" as C_0001835274497883874734
+class C_0001835274497883874734 {
+__
++key : InputEvent::(key)
++mods : Modifiers
++mouse_button : InputEvent::(mouse_button)
++resize : InputEvent::(resize)
++text : InputEvent::(text)
++type : EventType
++wheel : InputEvent::(wheel)
+}
+class "InputEvent::(anonymous_2715280)" as C_0003483920740543679729
+class C_0003483920740543679729 {
+__
++key : Key
++repeat : bool
+}
+class "InputEvent::(anonymous_2715382)" as C_0009732789460061854340
+class C_0009732789460061854340 {
+__
++text : std::string
+}
+class "InputEvent::(anonymous_2715794)" as C_0015611207100405875794
+class C_0015611207100405875794 {
+__
++button : MouseButton
++x : int
++y : int
+}
+class "InputEvent::(anonymous_2715910)" as C_0009265028818703283409
+class C_0009265028818703283409 {
+__
++dx : float
++dy : float
+}
+class "InputEvent::(anonymous_2716006)" as C_0016431277017100251468
+class C_0016431277017100251468 {
+__
++height : int
++width : int
+}
+abstract "IWindow" as C_0006296739449739978309
+abstract C_0006296739449739978309 {
++~IWindow() constexpr = default : void
+..
+{abstract} +close() = 0 : void
+{abstract} +get_clipboard_text() const = 0 : std::string
+{abstract} +get_graphics_context() = 0 : std::unique_ptr<IGraphicsContext>
+{abstract} +get_size() const = 0 : std::pair<int,int>
+{abstract} +is_open() const = 0 : bool
+{abstract} +open() = 0 : void
+{abstract} +poll_event() = 0 : bool
+{abstract} +start_text_input() = 0 : void
+{abstract} +stop_text_input() = 0 : void
+{abstract} +update() = 0 : void
+{abstract} +wait_event() = 0 : bool
+__
+}
+enum "PixelFormat" as C_0005154850614549930015
+enum C_0005154850614549930015 {
+BGRA32
+PRGB32
+}
+class "ImageBitmap" as C_0007482802471481031717
+class C_0007482802471481031717 {
+__
++format : PixelFormat
++height : int
++pixels : std::vector<std::uint8_t>
++stride : int
++width : int
+}
+abstract "IImageDecoder" as C_0005127814986476644910
+abstract C_0005127814986476644910 {
++~IImageDecoder() constexpr = default : void
+..
+{abstract} +decode() = 0 : std::optional<ImageBitmap>
+__
+}
+}
+}
+}
+C_0005579660843512488124 o-- C_0010128459834398517817 : +key
+C_0005397229223025960703 o-- C_0001275076681856179721 : +text
+C_0002398716621973723738 o-- C_0013047896586637730942 : +button
+C_0001220460971585531119 o-- C_0010128459834398517817 : +key
+C_0008062382071487553603 o-- C_0001275076681856179721 : +text
+C_0018175830847459861053 o-- C_0013047896586637730942 : +button
+C_0007328147589714729172 ..> C_0008293214118790373329
+C_0000156754085787923516 ..> C_0007482802471481031717
+C_0016791209043098044686 o-- C_0010128459834398517817 : +key
+C_0008771633057986766779 o-- C_0001275076681856179721 : +text
+C_0010098200686708576639 o-- C_0013047896586637730942 : +button
+C_0008303605641667688967 ..> C_0014168624343704847680
+C_0010842192065616564749 ..> C_0001275076681856179721
+C_0018025300448535659823 o-- C_0010128459834398517817 : +key
+C_0009744566922772060826 o-- C_0001275076681856179721 : +text
+C_0001374741527079641174 o-- C_0013047896586637730942 : +button
+C_0015310521837023302605 o-- C_0010128459834398517817 : +key
+C_0007489840375066488599 o-- C_0001275076681856179721 : +text
+C_0008286007801989694379 o-- C_0013047896586637730942 : +button
+C_0006792301607660788854 o-- C_0010128459834398517817 : +key
+C_0015546757578131133058 o-- C_0001275076681856179721 : +text
+C_0015547291442520884527 o-- C_0013047896586637730942 : +button
+C_0015143914542063165451 o-- C_0010128459834398517817 : +key
+C_0014397381151144153182 o-- C_0001275076681856179721 : +text
+C_0003119913479729491793 o-- C_0013047896586637730942 : +button
+C_0014367504006113808599 o-- C_0010128459834398517817 : +key
+C_0006108620223858360000 o-- C_0001275076681856179721 : +text
+C_0005444050732758350076 o-- C_0013047896586637730942 : +button
+C_0015874198193971652688 o-- C_0010128459834398517817 : +key
+C_0004721186252783916683 o-- C_0001275076681856179721 : +text
+C_0013242930617943172990 o-- C_0013047896586637730942 : +button
+C_0014212799905790396595 o-- C_0010128459834398517817 : +key
+C_0006726557041578465477 o-- C_0001275076681856179721 : +text
+C_0010054238283952469067 o-- C_0013047896586637730942 : +button
+C_0009729688940291261212 o-- C_0010128459834398517817 : +key
+C_0001654294918724676212 o-- C_0001275076681856179721 : +text
+C_0006436887406219313388 o-- C_0013047896586637730942 : +button
+C_0008886931049156351222 o-- C_0010128459834398517817 : +key
+C_0012250416671712676023 o-- C_0001275076681856179721 : +text
+C_0016032249647068681706 o-- C_0013047896586637730942 : +button
+C_0014658709363114959891 o-- C_0001275076681856179721 : +error
+C_0007917915995348791895 ..> C_0003061956712846038978
+C_0007917915995348791895 ..> C_0013247086971467822611
+C_0007917915995348791895 ..> C_0014658709363114959891
+C_0003061956712846038978 ..> C_0013247086971467822611
+C_0003061956712846038978 ..> C_0001275076681856179721
+C_0008293214118790373329 o-- C_0001275076681856179721 : +url
+C_0008293214118790373329 o-- C_0001275076681856179721 : +effective_url
+C_0008293214118790373329 o-- C_0001275076681856179721 : +body
+C_0008293214118790373329 o-- C_0016119747649034996440 : +error
+C_0010080200350501854846 ..> C_0001275076681856179721
+C_0010080200350501854846 ..> C_0007328147589714729172
+C_0010080200350501854846 ..> C_0008293214118790373329
+C_0010080200350501854846 ..> C_0004914775716279038941
+C_0018317174141061251027 o-- C_0010128459834398517817 : +key
+C_0017455095319676806282 o-- C_0001275076681856179721 : +text
+C_0015293965249969313362 o-- C_0013047896586637730942 : +button
+C_0016322404721537552055 o-- C_0010128459834398517817 : +key
+C_0001168640869761954388 o-- C_0001275076681856179721 : +text
+C_0015764096959322247153 o-- C_0013047896586637730942 : +button
+C_0001808399669007121331 o-- C_0010128459834398517817 : +key
+C_0005346678838018843513 o-- C_0001275076681856179721 : +text
+C_0014163911437746774464 o-- C_0013047896586637730942 : +button
+C_0010165739238614633831 o-- C_0010128459834398517817 : +key
+C_0017976849327254589700 o-- C_0001275076681856179721 : +text
+C_0009932002922825207232 o-- C_0013047896586637730942 : +button
+C_0002947512765916896257 ..> C_0013247086971467822611
+C_0002947512765916896257 ..> C_0010842192065616564749
+C_0011308420299413727022 o-- C_0010128459834398517817 : +key
+C_0006404190235504641612 o-- C_0001275076681856179721 : +text
+C_0011525712435974549137 o-- C_0013047896586637730942 : +button
+C_0011056857798928109881 o-- C_0001275076681856179721 : +font_path
+C_0011056857798928109881 o-- C_0008854618260704589470 : +color
+C_0014168624343704847680 ..> C_0008854618260704589470
+C_0014168624343704847680 ..> C_0007482802471481031717
+C_0014168624343704847680 ..> C_0001275076681856179721
+C_0014168624343704847680 ..> C_0011056857798928109881
+C_0014168624343704847680 ..> C_0017386028726102156538
+C_0001835274497883874734 o-- C_0007799470698034900506 : +type
+C_0001835274497883874734 o-- C_0002326062858005277359 : +mods
+C_0001835274497883874734 o-- C_0005579660843512488124 : +key
+C_0001835274497883874734 o-- C_0005397229223025960703 : +text
+C_0001835274497883874734 o-- C_0002398716621973723738 : +mouse_button
+C_0001835274497883874734 o-- C_0018307331949580876346 : +wheel
+C_0001835274497883874734 o-- C_0008078855434326568288 : +resize
+C_0003483920740543679729 o-- C_0010128459834398517817 : +key
+C_0009732789460061854340 o-- C_0001275076681856179721 : +text
+C_0015611207100405875794 o-- C_0013047896586637730942 : +button
+C_0006296739449739978309 ..> C_0008303605641667688967
+C_0006296739449739978309 ..> C_0014168624343704847680
+C_0006296739449739978309 ..> C_0006524010458157121833
+C_0006296739449739978309 ..> C_0001835274497883874734
+C_0006296739449739978309 ..> C_0001275076681856179721
+C_0007482802471481031717 o-- C_0005154850614549930015 : +format
+C_0007482802471481031717 o-- C_0008792284403202452050 : +pixels
+C_0005127814986476644910 ..> C_0013247086971467822611
+C_0005127814986476644910 ..> C_0000156754085787923516
+C_0005127814986476644910 ..> C_0007482802471481031717
+
+'Generated with clang-uml, version 0.6.2
+'LLVM version clang version 20.1.8 (Fedora 20.1.8-2.fc43)
+@enduml
