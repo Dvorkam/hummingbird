@@ -43,9 +43,14 @@ TEST(SmokeMainTest, StartsAndTicks) {
         GTEST_SKIP() << "Set HB_RUN_SMOKE_TEST=1 to enable the smoke test.";
     }
 
-    // Make smoke runs deterministic in headless CI if callers did not provide SDL env.
+    // Make smoke runs deterministic in CI if callers did not provide SDL env.
+    // SDL's dummy video backend is reliable on Linux but can be unstable on Windows.
+#ifdef _WIN32
+    set_env_if_missing("SDL_RENDER_DRIVER", "software");
+#else
     set_env_if_missing("SDL_VIDEODRIVER", "dummy");
     set_env_if_missing("SDL_RENDER_DRIVER", "software");
+#endif
 
     auto window = Hummingbird::create_window();
     ASSERT_NE(window, nullptr);
