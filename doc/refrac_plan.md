@@ -126,7 +126,7 @@
   - Gap: background-image is parsed and collected, but no end-to-end test verifying resource fetch + paint.
   - Suggested tests: headless tab or pipeline integration that loads a background image and asserts an image draw call.
 
-### P3X-04 [ ] engine/platform: SVG image pipeline integration
+### P3X-04 [x] engine/platform: SVG image pipeline integration
 - Files: `src/platform/decoders/SvgImageDecoder.cpp`, `src/engine/resources/ResourceLoader.cpp`, `src/layout/replaced/RenderImage.cpp`
   - Gap: decoder is tested in isolation; no integration coverage for `<img src="...svg">`.
   - Suggested tests: resource load of SVG via Tab or pipeline with render check for decoded dimensions.

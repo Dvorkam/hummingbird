@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 #include "engine/ResourceUrl.h"
+#include "platform/decoders/CompositeImageDecoder.h"
 #include "test_utils/TestFakes.h"
 
 namespace {
@@ -17,6 +18,7 @@ using Hummingbird::NetworkResponse;
 using Hummingbird::Engine::resolve_resource_url;
 using Hummingbird::Engine::ResourceLoader;
 using Hummingbird::Engine::ResourceType;
+using Hummingbird::Platform::CompositeImageDecoder;
 
 class FakeResourceProvider final : public Hummingbird::IResourceProvider {
 public:
@@ -111,4 +113,28 @@ TEST(ResourceLoaderTest, ImageUsesFallbackNetworkAndDecoder) {
     ASSERT_NE(view->image, nullptr);
     EXPECT_EQ(view->image->width, 2);
     EXPECT_EQ(view->image->height, 2);
+}
+
+TEST(ResourceLoaderTest, SvgImagesDecodeThroughCompositeDecoder) {
+    auto fallback = std::make_unique<CapturingNetwork>();
+    auto* fallback_ptr = fallback.get();
+    fallback_ptr->body =
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"12\">"
+        "<rect width=\"24\" height=\"12\" fill=\"#000\"/>"
+        "</svg>";
+
+    ResourceLoader loader(nullptr, std::move(fallback), nullptr, std::make_unique<CompositeImageDecoder>());
+
+    const std::string base_url = "https://example.dev/index.html";
+    loader.request_images({"/img/logo.svg"}, base_url);
+
+    auto batch = loader.consume_pending_updates();
+    EXPECT_TRUE(batch.image_ready);
+
+    auto resolved = resolve_resource_url(base_url, "/img/logo.svg");
+    auto view = loader.view(resolved.key, ResourceType::Image);
+    ASSERT_TRUE(view.has_value());
+    ASSERT_NE(view->image, nullptr);
+    EXPECT_GT(view->image->width, 0);
+    EXPECT_GT(view->image->height, 0);
 }
