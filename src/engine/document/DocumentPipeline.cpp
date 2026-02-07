@@ -48,7 +48,7 @@ const DOM::Element* resolve_submit_element(const DOM::Node* node) {
             const auto& tag = element->get_tag_name();
             if (tag == Hummingbird::Html::TagNames::Button) {
                 if (const auto* type = element->find_attribute(Hummingbird::Html::AttributeNames::Type)) {
-                    if (!Core::Utils::equals_ignore_case(*type, "submit")) {
+                    if (!type->empty() && !Core::Utils::equals_ignore_case(*type, "submit")) {
                         current = current->get_parent();
                         continue;
                     }

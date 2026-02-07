@@ -274,7 +274,7 @@ std::optional<std::string> DocumentModel::build_form_submission_url(const DOM::E
     }
 
     if (const auto* method = form->find_attribute(Hummingbird::Html::AttributeNames::Method)) {
-        if (!Core::Utils::equals_ignore_case(*method, "get")) {
+        if (!method->empty() && !Core::Utils::equals_ignore_case(*method, "get")) {
             HB_LOG_WARN("[form] unsupported method: " << *method);
             return std::nullopt;
         }

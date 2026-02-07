@@ -9,12 +9,12 @@
 #include "layout/block/BlockBox.h"
 
 namespace {
+using Hummingbird::InputEvent;
+using Hummingbird::Key;
 using Hummingbird::Core::ArenaAllocator;
 using Hummingbird::Core::ArenaPtr;
 using Hummingbird::DOM::Element;
 using Hummingbird::Engine::DocumentInputController;
-using Hummingbird::InputEvent;
-using Hummingbird::Key;
 using Hummingbird::Layout::BlockBox;
 using Hummingbird::Layout::Point;
 using Hummingbird::Layout::Rect;

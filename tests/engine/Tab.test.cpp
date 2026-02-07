@@ -295,7 +295,7 @@ TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
     EXPECT_EQ(*result.submitted_url, "https://example.dev/search?q=hello%20world&lang=en");
 }
 
-TEST(EngineTabTest, FormWithEmptyMethodDoesNotSubmitYet) {
+TEST(EngineTabTest, FormWithEmptyMethodSubmitsAsGet) {
     const std::string html = R"HTML(
 <!doctype html>
 <html>
@@ -324,8 +324,8 @@ TEST(EngineTabTest, FormWithEmptyMethodDoesNotSubmitYet) {
     enter_event.key.key = Hummingbird::Key::Enter;
     auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
-    // TODO(M5): method="" should default to GET.
-    EXPECT_FALSE(result.submitted_url.has_value());
+    ASSERT_TRUE(result.submitted_url.has_value());
+    EXPECT_EQ(*result.submitted_url, "https://example.dev/search?q=test");
 }
 
 TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
@@ -356,14 +356,14 @@ TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
     EXPECT_EQ(*submitted, "https://example.dev/search?q=moon");
 }
 
-TEST(EngineTabTest, ButtonWithEmptyTypeDoesNotSubmitYet) {
+TEST(EngineTabTest, ButtonWithEmptyTypeDefaultsToSubmit) {
     const std::string html = R"HTML(
 <!doctype html>
 <html>
   <body>
     <form action="/search" method="get">
-      <input name="q" value="mars">
       <button type="">Search</button>
+      <input name="q" value="mars">
     </form>
   </body>
 </html>
@@ -380,8 +380,8 @@ TEST(EngineTabTest, ButtonWithEmptyTypeDoesNotSubmitYet) {
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
     auto submitted = harness.tab().submit_form_at(point, harness.viewport());
-    // TODO(M5): empty button type should default to submit.
-    EXPECT_FALSE(submitted.has_value());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(*submitted, "https://example.dev/search?q=mars");
 }
 
 TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {

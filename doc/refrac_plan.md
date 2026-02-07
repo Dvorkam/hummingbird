@@ -87,7 +87,7 @@
   - Gap: no direct tests for display list invalidation/reuse (owner changes, viewport change, scroll/debug flags).
   - Suggested tests: reuse on identical inputs; invalidate on viewport/scroll/debug flag changes.
 
-### P3-08 [ ] engine/resources: ResourceLoader request behavior
+### P3-08 [x] engine/resources: ResourceLoader request behavior
 - Files: `src/engine/resources/ResourceLoader.cpp`
   - Gap: ResourceLoader behavior covered indirectly via Tab tests; no direct unit coverage for asset fallback/log paths or request option differences.
   - Suggested tests: stylesheet vs image request option wiring, missing asset behavior, fallback network path for documents.
@@ -111,7 +111,7 @@
 
 #### Phase 3 Candidates (Scope Pass 3)
 
-### P3X-01 [ ] engine/html: form default method + button type gaps
+### P3X-01 [x] engine/html: form default method + button type gaps
 - Files: `tests/engine/Tab.test.cpp`, form submission path (likely `src/engine/document/DocumentModel.cpp`).
   - Gap: TODOs note missing defaults for `method=""` and empty `button type=""`.
   - Suggested fix/tests: implement defaults per HTML spec (GET + submit), add focused tests.
