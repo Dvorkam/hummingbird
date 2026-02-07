@@ -122,58 +122,6 @@ static std::optional<Color> parse_named_color(std::string_view value) {
     return std::nullopt;
 }
 
-enum class ParseHookKind {
-    Generic,
-    FontFamily,
-    MarginShorthand,
-    PaddingShorthand,
-    BorderShorthand,
-    BackgroundImage,
-    BackgroundJoin,
-    ListStyleShorthand,
-    Transform,
-    BackgroundShorthand,
-    Color,
-};
-
-ParseHookKind parse_hook_kind(PropertyRegistry::ParserHook hook) {
-    switch (hook) {
-        case PropertyRegistry::ParserHook::parse_font_family:
-            return ParseHookKind::FontFamily;
-        case PropertyRegistry::ParserHook::parse_margin_shorthand:
-            return ParseHookKind::MarginShorthand;
-        case PropertyRegistry::ParserHook::parse_padding_shorthand:
-            return ParseHookKind::PaddingShorthand;
-        case PropertyRegistry::ParserHook::parse_border_shorthand:
-            return ParseHookKind::BorderShorthand;
-        case PropertyRegistry::ParserHook::parse_background_image:
-            return ParseHookKind::BackgroundImage;
-        case PropertyRegistry::ParserHook::parse_background_repeat:
-        case PropertyRegistry::ParserHook::parse_background_position:
-        case PropertyRegistry::ParserHook::parse_background_size:
-            return ParseHookKind::BackgroundJoin;
-        case PropertyRegistry::ParserHook::parse_list_style_shorthand:
-            return ParseHookKind::ListStyleShorthand;
-        case PropertyRegistry::ParserHook::parse_transform:
-            return ParseHookKind::Transform;
-        case PropertyRegistry::ParserHook::parse_background_shorthand:
-            return ParseHookKind::BackgroundShorthand;
-        case PropertyRegistry::ParserHook::parse_color:
-            return ParseHookKind::Color;
-        case PropertyRegistry::ParserHook::Unknown:
-        case PropertyRegistry::ParserHook::parse_identifier:
-        case PropertyRegistry::ParserHook::parse_font_size:
-        case PropertyRegistry::ParserHook::parse_length_number:
-        case PropertyRegistry::ParserHook::parse_length_auto:
-        case PropertyRegistry::ParserHook::parse_length:
-        case PropertyRegistry::ParserHook::parse_number_auto:
-        case PropertyRegistry::ParserHook::parse_text_decoration:
-        case PropertyRegistry::ParserHook::parse_font_weight:
-            return ParseHookKind::Generic;
-    }
-    return ParseHookKind::Generic;
-}
-
 std::string value_to_text(const Value& value) {
     if (value.type == Value::Type::Identifier) {
         return value.ident;
@@ -420,8 +368,8 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         return true;
     }
 
-    ParseHookKind hook_kind = parse_hook_kind(PropertyRegistry::parser_hook(property));
-    if (hook_kind == ParseHookKind::FontFamily) {
+    PropertyRegistry::ParserHook parser_hook = PropertyRegistry::parser_hook(property);
+    if (parser_hook == PropertyRegistry::ParserHook::parse_font_family) {
         std::string list = parse_font_family_list();
         match(TokenType::Semicolon);  // consume if present
         if (!list.empty()) {
@@ -435,7 +383,7 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         return false;
     }
 
-    if (hook_kind == ParseHookKind::Color) {
+    if (parser_hook == PropertyRegistry::ParserHook::parse_color) {
         std::string var_expr = build_var_expression(values);
         if (!var_expr.empty()) {
             values.clear();
@@ -465,14 +413,14 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         push_decl(left, left_value);
     };
 
-    switch (hook_kind) {
-        case ParseHookKind::MarginShorthand:
+    switch (parser_hook) {
+        case PropertyRegistry::ParserHook::parse_margin_shorthand:
             emit_edges(Property::MarginTop, Property::MarginRight, Property::MarginBottom, Property::MarginLeft);
             return true;
-        case ParseHookKind::PaddingShorthand:
+        case PropertyRegistry::ParserHook::parse_padding_shorthand:
             emit_edges(Property::PaddingTop, Property::PaddingRight, Property::PaddingBottom, Property::PaddingLeft);
             return true;
-        case ParseHookKind::BorderShorthand: {
+        case PropertyRegistry::ParserHook::parse_border_shorthand: {
             std::optional<Value> border_width;
             std::optional<Value> border_style;
             std::optional<Value> border_color;
@@ -497,7 +445,7 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             if (border_color) push_decl(Property::BorderColor, *border_color);
             return true;
         }
-        case ParseHookKind::BackgroundImage:
+        case PropertyRegistry::ParserHook::parse_background_image:
             for (const auto& value : values) {
                 if (value.type == Value::Type::Url) {
                     push_decl(Property::BackgroundImage, value);
@@ -509,16 +457,18 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                 }
             }
             return true;
-        case ParseHookKind::BackgroundJoin:
-        case ParseHookKind::ListStyleShorthand:
-        case ParseHookKind::Transform: {
+        case PropertyRegistry::ParserHook::parse_background_repeat:
+        case PropertyRegistry::ParserHook::parse_background_position:
+        case PropertyRegistry::ParserHook::parse_background_size:
+        case PropertyRegistry::ParserHook::parse_list_style_shorthand:
+        case PropertyRegistry::ParserHook::parse_transform: {
             std::string text = join_value_list(values);
             if (!text.empty()) {
                 push_decl(property, Value::identifier(std::move(text)));
             }
             return true;
         }
-        case ParseHookKind::BackgroundShorthand: {
+        case PropertyRegistry::ParserHook::parse_background_shorthand: {
             std::string var_expr = build_var_expression(values);
             if (!var_expr.empty()) {
                 push_decl(Property::BackgroundColor, Value::identifier(std::move(var_expr)));
@@ -565,9 +515,17 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             }
             return true;
         }
-        case ParseHookKind::Generic:
-        case ParseHookKind::FontFamily:
-        case ParseHookKind::Color:
+        case PropertyRegistry::ParserHook::Unknown:
+        case PropertyRegistry::ParserHook::parse_identifier:
+        case PropertyRegistry::ParserHook::parse_font_size:
+        case PropertyRegistry::ParserHook::parse_length_number:
+        case PropertyRegistry::ParserHook::parse_length_auto:
+        case PropertyRegistry::ParserHook::parse_length:
+        case PropertyRegistry::ParserHook::parse_number_auto:
+        case PropertyRegistry::ParserHook::parse_text_decoration:
+        case PropertyRegistry::ParserHook::parse_font_family:
+        case PropertyRegistry::ParserHook::parse_font_weight:
+        case PropertyRegistry::ParserHook::parse_color:
             break;
     }
 

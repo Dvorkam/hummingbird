@@ -172,7 +172,7 @@
 - Replace parser/applier hook strings with typed enums (`ParserHook`, `ApplyHook`) in the property list.
 - Acceptance: no string-based hook comparisons remain in registry/parser wiring.
 
-### R4-07 [ ] style/parser: switch parser dispatch to typed hook IDs
+### R4-07 [x] style/parser: switch parser dispatch to typed hook IDs
 - Parser dispatches purely via `ParserHook` switch paths.
 - Acceptance: no parser dispatch logic keyed on hook strings.
 
