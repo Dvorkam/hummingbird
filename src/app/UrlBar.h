@@ -59,6 +59,9 @@ public:
 private:
     void refresh_render_text();
     void insert_text(std::string_view text);
+    bool handle_paste_key(const InputEvent& event, IWindow* window, KeyResult& result);
+    bool handle_edit_key(const InputEvent& event, KeyResult& result);
+    bool handle_commit_key(const InputEvent& event, IWindow* window, KeyResult& result);
     const ImageBitmap* current_icon() const;
     float text_start_x() const;
     bool is_security_icon_hit(int x, int y) const;

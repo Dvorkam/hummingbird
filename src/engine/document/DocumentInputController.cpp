@@ -58,8 +58,7 @@ std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element
     const auto* style = node.get_computed_style();
     Layout::Metrics::Insets insets = Layout::Metrics::compute_insets(style);
     Layout::Rect content = {absolute.x + insets.left, absolute.y + insets.top,
-                            absolute.width - insets.left - insets.right,
-                            absolute.height - insets.top - insets.bottom};
+                            absolute.width - insets.left - insets.right, absolute.height - insets.top - insets.bottom};
     if (content.width <= 0.0f || content.height <= 0.0f) {
         return std::nullopt;
     }
@@ -73,13 +72,7 @@ std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element
     float text_y = content.y + std::max(0.0f, (content.height - text_height) * 0.5f);
 
     return InputPaintData{
-        absolute,
-        content,
-        std::move(text_style),
-        std::move(value),
-        text_x,
-        text_y,
-        text_height,
+        absolute, content, std::move(text_style), std::move(value), text_x, text_y, text_height,
     };
 }
 
@@ -89,8 +82,8 @@ void paint_input_value(const InputPaintData& data, IGraphicsContext& graphics) {
     }
 }
 
-void paint_input_caret(const InputPaintData& data, IGraphicsContext& graphics, size_t caret,
-                       float scroll_y, bool repaint_background) {
+void paint_input_caret(const InputPaintData& data, IGraphicsContext& graphics, size_t caret, float scroll_y,
+                       bool repaint_background) {
     caret = Core::Utils::TextEditBuffer::clamp_caret_for(data.value, caret);
     std::string prefix = data.value.substr(0, caret);
     float caret_offset = graphics.measure_text(prefix, data.text_style).width;
@@ -101,11 +94,11 @@ void paint_input_caret(const InputPaintData& data, IGraphicsContext& graphics, s
     }
     Layout::Rect caret_rect{caret_x, data.text_y, 1.0f, data.text_height};
     graphics.fill_rect(caret_rect, data.text_style.color);
-    HB_LOG_DEBUG("[input] paint focused rect="
-                 << data.absolute.x << "," << data.absolute.y << " " << data.absolute.width << "x"
-                 << data.absolute.height << " content=" << data.content.x << "," << data.content.y << " "
-                 << data.content.width << "x" << data.content.height << " scroll_y=" << scroll_y
-                 << " repaint_bg=" << repaint_background);
+    HB_LOG_DEBUG("[input] paint focused rect=" << data.absolute.x << "," << data.absolute.y << " "
+                                               << data.absolute.width << "x" << data.absolute.height
+                                               << " content=" << data.content.x << "," << data.content.y << " "
+                                               << data.content.width << "x" << data.content.height
+                                               << " scroll_y=" << scroll_y << " repaint_bg=" << repaint_background);
 }
 }  // namespace
 

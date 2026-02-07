@@ -80,86 +80,9 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     KeyResult result;
     if (!active_) return result;
 
-    if (!event.key.repeat) {
-        const bool paste_ctrl_v = event.mods.ctrl && event.key.key == Key::V;
-        const bool paste_shift_insert = event.mods.shift && event.key.key == Key::Insert;
-        if (paste_ctrl_v || paste_shift_insert) {
-            if (window) {
-                const auto clipboard_text = window->get_clipboard_text();
-                if (!clipboard_text.empty()) {
-                    insert_text(clipboard_text);
-                    result.handled = true;
-                    result.needs_repaint = true;
-                }
-            }
-            return result;
-        }
-    }
-
-    if (event.key.key == Key::Backspace) {
-        result.handled = true;
-        if (Core::Utils::TextEditBuffer::backspace(text_, caret_)) {
-            refresh_render_text();
-        }
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Delete) {
-        result.handled = true;
-        if (Core::Utils::TextEditBuffer::delete_forward(text_, caret_)) {
-            refresh_render_text();
-        }
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Left) {
-        Core::Utils::TextEditBuffer::move_left(text_, caret_);
-        refresh_render_text();
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Right) {
-        Core::Utils::TextEditBuffer::move_right(text_, caret_);
-        refresh_render_text();
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Home) {
-        Core::Utils::TextEditBuffer::move_home(caret_);
-        refresh_render_text();
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::End) {
-        Core::Utils::TextEditBuffer::move_end(text_, caret_);
-        refresh_render_text();
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Enter) {
-        set_active(false, window, nullptr);
-        result.submitted_url = text_;
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Escape) {
-        set_active(false, window, nullptr);
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
+    if (handle_paste_key(event, window, result)) return result;
+    if (handle_edit_key(event, result)) return result;
+    if (handle_commit_key(event, window, result)) return result;
 
     return result;
 }
@@ -203,6 +126,97 @@ void UrlBar::insert_text(std::string_view text) {
     if (Core::Utils::TextEditBuffer::insert_text(text_, caret_, text)) {
         refresh_render_text();
     }
+}
+
+bool UrlBar::handle_paste_key(const InputEvent& event, IWindow* window, KeyResult& result) {
+    if (event.key.repeat) return false;
+
+    const bool paste_ctrl_v = event.mods.ctrl && event.key.key == Key::V;
+    const bool paste_shift_insert = event.mods.shift && event.key.key == Key::Insert;
+    if (!paste_ctrl_v && !paste_shift_insert) return false;
+
+    if (window) {
+        const auto clipboard_text = window->get_clipboard_text();
+        if (!clipboard_text.empty()) {
+            insert_text(clipboard_text);
+            result.handled = true;
+            result.needs_repaint = true;
+        }
+    }
+    return true;
+}
+
+bool UrlBar::handle_edit_key(const InputEvent& event, KeyResult& result) {
+    if (event.key.key == Key::Backspace) {
+        result.handled = true;
+        if (Core::Utils::TextEditBuffer::backspace(text_, caret_)) {
+            refresh_render_text();
+        }
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Delete) {
+        result.handled = true;
+        if (Core::Utils::TextEditBuffer::delete_forward(text_, caret_)) {
+            refresh_render_text();
+        }
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Left) {
+        Core::Utils::TextEditBuffer::move_left(text_, caret_);
+        refresh_render_text();
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Right) {
+        Core::Utils::TextEditBuffer::move_right(text_, caret_);
+        refresh_render_text();
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Home) {
+        Core::Utils::TextEditBuffer::move_home(caret_);
+        refresh_render_text();
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::End) {
+        Core::Utils::TextEditBuffer::move_end(text_, caret_);
+        refresh_render_text();
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    return false;
+}
+
+bool UrlBar::handle_commit_key(const InputEvent& event, IWindow* window, KeyResult& result) {
+    if (event.key.key == Key::Enter) {
+        set_active(false, window, nullptr);
+        result.submitted_url = text_;
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Escape) {
+        set_active(false, window, nullptr);
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    return false;
 }
 
 const ImageBitmap* UrlBar::current_icon() const {

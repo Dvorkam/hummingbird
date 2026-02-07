@@ -99,7 +99,7 @@
   - Concern: `paint_controls` is long and mixes traversal, layout math, text measurement, and painting.
   - Suggested refactor: extract caret computation + text paint into helpers; keep traversal high‑level.
 
-### P3C-02 [ ] app: UrlBar key handling helper
+### P3C-02 [x] app: UrlBar key handling helper
 - Files: `src/app/UrlBar.cpp`
   - Concern: `handle_key_down` is long and mixes clipboard, editing, and submission logic.
   - Suggested refactor: split into helpers (clipboard handling, editing keys, submit/cancel).
