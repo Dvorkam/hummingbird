@@ -157,7 +157,7 @@
 - StyleEngine becomes a thin dispatcher using registry entries.
 - Acceptance: StyleEngine shrinks; behavior unchanged.
 
-### R4-04 [ ] style/parser: route property parsing through registry
+### R4-04 [x] style/parser: route property parsing through registry
 - Parser resolves property via registry and calls the registered parser hook.
 - Remove any leftover hardcoded property switch chains.
 - Acceptance: CSS parsing coverage unchanged.

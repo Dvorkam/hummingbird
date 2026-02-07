@@ -139,8 +139,8 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                     overrides.weight = true;
                 }
             } else if (value.type == Value::Type::Number) {
-                style.weight = value.number >= 600.0f ? ComputedStyle::FontWeight::Bold
-                                                      : ComputedStyle::FontWeight::Normal;
+                style.weight =
+                    value.number >= 600.0f ? ComputedStyle::FontWeight::Bold : ComputedStyle::FontWeight::Normal;
                 overrides.weight = true;
             }
             return true;
