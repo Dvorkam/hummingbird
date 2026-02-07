@@ -15,6 +15,16 @@
 namespace Hummingbird::Engine {
 
 namespace {
+struct InputPaintData {
+    Layout::Rect absolute;
+    Layout::Rect content;
+    TextStyle text_style;
+    std::string value;
+    float text_x;
+    float text_y;
+    float text_height;
+};
+
 bool is_input_element(const DOM::Element* element) {
     return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
 }
@@ -41,6 +51,61 @@ DOM::Element* hit_test_input(const Layout::RenderObject* render_tree, const Layo
             return const_cast<DOM::Element*>(element);
         });
     return hit.value_or(nullptr);
+}
+
+std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element, const Layout::RenderObject& node,
+                                                     const Layout::Rect& absolute, IGraphicsContext& graphics) {
+    const auto* style = node.get_computed_style();
+    Layout::Metrics::Insets insets = Layout::Metrics::compute_insets(style);
+    Layout::Rect content = {absolute.x + insets.left, absolute.y + insets.top,
+                            absolute.width - insets.left - insets.right,
+                            absolute.height - insets.top - insets.bottom};
+    if (content.width <= 0.0f || content.height <= 0.0f) {
+        return std::nullopt;
+    }
+
+    TextStyle text_style = Layout::TextStyleUtils::build_text_style(style);
+    std::string value = input_value(element);
+    TextMetrics metrics = graphics.measure_text(value, text_style);
+    TextMetrics caret_metrics = metrics.height > 0.0f ? metrics : graphics.measure_text("A", text_style);
+    float text_height = metrics.height > 0.0f ? metrics.height : caret_metrics.height;
+    float text_x = content.x;
+    float text_y = content.y + std::max(0.0f, (content.height - text_height) * 0.5f);
+
+    return InputPaintData{
+        absolute,
+        content,
+        std::move(text_style),
+        std::move(value),
+        text_x,
+        text_y,
+        text_height,
+    };
+}
+
+void paint_input_value(const InputPaintData& data, IGraphicsContext& graphics) {
+    if (!data.value.empty()) {
+        graphics.draw_text(data.value, data.text_x, data.text_y, data.text_style);
+    }
+}
+
+void paint_input_caret(const InputPaintData& data, IGraphicsContext& graphics, size_t caret,
+                       float scroll_y, bool repaint_background) {
+    caret = Core::Utils::TextEditBuffer::clamp_caret_for(data.value, caret);
+    std::string prefix = data.value.substr(0, caret);
+    float caret_offset = graphics.measure_text(prefix, data.text_style).width;
+    float caret_x = data.text_x + caret_offset;
+    float max_caret_x = data.content.x + std::max(0.0f, data.content.width - 1.0f);
+    if (caret_x > max_caret_x) {
+        caret_x = max_caret_x;
+    }
+    Layout::Rect caret_rect{caret_x, data.text_y, 1.0f, data.text_height};
+    graphics.fill_rect(caret_rect, data.text_style.color);
+    HB_LOG_DEBUG("[input] paint focused rect="
+                 << data.absolute.x << "," << data.absolute.y << " " << data.absolute.width << "x"
+                 << data.absolute.height << " content=" << data.content.x << "," << data.content.y << " "
+                 << data.content.width << "x" << data.content.height << " scroll_y=" << scroll_y
+                 << " repaint_bg=" << repaint_background);
 }
 }  // namespace
 
@@ -166,42 +231,15 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
                 node.paint_self(graphics, local_offset);
             }
 
-            const auto* style = node.get_computed_style();
-            Layout::Metrics::Insets insets = Layout::Metrics::compute_insets(style);
-            Layout::Rect content = {absolute.x + insets.left, absolute.y + insets.top,
-                                    absolute.width - insets.left - insets.right,
-                                    absolute.height - insets.top - insets.bottom};
-            if (content.width <= 0.0f || content.height <= 0.0f) {
+            auto paint_data = build_input_paint_data(*element, node, absolute, graphics);
+            if (!paint_data.has_value()) {
                 return Layout::Traversal::TraverseAction::Continue;
             }
 
-            TextStyle text_style = Layout::TextStyleUtils::build_text_style(style);
-            std::string value = input_value(*element);
-            TextMetrics metrics = graphics.measure_text(value, text_style);
-            TextMetrics caret_metrics = metrics.height > 0.0f ? metrics : graphics.measure_text("A", text_style);
-            float text_height = metrics.height > 0.0f ? metrics.height : caret_metrics.height;
-            float text_x = content.x;
-            float text_y = content.y + std::max(0.0f, (content.height - text_height) * 0.5f);
-
-            if (!value.empty()) {
-                graphics.draw_text(value, text_x, text_y, text_style);
-            }
+            paint_input_value(*paint_data, graphics);
 
             if (element == focused_input_) {
-                auto caret = Core::Utils::TextEditBuffer::clamp_caret_for(value, caret_);
-                std::string prefix = value.substr(0, caret);
-                float caret_offset = graphics.measure_text(prefix, text_style).width;
-                float caret_x = text_x + caret_offset;
-                float max_caret_x = content.x + std::max(0.0f, content.width - 1.0f);
-                if (caret_x > max_caret_x) {
-                    caret_x = max_caret_x;
-                }
-                Layout::Rect caret_rect{caret_x, text_y, 1.0f, text_height};
-                graphics.fill_rect(caret_rect, text_style.color);
-                HB_LOG_DEBUG("[input] paint focused rect="
-                             << absolute.x << "," << absolute.y << " " << absolute.width << "x" << absolute.height
-                             << " content=" << content.x << "," << content.y << " " << content.width << "x"
-                             << content.height << " scroll_y=" << scroll_y << " repaint_bg=" << repaint_background);
+                paint_input_caret(*paint_data, graphics, caret_, scroll_y, repaint_background);
             }
 
             return Layout::Traversal::TraverseAction::Continue;

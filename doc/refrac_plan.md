@@ -94,7 +94,7 @@
 
 #### Phase 3 Candidates (Scope Pass 2)
 
-### P3C-01 [ ] engine/document: split paint_controls (SLAP + length)
+### P3C-01 [x] engine/document: split paint_controls (SLAP + length)
 - Files: `src/engine/document/DocumentInputController.cpp`
   - Concern: `paint_controls` is long and mixes traversal, layout math, text measurement, and painting.
   - Suggested refactor: extract caret computation + text paint into helpers; keep traversal high‑level.
