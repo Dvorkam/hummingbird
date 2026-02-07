@@ -3,18 +3,168 @@
 #include "style/compute/apply/ApplyBackground.h"
 #include "style/compute/apply/ApplyLayout.h"
 #include "style/compute/apply/ApplyText.h"
+#include "style/registry/CssPropertyRegistry.h"
 
 namespace Hummingbird::Css::Apply {
 
 void apply_property(Property property, const Value& value, ComputedStyle& style,
                     StyleDefaults::StyleOverrides& overrides, Context& context) {
-    if (apply_layout_property(property, value, style, overrides, context)) {
-        return;
+    using PropertyRegistry::ApplyHook;
+
+    switch (PropertyRegistry::applier_hook(property)) {
+        case ApplyHook::apply_display:
+            (void)apply_layout_property(Property::Display, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_position:
+            (void)apply_layout_property(Property::Position, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_font_size:
+            (void)apply_text_property(Property::FontSize, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_line_height:
+            (void)apply_text_property(Property::LineHeight, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_margin:
+            (void)apply_layout_property(Property::Margin, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_margin_top:
+            (void)apply_layout_property(Property::MarginTop, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_margin_right:
+            (void)apply_layout_property(Property::MarginRight, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_margin_bottom:
+            (void)apply_layout_property(Property::MarginBottom, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_margin_left:
+            (void)apply_layout_property(Property::MarginLeft, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_padding:
+            (void)apply_layout_property(Property::Padding, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_padding_top:
+            (void)apply_layout_property(Property::PaddingTop, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_padding_right:
+            (void)apply_layout_property(Property::PaddingRight, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_padding_bottom:
+            (void)apply_layout_property(Property::PaddingBottom, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_padding_left:
+            (void)apply_layout_property(Property::PaddingLeft, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_box_sizing:
+            (void)apply_layout_property(Property::BoxSizing, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_transform:
+            (void)apply_layout_property(Property::Transform, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_border:
+            (void)apply_layout_property(Property::Border, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_border_width:
+            (void)apply_layout_property(Property::BorderWidth, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_border_color:
+            (void)apply_layout_property(Property::BorderColor, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_border_style:
+            (void)apply_layout_property(Property::BorderStyle, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_width:
+            (void)apply_layout_property(Property::Width, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_height:
+            (void)apply_layout_property(Property::Height, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_min_width:
+            (void)apply_layout_property(Property::MinWidth, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_min_height:
+            (void)apply_layout_property(Property::MinHeight, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_max_width:
+            (void)apply_layout_property(Property::MaxWidth, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_max_height:
+            (void)apply_layout_property(Property::MaxHeight, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_top:
+            (void)apply_layout_property(Property::Top, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_right:
+            (void)apply_layout_property(Property::Right, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_bottom:
+            (void)apply_layout_property(Property::Bottom, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_left:
+            (void)apply_layout_property(Property::Left, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_z_index:
+            (void)apply_layout_property(Property::ZIndex, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_text_align:
+            (void)apply_text_property(Property::TextAlign, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_text_decoration:
+            (void)apply_text_property(Property::TextDecoration, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_text_decoration_thickness:
+            (void)apply_text_property(Property::TextDecorationThickness, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_text_underline_offset:
+            (void)apply_text_property(Property::TextUnderlineOffset, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_white_space:
+            (void)apply_text_property(Property::WhiteSpace, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_font_family:
+            (void)apply_text_property(Property::FontFamily, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_font_weight:
+            (void)apply_text_property(Property::FontWeight, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_font_style:
+            (void)apply_text_property(Property::FontStyle, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_float:
+            (void)apply_text_property(Property::Float, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_list_style:
+            (void)apply_text_property(Property::ListStyle, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_list_style_type:
+            (void)apply_text_property(Property::ListStyleType, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_list_style_position:
+            (void)apply_text_property(Property::ListStylePosition, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_color:
+            (void)apply_text_property(Property::Color, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_background_color:
+            (void)apply_background_property(Property::BackgroundColor, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_background:
+            (void)apply_background_property(Property::Background, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_background_image:
+            (void)apply_background_property(Property::BackgroundImage, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_background_repeat:
+            (void)apply_background_property(Property::BackgroundRepeat, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_background_position:
+            (void)apply_background_property(Property::BackgroundPosition, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_background_size:
+            (void)apply_background_property(Property::BackgroundSize, value, style, overrides, context);
+            return;
+        case ApplyHook::Unknown:
+            return;
     }
-    if (apply_text_property(property, value, style, overrides, context)) {
-        return;
-    }
-    (void)apply_background_property(property, value, style, overrides, context);
 }
 
 }  // namespace Hummingbird::Css::Apply

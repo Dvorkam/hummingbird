@@ -176,7 +176,7 @@
 - Parser dispatches purely via `ParserHook` switch paths.
 - Acceptance: no parser dispatch logic keyed on hook strings.
 
-### R4-08 [ ] style/compute: switch applier dispatch to typed hook IDs
+### R4-08 [x] style/compute: switch applier dispatch to typed hook IDs
 - Property application dispatches via `ApplyHook` from registry metadata.
 - Acceptance: adding a property that reuses existing apply behavior requires only registry entry changes.
 
