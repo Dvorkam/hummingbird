@@ -98,3 +98,9 @@ TEST(CssPropertyRegistryTest, ApplierDispatchesAliasThroughHook) {
     ASSERT_TRUE(style);
     EXPECT_EQ(style->box_sizing, ComputedStyle::BoxSizing::BorderBox);
 }
+
+TEST(CssPropertyRegistryTest, BackgroundRepeatUsesDedicatedParserHook) {
+    EXPECT_EQ(PropertyRegistry::parse_property_name("background-repeat"), Property::BackgroundRepeat);
+    EXPECT_EQ(PropertyRegistry::parser_hook(Property::BackgroundRepeat),
+              PropertyRegistry::ParserHook::parse_background_repeat);
+}
