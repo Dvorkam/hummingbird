@@ -152,7 +152,7 @@
 - Centralize string→Property lookup in `CssPropertyRegistry`.
 - Acceptance: parser and tests still pass, no new duplication.
 
-### R4-03 [ ] style/compute: move property application to apply modules
+### R4-03 [x] style/compute: move property application to apply modules
 - Extract property family appliers (e.g., `ApplyBox`, `ApplyBackground`, `ApplyFont`, `ApplyText`).
 - StyleEngine becomes a thin dispatcher using registry entries.
 - Acceptance: StyleEngine shrinks; behavior unchanged.

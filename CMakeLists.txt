@@ -42,6 +42,11 @@ add_library(Style STATIC
     src/style/compute/StyleEngine.cpp
     src/style/compute/StyleValueUtils.cpp
     src/style/compute/StylesheetSource.cpp
+    src/style/compute/apply/ApplyBackground.cpp
+    src/style/compute/apply/ApplyColorUtils.cpp
+    src/style/compute/apply/ApplyLayout.cpp
+    src/style/compute/apply/ApplyText.cpp
+    src/style/compute/apply/PropertyApplier.cpp
 )
 target_include_directories(Style
     PUBLIC
