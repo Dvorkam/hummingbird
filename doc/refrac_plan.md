@@ -180,7 +180,7 @@
 - Property application dispatches via `ApplyHook` from registry metadata.
 - Acceptance: adding a property that reuses existing apply behavior requires only registry entry changes.
 
-### R4-09 [ ] style/registry: add compile-time metadata invariants
+### R4-09 [x] style/registry: add compile-time metadata invariants
 - Add checks for invalid/missing hooks and alias/canonical consistency.
 - Acceptance: bad registry entries fail in CI.
 
