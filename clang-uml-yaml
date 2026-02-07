@@ -1,0 +1,65 @@
+compilation_database_dir: build
+output_directory: doc/diagrams
+
+# Keep the output sane
+diagram_templates:
+  default:
+    generate_packages: true
+    generate_links: true
+    include:
+      paths:
+        - src/.*
+    exclude:
+      paths:
+        - build/.*
+        - build_sanity/.*
+        - vcpkg_installed/.*
+        - .*/vcpkg_installed/.*
+        - tests/.*
+        - .*/tests/.*
+
+diagrams:
+  # A) High level "how modules depend on each other"
+  hummingbird_modules:
+    type: package
+    glob:
+      - src/app/**
+      - src/core/**
+      - src/engine/**
+      - src/html/**
+      - src/style/**
+      - src/layout/**
+      - src/renderer/**
+      - src/platform/**
+    include:
+      paths:
+        - src/(app|core|engine|html|style|layout|renderer|platform)/.*
+    exclude:
+      paths:
+        - src/.*/test/.*
+    plantuml:
+      after:
+        - "hide empty members"
+        - "hide methods"
+        - "hide fields"
+
+  # B) Core / platform API interfaces (nice adapter boundary diagram)
+  platform_api:
+    type: class
+    include:
+      paths:
+        - src/core/platform_api/.*
+    class:
+      generate_method_arguments: none
+      generate_constructors: false
+      generate_associations: true
+      generate_inheritance: true
+    plantuml:
+      after:
+        - "hide circle"
+
+  # C) Engine pipeline (document -> paint-ish bits)
+  engine_pipeline:
+    type: class
+    include:
+      pat
