@@ -189,7 +189,7 @@
 - Acceptance: test fails if registry metadata is incomplete or inconsistent.
 
 ## Deliverables
-- This plan (doc/refrac_plan.md).
+- This plan (`doc/todo_archive/refrac_plan_done.md`).
 - A follow-up “scaffolding” doc listing refactor candidates with owners/priority (to be created after Phase 1–3 review).
 
 ## Acceptance Criteria

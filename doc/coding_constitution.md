@@ -235,3 +235,9 @@ Before committing, ask:
 2. **Memory:** Am I using `new` without an Arena? (If yes, Justify).
 3. **Clarity:** Can a junior dev understand this function without reading the comments?
 4. **Tests:** Did I break the "MotherfuckingWebsite" golden master?
+
+## 8. Developer Guides
+
+When adding or changing structured workflows (for example CSS property registration), check the relevant guide in `doc/dev_guide/` before implementing.
+
+If no guide exists for a repeated workflow, add one.
