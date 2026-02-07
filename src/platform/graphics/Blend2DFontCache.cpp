@@ -50,6 +50,17 @@ void Blend2DFontCache::set_max_entries(size_t max_entries) {
     evict_if_needed();
 }
 
+size_t Blend2DFontCache::entry_count() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return entries_.size();
+}
+
+bool Blend2DFontCache::has_entry(const std::string& font_path, float font_size) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    FontKey key{font_path, font_size};
+    return entries_.find(key) != entries_.end();
+}
+
 bool Blend2DFontCache::load_font_setup(const std::string& font_path, float font_size, FontSetup& out,
                                        bool include_error) {
     BLResult err = out.face.createFromFile(font_path.c_str());

@@ -20,6 +20,8 @@ public:
 
     const FontSetup* get_or_load(const std::string& font_path, float font_size, bool include_error);
     void set_max_entries(size_t max_entries);
+    size_t entry_count() const;
+    bool has_entry(const std::string& font_path, float font_size) const;
 
 private:
     struct FontKey {
@@ -43,7 +45,7 @@ private:
     bool load_font_setup(const std::string& font_path, float font_size, FontSetup& out, bool include_error);
     void evict_if_needed();
 
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     std::unordered_map<FontKey, Entry, FontKeyHash> entries_;
     size_t tick_ = 0;
     size_t max_entries_ = 32;

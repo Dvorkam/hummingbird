@@ -67,12 +67,12 @@
   - Gap: RenderObject tests disabled; no coverage for inline/block status helpers.
   - Suggested tests: re‑enable and validate inline status reporting.
 
-### P3-04 [ ] platform/graphics: cache eviction behavior
+### P3-04 [x] platform/graphics: cache eviction behavior
 - Files: `src/platform/graphics/SDLGraphicsContext.cpp`, `src/platform/graphics/Blend2DFontCache.cpp`
   - Gap: no tests for cache eviction logic (LRU ordering, byte caps, texture cleanup).
   - Suggested tests: small cache sizes, verify eviction order + byte accounting; could be unit tests around cache containers if SDL textures are hard to instantiate.
 
-### P3-05 [ ] core/utils: AssetLoader coverage
+### P3-05 [x] core/utils: AssetLoader coverage
 - Files: `src/core/utils/AssetLoader.*`
   - Gap: no direct tests for AssetLoader path handling, missing file logging gating, URL rejection.
   - Suggested tests: empty id, URL id, missing file (no crash), successful load (fixtures).

@@ -17,6 +17,7 @@ add_executable(HummingbirdTests
     engine/ResourceStore.test.cpp
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp
+    core/AssetLoader.test.cpp
     core/TextEditBuffer.test.cpp
     core/Url.test.cpp
     core/Timing.test.cpp
@@ -44,6 +45,8 @@ add_executable(HummingbirdTests
     platform/ResourceProvider.test.cpp
     platform/ImageDecoder.test.cpp
     platform/ScriptEngine.test.cpp
+    platform/CacheUtils.test.cpp
+    platform/Blend2DFontCache.test.cpp
     network/StubNetwork.test.cpp
     network/CurlNetwork.test.cpp
     network/NetworkFactory.test.cpp
