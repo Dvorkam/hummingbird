@@ -121,7 +121,7 @@
   - Gap: monospace font selection is hardcoded; TODO in TextBox.
   - Suggested fix/tests: real font-family list handling for `monospace` with tests in TextStyleUtils or layout.
 
-### P3X-03 [ ] engine/renderer: background-image integration
+### P3X-03 [x] engine/renderer: background-image integration
 - Files: `src/engine/document/DocumentPipeline.cpp`, `src/engine/resources/ResourceLoader.cpp`, `src/renderer/Painter.cpp`
   - Gap: background-image is parsed and collected, but no end-to-end test verifying resource fetch + paint.
   - Suggested tests: headless tab or pipeline integration that loads a background image and asserts an image draw call.
