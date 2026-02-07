@@ -17,6 +17,8 @@ constexpr Color kOverlayText{0, 0, 0, 255};
 constexpr float kIconSize = 16.0f;
 constexpr float kIconPadding = 6.0f;
 constexpr float kTextPadding = 8.0f;
+constexpr float kTextBaselineY = 8.0f;
+constexpr float kTextSize = 16.0f;
 }  // namespace
 
 UrlBar::UrlBar() : text_("https://example.dev") {
@@ -25,7 +27,7 @@ UrlBar::UrlBar() : text_("https://example.dev") {
 
     font_path_ = Hummingbird::Core::Utils::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
     style_.font_path = font_path_;
-    style_.font_size = 16.0f;
+    style_.font_size = kTextSize;
     style_.color = kOverlayText;
 
     refresh_render_text();
@@ -111,7 +113,7 @@ void UrlBar::draw(IGraphicsContext& graphics, int win_w) const {
         Hummingbird::Layout::Rect icon_rect{kTextPadding, icon_y, kIconSize, kIconSize};
         graphics.draw_image(*icon, icon_rect);
     }
-    graphics.draw_text(render_text_, text_start_x(), 8.0f, style_);
+    graphics.draw_text(render_text_, text_start_x(), kTextBaselineY, style_);
 }
 
 void UrlBar::refresh_render_text() {

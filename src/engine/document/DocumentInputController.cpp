@@ -15,6 +15,9 @@
 namespace Hummingbird::Engine {
 
 namespace {
+constexpr float kCaretWidth = 1.0f;
+constexpr const char* kCaretFallbackGlyph = "A";
+
 struct InputPaintData {
     Layout::Rect absolute;
     Layout::Rect content;
@@ -66,7 +69,8 @@ std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element
     TextStyle text_style = Layout::TextStyleUtils::build_text_style(style);
     std::string value = input_value(element);
     TextMetrics metrics = graphics.measure_text(value, text_style);
-    TextMetrics caret_metrics = metrics.height > 0.0f ? metrics : graphics.measure_text("A", text_style);
+    TextMetrics caret_metrics =
+        metrics.height > 0.0f ? metrics : graphics.measure_text(kCaretFallbackGlyph, text_style);
     float text_height = metrics.height > 0.0f ? metrics.height : caret_metrics.height;
     float text_x = content.x;
     float text_y = content.y + std::max(0.0f, (content.height - text_height) * 0.5f);
@@ -92,7 +96,7 @@ void paint_input_caret(const InputPaintData& data, IGraphicsContext& graphics, s
     if (caret_x > max_caret_x) {
         caret_x = max_caret_x;
     }
-    Layout::Rect caret_rect{caret_x, data.text_y, 1.0f, data.text_height};
+    Layout::Rect caret_rect{caret_x, data.text_y, kCaretWidth, data.text_height};
     graphics.fill_rect(caret_rect, data.text_style.color);
     HB_LOG_DEBUG("[input] paint focused rect=" << data.absolute.x << "," << data.absolute.y << " "
                                                << data.absolute.width << "x" << data.absolute.height

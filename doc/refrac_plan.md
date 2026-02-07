@@ -104,7 +104,7 @@
   - Concern: `handle_key_down` is long and mixes clipboard, editing, and submission logic.
   - Suggested refactor: split into helpers (clipboard handling, editing keys, submit/cancel).
 
-### P3C-03 [ ] app/engine: magic pixel constants audit
+### P3C-03 [x] app/engine: magic pixel constants audit
 - Files: `src/app/UrlBar.cpp`, `src/engine/document/DocumentInputController.cpp`
   - Concern: a few literal pixel values remain (e.g., text baseline offset, caret width/height math).
   - Suggested refactor: replace with named `k...` constants to align with constitution.
