@@ -116,7 +116,7 @@
   - Gap: TODOs note missing defaults for `method=""` and empty `button type=""`.
   - Suggested fix/tests: implement defaults per HTML spec (GET + submit), add focused tests.
 
-### P3X-02 [ ] layout/platform: monospace font selection TODO
+### P3X-02 [x] layout/platform: monospace font selection TODO
 - Files: `src/layout/flow/TextBox.cpp`, `src/layout/flow/TextStyleUtils.h`
   - Gap: monospace font selection is hardcoded; TODO in TextBox.
   - Suggested fix/tests: real font-family list handling for `monospace` with tests in TextStyleUtils or layout.

@@ -161,18 +161,10 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
         return;
     }
 
-    // Assumptions for now: monospace font selection is still hardcoded.
     float font_size = style ? style->font_size : kDefaultFontSizePx;
     TextStyle text_style = TextStyleUtils::build_text_style(style);
     text_style.font_size = font_size;
 
-    if (text_style.monospace) {
-        // TODO: choose real monospace fonts when available.
-        static std::atomic<bool> warned{false};
-        if (!warned.exchange(true, std::memory_order_relaxed)) {
-            HB_LOG_WARN("[layout] Not implemented: real monospace font selection");
-        }
-    }
     float line_height = measure_text_block(context, m_rendered_text, text_style, m_last_metrics);
     line_height = TextMetricsUtils::resolve_line_height(style, line_height);
     m_line_height = line_height;
