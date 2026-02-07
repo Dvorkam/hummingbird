@@ -162,7 +162,7 @@
 - Remove any leftover hardcoded property switch chains.
 - Acceptance: CSS parsing coverage unchanged.
 
-### R4-05 [ ] tests: registry mapping + dispatch sanity
+### R4-05 [x] tests: registry mapping + dispatch sanity
 - Add unit tests for: name↔enum mapping, parser hook dispatch, applier dispatch.
 - Acceptance: tests verify registry is the single authoritative source.
 

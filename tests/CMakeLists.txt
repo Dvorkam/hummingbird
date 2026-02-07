@@ -36,6 +36,7 @@ add_executable(HummingbirdTests
     renderer/DisplayList.test.cpp
     renderer/Painter.test.cpp
     style/CSSParser.test.cpp
+    style/CssPropertyRegistry.test.cpp
     style/SelectorMatcher.test.cpp
     style/StyleEngine.test.cpp
     style/StylesheetSource.test.cpp
