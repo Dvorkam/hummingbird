@@ -62,7 +62,7 @@
   - Gap: no direct unit coverage for UTF‑8 caret clamp/insert/delete paths.
   - Suggested tests: ASCII + multi‑byte (e.g., “á”, emoji) insert/delete/backspace/forward-delete semantics.
 
-### P3-03 [ ] layout: RenderObject sanity tests
+### P3-03 [x] layout: RenderObject sanity tests
 - Files: `src/layout/RenderObject.*`, `tests/layout/RenderObject.test.cpp` (currently commented out).
   - Gap: RenderObject tests disabled; no coverage for inline/block status helpers.
   - Suggested tests: re‑enable and validate inline status reporting.
