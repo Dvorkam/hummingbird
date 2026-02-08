@@ -30,48 +30,94 @@ void ExtensionHost::set_extensions(std::vector<LoadedExtension> extensions) {
     }
 }
 
+void ExtensionHost::set_settings(ExtensionSettings settings) {
+    settings_ = std::move(settings);
+}
+
 size_t ExtensionHost::extension_count() const {
     return runtimes_.size();
 }
 
+bool ExtensionHost::start_background_script(Runtime& runtime) {
+    if (runtime.started) {
+        return true;
+    }
+    if (!is_extension_enabled(settings_, runtime.extension)) {
+        return false;
+    }
+
+    if (!runtime.engine) {
+        runtime.engine = create_engine_ ? create_engine_() : nullptr;
+    }
+    if (!runtime.engine) {
+        errors_.push_back(ExtensionRuntimeError{runtime.extension.manifest.name, "failed to create script engine",
+                                                runtime.extension.root_dir});
+        HB_LOG_WARN("[ext] failed to create script engine for " << runtime.extension.manifest.name);
+        return false;
+    }
+
+    auto source = read_file_to_string(runtime.extension.background_entry_path);
+    if (!source) {
+        errors_.push_back(ExtensionRuntimeError{runtime.extension.manifest.name, "failed to read background script",
+                                                runtime.extension.background_entry_path});
+        HB_LOG_WARN("[ext] failed to read background script for " << runtime.extension.manifest.name << ": "
+                                                                  << runtime.extension.background_entry_path.string());
+        return false;
+    }
+
+    HB_LOG_INFO("[ext] starting background script: " << runtime.extension.manifest.name);
+    auto result = runtime.engine->eval(*source, runtime.extension.background_entry_path.string());
+    if (!result.ok) {
+        errors_.push_back(ExtensionRuntimeError{runtime.extension.manifest.name, result.error,
+                                                runtime.extension.background_entry_path});
+        HB_LOG_WARN("[ext] background script error in " << runtime.extension.manifest.name << ": " << result.error);
+        return false;
+    }
+
+    runtime.started = true;
+    return true;
+}
+
 void ExtensionHost::start_background_scripts() {
     errors_.clear();
+    started_ = true;
 
     for (auto& runtime : runtimes_) {
-        if (runtime.started) {
-            continue;
-        }
-
-        if (!runtime.engine) {
-            runtime.engine = create_engine_ ? create_engine_() : nullptr;
-        }
-        if (!runtime.engine) {
-            errors_.push_back(ExtensionRuntimeError{runtime.extension.manifest.name, "failed to create script engine",
-                                                    runtime.extension.root_dir});
-            HB_LOG_WARN("[ext] failed to create script engine for " << runtime.extension.manifest.name);
-            continue;
-        }
-
-        auto source = read_file_to_string(runtime.extension.background_entry_path);
-        if (!source) {
-            errors_.push_back(ExtensionRuntimeError{runtime.extension.manifest.name, "failed to read background script",
-                                                    runtime.extension.background_entry_path});
-            HB_LOG_WARN("[ext] failed to read background script for "
-                        << runtime.extension.manifest.name << ": " << runtime.extension.background_entry_path.string());
-            continue;
-        }
-
-        HB_LOG_INFO("[ext] starting background script: " << runtime.extension.manifest.name);
-        auto result = runtime.engine->eval(*source, runtime.extension.background_entry_path.string());
-        if (!result.ok) {
-            errors_.push_back(ExtensionRuntimeError{runtime.extension.manifest.name, result.error,
-                                                    runtime.extension.background_entry_path});
-            HB_LOG_WARN("[ext] background script error in " << runtime.extension.manifest.name << ": " << result.error);
-            continue;
-        }
-
-        runtime.started = true;
+        (void)start_background_script(runtime);
     }
+}
+
+bool ExtensionHost::set_extension_enabled(std::string_view id, bool enabled) {
+    const std::string id_str(id);
+    const bool allowlist_mode = !settings_.enabled_ids.empty();
+
+    if (enabled) {
+        settings_.disabled_ids.erase(id_str);
+        if (allowlist_mode) {
+            settings_.enabled_ids.insert(id_str);
+        }
+    } else {
+        if (allowlist_mode) {
+            settings_.enabled_ids.erase(id_str);
+        } else {
+            settings_.disabled_ids.insert(id_str);
+        }
+    }
+
+    bool found = false;
+    for (auto& runtime : runtimes_) {
+        if (extension_id(runtime.extension) != id_str) {
+            continue;
+        }
+        found = true;
+        if (!enabled) {
+            runtime.engine.reset();
+            runtime.started = false;
+        } else if (started_) {
+            (void)start_background_script(runtime);
+        }
+    }
+    return found;
 }
 
 void ExtensionHost::shutdown() {
@@ -80,6 +126,7 @@ void ExtensionHost::shutdown() {
         runtime.started = false;
     }
     errors_.clear();
+    started_ = false;
 }
 
 }  // namespace Hummingbird::Engine

@@ -17,6 +17,7 @@
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "core/utils/Log.h"
+#include "engine/extensions/ExtensionSettings.h"
 
 namespace Hummingbird::App {
 
@@ -93,6 +94,7 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     for (const auto& e : errors) {
         HB_LOG_WARN("[ext] " << e.message << ": " << e.path.string());
     }
+    extension_host_.set_settings(Hummingbird::Engine::extension_settings_from_env());
     extension_host_.set_extensions(std::move(loaded));
     if (extension_host_.extension_count() > 0) {
         HB_LOG_INFO("[ext] loaded extensions: " << extension_host_.extension_count());

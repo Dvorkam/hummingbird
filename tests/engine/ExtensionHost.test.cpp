@@ -128,3 +128,37 @@ TEST(ExtensionHostTest, SurfacesEvalErrorsPerExtension) {
     EXPECT_EQ(host.errors()[0].extension_name, "E");
     EXPECT_FALSE(host.errors()[0].message.empty());
 }
+
+TEST(ExtensionHostTest, DisabledExtensionsDoNotStartAndCanBeToggled) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-disabled");
+    auto ext_a_root = root.path() / "a";
+    auto ext_b_root = root.path() / "b";
+
+    write_text(ext_a_root / "bg.js", "globalThis.__a = 1;");
+    write_text(ext_b_root / "bg.js", "globalThis.__b = 2;");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_a_root, "A", "bg.js"));
+    extensions.push_back(make_loaded_extension(ext_b_root, "B", "bg.js"));
+
+    EvalSink sink;
+    Hummingbird::Engine::ExtensionHost host([&sink]() { return std::make_unique<RecordingScriptEngine>(&sink); });
+
+    Hummingbird::Engine::ExtensionSettings settings;
+    settings.disabled_ids.insert("b");
+    host.set_settings(std::move(settings));
+    host.set_extensions(std::move(extensions));
+
+    host.start_background_scripts();
+    ASSERT_EQ(sink.evals.size(), 1u);
+
+    EXPECT_FALSE(host.set_extension_enabled("nope", false));
+    EXPECT_TRUE(host.set_extension_enabled("b", true));
+
+    ASSERT_EQ(sink.evals.size(), 2u);
+    EXPECT_TRUE(host.set_extension_enabled("b", false));
+
+    // Disabling should tear down; re-enabling should start again.
+    EXPECT_TRUE(host.set_extension_enabled("b", true));
+    EXPECT_EQ(sink.evals.size(), 3u);
+}

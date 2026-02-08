@@ -364,7 +364,7 @@ P0: Browser OS + Extensions (North Star)
 - [x] 5.2.1: Extension Manifest v0
 - [x] 5.2.2: Extension Loader
 - [x] 5.2.3: Background Script Runtime
-- [ ] 5.2.4: Enable/Disable Lifecycle
+- [x] 5.2.4: Enable/Disable Lifecycle
 - [ ] 5.3.3: Deterministic Event Wiring
 - [ ] 5.3.1: `browser.tabs` Events + Active Query
 - [ ] 5.4.1: Extension Stylesheet Origin Layer
