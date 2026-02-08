@@ -11,6 +11,7 @@
 #include "core/platform_api/IScriptEngine.h"
 #include "engine/document/DocumentInputController.h"
 #include "engine/document/DocumentModel.h"
+#include "engine/document/DocumentNavigation.h"
 #include "engine/document/DocumentPainter.h"
 #include "engine/document/DocumentResources.h"
 #include "engine/forms/FormSubmission.h"
@@ -96,6 +97,7 @@ private:
     DocumentInputController input_controller_;
     DocumentResources resources_;
     DocumentModel model_;
+    DocumentNavigation navigation_{model_};
     DocumentPainter painter_;
     DocumentScriptController script_controller_;
     std::vector<std::string> extension_style_blocks_;
