@@ -72,9 +72,26 @@ bool matches_selector(const DOM::Node* node, const Selector& selector) {
     if (selector.parts.size() == 1) {
         return true;
     }
+
+    auto combinator_for = [&](size_t parent_index) {
+        if (parent_index < selector.combinators.size()) {
+            return selector.combinators[parent_index];
+        }
+        return Selector::Combinator::Descendant;
+    };
+
     for (size_t i = selector.parts.size() - 1; i-- > 0;) {
         const auto& part = selector.parts[i];
-        const DOM::Node* cursor = current ? current->get_parent() : nullptr;
+        const DOM::Node* parent = current ? current->get_parent() : nullptr;
+        if (combinator_for(i) == Selector::Combinator::Child) {
+            if (!parent || !matches_simple_selector(parent, part)) {
+                return false;
+            }
+            current = parent;
+            continue;
+        }
+
+        const DOM::Node* cursor = parent;
         bool found = false;
         while (cursor) {
             if (matches_simple_selector(cursor, part)) {

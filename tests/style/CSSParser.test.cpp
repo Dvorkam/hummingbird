@@ -84,6 +84,22 @@ TEST(CSSParserTest, ParsesDescendantSelector) {
     const auto& rule = sheet.rules[0];
     ASSERT_EQ(rule.selectors.size(), 1u);
     ASSERT_EQ(rule.selectors[0].parts.size(), 2u);
+    ASSERT_EQ(rule.selectors[0].combinators.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].combinators[0], Selector::Combinator::Descendant);
+    EXPECT_EQ(rule.selectors[0].parts[0].tag, Hummingbird::Html::TagNames::Div);
+    ASSERT_EQ(rule.selectors[0].parts[1].classes.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].parts[1].classes[0], "note");
+}
+
+TEST(CSSParserTest, ParsesChildSelector) {
+    Parser parser("div > .note { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& rule = sheet.rules[0];
+    ASSERT_EQ(rule.selectors.size(), 1u);
+    ASSERT_EQ(rule.selectors[0].parts.size(), 2u);
+    ASSERT_EQ(rule.selectors[0].combinators.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].combinators[0], Selector::Combinator::Child);
     EXPECT_EQ(rule.selectors[0].parts[0].tag, Hummingbird::Html::TagNames::Div);
     ASSERT_EQ(rule.selectors[0].parts[1].classes.size(), 1u);
     EXPECT_EQ(rule.selectors[0].parts[1].classes[0], "note");

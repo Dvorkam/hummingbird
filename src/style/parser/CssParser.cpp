@@ -55,16 +55,35 @@ static bool is_selector_start(TokenType type) {
 Selector Parser::parse_selector() {
     Selector selector;
     skip_whitespace_tokens();
-    while (is_selector_start(peek().type)) {
-        selector.parts.push_back(parse_simple_selector());
+    if (!is_selector_start(peek().type)) {
+        return selector;
+    }
+
+    selector.parts.push_back(parse_simple_selector());
+    while (true) {
         bool saw_whitespace = false;
         while (peek().type == TokenType::Whitespace) {
             saw_whitespace = true;
             advance();
         }
-        if (!saw_whitespace) {
+
+        if (match(TokenType::Greater)) {
+            while (peek().type == TokenType::Whitespace) {
+                advance();
+            }
+            if (!is_selector_start(peek().type)) {
+                break;
+            }
+            selector.combinators.push_back(Selector::Combinator::Child);
+            selector.parts.push_back(parse_simple_selector());
+            continue;
+        }
+
+        if (!saw_whitespace || !is_selector_start(peek().type)) {
             break;
         }
+        selector.combinators.push_back(Selector::Combinator::Descendant);
+        selector.parts.push_back(parse_simple_selector());
     }
     return selector;
 }

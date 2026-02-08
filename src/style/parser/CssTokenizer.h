@@ -20,6 +20,7 @@ enum class TokenType {
     Dot,
     Hash,
     Star,
+    Greater,
     Percent,
     Url,
     End,

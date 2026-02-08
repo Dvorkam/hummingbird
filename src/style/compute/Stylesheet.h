@@ -97,7 +97,13 @@ struct SelectorPart {
 };
 
 struct Selector {
+    enum class Combinator {
+        Descendant,
+        Child,
+    };
+
     std::vector<SelectorPart> parts;
+    std::vector<Combinator> combinators;
 
     int specificity() const {
         int spec = 0;
