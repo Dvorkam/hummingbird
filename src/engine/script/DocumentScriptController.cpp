@@ -3,9 +3,10 @@
 #include <optional>
 #include <utility>
 
+#include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
+#include "core/dom/Node.h"
 #include "core/utils/Log.h"
-#include "engine/document/DocumentModel.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
 #include "layout/geometry/GeometryUtils.h"
@@ -63,18 +64,19 @@ void DocumentScriptController::clear() {
     script_host_.clear();
 }
 
-bool DocumentScriptController::run_inline_scripts(DocumentModel& model) {
+bool DocumentScriptController::run_inline_scripts(const std::vector<std::string>& scripts, DOM::Node* dom_root,
+                                                  Core::ArenaAllocator* arena) {
     if (!script_engine_) {
         return false;
     }
-    if (model.script_blocks().empty()) {
+    if (scripts.empty()) {
         return false;
     }
-    if (!bind_host(model)) {
+    if (!bind_host(dom_root, arena)) {
         return false;
     }
 
-    for (const auto& script : model.script_blocks()) {
+    for (const auto& script : scripts) {
         if (script.empty()) {
             continue;
         }
@@ -88,7 +90,7 @@ bool DocumentScriptController::run_inline_scripts(DocumentModel& model) {
 }
 
 DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_click(
-    DocumentModel& model, const Layout::RenderObject* render_tree, const Layout::Rect& viewport,
+    DOM::Node* dom_root, Core::ArenaAllocator* arena, const Layout::RenderObject* render_tree, const Layout::Rect& viewport,
     const Layout::Point& point, float scroll_y) {
     if (!render_tree) {
         return {};
@@ -128,11 +130,12 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatc
     std::string wrapped = "(function(){";
     wrapped.append(*handler);
     wrapped.append("})();");
-    return eval_inline_script(model, wrapped, "onclick");
+    return eval_inline_script(dom_root, arena, wrapped, "onclick");
 }
 
-DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_load(DocumentModel& model) {
-    auto handler = resolve_onload_handler(model.dom_root());
+DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_load(DOM::Node* dom_root,
+                                                                                       Core::ArenaAllocator* arena) {
+    auto handler = resolve_onload_handler(dom_root);
     if (!handler) {
         return {};
     }
@@ -140,28 +143,27 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatc
     std::string wrapped = "(function(){";
     wrapped.append(*handler);
     wrapped.append("})();");
-    return eval_inline_script(model, wrapped, "onload");
+    return eval_inline_script(dom_root, arena, wrapped, "onload");
 }
 
-bool DocumentScriptController::bind_host(DocumentModel& model) {
+bool DocumentScriptController::bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena) {
     if (!script_engine_) {
         return false;
     }
-    auto* dom_root = model.dom_root();
     if (!dom_root) {
         return false;
     }
-    script_host_.reset(dom_root, model.dom_arena());
+    script_host_.reset(dom_root, arena);
     script_engine_->bind_host(&script_host_);
     return true;
 }
 
 DocumentScriptController::ScriptDispatchResult DocumentScriptController::eval_inline_script(
-    DocumentModel& model, std::string_view script, std::string_view context_name) {
+    DOM::Node* dom_root, Core::ArenaAllocator* arena, std::string_view script, std::string_view context_name) {
     if (script.empty()) {
         return {};
     }
-    if (!bind_host(model)) {
+    if (!bind_host(dom_root, arena)) {
         return {};
     }
 

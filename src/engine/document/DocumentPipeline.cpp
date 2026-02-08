@@ -9,8 +9,8 @@
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
 #include "core/utils/Timing.h"
-#include "engine/resources/ResourceUrl.h"
 #include "engine/document/HitTestUtils.h"
+#include "engine/resources/ResourceUrl.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
@@ -111,7 +111,7 @@ bool DocumentPipeline::parse_html(std::string_view html) {
 }
 
 bool DocumentPipeline::run_scripts() {
-    return script_controller_.run_inline_scripts(model_);
+    return script_controller_.run_inline_scripts(model_.script_blocks(), model_.dom_root(), model_.dom_arena());
 }
 
 void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>& style_blocks) {
@@ -119,12 +119,12 @@ void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_click(const HitTestContext& context) {
-    return script_controller_.dispatch_click(model_, model_.render_tree(), context.viewport, context.point,
-                                             context.scroll_y);
+    return script_controller_.dispatch_click(model_.dom_root(), model_.dom_arena(), model_.render_tree(),
+                                             context.viewport, context.point, context.scroll_y);
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
-    return script_controller_.dispatch_load(model_);
+    return script_controller_.dispatch_load(model_.dom_root(), model_.dom_arena());
 }
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
