@@ -287,6 +287,61 @@ TEST(EngineTabTest, ExtensionCssInjectionInvalidatesOnceWithoutResourceFollowups
     EXPECT_FALSE(harness.tick());
 }
 
+TEST(EngineTabTest, ExtensionCssInjectedBeforeNavigationDoesNotDoubleRebuildOnCommit) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Commit budget test</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("p { color: #222222; }"));
+    harness.navigate("https://acme.test");
+    EXPECT_TRUE(harness.tick());
+    EXPECT_FALSE(harness.tick());
+}
+
+TEST(EngineTabTest, DuplicateExtensionCssDoesNotTriggerExtraInvalidation) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Duplicate CSS budget test</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test");
+    ASSERT_TRUE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("p { color: #333333; }"));
+    EXPECT_TRUE(harness.tick());
+    EXPECT_FALSE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("p { color: #333333; }"));
+    EXPECT_FALSE(harness.tick());
+}
+
 TEST(EngineTabTest, NavigationCommitUrlIsExposedOncePerCommittedDocument) {
     const std::string html = R"HTML(
 <!doctype html>

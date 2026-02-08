@@ -160,7 +160,11 @@ bool Tab::insert_extension_css(std::string_view css_text) {
     if (css_text.empty()) {
         return false;
     }
-    extension_style_blocks_.push_back(std::string(css_text));
+    auto [it, inserted] = extension_style_block_keys_.insert(std::string(css_text));
+    if (!inserted) {
+        return true;
+    }
+    extension_style_blocks_.push_back(*it);
     extension_css_dirty_ = true;
     dirty_ = true;
     return true;
@@ -184,6 +188,10 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
         return;
     }
     if (result.stylesheet_ready && document_pipeline_.has_dom_tree()) {
+        if (extension_css_dirty_) {
+            document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
+            extension_css_dirty_ = false;
+        }
         handle_stylesheet_ready(graphics, viewport);
     }
     if (result.image_ready && document_pipeline_.has_render_tree()) {
@@ -215,6 +223,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     }
     pending_navigation_commit_url_ = requested_url_;
     document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
+    extension_css_dirty_ = false;
     document_pipeline_.run_scripts();
     if (!document_pipeline_.stylesheet_links().empty()) {
         HB_LOG_INFO("[pipeline] discovered stylesheet links: " << document_pipeline_.stylesheet_links().size());

@@ -7,6 +7,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "core/SecurityState.h"
@@ -114,6 +115,7 @@ private:
     ResourceLoader resource_loader_;
     DocumentPipeline document_pipeline_;
     std::vector<std::string> extension_style_blocks_;
+    std::unordered_set<std::string> extension_style_block_keys_;
     bool extension_css_dirty_ = false;
     std::optional<std::string> pending_navigation_commit_url_;
 
