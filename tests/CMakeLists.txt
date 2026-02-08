@@ -26,6 +26,7 @@ add_executable(HummingbirdTests
     core/Url.test.cpp
     core/Timing.test.cpp
     core/WarnOnce.test.cpp
+    core/DependencyFirewall.test.cpp
     html/HtmlTokenizer.test.cpp
     html/HtmlParser.test.cpp
     layout/TreeBuilder.test.cpp

@@ -376,7 +376,7 @@ P0: Browser OS + Extensions (North Star)
 P0: Tests and Guardrails
 - [x] 5.6.1: Extension API Headless Coverage
 - [x] 5.6.2: Tab/Extension Teardown Coverage
-- [ ] 5.6.3: Dependency Firewall Audit
+- [x] 5.6.3: Dependency Firewall Audit
 
 P0: DDG HTML End-to-End Usability (Mandatory)
 - [ ] 5.5.1: Input Focus/Hit-Test Reliability on Real Pages
