@@ -78,7 +78,8 @@ UrlBar::SecurityIcons load_security_icons(IResourceProvider* provider, IImageDec
 BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     : window_(std::move(window)),
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
-      tab_manager_(make_tab_factory(primary_backend_for_env())) {
+      tab_manager_(make_tab_factory(primary_backend_for_env())),
+      extension_host_([]() { return create_script_engine(); }) {
     tab_manager_.create_tab();
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
@@ -87,14 +88,16 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     }
 
     std::vector<Hummingbird::Engine::ExtensionLoadError> errors;
-    loaded_extensions_ =
+    auto loaded =
         Hummingbird::Engine::load_extensions_from_root(Hummingbird::Engine::default_extensions_root(), &errors);
     for (const auto& e : errors) {
         HB_LOG_WARN("[ext] " << e.message << ": " << e.path.string());
     }
-    if (!loaded_extensions_.empty()) {
-        HB_LOG_INFO("[ext] loaded extensions: " << loaded_extensions_.size());
+    extension_host_.set_extensions(std::move(loaded));
+    if (extension_host_.extension_count() > 0) {
+        HB_LOG_INFO("[ext] loaded extensions: " << extension_host_.extension_count());
     }
+    extension_host_.start_background_scripts();
 }
 
 BrowserApp::~BrowserApp() {
@@ -117,6 +120,7 @@ void BrowserApp::shutdown() {
     // stop input first (safe even if already stopped)
     if (window_) window_->stop_text_input();
 
+    extension_host_.shutdown();
     tab_manager_.shutdown();
 
     // close window last (or earlier if you prefer to hide UI immediately)

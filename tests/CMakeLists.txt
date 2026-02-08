@@ -17,6 +17,7 @@ add_executable(HummingbirdTests
     engine/TabManager.test.cpp
     engine/ExtensionManifest.test.cpp
     engine/ExtensionLoader.test.cpp
+    engine/ExtensionHost.test.cpp
     engine/ResourceStore.test.cpp
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp

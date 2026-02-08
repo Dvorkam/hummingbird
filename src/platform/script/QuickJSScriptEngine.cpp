@@ -128,6 +128,10 @@ QuickJSScriptEngine::QuickJSScriptEngine() {
     JSClassDef class_def{};
     class_def.class_name = "Element";
     JS_NewClass(runtime_, element_class_id_, &class_def);
+
+    // Install console bindings unconditionally so non-DOM scripts (e.g., extensions)
+    // can log without needing to bind a host.
+    install_console_bindings();
 }
 
 QuickJSScriptEngine::~QuickJSScriptEngine() {
@@ -147,7 +151,10 @@ void QuickJSScriptEngine::bind_host(IScriptHost* host) {
     if (!context_) {
         return;
     }
-    install_bindings();
+    install_console_bindings();
+    if (host) {
+        install_document_bindings();
+    }
 }
 
 ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_view filename) {
@@ -171,8 +178,8 @@ ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_
     return ok_result();
 }
 
-void QuickJSScriptEngine::install_bindings() {
-    if (bindings_ready_) {
+void QuickJSScriptEngine::install_console_bindings() {
+    if (console_ready_) {
         return;
     }
     if (!context_) {
@@ -184,17 +191,30 @@ void QuickJSScriptEngine::install_bindings() {
     JS_SetPropertyStr(context_, console, "log", JS_NewCFunction(context_, js_console_log, "log", 1));
     JS_SetPropertyStr(context_, global, "console", console);
 
+    JS_FreeValue(context_, global);
+    console_ready_ = true;
+}
+
+void QuickJSScriptEngine::install_document_bindings() {
+    if (document_ready_) {
+        return;
+    }
+    if (!context_) {
+        return;
+    }
+
+    JSValue global = JS_GetGlobalObject(context_);
     JSValue document = JS_NewObject(context_);
     JS_SetPropertyStr(context_, document, "getElementById",
                       JS_NewCFunction(context_, js_document_get_element_by_id, "getElementById", 1));
     JS_SetPropertyStr(context_, global, "document", document);
-
     JS_FreeValue(context_, global);
-    bindings_ready_ = true;
+    document_ready_ = true;
 }
 
 void QuickJSScriptEngine::clear_bindings() {
-    bindings_ready_ = false;
+    console_ready_ = false;
+    document_ready_ = false;
 }
 
 JSValue QuickJSScriptEngine::wrap_element(DOM::Element* element) {
