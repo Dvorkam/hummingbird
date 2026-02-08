@@ -14,6 +14,8 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 
 Milestone defined in `doc/milestones/milestone5.md` (stories moved there).
 
+- [ ] **[M5 P1] T-APP-TABS-REF-1: Extract Tab Orchestration From BrowserApp**; Goal: prevent `BrowserApp` from growing into a god object; Scope: introduce an app-owned `TabController`/`BrowserChrome` that owns `TabManager` + `TabStrip` and handles tab actions/events behind a narrow interface; Acceptance: `BrowserApp` delegates tab actions and tab-strip hit-testing; Tests: existing app tab tests continue to pass.
+
 ## Milestone 6+ (Big Rocks)
 
 - [ ] **[M6 P1] T-ARCH-GUARD-1: Dependency Guardrails in CI**; Goal: prevent cycle regressions after refactors; Scope: add automated check for package-level cycles (using clang-uml artifacts or include-graph checks) and fail CI on new violations; Acceptance: CI reports cycle regressions deterministically; Tests: tooling/CI smoke.

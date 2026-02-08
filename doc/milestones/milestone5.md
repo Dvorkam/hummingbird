@@ -361,7 +361,7 @@ P0: Browser OS + Extensions (North Star)
 - [x] 5.1.1: TabManager + Multi-Tab Model
 - [x] 5.1.2: Per-Tab Isolation Contract
 - [x] 5.1.3: Minimal Tab UI + Shortcuts
-- [ ] 5.2.1: Extension Manifest v0
+- [x] 5.2.1: Extension Manifest v0
 - [ ] 5.2.2: Extension Loader
 - [ ] 5.2.3: Background Script Runtime
 - [ ] 5.2.4: Enable/Disable Lifecycle
