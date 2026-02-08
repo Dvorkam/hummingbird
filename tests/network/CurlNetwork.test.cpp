@@ -1,4 +1,4 @@
-#include "platform/CurlNetwork.h"
+#include "platform/net/CurlNetwork.h"
 
 #include <gtest/gtest.h>
 

@@ -1,4 +1,4 @@
-#include "style/CssParser.h"
+#include "style/parser/CssParser.h"
 
 #include <gtest/gtest.h>
 
@@ -12,9 +12,11 @@ TEST(CSSParserTest, ParsesSingleRule) {
     ASSERT_EQ(sheet.rules.size(), 1u);
     const auto& rule = sheet.rules[0];
     ASSERT_EQ(rule.selectors.size(), 1u);
-    EXPECT_EQ(rule.selectors[0].tag, Hummingbird::Html::TagNames::Div);
-    EXPECT_TRUE(rule.selectors[0].id.empty());
-    EXPECT_TRUE(rule.selectors[0].classes.empty());
+    ASSERT_EQ(rule.selectors[0].parts.size(), 1u);
+    const auto& part = rule.selectors[0].parts[0];
+    EXPECT_EQ(part.tag, Hummingbird::Html::TagNames::Div);
+    EXPECT_TRUE(part.id.empty());
+    EXPECT_TRUE(part.classes.empty());
     ASSERT_EQ(rule.declarations.size(), 1u);
     EXPECT_EQ(rule.declarations[0].property, Property::Color);
     EXPECT_EQ(rule.declarations[0].value.type, Value::Type::Color);
@@ -29,13 +31,16 @@ TEST(CSSParserTest, ParsesSelectorList) {
     ASSERT_EQ(sheet.rules.size(), 1u);
     const auto& rule = sheet.rules[0];
     ASSERT_EQ(rule.selectors.size(), 3u);
-    EXPECT_EQ(rule.selectors[0].tag, Hummingbird::Html::TagNames::H1);
-    EXPECT_TRUE(rule.selectors[0].classes.empty());
-    EXPECT_EQ(rule.selectors[1].tag, Hummingbird::Html::TagNames::H2);
-    EXPECT_TRUE(rule.selectors[1].classes.empty());
-    ASSERT_EQ(rule.selectors[2].classes.size(), 1u);
-    EXPECT_TRUE(rule.selectors[2].tag.empty());
-    EXPECT_EQ(rule.selectors[2].classes[0], "title");
+    ASSERT_EQ(rule.selectors[0].parts.size(), 1u);
+    ASSERT_EQ(rule.selectors[1].parts.size(), 1u);
+    ASSERT_EQ(rule.selectors[2].parts.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].parts[0].tag, Hummingbird::Html::TagNames::H1);
+    EXPECT_TRUE(rule.selectors[0].parts[0].classes.empty());
+    EXPECT_EQ(rule.selectors[1].parts[0].tag, Hummingbird::Html::TagNames::H2);
+    EXPECT_TRUE(rule.selectors[1].parts[0].classes.empty());
+    ASSERT_EQ(rule.selectors[2].parts[0].classes.size(), 1u);
+    EXPECT_TRUE(rule.selectors[2].parts[0].tag.empty());
+    EXPECT_EQ(rule.selectors[2].parts[0].classes[0], "title");
     ASSERT_EQ(rule.declarations.size(), 4u);
     EXPECT_EQ(rule.declarations[0].property, Property::MarginTop);
     EXPECT_EQ(rule.declarations[1].property, Property::MarginRight);
@@ -54,10 +59,34 @@ TEST(CSSParserTest, ParsesCompoundSelector) {
     ASSERT_EQ(sheet.rules.size(), 1u);
     const auto& rule = sheet.rules[0];
     ASSERT_EQ(rule.selectors.size(), 1u);
-    EXPECT_EQ(rule.selectors[0].tag, Hummingbird::Html::TagNames::Div);
-    EXPECT_EQ(rule.selectors[0].id, "main");
-    ASSERT_EQ(rule.selectors[0].classes.size(), 1u);
-    EXPECT_EQ(rule.selectors[0].classes[0], "note");
+    ASSERT_EQ(rule.selectors[0].parts.size(), 1u);
+    const auto& part = rule.selectors[0].parts[0];
+    EXPECT_EQ(part.tag, Hummingbird::Html::TagNames::Div);
+    EXPECT_EQ(part.id, "main");
+    ASSERT_EQ(part.classes.size(), 1u);
+    EXPECT_EQ(part.classes[0], "note");
+}
+
+TEST(CSSParserTest, ParsesUniversalSelector) {
+    Parser parser("* { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& rule = sheet.rules[0];
+    ASSERT_EQ(rule.selectors.size(), 1u);
+    ASSERT_EQ(rule.selectors[0].parts.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].parts[0].tag, "*");
+}
+
+TEST(CSSParserTest, ParsesDescendantSelector) {
+    Parser parser("div .note { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& rule = sheet.rules[0];
+    ASSERT_EQ(rule.selectors.size(), 1u);
+    ASSERT_EQ(rule.selectors[0].parts.size(), 2u);
+    EXPECT_EQ(rule.selectors[0].parts[0].tag, Hummingbird::Html::TagNames::Div);
+    ASSERT_EQ(rule.selectors[0].parts[1].classes.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].parts[1].classes[0], "note");
 }
 
 TEST(CSSParserTest, ParsesHexColor) {
@@ -104,4 +133,75 @@ TEST(CSSParserTest, ParsesBackgroundColorAndShortHex) {
     EXPECT_EQ(rule.declarations[1].value.color.r, 255);
     EXPECT_EQ(rule.declarations[1].value.color.g, 255);
     EXPECT_EQ(rule.declarations[1].value.color.b, 255);
+}
+
+TEST(CSSParserTest, ParsesBackgroundImageUrl) {
+    Parser parser("div { background-image: url(/img/logo.png); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+    EXPECT_EQ(decls[0].property, Property::BackgroundImage);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Url);
+    EXPECT_EQ(decls[0].value.ident, "/img/logo.png");
+}
+
+TEST(CSSParserTest, ExpandsBackgroundShorthandForImages) {
+    Parser parser("div { background: url(/img/logo.png) no-repeat center; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    bool has_image = false;
+    bool has_repeat = false;
+    bool has_position = false;
+    for (const auto& decl : decls) {
+        if (decl.property == Property::BackgroundImage) {
+            has_image = true;
+        } else if (decl.property == Property::BackgroundRepeat) {
+            has_repeat = true;
+        } else if (decl.property == Property::BackgroundPosition) {
+            has_position = true;
+        }
+    }
+    EXPECT_TRUE(has_image);
+    EXPECT_TRUE(has_repeat);
+    EXPECT_TRUE(has_position);
+}
+
+TEST(CSSParserTest, DedupesUnsupportedPropertyWarnings) {
+    Parser parser("div { bogus: 1; bogus: 2; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    EXPECT_EQ(sheet.unknown_properties.size(), 1u);
+    EXPECT_TRUE(sheet.unknown_properties.count("bogus"));
+}
+
+TEST(CSSParserTest, RecoversMissingSemicolonBetweenDeclarations) {
+    Parser parser("div { color: red background-color: blue; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 2u);
+    EXPECT_EQ(decls[0].property, Property::Color);
+    EXPECT_EQ(decls[1].property, Property::BackgroundColor);
+}
+
+TEST(CSSParserTest, SkipsMalformedDeclarations) {
+    Parser parser("div { color red; font-size: ; background-color: blue; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+    EXPECT_EQ(decls[0].property, Property::BackgroundColor);
+}
+
+TEST(CSSParserTest, SkipsMalformedRuleAndContinues) {
+    Parser parser("div color: red; p { color: blue; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].selectors.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].selectors[0].parts.size(), 1u);
+    EXPECT_EQ(sheet.rules[0].selectors[0].parts[0].tag, Hummingbird::Html::TagNames::P);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    EXPECT_EQ(sheet.rules[0].declarations[0].property, Property::Color);
 }

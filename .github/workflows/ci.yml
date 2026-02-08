@@ -111,8 +111,14 @@ jobs:
       - name: Test (Linux)
         if: runner.os == 'Linux'
         run: xvfb-run ctest --preset ninja-multi-vcpkg --output-on-failure -C Release
+        env:
+          HB_RUN_SMOKE_TEST: "1"
 
       # Run Tests (Windows)
       - name: Test (Windows)
         if: runner.os == 'Windows'
         run: ctest --preset ninja-multi-vcpkg --output-on-failure -C Release
+        env:
+          HB_RUN_SMOKE_TEST: "1"
+          HB_HEADLESS: "1"
+          SDL_RENDER_DRIVER: "software"

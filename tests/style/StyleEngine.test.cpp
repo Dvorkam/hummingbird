@@ -1,4 +1,4 @@
-#include "style/StyleEngine.h"
+#include "style/compute/StyleEngine.h"
 
 #include <gtest/gtest.h>
 
@@ -8,8 +8,8 @@
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
-#include "style/CssParser.h"
-#include "style/StylesheetSource.h"
+#include "style/compute/StylesheetSource.h"
+#include "style/parser/CssParser.h"
 
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
@@ -94,7 +94,7 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     EXPECT_TRUE(a_style->underline);
 
     EXPECT_TRUE(code_style->font_monospace);
-    ASSERT_TRUE(code_style->background.has_value());
+    EXPECT_FALSE(code_style->background.has_value());
     EXPECT_GT(code_style->padding.left, 0.0f);
 
     EXPECT_FLOAT_EQ(blockquote_style->margin.left, 40.0f);
@@ -103,6 +103,134 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
 
     EXPECT_GT(h1_style->font_size, 16.0f);
     EXPECT_EQ(h1_style->weight, ComputedStyle::FontWeight::Bold);
+}
+
+TEST(StyleEngineTest, StoresAndInheritsCustomProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    auto grandchild = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+
+    child->append_child(std::move(grandchild));
+    root->append_child(std::move(child));
+
+    std::string css = R"(div { --brand: #123; } span { --accent: 10px; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto root_style = dynamic_cast<Element*>(root.get())->get_computed_style();
+    auto child_style = dynamic_cast<Element*>(root->get_children()[0].get())->get_computed_style();
+    auto grandchild_style =
+        dynamic_cast<Element*>(root->get_children()[0]->get_children()[0].get())->get_computed_style();
+
+    ASSERT_TRUE(root_style);
+    ASSERT_TRUE(child_style);
+    ASSERT_TRUE(grandchild_style);
+
+    auto root_brand = root_style->custom_properties.find("--brand");
+    ASSERT_NE(root_brand, root_style->custom_properties.end());
+    EXPECT_EQ(root_brand->second, "#123");
+
+    auto child_brand = child_style->custom_properties.find("--brand");
+    ASSERT_NE(child_brand, child_style->custom_properties.end());
+    EXPECT_EQ(child_brand->second, "#123");
+
+    auto grandchild_brand = grandchild_style->custom_properties.find("--brand");
+    ASSERT_NE(grandchild_brand, grandchild_style->custom_properties.end());
+    EXPECT_EQ(grandchild_brand->second, "#123");
+
+    auto grandchild_accent = grandchild_style->custom_properties.find("--accent");
+    ASSERT_NE(grandchild_accent, grandchild_style->custom_properties.end());
+    EXPECT_EQ(grandchild_accent->second, "10px");
+}
+
+TEST(StyleEngineTest, ResolvesVarForColors) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto color_node = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    auto fallback_node = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+
+    root->append_child(std::move(color_node));
+    root->append_child(std::move(fallback_node));
+
+    std::string css = R"(div { --brand: #123; } p { color: var(--brand); }
+                          span { background-color: var(--missing, #ff0000); })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto color_style = root->get_children()[0]->get_computed_style();
+    auto fallback_style = root->get_children()[1]->get_computed_style();
+
+    ASSERT_TRUE(color_style);
+    ASSERT_TRUE(fallback_style);
+
+    EXPECT_EQ(color_style->color.r, 17);
+    EXPECT_EQ(color_style->color.g, 34);
+    EXPECT_EQ(color_style->color.b, 51);
+
+    ASSERT_TRUE(fallback_style->background.has_value());
+    EXPECT_EQ(fallback_style->background->r, 255);
+    EXPECT_EQ(fallback_style->background->g, 0);
+    EXPECT_EQ(fallback_style->background->b, 0);
+}
+
+TEST(StyleEngineTest, AppliesFloatProperty) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "floaty");
+
+    std::string css = R"(.floaty { float: right; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->float_type, ComputedStyle::Float::Right);
+}
+
+TEST(StyleEngineTest, AppliesBoxSizingProperty) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "boxed");
+
+    std::string css = R"(.boxed { box-sizing: border-box; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->box_sizing, ComputedStyle::BoxSizing::BorderBox);
+}
+
+TEST(StyleEngineTest, AppliesTransformTranslate) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "shift");
+
+    std::string css = R"(.shift { transform: translate(12px, 4px); })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_TRUE(style->transform_has_translate);
+    EXPECT_FLOAT_EQ(style->transform_translate_x, 12.0f);
+    EXPECT_FLOAT_EQ(style->transform_translate_y, 4.0f);
 }
 
 TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
@@ -148,6 +276,58 @@ TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
     EXPECT_EQ(style->color.g, 0);
     EXPECT_EQ(style->color.b, 0);
     EXPECT_TRUE(style->underline);
+}
+
+TEST(StyleEngineTest, SupportsTextDecorationUnderlineAndNone) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    auto link = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    link->append_child(DomFactory::create_text(arena, "Link"));
+    root->append_child(std::move(link));
+
+    auto span = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    span->set_attribute(Attr::Class, "uline");
+    span->append_child(DomFactory::create_text(arena, "Underlined"));
+    root->append_child(std::move(span));
+
+    std::string css = "a { text-decoration: none; } .uline { text-decoration: underline; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto link_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(link_style);
+    EXPECT_FALSE(link_style->underline);
+
+    auto span_style = root->get_children()[1]->get_computed_style();
+    ASSERT_TRUE(span_style);
+    EXPECT_TRUE(span_style->underline);
+}
+
+TEST(StyleEngineTest, AppliesUnderlineThicknessAndOffset) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    root->set_attribute(Attr::Class, "u");
+
+    std::string css =
+        "p.u { text-decoration: underline; text-decoration-thickness: 3px; "
+        "text-underline-offset: 4px; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_TRUE(style->underline);
+    ASSERT_TRUE(style->underline_thickness.has_value());
+    EXPECT_FLOAT_EQ(style->underline_thickness.value(), 3.0f);
+    ASSERT_TRUE(style->underline_offset.has_value());
+    EXPECT_FLOAT_EQ(style->underline_offset.value(), 4.0f);
 }
 
 TEST(StyleEngineTest, LaterRuleWinsOnEqualSpecificity) {
@@ -219,11 +399,56 @@ TEST(StyleEngineTest, SupportsMarginAutoAndMaxWidth) {
     EXPECT_FLOAT_EQ(style->max_width.value(), 200.0f);
 }
 
+TEST(StyleEngineTest, AppliesMinMaxSizeProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "box");
+
+    std::string css = R"(.box { min-width: 80px; min-height: 20px; max-width: 160px; max-height: 40px; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->min_width.has_value());
+    EXPECT_FLOAT_EQ(style->min_width.value(), 80.0f);
+    ASSERT_TRUE(style->min_height.has_value());
+    EXPECT_FLOAT_EQ(style->min_height.value(), 20.0f);
+    ASSERT_TRUE(style->max_width.has_value());
+    EXPECT_FLOAT_EQ(style->max_width.value(), 160.0f);
+    ASSERT_TRUE(style->max_height.has_value());
+    EXPECT_FLOAT_EQ(style->max_height.value(), 40.0f);
+}
+
+TEST(StyleEngineTest, InheritsListStyleFromParent) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    ul->append_child(std::move(li));
+
+    std::string css = R"(ul { list-style: none; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, ul.get());
+
+    auto ul_style = ul->get_computed_style();
+    auto li_style = ul->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(ul_style);
+    ASSERT_TRUE(li_style);
+    EXPECT_EQ(ul_style->list_style_type, ComputedStyle::ListStyleType::None);
+    EXPECT_EQ(li_style->list_style_type, ComputedStyle::ListStyleType::None);
+}
+
 TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
 
-    std::string css = "div { max-width: 40em; }";
+    std::string css = "div { max-width: 40ch; }";
     Parser parser(css);
     auto sheet = parser.parse();
 
@@ -233,6 +458,111 @@ TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
     EXPECT_FALSE(style->max_width.has_value());
+}
+
+TEST(StyleEngineTest, SupportsEmUnitsForFontSizeAndSpacing) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto span = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    span->append_child(DomFactory::create_text(arena, "Hello"));
+    root->append_child(std::move(span));
+
+    std::string css = "div { font-size: 20px; } span { font-size: 1.5em; margin-top: 2em; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto root_style = root->get_computed_style();
+    ASSERT_TRUE(root_style);
+    EXPECT_FLOAT_EQ(root_style->font_size, 20.0f);
+
+    auto span_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(span_style);
+    EXPECT_FLOAT_EQ(span_style->font_size, 30.0f);
+    EXPECT_FLOAT_EQ(span_style->margin.top, 60.0f);
+}
+
+TEST(StyleEngineTest, AppliesTextAlignFromCss) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { text-align: center; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->text_align, ComputedStyle::TextAlign::Center);
+}
+
+TEST(StyleEngineTest, AppliesWhiteSpaceNoWrapFromCss) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { white-space: nowrap; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->whitespace, ComputedStyle::WhiteSpace::NoWrap);
+}
+
+TEST(StyleEngineTest, AppliesFontFamilyFromCss) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font-family: Roboto Mono, sans-serif; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->font_face, "roboto mono,sans-serif");
+}
+
+TEST(StyleEngineTest, AppliesFontWeightAndStyleFromCss) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font-weight: bold; font-style: italic; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->weight, ComputedStyle::FontWeight::Bold);
+    EXPECT_EQ(style->style, ComputedStyle::FontStyle::Italic);
+}
+
+TEST(StyleEngineTest, AppliesNumericFontWeight) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font-weight: 700; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->weight, ComputedStyle::FontWeight::Bold);
 }
 
 TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
@@ -337,6 +667,51 @@ TEST(StyleEngineTest, AppliesBackgroundColor) {
     EXPECT_EQ(style->background->b, 51);
 }
 
+TEST(StyleEngineTest, AppliesPositionProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { position: absolute; top: 4px; left: 6px; z-index: 3; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->position, ComputedStyle::Position::Absolute);
+    ASSERT_TRUE(style->top.has_value());
+    ASSERT_TRUE(style->left.has_value());
+    EXPECT_FLOAT_EQ(*style->top, 4.0f);
+    EXPECT_FLOAT_EQ(*style->left, 6.0f);
+    ASSERT_TRUE(style->z_index.has_value());
+    EXPECT_EQ(*style->z_index, 3);
+}
+
+TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css =
+        "div { background-image: url(/img/logo.png); background-repeat: no-repeat; background-position: center; "
+        "background-size: contain; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->background_image.has_value());
+    EXPECT_EQ(*style->background_image, "/img/logo.png");
+    EXPECT_EQ(style->background_repeat, ComputedStyle::BackgroundRepeat::NoRepeat);
+    EXPECT_EQ(style->background_position.horizontal, ComputedStyle::BackgroundPosition::Horizontal::Center);
+    EXPECT_EQ(style->background_position.vertical, ComputedStyle::BackgroundPosition::Vertical::Center);
+    EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Contain);
+}
+
 TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
@@ -427,6 +802,48 @@ TEST(StyleEngineTest, NoWrapAttributeMapsToWhiteSpace) {
     auto child_style = cell->get_children()[0]->get_computed_style();
     ASSERT_TRUE(child_style);
     EXPECT_EQ(child_style->whitespace, ComputedStyle::WhiteSpace::NoWrap);
+}
+
+TEST(StyleEngineTest, BodyAttributesMapToColors) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
+    body->set_attribute(Attr::BgColor, "#99cc99");
+    body->set_attribute(Attr::Text, "#112233");
+    body->set_attribute(Attr::Link, "#445566");
+    body->set_attribute(Attr::VLink, "#778899");
+
+    auto link = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    link->append_child(DomFactory::create_text(arena, "Link"));
+    body->append_child(std::move(link));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, body.get());
+
+    auto body_style = body->get_computed_style();
+    ASSERT_TRUE(body_style);
+    ASSERT_TRUE(body_style->background.has_value());
+    EXPECT_EQ(body_style->background->r, 0x99);
+    EXPECT_EQ(body_style->background->g, 0xcc);
+    EXPECT_EQ(body_style->background->b, 0x99);
+    EXPECT_EQ(body_style->color.r, 0x11);
+    EXPECT_EQ(body_style->color.g, 0x22);
+    EXPECT_EQ(body_style->color.b, 0x33);
+    ASSERT_TRUE(body_style->link_color.has_value());
+    EXPECT_EQ(body_style->link_color->r, 0x44);
+    EXPECT_EQ(body_style->link_color->g, 0x55);
+    EXPECT_EQ(body_style->link_color->b, 0x66);
+    ASSERT_TRUE(body_style->vlink_color.has_value());
+    EXPECT_EQ(body_style->vlink_color->r, 0x77);
+    EXPECT_EQ(body_style->vlink_color->g, 0x88);
+    EXPECT_EQ(body_style->vlink_color->b, 0x99);
+
+    auto link_style = body->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(link_style);
+    EXPECT_EQ(link_style->color.r, 0x44);
+    EXPECT_EQ(link_style->color.g, 0x55);
+    EXPECT_EQ(link_style->color.b, 0x66);
+    EXPECT_TRUE(link_style->underline);
 }
 
 TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {

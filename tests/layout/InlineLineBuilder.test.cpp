@@ -1,4 +1,4 @@
-#include "layout/InlineLineBuilder.h"
+#include "layout/flow/InlineLineBuilder.h"
 
 #include <gtest/gtest.h>
 
@@ -23,7 +23,7 @@ TEST(InlineLineBuilderTest, WrapsRunsAcrossLines) {
 
     EXPECT_EQ(lines[1].fragments[0].line_index, 1u);
     EXPECT_FLOAT_EQ(lines[1].fragments[0].rect.x, 0.0f);
-    EXPECT_FLOAT_EQ(lines[1].fragments[0].rect.y, 10.0f);
+    EXPECT_FLOAT_EQ(lines[1].fragments[0].rect.y, 12.0f);
     EXPECT_EQ(lines[1].fragments[1].line_index, 1u);
     EXPECT_FLOAT_EQ(lines[1].fragments[1].rect.x, 6.0f);
     EXPECT_FLOAT_EQ(lines[1].fragments[1].rect.y, 10.0f);

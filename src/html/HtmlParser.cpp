@@ -13,6 +13,7 @@
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlEntityDecoder.h"
 #include "html/HtmlStringUtils.h"
 #include "html/HtmlTagMetadata.h"
 #include "html/HtmlTagNames.h"
@@ -27,6 +28,7 @@ Parser::Result Parser::parse() {
     m_stylesheet_links.clear();
     m_image_links.clear();
     m_unsupported_tags.clear();
+    m_semantic_tags.clear();
     m_failed = false;
     auto root = DOM::DomFactory::create_element(m_arena, Hummingbird::Html::TagNames::Root);
     if (!root) {
@@ -74,13 +76,14 @@ Parser::Result Parser::parse() {
     result.style_blocks = std::move(m_style_blocks);
     result.stylesheet_links = std::move(m_stylesheet_links);
     result.image_links = std::move(m_image_links);
-    result.unsupported_tags = std::move(m_unsupported_tags);
+    result.unsupported_tags = m_unsupported_tags.seen();
     return result;
 }
 
 void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) {
     std::string lowered_name = Core::Utils::to_lower(tag_data.name);
     maybe_close_list_item(state, lowered_name);
+    maybe_close_paragraph(state, lowered_name);
 
     auto new_element = DOM::DomFactory::create_element(m_arena, lowered_name);
     if (!new_element) {
@@ -94,6 +97,7 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
 
     DOM::Node* appended = parent->get_children().back().get();
     track_unsupported_tag(lowered_name);
+    track_semantic_tag(lowered_name);
     if (lowered_name == Hummingbird::Html::TagNames::Link) {
         auto rel = Core::Utils::to_lower(Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
         auto href = Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Href);
@@ -130,9 +134,11 @@ void Parser::handle_character_data(const CharacterDataToken& char_data, ParseSta
     if (char_data.data.empty()) return;
     if (state.in_style && !m_style_blocks.empty()) {
         m_style_blocks.back().append(char_data.data);
+        return;
     }
     DOM::Node* parent = state.open_elements.back();
-    append_text_node(parent, char_data.data);
+    auto decoded = Utils::decode_named_entities(char_data.data);
+    append_text_node(parent, decoded);
 }
 
 DOM::Node* Parser::select_parent(const ParseState& state, std::string_view tag_name) const {
@@ -169,10 +175,29 @@ void Parser::append_text_node(DOM::Node* parent, std::string_view text) {
 }
 
 void Parser::track_unsupported_tag(std::string_view tag_name) {
-    if (TagMetadata::is_known_tag(tag_name)) return;
+    if (TagMetadata::is_supported_tag(tag_name)) return;
+    if (m_unsupported_tags.should_log(tag_name)) {
+        HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << tag_name << ">");
+    }
+}
+
+void Parser::track_semantic_tag(std::string_view tag_name) {
+    if (!TagMetadata::is_semantic_block_tag(tag_name)) return;
     std::string name(tag_name);
-    if (m_unsupported_tags.insert(name).second) {
-        HB_LOG_WARN("[parser] Unsupported HTML Tag encountered: <" << name << ">");
+    if (m_semantic_tags.insert(name).second) {
+        HB_LOG_DEBUG("[parser] Semantic tag mapped to block layout (semantics not implemented): <" << name << ">");
+    }
+}
+
+void Parser::maybe_close_paragraph(ParseState& state, std::string_view tag_name) {
+    if (!TagMetadata::closes_paragraph_on_start(tag_name)) return;
+    if (state.open_elements.size() <= 1) return;
+    for (size_t i = state.open_elements.size(); i-- > 1;) {
+        auto* element = dynamic_cast<DOM::Element*>(state.open_elements[i]);
+        if (element && element->get_tag_name() == Hummingbird::Html::TagNames::P) {
+            state.open_elements.resize(i);
+            break;
+        }
     }
 }
 

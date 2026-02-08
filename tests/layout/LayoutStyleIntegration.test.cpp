@@ -4,10 +4,10 @@
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
-#include "layout/BlockBox.h"
 #include "layout/TreeBuilder.h"
-#include "style/CssParser.h"
-#include "style/StyleEngine.h"
+#include "layout/block/BlockBox.h"
+#include "style/compute/StyleEngine.h"
+#include "style/parser/CssParser.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
@@ -106,6 +106,66 @@ TEST(LayoutStyleIntegrationTest, IncludesBorderInInlineBoxSizing) {
     EXPECT_FLOAT_EQ(rect.height, 16.0f + 2.0f * (3.0f + 2.0f));
 }
 
+TEST(LayoutStyleIntegrationTest, HonorsBorderBoxSizingOnBlocks) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto div = DomFactory::create_element(arena, "div");
+    div->append_child(DomFactory::create_text(arena, "Hello"));
+    dom_root->append_child(std::move(div));
+
+    std::string css = R"(
+        div { width: 100px; padding: 10px; border-width: 5px; border-style: solid; box-sizing: border-box; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& children = render_root->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    const auto& rect = children[0]->get_rect();
+    EXPECT_FLOAT_EQ(rect.width, 100.0f);
+}
+
+TEST(LayoutStyleIntegrationTest, HonorsMinMaxSizes) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto div = DomFactory::create_element(arena, "div");
+    div->append_child(DomFactory::create_text(arena, "Hi"));
+    dom_root->append_child(std::move(div));
+
+    std::string css = R"(
+        div { width: 50px; min-width: 120px; max-width: 140px; min-height: 30px; max-height: 40px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& children = render_root->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    const auto& rect = children[0]->get_rect();
+    EXPECT_FLOAT_EQ(rect.width, 120.0f);
+    EXPECT_GE(rect.height, 30.0f);
+    EXPECT_LE(rect.height, 40.0f);
+}
+
 TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
     // DOM: <body><p><span>A</span><span>B</span></p></body>
     Hummingbird::Core::ArenaAllocator arena(4096);
@@ -144,4 +204,30 @@ TEST(LayoutStyleIntegrationTest, LaysOutInlineBlockInFlow) {
     EXPECT_GT(second.x, first.x + first.width - 0.1f);
     EXPECT_FLOAT_EQ(first.width, 8.0f + 2.0f * (2.0f + 1.0f));
     EXPECT_FLOAT_EQ(second.width, 8.0f + 2.0f * (2.0f + 1.0f));
+}
+
+TEST(LayoutStyleIntegrationTest, AppliesInputDefaultSizing) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto input = DomFactory::create_element(arena, "input");
+    dom_root->append_child(std::move(input));
+
+    Parser parser("");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& children = render_root->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    const auto& rect = children[0]->get_rect();
+    EXPECT_FLOAT_EQ(rect.width, 180.0f + 2.0f * (6.0f + 1.0f));
+    EXPECT_FLOAT_EQ(rect.height, 24.0f + 2.0f * (4.0f + 1.0f));
 }

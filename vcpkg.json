@@ -3,6 +3,16 @@
   "version-string": "0.3.0",
   "builtin-baseline": "00807e89724847a866033a2f042c38fafae3c534",
   "dependencies": [
+    "blend2d",
+    {
+      "name": "curl",
+      "features": [
+        "brotli",
+        "zstd"
+      ]
+    },
+    "gtest",
+    "quickjs-ng",
     "sdl2",
     {
       "name": "sdl2-image",
@@ -11,14 +21,6 @@
         "libwebp"
       ]
     },
-    "blend2d",
-    "gtest",
-    {
-      "name": "curl",
-      "features": [
-        "brotli",
-        "zstd"
-      ]
-    }
+    "lunasvg"
   ]
 }

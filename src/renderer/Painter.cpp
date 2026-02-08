@@ -3,10 +3,11 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "layout/GeometryUtils.h"
-#include "layout/PaintUtils.h"
 #include "layout/RenderObject.h"
-#include "layout/RenderTreeTraversal.h"
+#include "layout/geometry/GeometryUtils.h"
+#include "layout/geometry/PositioningUtils.h"
+#include "layout/paint/PaintUtils.h"
+#include "renderer/RenderCommandUtils.h"
 
 namespace Hummingbird::Renderer {
 
@@ -20,15 +21,16 @@ struct PaintContext {
 };
 
 void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, const PaintContext& paint_context) {
-    Layout::Traversal::traverse_render_tree(
+    Layout::Positioning::traverse_render_tree_z_order(
         node, paint_context.offset,
         [&](const Layout::RenderObject& current, const Layout::Rect& absolute, const Layout::Point& local_offset) {
-            if (paint_context.viewport && !Layout::rect_intersects(absolute, *paint_context.viewport)) {
+            if (paint_context.viewport && !Layout::rect_intersects(absolute, *paint_context.viewport) &&
+                !current.has_absolute_descendant()) {
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
             current.paint_self(context, local_offset);
             if (paint_context.debug_outlines) {
-                Layout::PaintUtils::draw_outline(context, absolute, kOutlineColor);
+                RenderCommandUtils::draw_outline(context, absolute, kOutlineColor);
             }
             return Layout::Traversal::TraverseAction::Continue;
         });

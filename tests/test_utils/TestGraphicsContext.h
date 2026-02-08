@@ -14,11 +14,18 @@ public:
     void fill_rect(const Hummingbird::Layout::Rect& /*rect*/, const Color& /*color*/) override {}
     void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
 
-    TextMetrics measure_text(const std::string& text, const TextStyle& /*style*/) override {
+    TextMetrics measure_text(const std::string& text, const TextStyle& style) override {
         // Approximate metrics based on character count to keep tests deterministic.
-        constexpr float kAverageCharWidth = 8.0f;
-        constexpr float kLineHeight = 16.0f;
-        return TextMetrics{.width = static_cast<float>(text.size()) * kAverageCharWidth, .height = kLineHeight};
+        const float font_size = style.font_size > 0.0f ? style.font_size : 16.0f;
+        const float average_char_width = font_size * 0.5f;
+        TextMetrics metrics;
+        metrics.width = static_cast<float>(text.size()) * average_char_width;
+        metrics.height = font_size;
+        metrics.ascent = font_size * 0.8f;
+        metrics.descent = font_size * 0.2f;
+        metrics.underline_position = -metrics.descent * 0.5f;
+        metrics.underline_thickness = 1.0f;
+        return metrics;
     }
 
     void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const TextStyle& /*style*/) override {}

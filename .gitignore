@@ -14,6 +14,11 @@
 *.vcxproj.user
 *.sln
 
+# Testing
+Testing
+
+# Documentation
+doc/diagrams/*.svg
 # IDE-specific files
 .vs/
 .vscode/

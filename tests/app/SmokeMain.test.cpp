@@ -3,11 +3,13 @@
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
+#include <memory>
+#include <string>
 #include <string_view>
-#include <utility>
 
 #include "app/BrowserApp.h"
-#include "core/platform_api/WindowFactory.h"
+#include "core/platform_api/IWindow.h"
+#include "test_utils/TestGraphicsContext.h"
 
 namespace {
 bool is_truthy_env(const char* value) {
@@ -24,6 +26,29 @@ bool is_truthy_env(const char* value) {
     };
     return equals("1") || equals("true") || equals("yes") || equals("on");
 }
+
+class FakeWindow final : public Hummingbird::IWindow {
+public:
+    void open() override { is_open_ = true; }
+    void update() override {}
+    void close() override { is_open_ = false; }
+    bool is_open() const override { return is_open_; }
+
+    std::unique_ptr<Hummingbird::IGraphicsContext> get_graphics_context() override {
+        return std::make_unique<Hummingbird::Test::TestGraphicsContext>();
+    }
+
+    std::pair<int, int> get_size() const override { return {1024, 768}; }
+
+    bool wait_event(Hummingbird::InputEvent& /*out*/, int /*timeout_ms*/) override { return false; }
+    bool poll_event(Hummingbird::InputEvent& /*out*/) override { return false; }
+    void start_text_input() override {}
+    void stop_text_input() override {}
+    std::string get_clipboard_text() const override { return {}; }
+
+private:
+    bool is_open_{false};
+};
 }  // namespace
 
 TEST(SmokeMainTest, StartsAndTicks) {
@@ -31,13 +56,15 @@ TEST(SmokeMainTest, StartsAndTicks) {
         GTEST_SKIP() << "Set HB_RUN_SMOKE_TEST=1 to enable the smoke test.";
     }
 
-    auto window = Hummingbird::create_window();
+    auto window = std::make_unique<FakeWindow>();
     ASSERT_NE(window, nullptr);
     window->open();
     ASSERT_TRUE(window->is_open());
 
-    auto gfx = window->get_graphics_context();
-    ASSERT_NE(gfx, nullptr);
+    {
+        auto gfx = window->get_graphics_context();
+        ASSERT_NE(gfx, nullptr);
+    }
 
     Hummingbird::App::BrowserApp app(std::move(window));
     app.start();

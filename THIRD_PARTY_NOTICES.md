@@ -6,6 +6,8 @@ This document lists third-party components used by Hummingbird and where their l
 
 - Roboto fonts (`assets/fonts/Roboto-*.ttf`) — Apache License 2.0  
   License text: `assets/fonts/Roboto-LICENSE.txt`
+- Roboto Mono fonts (`assets/fonts/RobotoMono-*.ttf`) — SIL Open Font License 1.1  
+  License text: `assets/fonts/Roboto_Mono/OFL.txt`
 
 ## Dependencies (via vcpkg)
 

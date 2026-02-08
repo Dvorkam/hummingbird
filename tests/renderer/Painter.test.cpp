@@ -7,12 +7,14 @@
 
 #include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/IImageDecoder.h"
 #include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
-#include "layout/RenderListItem.h"
 #include "layout/TreeBuilder.h"
-#include "style/CssParser.h"
-#include "style/StyleEngine.h"
+#include "layout/flow/TextBox.h"
+#include "layout/formatting/RenderListItem.h"
+#include "style/compute/StyleEngine.h"
+#include "style/parser/CssParser.h"
 
 using Hummingbird::Color;
 using Hummingbird::IGraphicsContext;
@@ -32,7 +34,12 @@ public:
     void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override { ++image_calls; }
 
     TextMetrics measure_text(const std::string& text, const TextStyle&) override {
-        return {static_cast<float>(text.size()) * 8.0f, 16.0f};
+        TextMetrics metrics;
+        metrics.width = static_cast<float>(text.size()) * 8.0f;
+        metrics.height = 16.0f;
+        metrics.ascent = 12.0f;
+        metrics.descent = 4.0f;
+        return metrics;
     }
 
     void draw_text(const std::string& text, float, float, const TextStyle&) override {
@@ -43,6 +50,32 @@ public:
     int draw_calls = 0;
     int image_calls = 0;
     std::string last_text;
+    std::vector<Hummingbird::Layout::Rect> fill_calls;
+    Hummingbird::Layout::Rect viewport_{0, 0, 0, 0};
+};
+
+class FontAwareGraphicsContext : public IGraphicsContext {
+public:
+    void set_viewport(const Hummingbird::Layout::Rect& viewport) override { viewport_ = viewport; }
+    void clear(const Color&) override {}
+    void present() override {}
+    void fill_rect(const Hummingbird::Layout::Rect& rect, const Color&) override { fill_calls.push_back(rect); }
+    void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
+
+    TextMetrics measure_text(const std::string& text, const TextStyle& style) override {
+        const float font_size = style.font_size > 0.0f ? style.font_size : 16.0f;
+        TextMetrics metrics;
+        metrics.width = static_cast<float>(text.size()) * font_size * 0.5f;
+        metrics.height = font_size;
+        metrics.ascent = font_size * 0.8f;
+        metrics.descent = font_size * 0.2f;
+        metrics.underline_position = -metrics.descent * 0.5f;
+        metrics.underline_thickness = 1.0f;
+        return metrics;
+    }
+
+    void draw_text(const std::string&, float, float, const TextStyle&) override {}
+
     std::vector<Hummingbird::Layout::Rect> fill_calls;
     Hummingbird::Layout::Rect viewport_{0, 0, 0, 0};
 };
@@ -124,6 +157,33 @@ TEST(PainterTest, PaintsBordersFromComputedStyle) {
     EXPECT_GE(context.fill_calls.size(), 4u);
 }
 
+TEST(PainterTest, PaintsOutsetBordersFromComputedStyle) {
+    std::string_view html = "<html><body><div>Box</div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "div { border-width: 2px; border-style: outset; border-color: red; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_GE(context.fill_calls.size(), 4u);
+}
+
 namespace {
 bool rect_matches(const Hummingbird::Layout::Rect& a, const Hummingbird::Layout::Rect& b) {
     constexpr float kEpsilon = 0.01f;
@@ -157,7 +217,136 @@ Hummingbird::Layout::RenderObject* find_tag(Hummingbird::Layout::RenderObject* n
     }
     return nullptr;
 }
+
+Hummingbird::Layout::TextBox* find_text_box(Hummingbird::Layout::RenderObject* node) {
+    if (!node) return nullptr;
+    if (auto* text = dynamic_cast<Hummingbird::Layout::TextBox*>(node)) {
+        return text;
+    }
+    for (const auto& child : node->get_children()) {
+        if (auto* found = find_text_box(child.get())) {
+            return found;
+        }
+    }
+    return nullptr;
+}
 }  // namespace
+
+TEST(PainterTest, PaintsBackgroundImage) {
+    std::string_view html = "<html><body><div>Box</div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css =
+        "div { width: 120px; height: 40px; background-image: url(/img/bg.png); background-repeat: no-repeat; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    auto* div = find_tag(render_tree.get(), Hummingbird::Html::TagNames::Div);
+    ASSERT_NE(div, nullptr);
+
+    ImageBitmap bitmap;
+    bitmap.width = 8;
+    bitmap.height = 8;
+    div->set_background_image(&bitmap);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_GE(context.image_calls, 1);
+}
+
+TEST(PainterTest, HonorsUnderlineThicknessAndOffset) {
+    std::string_view html = "<html><body><p class='u'>Hi</p></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css =
+        "p.u { text-decoration: underline; text-decoration-thickness: 3px; "
+        "text-underline-offset: 4px; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    auto* text_box = find_text_box(render_tree.get());
+    ASSERT_NE(text_box, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    ASSERT_FALSE(context.fill_calls.empty());
+    const auto& underline_rect = context.fill_calls.back();
+
+    auto text_rect = absolute_rect_for(text_box);
+    float expected_y = text_rect.y + 12.0f + 4.0f;
+    EXPECT_NEAR(underline_rect.y, expected_y, 0.01f);
+    EXPECT_NEAR(underline_rect.height, 3.0f, 0.01f);
+    EXPECT_GT(underline_rect.width, 0.0f);
+}
+
+TEST(PainterTest, AlignsUnderlinesAcrossInlineRuns) {
+    std::string_view html = "<html><body><p class='u'>Big <span class='small'>small</span></p></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "p.u { text-decoration: underline; font-size: 20px; } .small { font-size: 10px; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    FontAwareGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 300, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    std::vector<float> underline_ys;
+    for (const auto& rect : context.fill_calls) {
+        if (std::abs(rect.height - 1.0f) < 0.01f && rect.width > 0.0f) {
+            underline_ys.push_back(rect.y);
+        }
+    }
+
+    ASSERT_GE(underline_ys.size(), 2u);
+    float min_y = underline_ys.front();
+    float max_y = underline_ys.front();
+    for (float y : underline_ys) {
+        min_y = std::min(min_y, y);
+        max_y = std::max(max_y, y);
+    }
+    EXPECT_LE(max_y - min_y, 1.5f);
+}
 
 TEST(PainterTest, PaintsBorderEdgesAtComputedPositions) {
     std::string_view html = "<html><body><div>Box</div></body></html>";
@@ -240,6 +429,82 @@ TEST(PainterTest, PaintsBackgroundForBoxes) {
     auto* div_node = find_tag(render_tree.get(), Hummingbird::Html::TagNames::Div);
     ASSERT_NE(div_node, nullptr);
     const auto expected = absolute_rect_for(div_node);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    bool found = false;
+    for (const auto& rect : context.fill_calls) {
+        if (rect_matches(rect, expected)) {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST(PainterTest, PaintsBackgroundForInlineCode) {
+    std::string_view html = "<html><body><p>Inline <code>code</code> text</p></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "code { background: #eeeeee; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 300, 200};
+    render_tree->layout(context, viewport);
+
+    auto* code_node = find_tag(render_tree.get(), Hummingbird::Html::TagNames::Code);
+    ASSERT_NE(code_node, nullptr);
+    const auto expected = absolute_rect_for(code_node);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    bool found = false;
+    for (const auto& rect : context.fill_calls) {
+        if (rect_matches(rect, expected)) {
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST(PainterTest, PaintsBackgroundForBlockCode) {
+    std::string_view html = "<html><body><code>Block code</code></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "code { display: block; background: #eeeeee; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 300, 200};
+    render_tree->layout(context, viewport);
+
+    auto* code_node = find_tag(render_tree.get(), Hummingbird::Html::TagNames::Code);
+    ASSERT_NE(code_node, nullptr);
+    const auto expected = absolute_rect_for(code_node);
 
     Hummingbird::Renderer::Painter painter;
     Hummingbird::Renderer::PaintOptions opts;

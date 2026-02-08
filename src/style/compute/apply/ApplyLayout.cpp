@@ -1,0 +1,339 @@
+#include "style/compute/apply/ApplyLayout.h"
+
+#include <optional>
+#include <string>
+#include <string_view>
+#include <utility>
+#include <vector>
+
+#include "core/utils/ParseUtils.h"
+#include "core/utils/StringUtils.h"
+#include "style/compute/StyleValueUtils.h"
+#include "style/registry/CssValueNames.h"
+
+namespace Hummingbird::Css::Apply {
+
+namespace {
+std::optional<std::pair<float, float>> parse_transform_translate(std::string_view text, float font_size) {
+    auto trimmed = Core::Utils::trim_ascii_whitespace(text);
+    if (trimmed.empty() || trimmed == ValueNames::None) {
+        return std::nullopt;
+    }
+
+    auto parse_length_from_tokens = [&](const std::vector<std::string_view>& tokens,
+                                        size_t& index) -> std::optional<float> {
+        if (index >= tokens.size()) {
+            return std::nullopt;
+        }
+        auto value = StyleValueUtils::parse_length_token(tokens[index], font_size);
+        if (value) {
+            ++index;
+            return *value;
+        }
+        auto number = Core::Utils::parse_float(tokens[index]);
+        if (!number) {
+            return std::nullopt;
+        }
+        float out = *number;
+        ++index;
+        if (index < tokens.size()) {
+            if (tokens[index] == ValueNames::Px) {
+                ++index;
+            } else if (tokens[index] == ValueNames::Em) {
+                out *= font_size;
+                ++index;
+            }
+        }
+        return out;
+    };
+
+    auto parse_args = [&](std::string_view args) -> std::optional<std::pair<float, float>> {
+        args = Core::Utils::trim_ascii_whitespace(args);
+        if (args.empty()) {
+            return std::nullopt;
+        }
+        size_t comma = args.find(',');
+        std::string_view first = args;
+        std::string_view second;
+        if (comma != std::string_view::npos) {
+            first = args.substr(0, comma);
+            second = args.substr(comma + 1);
+        }
+        auto x = StyleValueUtils::parse_length_or_number(first, font_size);
+        if (!x) {
+            return std::nullopt;
+        }
+        float y_value = 0.0f;
+        if (!second.empty()) {
+            auto y = StyleValueUtils::parse_length_or_number(second, font_size);
+            if (!y) {
+                return std::nullopt;
+            }
+            y_value = *y;
+        }
+        return std::make_pair(*x, y_value);
+    };
+
+    if (trimmed.starts_with("translate(") && trimmed.ends_with(")")) {
+        auto args = trimmed.substr(10, trimmed.size() - 11);
+        return parse_args(args);
+    }
+    if (trimmed.starts_with("translateX(") && trimmed.ends_with(")")) {
+        auto args = trimmed.substr(11, trimmed.size() - 12);
+        auto value = StyleValueUtils::parse_length_or_number(args, font_size);
+        if (!value) {
+            return std::nullopt;
+        }
+        return std::make_pair(*value, 0.0f);
+    }
+    if (trimmed.starts_with("translateY(") && trimmed.ends_with(")")) {
+        auto args = trimmed.substr(11, trimmed.size() - 12);
+        auto value = StyleValueUtils::parse_length_or_number(args, font_size);
+        if (!value) {
+            return std::nullopt;
+        }
+        return std::make_pair(0.0f, *value);
+    }
+
+    auto tokens = StyleValueUtils::split_tokens(trimmed);
+    if (tokens.empty()) {
+        return std::nullopt;
+    }
+    if (tokens[0] == "translate") {
+        size_t index = 1;
+        auto x = parse_length_from_tokens(tokens, index);
+        if (!x) {
+            return std::nullopt;
+        }
+        float y_value = 0.0f;
+        if (index < tokens.size()) {
+            if (auto y = parse_length_from_tokens(tokens, index)) {
+                y_value = *y;
+            }
+        }
+        return std::make_pair(*x, y_value);
+    }
+    if (tokens[0] == "translateX") {
+        size_t index = 1;
+        auto x = parse_length_from_tokens(tokens, index);
+        if (!x) {
+            return std::nullopt;
+        }
+        return std::make_pair(*x, 0.0f);
+    }
+    if (tokens[0] == "translateY") {
+        size_t index = 1;
+        auto y = parse_length_from_tokens(tokens, index);
+        if (!y) {
+            return std::nullopt;
+        }
+        return std::make_pair(0.0f, *y);
+    }
+    return std::nullopt;
+}
+
+void apply_edge(EdgeSizes& edges, float value) {
+    edges.top = edges.right = edges.bottom = edges.left = value;
+}
+
+void apply_optional_length(std::optional<float>& target, const Value& value, float font_size) {
+    if (value.type == Value::Type::Length) {
+        if (value.length.unit == Unit::Px) {
+            target = value.length.value;
+        } else if (value.length.unit == Unit::Em) {
+            target = value.length.value * font_size;
+        }
+    } else if (value.type == Value::Type::Number) {
+        target = value.number;
+    }
+}
+
+void apply_length(float& target, const Value& value, float font_size) {
+    target = StyleValueUtils::value_to_length(value, target, font_size);
+}
+
+void apply_margin_value(float& target, bool& auto_flag, const Value& value, float font_size) {
+    if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
+        auto_flag = true;
+        target = 0.0f;
+        return;
+    }
+    auto_flag = false;
+    target = StyleValueUtils::value_to_length(value, target, font_size);
+}
+
+void apply_border_style(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) return;
+    if (value.ident == ValueNames::Solid) {
+        style.border_style = ComputedStyle::BorderStyle::Solid;
+    } else if (value.ident == ValueNames::Outset) {
+        style.border_style = ComputedStyle::BorderStyle::Outset;
+    } else if (value.ident == ValueNames::Inset) {
+        style.border_style = ComputedStyle::BorderStyle::Inset;
+    } else if (value.ident == ValueNames::Ridge) {
+        style.border_style = ComputedStyle::BorderStyle::Ridge;
+    } else if (value.ident == ValueNames::Groove) {
+        style.border_style = ComputedStyle::BorderStyle::Groove;
+    }
+}
+
+void apply_position_value(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return;
+    }
+    const auto& ident = value.ident;
+    if (ident == ValueNames::Relative) {
+        style.position = ComputedStyle::Position::Relative;
+    } else if (ident == ValueNames::Absolute) {
+        style.position = ComputedStyle::Position::Absolute;
+    } else if (ident == ValueNames::Static) {
+        style.position = ComputedStyle::Position::Static;
+    }
+}
+
+void apply_z_index_value(ComputedStyle& style, const Value& value) {
+    if (value.type == Value::Type::Number) {
+        style.z_index = static_cast<int>(value.number);
+    } else if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
+        style.z_index.reset();
+    }
+}
+
+bool apply_display_value(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return false;
+    }
+
+    const auto& ident = value.ident;
+    if (ident == ValueNames::None) {
+        style.display = ComputedStyle::Display::None;
+    } else if (ident == ValueNames::Inline) {
+        style.display = ComputedStyle::Display::Inline;
+    } else if (ident == ValueNames::InlineBlock) {
+        style.display = ComputedStyle::Display::InlineBlock;
+    } else if (ident == ValueNames::ListItem) {
+        style.display = ComputedStyle::Display::ListItem;
+    } else if (ident == ValueNames::Block) {
+        style.display = ComputedStyle::Display::Block;
+    }
+    return true;
+}
+
+}  // namespace
+
+bool apply_layout_property(Property property, const Value& value, ComputedStyle& style,
+                           StyleDefaults::StyleOverrides& overrides, Context& context) {
+    switch (property) {
+        case Property::Display:
+            if (apply_display_value(style, value) && context.display_set) {
+                *context.display_set = true;
+            }
+            return true;
+        case Property::Position:
+            apply_position_value(style, value);
+            return true;
+        case Property::Margin:
+            apply_edge(style.margin, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            return true;
+        case Property::MarginTop:
+            apply_length(style.margin.top, value, style.font_size);
+            return true;
+        case Property::MarginRight:
+            apply_margin_value(style.margin.right, style.margin_right_auto, value, style.font_size);
+            return true;
+        case Property::MarginBottom:
+            apply_length(style.margin.bottom, value, style.font_size);
+            return true;
+        case Property::MarginLeft:
+            apply_margin_value(style.margin.left, style.margin_left_auto, value, style.font_size);
+            return true;
+        case Property::Padding:
+            apply_edge(style.padding, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            return true;
+        case Property::PaddingTop:
+            apply_length(style.padding.top, value, style.font_size);
+            return true;
+        case Property::PaddingRight:
+            apply_length(style.padding.right, value, style.font_size);
+            return true;
+        case Property::PaddingBottom:
+            apply_length(style.padding.bottom, value, style.font_size);
+            return true;
+        case Property::PaddingLeft:
+            apply_length(style.padding.left, value, style.font_size);
+            return true;
+        case Property::BoxSizing:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::BorderBox) {
+                    style.box_sizing = ComputedStyle::BoxSizing::BorderBox;
+                } else if (value.ident == ValueNames::ContentBox) {
+                    style.box_sizing = ComputedStyle::BoxSizing::ContentBox;
+                }
+            }
+            return true;
+        case Property::Transform:
+            if (value.type == Value::Type::Identifier) {
+                auto translate = parse_transform_translate(value.ident, style.font_size);
+                if (translate) {
+                    style.transform_has_translate = true;
+                    style.transform_translate_x = translate->first;
+                    style.transform_translate_y = translate->second;
+                } else {
+                    style.transform_has_translate = false;
+                    style.transform_translate_x = 0.0f;
+                    style.transform_translate_y = 0.0f;
+                }
+            }
+            return true;
+        case Property::BorderWidth:
+            apply_edge(style.border_width, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            return true;
+        case Property::BorderColor:
+            if (value.type == Value::Type::Color) {
+                style.border_color = value.color;
+            }
+            return true;
+        case Property::BorderStyle:
+            apply_border_style(style, value);
+            return true;
+        case Property::Width:
+            apply_optional_length(style.width, value, style.font_size);
+            return true;
+        case Property::Height:
+            apply_optional_length(style.height, value, style.font_size);
+            return true;
+        case Property::MinWidth:
+            apply_optional_length(style.min_width, value, style.font_size);
+            return true;
+        case Property::MinHeight:
+            apply_optional_length(style.min_height, value, style.font_size);
+            return true;
+        case Property::MaxWidth:
+            apply_optional_length(style.max_width, value, style.font_size);
+            return true;
+        case Property::MaxHeight:
+            apply_optional_length(style.max_height, value, style.font_size);
+            return true;
+        case Property::Top:
+            apply_optional_length(style.top, value, style.font_size);
+            return true;
+        case Property::Right:
+            apply_optional_length(style.right, value, style.font_size);
+            return true;
+        case Property::Bottom:
+            apply_optional_length(style.bottom, value, style.font_size);
+            return true;
+        case Property::Left:
+            apply_optional_length(style.left, value, style.font_size);
+            return true;
+        case Property::ZIndex:
+            apply_z_index_value(style, value);
+            return true;
+        case Property::Border:
+            return true;
+        default:
+            return false;
+    }
+}
+
+}  // namespace Hummingbird::Css::Apply

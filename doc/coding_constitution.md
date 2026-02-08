@@ -130,7 +130,7 @@ void render() {
 * **No raw HTML/CSS identifiers:** Use centralized constants for tags, attributes, and properties.
   * Tags: `html/HtmlTagNames.h`
   * Attributes: `html/HtmlAttributeNames.h`
-  * CSS properties: `style/CssPropertyNames.h`
+  * CSS properties: `style/registry/CssPropertyNames.h`
 * **No magic layout constants:** Use named `k...` constants for pixel values and thresholds.
 
 ### 3.6. Factory-Only Creation
@@ -235,3 +235,9 @@ Before committing, ask:
 2. **Memory:** Am I using `new` without an Arena? (If yes, Justify).
 3. **Clarity:** Can a junior dev understand this function without reading the comments?
 4. **Tests:** Did I break the "MotherfuckingWebsite" golden master?
+
+## 8. Developer Guides
+
+When adding or changing structured workflows (for example CSS property registration), check the relevant guide in `doc/dev_guide/` before implementing.
+
+If no guide exists for a repeated workflow, add one.

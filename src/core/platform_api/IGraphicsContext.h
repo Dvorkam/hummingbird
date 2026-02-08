@@ -18,8 +18,12 @@ struct Color {
 };
 
 struct TextMetrics {
-    float width;
-    float height;
+    float width = 0.0f;
+    float height = 0.0f;
+    float ascent = 0.0f;
+    float descent = 0.0f;
+    float underline_position = 0.0f;
+    float underline_thickness = 0.0f;
 };
 
 struct TextStyle {
@@ -47,6 +51,11 @@ public:
         draw_text(text, x, y, style);
     }
     virtual void set_text_cache_owner(std::uint64_t /*owner_id*/) {}
+
+    // Optional document cache hooks for partial redraws.
+    virtual bool begin_document_cache(const Hummingbird::Layout::Rect& /*viewport*/) { return false; }
+    virtual void end_document_cache() {}
+    virtual void draw_document_cache() {}
 };
 
 }  // namespace Hummingbird

@@ -81,6 +81,9 @@ constexpr unsigned char kJpegData[] = {
     0xfa, 0xff, 0xda, 0x00, 0x0c, 0x03, 0x01, 0x00, 0x02, 0x11, 0x03, 0x11, 0x00, 0x3f, 0x00, 0xe2, 0xe8, 0xa2, 0x8a,
     0xf9, 0x93, 0xf7, 0x13, 0xff, 0xd9,
 };
+
+constexpr char kSvgData[] =
+    R"SVG(<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="red"/></svg>)SVG";
 }  // namespace
 
 TEST(ImageDecoderTest, DecodesPngFixture) {
@@ -97,4 +100,8 @@ TEST(ImageDecoderTest, DecodesWebpFixture) {
 
 TEST(ImageDecoderTest, DecodesJpegFixture) {
     expect_decodes(kJpegData, sizeof(kJpegData));
+}
+
+TEST(ImageDecoderTest, DecodesSvgFixture) {
+    expect_decodes(reinterpret_cast<const unsigned char*>(kSvgData), sizeof(kSvgData) - 1);
 }

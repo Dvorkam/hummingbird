@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "html/HtmlTagNames.h"
-#include "style/CssPropertyNames.h"
+#include "style/registry/CssPropertyNames.h"
 
 using namespace Hummingbird::Html;
 namespace TagNames = Hummingbird::Html::TagNames;
@@ -64,6 +64,21 @@ TEST(HtmlParserTest, HandlesVoidAndSelfClosingTagsWithoutStackingChildren) {
     EXPECT_EQ(img_node->get_tag_name(), TagNames::Img);
 }
 
+TEST(HtmlParserTest, TreatsMalformedTagsAsText) {
+    std::string_view html = "<div><>< > </><\n></div>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(div_node, nullptr);
+    const auto& children = div_node->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(children[0].get());
+    ASSERT_NE(text_node, nullptr);
+    EXPECT_EQ(text_node->get_text(), "<>< > </><\n>");
+}
+
 TEST(HtmlParserTest, TracksUnsupportedTags) {
     std::string_view html = "<custom><inner/></custom><video></video>";
     Hummingbird::Core::ArenaAllocator arena(4096);
@@ -75,6 +90,107 @@ TEST(HtmlParserTest, TracksUnsupportedTags) {
     EXPECT_TRUE(unsupported.count("custom"));
     EXPECT_TRUE(unsupported.count("inner"));
     EXPECT_TRUE(unsupported.count("video"));
+}
+
+TEST(HtmlParserTest, SemanticTagsAreSupported) {
+    std::string_view html = "<main><section><article></article></section></main>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    const auto& unsupported = result.unsupported_tags;
+    EXPECT_FALSE(unsupported.count("main"));
+    EXPECT_FALSE(unsupported.count("section"));
+    EXPECT_FALSE(unsupported.count("article"));
+}
+
+TEST(HtmlParserTest, CustomElementsAreSupported) {
+    std::string_view html = "<my-widget><x-child></x-child></my-widget>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    const auto& unsupported = result.unsupported_tags;
+    EXPECT_FALSE(unsupported.count("my-widget"));
+    EXPECT_FALSE(unsupported.count("x-child"));
+}
+
+TEST(HtmlParserTest, DedupesUnsupportedTagWarnings) {
+    std::string_view html = "<custom></custom><custom></custom>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    EXPECT_EQ(result.unsupported_tags.size(), 1u);
+    EXPECT_TRUE(result.unsupported_tags.count("custom"));
+}
+
+TEST(HtmlParserTest, AutoClosesParagraphBeforeBlockTags) {
+    std::string_view html = "<p>First<p>Second<dl><dt>Term</dt></dl><p>Third</p>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    ASSERT_EQ(result.dom->get_children().size(), 4u);
+    auto first = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    auto second = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[1].get());
+    auto dl = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[2].get());
+    auto third = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[3].get());
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+    ASSERT_NE(dl, nullptr);
+    ASSERT_NE(third, nullptr);
+    EXPECT_EQ(first->get_tag_name(), TagNames::P);
+    EXPECT_EQ(second->get_tag_name(), TagNames::P);
+    EXPECT_EQ(dl->get_tag_name(), TagNames::Dl);
+    EXPECT_EQ(third->get_tag_name(), TagNames::P);
+}
+
+TEST(HtmlParserTest, HandlesUnclosedTags) {
+    std::string_view html = "<div><span>hello";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    ASSERT_EQ(result.dom->get_children().size(), 1u);
+    auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(div_node, nullptr);
+    EXPECT_EQ(div_node->get_tag_name(), TagNames::Div);
+    ASSERT_EQ(div_node->get_children().size(), 1u);
+    auto span_node = dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[0].get());
+    ASSERT_NE(span_node, nullptr);
+    EXPECT_EQ(span_node->get_tag_name(), TagNames::Span);
+}
+
+TEST(HtmlParserTest, IgnoresUnexpectedEndTags) {
+    std::string_view html = "<div>hi</span><p>ok</p>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    ASSERT_EQ(result.dom->get_children().size(), 1u);
+    auto div_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(div_node, nullptr);
+    EXPECT_EQ(div_node->get_tag_name(), TagNames::Div);
+    ASSERT_GE(div_node->get_children().size(), 2u);
+    auto paragraph_node = dynamic_cast<Hummingbird::DOM::Element*>(div_node->get_children()[1].get());
+    ASSERT_NE(paragraph_node, nullptr);
+    EXPECT_EQ(paragraph_node->get_tag_name(), TagNames::P);
+}
+
+TEST(HtmlParserTest, DecodesNamedEntities) {
+    std::string_view html = "<p>A &mdash; B &amp; C &lt; D &gt; E &quot;F&quot; &apos;G&apos; &nbsp;H</p>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    auto p_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(p_node, nullptr);
+    ASSERT_EQ(p_node->get_children().size(), 1u);
+    auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(p_node->get_children()[0].get());
+    ASSERT_NE(text_node, nullptr);
+    const std::string expected = "A \u2014 B & C < D > E \"F\" 'G' \u00A0H";
+    EXPECT_EQ(text_node->get_text(), expected);
 }
 
 TEST(HtmlParserTest, PopsToMatchingAncestorOnMismatchedEndTag) {

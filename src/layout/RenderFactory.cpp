@@ -1,14 +1,15 @@
 #include "layout/RenderFactory.h"
 
-#include "layout/BlockBox.h"
-#include "layout/InlineBox.h"
-#include "layout/RenderBreak.h"
-#include "layout/RenderImage.h"
-#include "layout/RenderListItem.h"
 #include "layout/RenderObject.h"
-#include "layout/RenderRule.h"
-#include "layout/RenderTable.h"
-#include "layout/TextBox.h"
+#include "layout/block/BlockBox.h"
+#include "layout/controls/RenderBreak.h"
+#include "layout/controls/RenderRule.h"
+#include "layout/flow/InlineBox.h"
+#include "layout/flow/TextBox.h"
+#include "layout/formatting/RenderListItem.h"
+#include "layout/replaced/RenderImage.h"
+#include "layout/replaced/RenderSvg.h"
+#include "layout/table/RenderTable.h"
 
 namespace Hummingbird::Layout {
 
@@ -42,6 +43,10 @@ std::unique_ptr<RenderObject> RenderFactory::create_text_box(const DOM::Text* do
 
 std::unique_ptr<RenderObject> RenderFactory::create_image(const DOM::Element* dom_node) {
     return RenderImage::create(dom_node);
+}
+
+std::unique_ptr<RenderObject> RenderFactory::create_svg(const DOM::Element* dom_node) {
+    return RenderSvg::create(dom_node);
 }
 
 std::unique_ptr<RenderObject> RenderFactory::create_table(const DOM::Node* dom_node) {

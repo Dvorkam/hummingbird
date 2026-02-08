@@ -1,0 +1,89 @@
+# Hummingbird clang-uml config (works with clang-uml 0.6.x)
+
+compilation_database_dir: build
+output_directory: doc/diagrams
+
+# Defaults applied to all diagrams unless overridden
+generate_method_arguments: none
+
+diagrams:
+  hummingbird_packages:
+    type: package
+    title: Hummingbird - packages by directory
+    package_type: directory
+    glob:
+      - r: ".*src/.*\\.cpp$"
+    include:
+      paths:
+        - src/app
+        - src/core
+        - src/engine
+        - src/html
+        - src/layout
+        - src/platform
+        - src/renderer
+        - src/style
+    exclude:
+      paths:
+        - tests
+        - build
+        - vcpkg_installed
+
+  platform_api:
+    type: class
+    title: Platform API (interfaces & factories)
+    generate_packages: true
+    package_type: directory
+    glob:
+      - r: ".*src/.*\\.cpp$"
+    include:
+      paths:
+        - src/core/platform_api
+    exclude:
+      access:
+        - private
+
+  engine_document_pipeline:
+    type: class
+    title: Engine - document pipeline
+    generate_packages: true
+    package_type: directory
+    include_relations_also_as_members: false
+    glob:
+      - r: ".*src/.*\\.cpp$"
+    include:
+      paths:
+        - src/engine/document
+        - src/engine/resources
+        - src/engine/script
+        - src/engine/tab
+    exclude:
+      access:
+        - private
+
+  app_includes_src_only:
+    type: include
+    title: Include graph (src only)
+    glob:
+      - src/app/main.cpp
+      - src/app/BrowserApp.cpp
+
+    # keep nodes inside your repo code
+    include:
+      paths:
+        - src
+
+    exclude:
+      paths:
+        # project noise
+        - build
+        - build_sanity
+        - tests
+        - vcpkg_installed
+
+        # system + toolchain common roots
+        - /usr/include
+        - /usr/local/include
+        - /usr/include/c++
+        - /usr/lib/clang
+        - /usr/lib64/clang

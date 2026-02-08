@@ -1,4 +1,4 @@
-#include "layout/BlockBox.h"
+#include "layout/block/BlockBox.h"
 
 #include <gtest/gtest.h>
 
@@ -7,8 +7,12 @@
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
-#include "layout/TextBox.h"
 #include "layout/TreeBuilder.h"
+#include "layout/controls/RenderRule.h"
+#include "layout/flow/InlineBox.h"
+#include "layout/flow/TextBox.h"
+#include "layout/replaced/RenderImage.h"
+#include "style/compute/ComputedStyle.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
@@ -99,4 +103,107 @@ TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
 
     EXPECT_LT(inline_block->get_rect().width, bounds.width);
     EXPECT_GT(inline_block->get_rect().width, 0.0f);
+}
+
+TEST(BlockBoxLayoutTest, FloatLeftShiftsInlineContent) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, "div");
+    auto hr = DomFactory::create_element(arena, "hr");
+    auto text = DomFactory::create_text(arena, "Hello world");
+    root->append_child(std::move(hr));
+    root->append_child(std::move(text));
+
+    auto root_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    root->set_computed_style(root_style);
+
+    auto float_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    float_style->float_type = Hummingbird::Css::ComputedStyle::Float::Left;
+    float_style->width = 50.0f;
+    float_style->height = 10.0f;
+    root->get_children()[0]->set_computed_style(float_style);
+
+    auto render_root = BlockBox::create(root.get());
+    auto render_rule = RenderRule::create(root->get_children()[0].get());
+    auto render_text = TextBox::create(dynamic_cast<Text*>(root->get_children()[1].get()));
+    render_root->append_child(std::move(render_rule));
+    render_root->append_child(std::move(render_text));
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect bounds{0, 0, 200, 0};
+    render_root->layout(context, bounds);
+
+    const auto& text_rect = render_root->get_children()[1]->get_rect();
+    EXPECT_GE(text_rect.x, 50.0f);
+}
+
+TEST(BlockBoxLayoutTest, BlockStaysBesideFloatWhenRoom) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, "div");
+    auto img = DomFactory::create_element(arena, "img");
+    auto hr = DomFactory::create_element(arena, "hr");
+    img->set_attribute(Attr::Width, "88");
+    img->set_attribute(Attr::Height, "31");
+    root->append_child(std::move(img));
+    root->append_child(std::move(hr));
+
+    auto root_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    root->set_computed_style(root_style);
+
+    auto img_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    img_style->float_type = Hummingbird::Css::ComputedStyle::Float::Right;
+    root->get_children()[0]->set_computed_style(img_style);
+
+    auto render_root = BlockBox::create(root.get());
+    auto render_img = RenderImage::create(dynamic_cast<Element*>(root->get_children()[0].get()));
+    auto render_rule = RenderRule::create(root->get_children()[1].get());
+    render_root->append_child(std::move(render_img));
+    render_root->append_child(std::move(render_rule));
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect bounds{0, 0, 200, 0};
+    render_root->layout(context, bounds);
+
+    const auto& rule_rect = render_root->get_children()[1]->get_rect();
+    EXPECT_FLOAT_EQ(rule_rect.x, 0.0f);
+    EXPECT_FLOAT_EQ(rule_rect.y, 0.0f);
+    EXPECT_FLOAT_EQ(rule_rect.width, 112.0f);
+}
+
+TEST(BlockBoxLayoutTest, FloatImageInsideLinkIsFloated) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, "div");
+    auto link = DomFactory::create_element(arena, "a");
+    auto img = DomFactory::create_element(arena, "img");
+    img->set_attribute(Attr::Width, "88");
+    img->set_attribute(Attr::Height, "31");
+    link->append_child(std::move(img));
+    root->append_child(std::move(link));
+    root->append_child(DomFactory::create_text(arena, "Trailing text"));
+
+    auto root_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    root->set_computed_style(root_style);
+
+    auto link_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    link_style->display = Hummingbird::Css::ComputedStyle::Display::Inline;
+    root->get_children()[0]->set_computed_style(link_style);
+
+    auto img_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+    img_style->display = Hummingbird::Css::ComputedStyle::Display::Inline;
+    img_style->float_type = Hummingbird::Css::ComputedStyle::Float::Right;
+    root->get_children()[0]->get_children()[0]->set_computed_style(img_style);
+
+    auto render_root = BlockBox::create(root.get());
+    auto render_link = InlineBox::create(dynamic_cast<Element*>(root->get_children()[0].get()));
+    auto render_img = RenderImage::create(dynamic_cast<Element*>(root->get_children()[0]->get_children()[0].get()));
+    render_link->append_child(std::move(render_img));
+    render_root->append_child(std::move(render_link));
+    render_root->append_child(TextBox::create(dynamic_cast<Text*>(root->get_children()[1].get())));
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect bounds{0, 0, 200, 0};
+    render_root->layout(context, bounds);
+
+    const auto& link_rect = render_root->get_children()[0]->get_rect();
+    EXPECT_FLOAT_EQ(link_rect.width, 88.0f);
+    EXPECT_FLOAT_EQ(link_rect.x, 112.0f);
 }

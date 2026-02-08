@@ -6,7 +6,8 @@
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
-#include "layout/Geometry.h"
+#include "core/utils/TextEditBuffer.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::App {
 
@@ -16,6 +17,8 @@ constexpr Color kOverlayText{0, 0, 0, 255};
 constexpr float kIconSize = 16.0f;
 constexpr float kIconPadding = 6.0f;
 constexpr float kTextPadding = 8.0f;
+constexpr float kTextBaselineY = 8.0f;
+constexpr float kTextSize = 16.0f;
 }  // namespace
 
 UrlBar::UrlBar() : text_("https://example.dev") {
@@ -24,7 +27,7 @@ UrlBar::UrlBar() : text_("https://example.dev") {
 
     font_path_ = Hummingbird::Core::Utils::resolve_asset_path_string("assets/fonts/Roboto-Regular.ttf");
     style_.font_path = font_path_;
-    style_.font_size = 16.0f;
+    style_.font_size = kTextSize;
     style_.color = kOverlayText;
 
     refresh_render_text();
@@ -79,97 +82,9 @@ UrlBar::KeyResult UrlBar::handle_key_down(const InputEvent& event, IWindow* wind
     KeyResult result;
     if (!active_) return result;
 
-    if (!event.key.repeat) {
-        const bool paste_ctrl_v = event.mods.ctrl && event.key.key == Key::V;
-        const bool paste_shift_insert = event.mods.shift && event.key.key == Key::Insert;
-        if (paste_ctrl_v || paste_shift_insert) {
-            if (window) {
-                const auto clipboard_text = window->get_clipboard_text();
-                if (!clipboard_text.empty()) {
-                    insert_text(clipboard_text);
-                    result.handled = true;
-                    result.needs_repaint = true;
-                }
-            }
-            return result;
-        }
-    }
-
-    if (event.key.key == Key::Backspace) {
-        result.handled = true;
-        if (!text_.empty()) {
-            caret_ = clamp_caret(caret_, text_);
-            if (caret_ > 0) {
-                auto start = prev_codepoint(text_, caret_);
-                text_.erase(start, caret_ - start);
-                caret_ = start;
-            }
-            refresh_render_text();
-        }
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Delete) {
-        result.handled = true;
-        if (!text_.empty()) {
-            caret_ = clamp_caret(caret_, text_);
-            if (caret_ < text_.size()) {
-                auto end = next_codepoint(text_, caret_);
-                text_.erase(caret_, end - caret_);
-            }
-            refresh_render_text();
-        }
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Left) {
-        caret_ = prev_codepoint(text_, caret_);
-        refresh_render_text();
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Right) {
-        caret_ = next_codepoint(text_, caret_);
-        refresh_render_text();
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Home) {
-        caret_ = 0;
-        refresh_render_text();
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::End) {
-        caret_ = text_.size();
-        refresh_render_text();
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Enter) {
-        set_active(false, window, nullptr);
-        result.submitted_url = text_;
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
-
-    if (event.key.key == Key::Escape) {
-        set_active(false, window, nullptr);
-        result.handled = true;
-        result.needs_repaint = true;
-        return result;
-    }
+    if (handle_paste_key(event, window, result)) return result;
+    if (handle_edit_key(event, result)) return result;
+    if (handle_commit_key(event, window, result)) return result;
 
     return result;
 }
@@ -198,23 +113,112 @@ void UrlBar::draw(IGraphicsContext& graphics, int win_w) const {
         Hummingbird::Layout::Rect icon_rect{kTextPadding, icon_y, kIconSize, kIconSize};
         graphics.draw_image(*icon, icon_rect);
     }
-    graphics.draw_text(render_text_, text_start_x(), 8.0f, style_);
+    graphics.draw_text(render_text_, text_start_x(), kTextBaselineY, style_);
 }
 
 void UrlBar::refresh_render_text() {
     render_text_.assign(text_);
     if (active_) {
-        caret_ = clamp_caret(caret_, text_);
+        caret_ = Core::Utils::TextEditBuffer::clamp_caret_for(text_, caret_);
         render_text_.insert(caret_, "|");
     }
 }
 
 void UrlBar::insert_text(std::string_view text) {
-    if (text.empty()) return;
-    caret_ = clamp_caret(caret_, text_);
-    text_.insert(caret_, text);
-    caret_ += text.size();
-    refresh_render_text();
+    if (Core::Utils::TextEditBuffer::insert_text(text_, caret_, text)) {
+        refresh_render_text();
+    }
+}
+
+bool UrlBar::handle_paste_key(const InputEvent& event, IWindow* window, KeyResult& result) {
+    if (event.key.repeat) return false;
+
+    const bool paste_ctrl_v = event.mods.ctrl && event.key.key == Key::V;
+    const bool paste_shift_insert = event.mods.shift && event.key.key == Key::Insert;
+    if (!paste_ctrl_v && !paste_shift_insert) return false;
+
+    if (window) {
+        const auto clipboard_text = window->get_clipboard_text();
+        if (!clipboard_text.empty()) {
+            insert_text(clipboard_text);
+            result.handled = true;
+            result.needs_repaint = true;
+        }
+    }
+    return true;
+}
+
+bool UrlBar::handle_edit_key(const InputEvent& event, KeyResult& result) {
+    if (event.key.key == Key::Backspace) {
+        result.handled = true;
+        if (Core::Utils::TextEditBuffer::backspace(text_, caret_)) {
+            refresh_render_text();
+        }
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Delete) {
+        result.handled = true;
+        if (Core::Utils::TextEditBuffer::delete_forward(text_, caret_)) {
+            refresh_render_text();
+        }
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Left) {
+        Core::Utils::TextEditBuffer::move_left(text_, caret_);
+        refresh_render_text();
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Right) {
+        Core::Utils::TextEditBuffer::move_right(text_, caret_);
+        refresh_render_text();
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Home) {
+        Core::Utils::TextEditBuffer::move_home(caret_);
+        refresh_render_text();
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::End) {
+        Core::Utils::TextEditBuffer::move_end(text_, caret_);
+        refresh_render_text();
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    return false;
+}
+
+bool UrlBar::handle_commit_key(const InputEvent& event, IWindow* window, KeyResult& result) {
+    if (event.key.key == Key::Enter) {
+        set_active(false, window, nullptr);
+        result.submitted_url = text_;
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    if (event.key.key == Key::Escape) {
+        set_active(false, window, nullptr);
+        result.handled = true;
+        result.needs_repaint = true;
+        return true;
+    }
+
+    return false;
 }
 
 const ImageBitmap* UrlBar::current_icon() const {
@@ -240,30 +244,6 @@ bool UrlBar::is_security_icon_hit(int x, int y) const {
     const float icon_y = (static_cast<float>(height_) - kIconSize) * 0.5f;
     return x >= static_cast<int>(kTextPadding) && x <= static_cast<int>(kTextPadding + kIconSize) &&
            y >= static_cast<int>(icon_y) && y <= static_cast<int>(icon_y + kIconSize);
-}
-
-std::string::size_type UrlBar::clamp_caret(std::string::size_type caret, std::string_view text) {
-    return std::min(caret, text.size());
-}
-
-std::string::size_type UrlBar::prev_codepoint(std::string_view text, std::string::size_type caret) {
-    caret = clamp_caret(caret, text);
-    if (caret == 0) return 0;
-    std::string::size_type i = caret - 1;
-    while (i > 0 && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80) {
-        --i;
-    }
-    return i;
-}
-
-std::string::size_type UrlBar::next_codepoint(std::string_view text, std::string::size_type caret) {
-    caret = clamp_caret(caret, text);
-    if (caret >= text.size()) return text.size();
-    std::string::size_type i = caret + 1;
-    while (i < text.size() && (static_cast<unsigned char>(text[i]) & 0xC0) == 0x80) {
-        ++i;
-    }
-    return i;
 }
 
 }  // namespace Hummingbird::App

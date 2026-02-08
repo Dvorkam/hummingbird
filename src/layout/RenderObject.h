@@ -5,14 +5,15 @@
 #include <vector>
 
 #include "core/dom/Node.h"
-#include "layout/Geometry.h"
-#include "layout/inline/IInlineParticipant.h"
-#include "layout/inline/InlineRef.h"
-#include "style/ComputedStyle.h"
+#include "layout/flow/inline/IInlineParticipant.h"
+#include "layout/flow/inline/InlineRef.h"
+#include "layout/geometry/Geometry.h"
+#include "style/compute/ComputedStyle.h"
 
 // Forward declare IGraphicsContext to break dependency cycle
 namespace Hummingbird {
 class IGraphicsContext;
+struct ImageBitmap;
 namespace Css {
 struct ComputedStyle;
 }  // namespace Css
@@ -47,7 +48,24 @@ public:
     RenderObject* get_parent() { return m_parent; }
     const RenderObject* get_parent() const { return m_parent; }
 
-    InlineRef Inline() { return InlineRef(as_inline_participant()); }
+    InlineRef Inline() {
+        const auto* style = get_computed_style();
+        if (style && style->position == Css::ComputedStyle::Position::Absolute) {
+            return InlineRef(nullptr);
+        }
+        return InlineRef(as_inline_participant());
+    }
+
+    bool set_background_image(const ImageBitmap* image) {
+        if (m_background_image == image) {
+            return false;
+        }
+        m_background_image = image;
+        return true;
+    }
+    const ImageBitmap* background_image() const { return m_background_image; }
+    void set_has_absolute_descendant(bool value) { m_has_absolute_descendant = value; }
+    bool has_absolute_descendant() const { return m_has_absolute_descendant; }
 
     virtual void layout(IGraphicsContext& context, const Rect& bounds);
     virtual void paint(IGraphicsContext& context, const Point& offset) const final;
@@ -62,5 +80,7 @@ protected:
     RenderObject* m_parent = nullptr;
     std::vector<std::unique_ptr<RenderObject>> m_children;
     Rect m_rect;
+    const ImageBitmap* m_background_image = nullptr;
+    bool m_has_absolute_descendant = false;
 };
 }  // namespace Hummingbird::Layout
