@@ -90,8 +90,8 @@ bool DocumentScriptController::run_inline_scripts(const std::vector<std::string>
 }
 
 DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_click(
-    DOM::Node* dom_root, Core::ArenaAllocator* arena, const Layout::RenderObject* render_tree, const Layout::Rect& viewport,
-    const Layout::Point& point, float scroll_y) {
+    DOM::Node* dom_root, Core::ArenaAllocator* arena, const Layout::RenderObject* render_tree,
+    const Layout::Rect& viewport, const Layout::Point& point, float scroll_y) {
     if (!render_tree) {
         return {};
     }

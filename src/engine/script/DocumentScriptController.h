@@ -1,7 +1,7 @@
 #pragma once
 
-#include <vector>
 #include <string_view>
+#include <vector>
 
 #include "core/platform_api/IScriptEngine.h"
 #include "engine/script/DocumentScriptHost.h"
@@ -34,8 +34,8 @@ public:
 
     bool run_inline_scripts(const std::vector<std::string>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);
     ScriptDispatchResult dispatch_click(DOM::Node* dom_root, Core::ArenaAllocator* arena,
-                                        const Layout::RenderObject* render_tree,
-                                        const Layout::Rect& viewport, const Layout::Point& point, float scroll_y);
+                                        const Layout::RenderObject* render_tree, const Layout::Rect& viewport,
+                                        const Layout::Point& point, float scroll_y);
     ScriptDispatchResult dispatch_load(DOM::Node* dom_root, Core::ArenaAllocator* arena);
 
 private:
