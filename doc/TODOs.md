@@ -12,28 +12,7 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 
 ## Milestone 5 (Layout/Polish)
 
-- [ ] **[M5 P1] T-ARCH-CYCLE-1: Break Engine Document/Script Cycle**; Goal: remove direct package cycle between `engine/document` and `engine/script`; Scope: introduce narrow script-facing document interfaces and invert dependencies; Acceptance: package graph no longer has `document <-> script` cycle; Tests: engine + script tests unchanged.
-- [ ] **[M5 P1] T-ARCH-CYCLE-2: Break PlatformApi/Geometry Cycle**; Goal: decouple `core/platform_api` from `layout/geometry`; Scope: move shared rect/point POD types into a neutral core geometry/types module and update interfaces; Acceptance: package graph no longer has `platform_api <-> geometry` cycle; Tests: app/engine/layout tests unchanged.
-- [ ] **[M5 P1] T-ARCH-INCLUDE-1: Slim Tab.h and DocumentPipeline.h Includes**; Goal: reduce header fan-out and rebuild impact; Scope: forward declarations + move heavy includes to `.cpp` for `Tab` and `DocumentPipeline`; Acceptance: include graph fan-out for these headers drops materially and no behavior change; Tests: engine tests.
-- [ ] **[M5 P1] T-CSS-VIS-1: opacity (paint-only)**; Goal: apply opacity in paint; Scope: Painter; Acceptance: subtree alpha scales paint; Tests: renderer tests.
-- [ ] **[M5 P2] T-UI-FORM-1: Form Control Styling Polish**; Goal: native-like input/button visuals (shading, hover, pressed); Scope: renderer + style defaults; Acceptance: inputs/buttons look intentional and stateful; Tests: manual.
-- [ ] **[M5 P2] T-ARCH-SPLIT-1: DocumentPipeline Responsibility Split**; Goal: keep pipeline orchestration thin; Scope: extract focused coordinators/services for link hit-test/form submit/script dispatch/resource apply flow; Acceptance: `DocumentPipeline` public API and internals are slimmer with clear boundaries and unchanged behavior; Tests: document pipeline + tab tests.
-- [ ] **[M5 P2] T-ARCH-SPLIT-2: ResourceLoader Decomposition**; Goal: prevent growth of a networking god-object; Scope: split request planning, response integration, and policy (fallback/insecure) into dedicated helpers; Acceptance: `ResourceLoader` complexity reduced and behavior preserved; Tests: resource loader + tab tests.
-- [ ] **[M5 P3] T-FORM-3: URL-encoded + spaces**; Goal: use application/x-www-form-urlencoded space encoding; Scope: url encoding; Acceptance: spaces become "+"; Tests: core utils tests.
-- [ ] **[M5 P3] T-ARCH-CYCLE-3: Break Dom/StyleCompute Cycle**; Goal: remove `core/dom <-> style/compute` mutual dependency; Scope: isolate style-facing DOM access behind read-only adapter/traits interfaces; Acceptance: package graph no longer has `dom <-> compute` cycle; Tests: style + layout + DOM tests.
-- [ ] **[M5 P1] T-REF-ENGINE-1: Reshuffle Engine Modules**; Goal: group engine files by domain (document/tab/resources); Scope: Engine folder structure + namespaces; Acceptance: clearer module layout with minimal includes; Tests: existing engine tests.
-- [ ] **[M5 P2] T-CSS-BORDER-2: border-radius (paint)**; Goal: round corners; Scope: Painter; Acceptance: rounded rect paint for background/border; Tests: renderer tests.
-- [ ] **[M5 P2] T-CSS-DECOR-1: outline + outline-offset**; Goal: draw outlines; Scope: Painter; Acceptance: outline draws outside border with offset; Tests: renderer tests.
-- [ ] **[M5 P2] T-CSS-TEXT-1: Text Effects Polish**; Goal: support `text-transform`, `letter-spacing`, `text-indent`, `text-overflow`, `word-wrap`; Scope: style + text layout/painter; Acceptance: long labels elide/wrap closer to author CSS; Tests: renderer + layout tests.
-- [ ] **[M5 P1] T-CSS-SEL-2: Child combinator selector (`>`)**; Goal: support direct-child matching; Scope: CssParser + SelectorMatcher; Acceptance: `.parent > .child` matches direct children only; Tests: selector matcher tests.
-- [ ] **[M5 P2] T-IMG-1: Animated GIF/WebP Playback**; Goal: play animated frames; Scope: decoder + renderer scheduling; Acceptance: frames render with timing; Tests: image tests.
-- [ ] **[M5 P2] T-IMG-2: SVG Image Decode (Raster)**; Goal: rasterize SVG `<img>` sources; Scope: IImageDecoder + SVG library; Acceptance: svg renders to ImageBitmap; Tests: image tests.
-- [ ] **[M5 P1] T-PERF-3: Split UI Chrome From Page Render**; Goal: avoid repainting page while editing URL bar; Scope: app render split; Acceptance: URL bar updates without page repaint; Tests: manual.
-- [ ] **[M5 P1] T-LAYOUT-INLINE-2: Inline-Block Baseline Alignment**; Goal: inline-block aligns to text baseline by default; Scope: inline layout + line box metrics; Acceptance: inline-block does not appear to “sink” below text; Tests: layout tests.
-- [ ] **[M5 P3] T-CSS-CODE-1: Code/Pre Background Defaults**; Goal: default inline code/pre background should not fight page background; Scope: style defaults + computed style; Acceptance: code/pre render transparent unless author CSS sets a background; Tests: style tests.
-- [ ] **[M5 P3] T-LIST-1: Ordered List Markers**; Goal: ordered lists show numeric markers instead of bullets; Scope: list marker layout/paint; Acceptance: `<ol>` renders 1., 2., 3.; Tests: layout tests.
-- [ ] **[M5 P3] T-TABLE-1: Table Borders for Visibility**; Goal: make table structure visible without author CSS; Scope: style defaults for `table/td/th` or table paint; Acceptance: tables show cell boundaries in demo; Tests: renderer tests.
-- [ ] **[M5 P3] T-HTML-SEM-2: Semantic Landmark Roles (A11y)**; Goal: expose `<header/nav/main/section/article/aside/footer>` semantics for accessibility and tooling; Scope: DOM semantics + a11y hooks; Acceptance: semantic tags report correct roles; Tests: DOM/a11y tests.
+Milestone defined in `doc/milestones/milestone5.md` (stories moved there).
 
 ## Milestone 6+ (Big Rocks)
 
