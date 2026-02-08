@@ -78,9 +78,8 @@ std::string describe_submit_target(const DOM::Element* element) {
 }  // namespace
 
 std::optional<std::string> DocumentNavigation::hit_test_link(const Layout::RenderObject* render_tree,
-                                                             const Layout::Point& point,
-                                                             const Layout::Rect& viewport, float scroll_y,
-                                                             std::string_view base_url) const {
+                                                             const Layout::Point& point, const Layout::Rect& viewport,
+                                                             float scroll_y, std::string_view base_url) const {
     return HitTest::hit_test_z_order<std::string>(
         render_tree, point, viewport, scroll_y,
         [&](const Layout::RenderObject& node) { return resolve_anchor_href(node.get_dom_node(), base_url); });
