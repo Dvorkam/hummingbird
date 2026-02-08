@@ -25,7 +25,8 @@ public:
         metrics.descent = font_size * 0.2f;
         return metrics;
     }
-    void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const Hummingbird::TextStyle& /*style*/) override {}
+    void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/,
+                   const Hummingbird::TextStyle& /*style*/) override {}
 
     bool begin_document_cache(const Hummingbird::Layout::Rect& /*viewport*/) override {
         ++begin_document_cache_calls;
