@@ -145,9 +145,81 @@ HB_TLS_INSECURE=1 ./build/Release/Hummingbird
 - `Esc`: unfocus URL bar
 - Mouse wheel: scroll
 - `F1`: toggle debug outlines
+- `Ctrl+T`: new tab
+- `Ctrl+W`: close active tab
+- `Ctrl+Left` / `Ctrl+Right`: switch tabs
 
 Startup defaults to `https://example.dev` (a built-in demo page). Loading arbitrary sites is best-effort and incomplete.
 JS demo page: `https://example.dev/js`.
+
+## Extensions (MVP)
+
+Milestone 5 introduces a minimal extension host. This is not WebExtension-compatible; it is a small, evolving surface.
+
+What works:
+
+- Load extensions from a directory on startup (default: `assets/extensions/`).
+- Parse a minimal `manifest.json`.
+- Run a long-lived background script once at startup (one QuickJS context per extension).
+- `console.log(...)` works inside background scripts.
+- Enable/disable extensions via environment variables.
+
+What is not implemented yet:
+
+- No `browser.*` API yet (tabs events, CSS injection, etc).
+- No content scripts and no per-tab DOM access from extensions.
+- No permission enforcement, sandboxing, or security model.
+
+### Directory layout
+
+Extensions live in subdirectories under the extensions root. The extension ID is the directory name.
+
+Example:
+
+```
+assets/extensions/dark-mode/
+  manifest.json
+  background.js
+```
+
+### Manifest format (v0)
+
+Required fields:
+
+- `name`: string
+- `version`: string
+- `background.entry`: string (relative path to the background script)
+
+Optional fields:
+
+- `permissions`: string[]
+
+Example `manifest.json`:
+
+```json
+{
+  "name": "Dark Mode",
+  "version": "0.1.0",
+  "background": { "entry": "background.js" },
+  "permissions": ["tabs", "scripting"]
+}
+```
+
+### Configuration
+
+- `HB_EXTENSIONS_DIR`: overrides the extensions root directory (defaults to `assets/extensions`).
+- `HB_EXTENSIONS_DISABLE`: comma-separated list of extension IDs to disable.
+- `HB_EXTENSIONS_ENABLE`: comma-separated allow-list of extension IDs to enable (when set, only these load).
+
+Examples:
+
+```bash
+# Disable the built-in dark-mode extension (directory name is the ID).
+HB_EXTENSIONS_DISABLE=dark-mode ./build/Release/Hummingbird
+
+# Enable only two extensions.
+HB_EXTENSIONS_ENABLE=dark-mode,my-ext ./build/Release/Hummingbird
+```
 
 ## License
 
