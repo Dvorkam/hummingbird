@@ -383,8 +383,8 @@ P0: DDG HTML End-to-End Usability (Mandatory)
 - [x] 5.5.2: `autofocus` Behavior
 - [x] 5.5.3: Submit Controls Parity (`<input type="submit">`)
 - [x] 5.5.4: Form `method="post"` Support (MVP)
-- [ ] T-FORM-3 (M5 P3): URL-encoded + spaces
-- [ ] 5.5.5: DDG Homepage Layout/Usability Polish
+- [x] T-FORM-3 (M5 P3): URL-encoded + spaces
+- [x] 5.5.5: DDG Homepage Layout/Usability Polish
 
 P1+: Refactors and Polish (Only if Needed / Time Allows)
 - [ ] T-ARCH-INCLUDE-1 (M5 P1): Slim Tab.h and DocumentPipeline.h Includes

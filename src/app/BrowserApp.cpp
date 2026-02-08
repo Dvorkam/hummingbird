@@ -393,10 +393,9 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     }
     auto submit = active_tab().submit_form_at(point, viewport);
     if (submit) {
-        HB_LOG_DEBUG("[input] submit hit method=" << (submit->method == Hummingbird::Engine::FormSubmitMethod::Post
-                                                          ? "POST"
-                                                          : "GET")
-                                                  << " url=" << submit->url);
+        HB_LOG_DEBUG("[input] submit hit method="
+                     << (submit->method == Hummingbird::Engine::FormSubmitMethod::Post ? "POST" : "GET")
+                     << " url=" << submit->url);
         url_bar_.set_text(submit->url);
         navigate_active_tab(*submit);
         document_dirty_ = true;

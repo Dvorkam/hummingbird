@@ -315,9 +315,9 @@ std::optional<FormSubmission> DocumentModel::build_form_submission(const DOM::El
         if (i > 0) {
             encoded_fields.push_back('&');
         }
-        encoded_fields.append(Core::Utils::url_encode_component(fields[i].name));
+        encoded_fields.append(Core::Utils::form_url_encode_component(fields[i].name));
         encoded_fields.push_back('=');
-        encoded_fields.append(Core::Utils::url_encode_component(fields[i].value));
+        encoded_fields.append(Core::Utils::form_url_encode_component(fields[i].value));
     }
 
     FormSubmission submission;

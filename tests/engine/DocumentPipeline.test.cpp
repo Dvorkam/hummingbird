@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/ResourceProviderFactory.h"
@@ -42,10 +43,12 @@ public:
         return metrics;
     }
 
-    void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/,
-                   const Hummingbird::TextStyle& /*style*/) override {}
+    void draw_text(const std::string& text, float /*x*/, float /*y*/, const Hummingbird::TextStyle& /*style*/) override {
+        drawn_texts.push_back(text);
+    }
 
     int image_calls = 0;
+    std::vector<std::string> drawn_texts;
 };
 }  // namespace
 
@@ -196,4 +199,51 @@ TEST(DocumentPipelineTest, PaintsBackgroundImagesFromResources) {
     pipeline.paint(graphics, context);
 
     EXPECT_GT(graphics.image_calls, 0);
+}
+
+TEST(DocumentPipelineTest, PaintsFocusedInputTextWhenContentBoxCollapses) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <style>
+      input { width: 280px; height: 10px; padding: 5px 7px; border: 1px solid #666; }
+    </style>
+  </head>
+  <body>
+    <input id="q" type="text" />
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 400, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+
+    DocumentPipeline::HitTestContext hit{Point{12.0f, 12.0f}, viewport, "https://example.dev", 0.0f};
+    ASSERT_TRUE(pipeline.focus_input_at(hit));
+
+    auto edit = pipeline.handle_text_input("hello");
+    ASSERT_TRUE(edit.handled);
+
+    DocumentPipeline::PaintContext paint{viewport, false, 0.0f};
+    pipeline.paint(graphics, paint);
+
+    bool saw_typed_text = false;
+    for (const auto& text : graphics.drawn_texts) {
+        if (text == "hello") {
+            saw_typed_text = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(saw_typed_text);
 }

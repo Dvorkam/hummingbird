@@ -539,7 +539,7 @@ TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
     auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
     ASSERT_TRUE(result.submitted_form.has_value());
-    EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=hello%20world&lang=en");
+    EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=hello+world&lang=en");
     EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Get);
 }
 
@@ -705,7 +705,7 @@ TEST(EngineTabTest, EnterSubmitsPostFormWithEncodedBody) {
     ASSERT_TRUE(result.submitted_form.has_value());
     EXPECT_EQ(result.submitted_form->url, "https://example.dev/html/");
     EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Post);
-    EXPECT_EQ(result.submitted_form->body, "q=duck%20duck%20go");
+    EXPECT_EQ(result.submitted_form->body, "q=duck+duck+go");
     EXPECT_EQ(result.submitted_form->content_type, "application/x-www-form-urlencoded");
 }
 

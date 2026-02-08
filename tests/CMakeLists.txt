@@ -24,6 +24,7 @@ add_executable(HummingbirdTests
     core/AssetLoader.test.cpp
     core/TextEditBuffer.test.cpp
     core/Url.test.cpp
+    core/UrlEncoding.test.cpp
     core/Timing.test.cpp
     core/WarnOnce.test.cpp
     core/DependencyFirewall.test.cpp

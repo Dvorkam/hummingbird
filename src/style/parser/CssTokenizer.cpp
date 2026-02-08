@@ -186,11 +186,11 @@ std::vector<Token> Tokenizer::tokenize() {
         }
         char c = peek();
         char next = peek_next();
-        bool starts_number = std::isdigit(static_cast<unsigned char>(c)) ||
-                             (c == '.' && std::isdigit(static_cast<unsigned char>(next))) ||
-                             ((c == '+' || c == '-') &&
-                              (std::isdigit(static_cast<unsigned char>(next)) ||
-                               (next == '.' && std::isdigit(static_cast<unsigned char>(peek_next(2))))));
+        bool starts_number =
+            std::isdigit(static_cast<unsigned char>(c)) ||
+            (c == '.' && std::isdigit(static_cast<unsigned char>(next))) ||
+            ((c == '+' || c == '-') && (std::isdigit(static_cast<unsigned char>(next)) ||
+                                        (next == '.' && std::isdigit(static_cast<unsigned char>(peek_next(2))))));
         if (starts_number) {
             tokens.push_back(number());
             continue;

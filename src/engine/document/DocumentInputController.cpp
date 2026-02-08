@@ -339,18 +339,16 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
             paint_input_value(*paint_data, graphics);
 
             if (element == focused_input_) {
-                HB_LOG_DEBUG("[input] draw focused value='" << paint_data->value << "' text_pos=" << paint_data->text_x
-                                                            << "," << paint_data->text_y << " text_h="
-                                                            << paint_data->text_height << " color=("
-                                                            << static_cast<int>(paint_data->text_style.color.r) << ","
-                                                            << static_cast<int>(paint_data->text_style.color.g) << ","
-                                                            << static_cast<int>(paint_data->text_style.color.b) << ","
-                                                            << static_cast<int>(paint_data->text_style.color.a)
-                                                            << ") font_size=" << paint_data->text_style.font_size
-                                                            << " content=" << paint_data->content.x << ","
-                                                            << paint_data->content.y << " "
-                                                            << paint_data->content.width << "x"
-                                                            << paint_data->content.height);
+                HB_LOG_DEBUG("[input] draw focused value='"
+                             << paint_data->value << "' text_pos=" << paint_data->text_x << "," << paint_data->text_y
+                             << " text_h=" << paint_data->text_height << " color=("
+                             << static_cast<int>(paint_data->text_style.color.r) << ","
+                             << static_cast<int>(paint_data->text_style.color.g) << ","
+                             << static_cast<int>(paint_data->text_style.color.b) << ","
+                             << static_cast<int>(paint_data->text_style.color.a)
+                             << ") font_size=" << paint_data->text_style.font_size
+                             << " content=" << paint_data->content.x << "," << paint_data->content.y << " "
+                             << paint_data->content.width << "x" << paint_data->content.height);
                 paint_input_caret(*paint_data, graphics, caret_, scroll_y, repaint_background);
             }
 
