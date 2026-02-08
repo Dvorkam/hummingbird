@@ -2,23 +2,32 @@
 
 Hummingbird is an experimental browser engine built from scratch in C++20 (HTML → DOM → layout → paint). It’s primarily an educational project.
 
+## Quick look
+
+Stub site + navigation demo:
+
+![Stub site and navigation demo](https://github.com/user-attachments/assets/98e01801-d678-40fd-ab7c-190b68502075)
+
 ## Status / expectations
 
 This is an early prototype:
 
 - It is **not a secure browser** (no sandboxing, no site isolation, no permissions model).
-- There is **no JavaScript**.
+- JavaScript support is **minimal** (QuickJS with a small binding/event surface).
 - HTML/CSS support is partial and changes frequently.
 
 ## What works today (high level)
 
 - HTML tokenizer + parser building a DOM tree.
 - CSS parsing for a subset of selectors/properties, including `<style>` blocks and external stylesheets.
-- Resource pipeline for HTML/CSS/images with incremental restyles as data arrives.
+- Resource pipeline for HTML/CSS/images/SVG with incremental restyles as data arrives.
 - URL normalization + relative URL resolution for linked resources.
-- Basic block + inline layout.
+- Basic block + inline layout, list markers, table layout, and key positioning/box-model features.
+- Form controls MVP (`<form>`, `<input>`, `<button>`), focus/editing, and GET form submission.
+- Background images, basic transforms, and text-decoration underline variants used by real-world pages.
+- QuickJS integration with `onclick`/`load` dispatch and basic DOM mutation bindings.
 - Painting via Blend2D into an SDL2 window.
-- Image decoding via SDL2_image (PNG/JPEG/WebP/GIF first frame).
+- Image decoding via SDL2_image + SVG decoding via lunasvg.
 - Fetching HTML via libcurl, plus a deterministic built-in demo page at `https://example.dev`.
 
 ## Getting started (prebuilt releases)
@@ -103,6 +112,12 @@ The smoke test that opens a window is guarded; enable it with:
 HB_RUN_SMOKE_TEST=1 ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
 ```
 
+For headless CI-like runs (especially on Windows), use:
+
+```bash
+HB_RUN_SMOKE_TEST=1 HB_HEADLESS=1 ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
+```
+
 ## Test coverage
 
 - CI: Windows + Ubuntu (unit tests + smoke test via GitHub Actions).
@@ -132,6 +147,7 @@ HB_TLS_INSECURE=1 ./build/Release/Hummingbird
 - `F1`: toggle debug outlines
 
 Startup defaults to `https://example.dev` (a built-in demo page). Loading arbitrary sites is best-effort and incomplete.
+JS demo page: `https://example.dev/js`.
 
 ## License
 
