@@ -10,7 +10,10 @@
 #include <utility>
 #include <vector>
 
+#include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
+#include "test_utils/HeadlessTabHarness.h"
+#include "test_utils/TestFakes.h"
 
 namespace {
 class TempDirGuard {
@@ -261,4 +264,112 @@ TEST(ExtensionHostTest, NavigatedListenerCanInjectCssForEventTab) {
     EXPECT_EQ(last_id, 23u);
     EXPECT_EQ(last_css, "p { color: #222; }");
     EXPECT_TRUE(host.errors().empty());
+}
+
+TEST(ExtensionHostTest, HeadlessNavigatedEventAppliesInjectedCssToTabPipeline) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-headless-loop");
+    auto ext_root = root.path() / "dark-mode";
+    write_text(ext_root / "bg.js",
+               "browser.tabs.onNavigated.addListener(function(tab){"
+               "  browser.scripting.insertCSS({tabId: tab.id, cssText: \"body { background-image: "
+               "url('/ext-event.png'); }\"});"
+               "});");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Dark", "bg.js"));
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<Hummingbird::Test::RoutingNetwork>();
+    network->set_response("https://acme.test", "<!doctype html><html><body><p>headless</p></body></html>");
+    network->set_response("https://acme.test/ext-event.png", "PNGDATA");
+    auto fallback = std::make_unique<Hummingbird::Test::RoutingNetwork>();
+    Hummingbird::Test::HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider),
+                                                  std::make_unique<Hummingbird::Test::InlineImageDecoder>());
+
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_insert_css_handler([&](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
+        if (tab_id != 1u) return false;
+        return harness.tab().insert_extension_css(css_text);
+    });
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    harness.navigate("https://acme.test");
+    ASSERT_TRUE(harness.tick());
+
+    auto before = harness.resource_view("https://acme.test/ext-event.png", Hummingbird::Engine::ResourceType::Image);
+    EXPECT_FALSE(before.has_value());
+
+    host.notify_tab_navigated(1, "https://acme.test");
+    EXPECT_TRUE(harness.tick());
+    EXPECT_TRUE(harness.tick());
+
+    auto after = harness.resource_view("https://acme.test/ext-event.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(after.has_value());
+    EXPECT_EQ(after->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_TRUE(host.errors().empty());
+}
+
+TEST(ExtensionHostTest, DisabledExtensionDoesNotReceiveEventsUntilReenabled) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-disable-events");
+    auto ext_root = root.path() / "dark-mode";
+    write_text(ext_root / "bg.js",
+               "browser.tabs.onNavigated.addListener(function(tab){"
+               "  browser.scripting.insertCSS({tabId: tab.id, cssText: 'body { color: #444; }'});"
+               "});");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Dark", "bg.js"));
+
+    int called = 0;
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_insert_css_handler([&](Hummingbird::Engine::TabId, std::string_view) {
+        ++called;
+        return true;
+    });
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    host.notify_tab_navigated(1, "https://example.dev");
+    EXPECT_EQ(called, 1);
+
+    EXPECT_TRUE(host.set_extension_enabled("dark-mode", false));
+    host.notify_tab_navigated(1, "https://example.dev/disabled");
+    EXPECT_EQ(called, 1);
+
+    EXPECT_TRUE(host.set_extension_enabled("dark-mode", true));
+    host.notify_tab_navigated(1, "https://example.dev/reenabled");
+    EXPECT_EQ(called, 2);
+    EXPECT_TRUE(host.errors().empty());
+}
+
+TEST(ExtensionHostTest, ShutdownIsIdempotentAndStopsEventCallbacks) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-shutdown-events");
+    auto ext_root = root.path() / "dark-mode";
+    write_text(ext_root / "bg.js",
+               "browser.tabs.onNavigated.addListener(function(tab){"
+               "  browser.scripting.insertCSS({tabId: tab.id, cssText: 'body { color: #555; }'});"
+               "});");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Dark", "bg.js"));
+
+    int called = 0;
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_insert_css_handler([&](Hummingbird::Engine::TabId, std::string_view) {
+        ++called;
+        return true;
+    });
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    host.notify_tab_navigated(1, "https://example.dev");
+    EXPECT_EQ(called, 1);
+
+    host.shutdown();
+    host.shutdown();
+    host.notify_tab_navigated(1, "https://example.dev/after-shutdown");
+    EXPECT_EQ(called, 1);
 }

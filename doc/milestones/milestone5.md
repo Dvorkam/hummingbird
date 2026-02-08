@@ -374,8 +374,8 @@ P0: Browser OS + Extensions (North Star)
 - [x] 5.4.3: Built-In Dark Mode Extension
 
 P0: Tests and Guardrails
-- [ ] 5.6.1: Extension API Headless Coverage
-- [ ] 5.6.2: Tab/Extension Teardown Coverage
+- [x] 5.6.1: Extension API Headless Coverage
+- [x] 5.6.2: Tab/Extension Teardown Coverage
 - [ ] 5.6.3: Dependency Firewall Audit
 
 P0: DDG HTML End-to-End Usability (Mandatory)
