@@ -24,6 +24,10 @@ void DisplayList::add_draw_text_with_metrics(const std::string& text, float x, f
     commands_.push_back(RenderCommandUtils::make_draw_text_with_metrics(text, x, y, style, metrics));
 }
 
+void DisplayList::add_set_global_alpha(float alpha) {
+    commands_.push_back(RenderCommandUtils::make_set_global_alpha(alpha));
+}
+
 void DisplayList::replay(IGraphicsContext& context) const {
     for (const auto& command : commands_) {
         RenderCommandUtils::replay_command(command, context);

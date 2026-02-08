@@ -58,6 +58,7 @@ struct ComputedStyle {
     bool bottom_is_percent = false;
     bool left_is_percent = false;
     std::optional<int> z_index;
+    float opacity = 1.0f;
     Color color{0, 0, 0, 255};
     bool underline = false;
     std::optional<float> underline_thickness;

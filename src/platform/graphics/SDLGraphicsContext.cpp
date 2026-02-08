@@ -16,6 +16,7 @@
 #include <blend2d/rgba.h>
 #include <stddef.h>
 
+#include <algorithm>
 #include <bit>
 #include <cmath>
 #include <cstdint>
@@ -33,6 +34,11 @@
 namespace Hummingbird::Platform {
 
 namespace {
+std::uint8_t apply_global_alpha(std::uint8_t alpha, float global_alpha) {
+    const float clamped = std::clamp(global_alpha, 0.0f, 1.0f);
+    return static_cast<std::uint8_t>(std::lround(static_cast<float>(alpha) * clamped));
+}
+
 bool is_outside_viewport(const Hummingbird::Layout::Rect& viewport, float x, float y, float width, float height) {
     if (viewport.width <= 0 || viewport.height <= 0) {
         return false;
@@ -139,7 +145,7 @@ void SDLGraphicsContext::set_viewport(const Hummingbird::Layout::Rect& viewport)
 
 void SDLGraphicsContext::clear(const Color& color) {
     if (m_renderer) {
-        SDL_SetRenderDrawColor(m_renderer, color.r, color.g, color.b, color.a);
+        SDL_SetRenderDrawColor(m_renderer, color.r, color.g, color.b, apply_global_alpha(color.a, global_alpha_));
         SDL_RenderClear(m_renderer);
     }
 }
@@ -161,10 +167,14 @@ void SDLGraphicsContext::fill_rect(const Hummingbird::Layout::Rect& rect, const 
                 return;
             }
         }
-        SDL_SetRenderDrawColor(m_renderer, color.r, color.g, color.b, color.a);
+        SDL_SetRenderDrawColor(m_renderer, color.r, color.g, color.b, apply_global_alpha(color.a, global_alpha_));
         SDL_Rect sdl_rect = {(int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height};
         SDL_RenderFillRect(m_renderer, &sdl_rect);
     }
+}
+
+void SDLGraphicsContext::set_global_alpha(float alpha) {
+    global_alpha_ = std::clamp(alpha, 0.0f, 1.0f);
 }
 
 size_t SDLGraphicsContext::TextCacheKeyHash::operator()(const TextCacheKey& key) const {
@@ -353,6 +363,7 @@ void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird:
 
     SDL_Rect dest_rect = {static_cast<int>(dest.x), static_cast<int>(dest.y), static_cast<int>(dest.width),
                           static_cast<int>(dest.height)};
+    SDL_SetTextureAlphaMod(texture, apply_global_alpha(255, global_alpha_));
     SDL_RenderCopy(m_renderer, texture, nullptr, &dest_rect);
 
     if (!cached) {
@@ -443,6 +454,7 @@ void SDLGraphicsContext::draw_text_with_metrics(const std::string& text, float x
         logged = true;
     }
 
+    SDL_SetTextureAlphaMod(texture, apply_global_alpha(255, global_alpha_));
     SDL_RenderCopy(m_renderer, texture, NULL, &dest_rect);
 
     if (!cached) {
@@ -538,6 +550,7 @@ void SDLGraphicsContext::end_document_cache() {
 void SDLGraphicsContext::draw_document_cache() {
     if (!m_renderer || !document_cache_) return;
     SDL_Rect dst{0, 0, document_cache_width_, document_cache_height_};
+    SDL_SetTextureAlphaMod(document_cache_, apply_global_alpha(255, global_alpha_));
     SDL_RenderCopy(m_renderer, document_cache_, nullptr, &dst);
 }
 

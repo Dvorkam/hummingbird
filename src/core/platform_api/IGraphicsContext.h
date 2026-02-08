@@ -47,6 +47,7 @@ public:
                                         const TextMetrics& metrics) {
         draw_text(text, x, y, style);
     }
+    virtual void set_global_alpha(float /*alpha*/) {}
     virtual void set_text_cache_owner(std::uint64_t /*owner_id*/) {}
 
     // Optional document cache hooks for partial redraws.

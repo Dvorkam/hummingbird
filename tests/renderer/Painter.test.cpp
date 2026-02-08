@@ -45,12 +45,16 @@ public:
     void draw_text(const std::string& text, float, float, const TextStyle&) override {
         ++draw_calls;
         last_text = text;
+        draw_alphas.push_back(current_alpha);
     }
+    void set_global_alpha(float alpha) override { current_alpha = alpha; }
 
     int draw_calls = 0;
     int image_calls = 0;
     std::string last_text;
     std::vector<Hummingbird::Layout::Rect> fill_calls;
+    std::vector<float> draw_alphas;
+    float current_alpha = 1.0f;
     Hummingbird::Layout::Rect viewport_{0, 0, 0, 0};
 };
 
@@ -266,6 +270,41 @@ TEST(PainterTest, PaintsBackgroundImage) {
     painter.paint(*render_tree, context, opts);
 
     EXPECT_GE(context.image_calls, 1);
+}
+
+TEST(PainterTest, AppliesOpacityToSubtreePaint) {
+    std::string_view html = "<html><body><div id='faded'>A</div><div>B</div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "#faded { opacity: 0.25; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 300, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    ASSERT_GE(context.draw_alphas.size(), 2u);
+    bool saw_faded = false;
+    bool saw_opaque = false;
+    for (float alpha : context.draw_alphas) {
+        saw_faded = saw_faded || std::fabs(alpha - 0.25f) < 0.01f;
+        saw_opaque = saw_opaque || std::fabs(alpha - 1.0f) < 0.01f;
+    }
+    EXPECT_TRUE(saw_faded);
+    EXPECT_TRUE(saw_opaque);
 }
 
 TEST(PainterTest, HonorsUnderlineThicknessAndOffset) {

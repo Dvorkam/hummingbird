@@ -57,6 +57,7 @@ HB_CSS_PROPERTY(Bottom, Bottom, "bottom", "bottom", ParserHook::parse_length_aut
 HB_CSS_PROPERTY(Left, Left, "left", "left", ParserHook::parse_length_auto, ApplyHook::apply_left, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(ZIndex, ZIndex, "z-index", "z-index", ParserHook::parse_number_auto, ApplyHook::apply_z_index,
                 PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(Opacity, Opacity, "opacity", "opacity", ParserHook::parse_opacity, ApplyHook::apply_opacity, PropertyFlags::None)
 HB_CSS_PROPERTY(TextAlign, TextAlign, "text-align", "text-align", ParserHook::parse_identifier, ApplyHook::apply_text_align,
                 PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(TextDecoration, TextDecoration, "text-decoration", "text-decoration", ParserHook::parse_text_decoration,

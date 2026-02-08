@@ -51,7 +51,7 @@ TEST(CssPropertyRegistryTest, PropertyListMetadataMatchesRegistryAccessors) {
 }
 
 TEST(CssPropertyRegistryTest, EveryTypedHookIsUsedByAtLeastOneProperty) {
-    std::array<bool, enum_index(PropertyRegistry::ParserHook::parse_background_size) + 1> parser_seen{};
+    std::array<bool, enum_index(PropertyRegistry::ParserHook::parse_opacity) + 1> parser_seen{};
     std::array<bool, enum_index(PropertyRegistry::ApplyHook::apply_background_size) + 1> applier_seen{};
 
     for (const auto& entry : PropertyRegistry::property_list()) {
@@ -103,4 +103,10 @@ TEST(CssPropertyRegistryTest, BackgroundRepeatUsesDedicatedParserHook) {
     EXPECT_EQ(PropertyRegistry::parse_property_name("background-repeat"), Property::BackgroundRepeat);
     EXPECT_EQ(PropertyRegistry::parser_hook(Property::BackgroundRepeat),
               PropertyRegistry::ParserHook::parse_background_repeat);
+}
+
+TEST(CssPropertyRegistryTest, OpacityUsesDedicatedHooks) {
+    EXPECT_EQ(PropertyRegistry::parse_property_name("opacity"), Property::Opacity);
+    EXPECT_EQ(PropertyRegistry::parser_hook(Property::Opacity), PropertyRegistry::ParserHook::parse_opacity);
+    EXPECT_EQ(PropertyRegistry::applier_hook(Property::Opacity), PropertyRegistry::ApplyHook::apply_opacity);
 }

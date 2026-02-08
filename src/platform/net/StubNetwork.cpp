@@ -108,6 +108,12 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .box-sizing-border { box-sizing: border-box; background-color: #eaf5ff; }
       .transform-demo { width: 140px; padding: 6px; border: 1px solid #666; background-color: #f8f8f8; }
       .transform-shift { transform: translate(18px, 6px); background-color: #e9f4ff; }
+      .opacity-demo-wrap { overflow: hidden; }
+      .opacity-demo-card { float: left; width: 180px; margin: 4px 10px 4px 0; padding: 8px; border: 1px solid #666; background-color: #eef3ff; }
+      .opacity-demo-100 { opacity: 1; }
+      .opacity-demo-65 { opacity: 0.65; }
+      .opacity-demo-35 { opacity: 0.35; }
+      .opacity-demo-clear { clear: both; }
       .minmax-demo { width: 120px; min-width: 180px; max-width: 200px; min-height: 28px; max-height: 40px; padding: 4px; border: 1px solid #666; background-color: #f0fff0; }
       .baseline-demo { font-size: 16px; }
       .baseline-demo .big { font-size: 28px; }
@@ -215,6 +221,17 @@ aligned.</pre>
       <h2>Transforms</h2>
       <p class="transform-demo">Original position.</p>
       <p class="transform-demo transform-shift">Translated by transform.</p>
+    </div>
+
+    <div class="section">
+      <h2>Opacity (Paint-Only)</h2>
+      <p>These cards keep layout size but use different paint opacity values.</p>
+      <div class="opacity-demo-wrap">
+        <div class="opacity-demo-card opacity-demo-100"><strong>opacity: 1.0</strong><p>Fully opaque text and background.</p></div>
+        <div class="opacity-demo-card opacity-demo-65"><strong>opacity: 0.65</strong><p>Semi-transparent rendering.</p></div>
+        <div class="opacity-demo-card opacity-demo-35"><strong>opacity: 0.35</strong><p>More transparent rendering.</p></div>
+        <div class="opacity-demo-clear"></div>
+      </div>
     </div>
 
     <div class="section">

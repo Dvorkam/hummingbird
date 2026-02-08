@@ -43,6 +43,13 @@ DisplayCommand make_draw_text_with_metrics(const std::string& text, float x, flo
     return command;
 }
 
+DisplayCommand make_set_global_alpha(float alpha) {
+    DisplayCommand command;
+    command.type = DisplayCommand::Type::SetGlobalAlpha;
+    command.alpha = alpha;
+    return command;
+}
+
 void replay_command(const DisplayCommand& command, IGraphicsContext& context) {
     switch (command.type) {
         case DisplayCommand::Type::FillRect:
@@ -59,6 +66,9 @@ void replay_command(const DisplayCommand& command, IGraphicsContext& context) {
         case DisplayCommand::Type::DrawTextWithMetrics:
             context.draw_text_with_metrics(command.text, command.x, command.y, command.text_style,
                                            command.text_metrics);
+            break;
+        case DisplayCommand::Type::SetGlobalAlpha:
+            context.set_global_alpha(command.alpha);
             break;
     }
 }

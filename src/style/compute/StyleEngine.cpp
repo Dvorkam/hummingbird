@@ -142,6 +142,7 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.bottom_is_percent = source.bottom_is_percent;
     target.left_is_percent = source.left_is_percent;
     target.z_index = source.z_index;
+    target.opacity = source.opacity;
     target.float_type = source.float_type;
 }
 

@@ -105,6 +105,9 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_z_index:
             (void)apply_layout_property(Property::ZIndex, value, style, overrides, context);
             return;
+        case ApplyHook::apply_opacity:
+            (void)apply_layout_property(Property::Opacity, value, style, overrides, context);
+            return;
         case ApplyHook::apply_text_align:
             (void)apply_text_property(Property::TextAlign, value, style, overrides, context);
             return;

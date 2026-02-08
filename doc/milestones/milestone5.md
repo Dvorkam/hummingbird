@@ -397,7 +397,7 @@ P1+: Refactors and Polish (Only if Needed / Time Allows)
 - [x] T-PERF-3 (M5 P1): Split UI Chrome From Page Render
 - [x] T-LAYOUT-INLINE-2 (M5 P1): Inline-Block Baseline Alignment
 - [x] T-CSS-SEL-2 (M5 P1): Child combinator selector (`>`)
-- [ ] T-CSS-VIS-1 (M5 P1): opacity (paint-only)
+- [x] T-CSS-VIS-1 (M5 P1): opacity (paint-only)
 - [ ] T-CSS-BORDER-2 (M5 P2): border-radius (paint)
 - [ ] T-CSS-DECOR-1 (M5 P2): outline + outline-offset
 - [ ] T-CSS-TEXT-1 (M5 P2): Text Effects Polish

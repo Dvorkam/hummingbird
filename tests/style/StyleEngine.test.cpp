@@ -283,6 +283,31 @@ TEST(StyleEngineTest, AppliesTransformTranslate) {
     EXPECT_FLOAT_EQ(style->transform_translate_y, 4.0f);
 }
 
+TEST(StyleEngineTest, AppliesOpacityAndClampsRange) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "faded");
+
+    std::string css = R"(.faded { opacity: 150%; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->opacity, 1.0f);
+
+    std::string css_low = R"(.faded { opacity: 25%; })";
+    Parser parser_low(css_low);
+    auto sheet_low = parser_low.parse();
+    engine.apply(sheet_low, root.get());
+    style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->opacity, 0.25f);
+}
+
 TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);

@@ -1,5 +1,6 @@
 #include "style/compute/apply/ApplyLayout.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -205,6 +206,18 @@ void apply_z_index_value(ComputedStyle& style, const Value& value) {
     }
 }
 
+void apply_opacity_value(ComputedStyle& style, const Value& value) {
+    float opacity = style.opacity;
+    if (value.type == Value::Type::Number) {
+        opacity = value.number;
+    } else if (value.type == Value::Type::Length && value.length.unit == Unit::Percent) {
+        opacity = value.length.value / 100.0f;
+    } else {
+        return;
+    }
+    style.opacity = std::clamp(opacity, 0.0f, 1.0f);
+}
+
 bool apply_display_value(ComputedStyle& style, const Value& value) {
     if (value.type != Value::Type::Identifier) {
         return false;
@@ -334,6 +347,9 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             return true;
         case Property::ZIndex:
             apply_z_index_value(style, value);
+            return true;
+        case Property::Opacity:
+            apply_opacity_value(style, value);
             return true;
         case Property::Border:
             return true;

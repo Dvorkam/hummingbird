@@ -36,6 +36,7 @@ enum class ParserHook : std::uint8_t {
     parse_background_repeat,
     parse_background_position,
     parse_background_size,
+    parse_opacity,
 };
 
 enum class ApplyHook : std::uint8_t {
@@ -71,6 +72,7 @@ enum class ApplyHook : std::uint8_t {
     apply_bottom,
     apply_left,
     apply_z_index,
+    apply_opacity,
     apply_text_align,
     apply_text_decoration,
     apply_text_decoration_thickness,
