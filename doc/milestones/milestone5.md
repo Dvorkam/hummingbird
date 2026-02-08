@@ -368,7 +368,7 @@ P0: Browser OS + Extensions (North Star)
 - [ ] 5.3.3: Deterministic Event Wiring
 - [x] 5.3.1: `browser.tabs` Events + Active Query
 - [x] 5.4.1: Extension Stylesheet Origin Layer
-- [ ] 5.4.2: Per-Tab Injected Stylesheet Store
+- [x] 5.4.2: Per-Tab Injected Stylesheet Store
 - [x] 5.3.2: CSS Injection Primitive
 - [ ] 5.6.4: Injection Invalidation Budget
 - [x] 5.4.3: Built-In Dark Mode Extension

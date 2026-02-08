@@ -229,6 +229,64 @@ TEST(EngineTabTest, ExtensionCssInjectionUpdatesStylePipeline) {
     EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
 }
 
+TEST(EngineTabTest, ExtensionCssInsertedBeforeNavigateAppliesOnDocumentBuild) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Styled by extension</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    network->set_response("https://acme.test/ext-before-nav.png", "PNGDATA");
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider),
+                               std::make_unique<InlineImageDecoder>());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("body { background-image: url('/ext-before-nav.png'); }"));
+    harness.navigate("https://acme.test");
+    EXPECT_TRUE(harness.tick());
+    EXPECT_TRUE(harness.tick());
+
+    auto view = harness.resource_view("https://acme.test/ext-before-nav.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+}
+
+TEST(EngineTabTest, ExtensionCssInjectionInvalidatesOnceWithoutResourceFollowups) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Styled by extension</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test");
+    ASSERT_TRUE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("p { color: #111111; }"));
+    EXPECT_TRUE(harness.tick());
+    EXPECT_FALSE(harness.tick());
+}
+
 TEST(EngineTabTest, HitTestResolvesLink) {
     const std::string html = R"HTML(
 <!doctype html>
