@@ -395,7 +395,7 @@ P1+: Refactors and Polish (Only if Needed / Time Allows)
 - [x] T-ARCH-SPLIT-2 (M5 P2): ResourceLoader Decomposition
 - [x] T-ARCH-CYCLE-3 (M5 P3): Break Dom/StyleCompute Cycle
 - [x] T-PERF-3 (M5 P1): Split UI Chrome From Page Render
-- [ ] T-LAYOUT-INLINE-2 (M5 P1): Inline-Block Baseline Alignment
+- [x] T-LAYOUT-INLINE-2 (M5 P1): Inline-Block Baseline Alignment
 - [ ] T-CSS-SEL-2 (M5 P1): Child combinator selector (`>`)
 - [ ] T-CSS-VIS-1 (M5 P1): opacity (paint-only)
 - [ ] T-CSS-BORDER-2 (M5 P2): border-radius (paint)
