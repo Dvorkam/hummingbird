@@ -11,19 +11,28 @@ namespace Hummingbird::Layout {
 
 namespace {
 constexpr float kDefaultRuleHeight = 2.0f;
+
+float resolve_axis(float raw, bool is_percent, float reference) {
+    if (!is_percent) {
+        return raw;
+    }
+    return reference * (raw / 100.0f);
+}
 }  // namespace
 
 void RenderRule::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
     const auto* style = get_computed_style();
     float width = bounds.width;
     if (style && style->width.has_value()) {
-        width = *style->width;
+        width = resolve_axis(*style->width, style->width_is_percent, bounds.width);
     }
     if (style && style->min_width.has_value()) {
-        width = std::max(width, *style->min_width);
+        float min_width = resolve_axis(*style->min_width, style->min_width_is_percent, bounds.width);
+        width = std::max(width, min_width);
     }
     if (style && style->max_width.has_value()) {
-        width = std::min(width, *style->max_width);
+        float max_width = resolve_axis(*style->max_width, style->max_width_is_percent, bounds.width);
+        width = std::min(width, max_width);
     }
     if (width < 0.0f) {
         width = 0.0f;
@@ -31,7 +40,7 @@ void RenderRule::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
 
     float h = kDefaultRuleHeight;
     if (style && style->height.has_value()) {
-        h = *style->height;
+        h = resolve_axis(*style->height, style->height_is_percent, bounds.height);
     } else if (style && style->border_style == Css::ComputedStyle::BorderStyle::Solid) {
         const auto& bw = style->border_width;
         float border_height = bw.top + bw.bottom;
@@ -40,10 +49,12 @@ void RenderRule::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
         }
     }
     if (style && style->min_height.has_value()) {
-        h = std::max(h, *style->min_height);
+        float min_height = resolve_axis(*style->min_height, style->min_height_is_percent, bounds.height);
+        h = std::max(h, min_height);
     }
     if (style && style->max_height.has_value()) {
-        h = std::min(h, *style->max_height);
+        float max_height = resolve_axis(*style->max_height, style->max_height_is_percent, bounds.height);
+        h = std::min(h, max_height);
     }
     if (h < 0.0f) {
         h = 0.0f;

@@ -136,6 +136,8 @@ std::string value_to_text(const Value& value) {
             out += ValueNames::Px;
         } else if (value.length.unit == Unit::Em) {
             out += ValueNames::Em;
+        } else if (value.length.unit == Unit::Percent) {
+            out += "%";
         }
         return out;
     }
@@ -269,6 +271,9 @@ Value Parser::parse_identifier_value() {
 Value Parser::parse_number_value() {
     std::string number_text = std::string(advance().lexeme);
     float number = Core::Utils::parse_float(number_text).value_or(0.0f);
+    if (match(TokenType::Percent)) {
+        return Value::length_value(number, Unit::Percent);
+    }
     if (peek().type == TokenType::Identifier) {
         std::string unit_text = std::string(advance().lexeme);
         Unit unit = Unit::Unknown;

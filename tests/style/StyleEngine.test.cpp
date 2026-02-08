@@ -105,6 +105,31 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     EXPECT_EQ(h1_style->weight, ComputedStyle::FontWeight::Bold);
 }
 
+TEST(StyleEngineTest, SubmitInputUsesCompactDefaultWidth) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto submit = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    submit->set_attribute(Attr::Type, "submit");
+    auto text = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    text->set_attribute(Attr::Type, "text");
+
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->append_child(std::move(submit));
+    root->append_child(std::move(text));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, root.get());
+
+    auto submit_style = dynamic_cast<Element*>(root->get_children()[0].get())->get_computed_style();
+    auto text_style = dynamic_cast<Element*>(root->get_children()[1].get())->get_computed_style();
+    ASSERT_TRUE(submit_style);
+    ASSERT_TRUE(text_style);
+    EXPECT_TRUE(submit_style->width.has_value());
+    EXPECT_FLOAT_EQ(*submit_style->width, 80.0f);
+    EXPECT_TRUE(text_style->width.has_value());
+    EXPECT_FLOAT_EQ(*text_style->width, 180.0f);
+}
+
 TEST(StyleEngineTest, StoresAndInheritsCustomProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
@@ -212,6 +237,31 @@ TEST(StyleEngineTest, AppliesBoxSizingProperty) {
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
     EXPECT_EQ(style->box_sizing, ComputedStyle::BoxSizing::BorderBox);
+}
+
+TEST(StyleEngineTest, PreservesPercentUnitsForLayoutProperties) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "box");
+
+    std::string css = R"(#box { width: 70%; top: 24%; left: 10%; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->width.has_value());
+    EXPECT_FLOAT_EQ(*style->width, 70.0f);
+    EXPECT_TRUE(style->width_is_percent);
+    ASSERT_TRUE(style->top.has_value());
+    EXPECT_FLOAT_EQ(*style->top, 24.0f);
+    EXPECT_TRUE(style->top_is_percent);
+    ASSERT_TRUE(style->left.has_value());
+    EXPECT_FLOAT_EQ(*style->left, 10.0f);
+    EXPECT_TRUE(style->left_is_percent);
 }
 
 TEST(StyleEngineTest, AppliesTransformTranslate) {

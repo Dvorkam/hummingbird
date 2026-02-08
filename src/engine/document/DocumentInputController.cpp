@@ -1,8 +1,10 @@
 #include "engine/document/DocumentInputController.h"
 
 #include <algorithm>
+#include <cstdlib>
 
 #include "core/dom/Element.h"
+#include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
 #include "core/utils/TextEditBuffer.h"
 #include "engine/document/HitTestUtils.h"
@@ -32,6 +34,20 @@ struct InputPaintData {
 
 bool is_input_element(const DOM::Element* element) {
     return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
+}
+
+Color high_contrast_text(Color background) {
+    const int luma = (static_cast<int>(background.r) * 299 + static_cast<int>(background.g) * 587 +
+                      static_cast<int>(background.b) * 114) /
+                     1000;
+    return luma >= 128 ? Color{0, 0, 0, 255} : Color{255, 255, 255, 255};
+}
+
+bool low_contrast(Color foreground, Color background) {
+    const int dr = std::abs(static_cast<int>(foreground.r) - static_cast<int>(background.r));
+    const int dg = std::abs(static_cast<int>(foreground.g) - static_cast<int>(background.g));
+    const int db = std::abs(static_cast<int>(foreground.b) - static_cast<int>(background.b));
+    return (dr + dg + db) < 48;
 }
 
 bool is_editable_input_element(const DOM::Element* element) {
@@ -64,6 +80,23 @@ std::string input_value(const DOM::Element& element) {
     return {};
 }
 
+std::string describe_input_target(const DOM::Element* element) {
+    if (!element) {
+        return "<none>";
+    }
+    std::string desc = "<" + element->get_tag_name() + ">";
+    if (const auto* id = element->find_attribute(Hummingbird::Html::AttributeNames::Id); id && !id->empty()) {
+        desc += "#" + *id;
+    }
+    if (const auto* cls = element->find_attribute(Hummingbird::Html::AttributeNames::Class); cls && !cls->empty()) {
+        desc += "." + *cls;
+    }
+    if (const auto* type = element->find_attribute(Hummingbird::Html::AttributeNames::Type); type && !type->empty()) {
+        desc += "[type=" + *type + "]";
+    }
+    return desc;
+}
+
 void set_input_value(DOM::Element& element, std::string_view value) {
     element.set_attribute(Hummingbird::Html::AttributeNames::Value, value);
 }
@@ -88,10 +121,25 @@ std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element
     Layout::Rect content = {absolute.x + insets.left, absolute.y + insets.top,
                             absolute.width - insets.left - insets.right, absolute.height - insets.top - insets.bottom};
     if (content.width <= 0.0f || content.height <= 0.0f) {
-        return std::nullopt;
+        // Fallback for pages with pathological CSS where padding/border collapses
+        // the computed content box to zero. Keep input text and caret visible.
+        content = {absolute.x + 2.0f, absolute.y + 1.0f, std::max(0.0f, absolute.width - 4.0f),
+                   std::max(0.0f, absolute.height - 2.0f)};
+        HB_LOG_DEBUG("[input] fallback content box abs=" << absolute.x << "," << absolute.y << " " << absolute.width
+                                                         << "x" << absolute.height << " content=" << content.x << ","
+                                                         << content.y << " " << content.width << "x" << content.height);
+        if (content.width <= 0.0f || content.height <= 0.0f) {
+            return std::nullopt;
+        }
     }
 
     TextStyle text_style = Layout::TextStyleUtils::build_text_style(style);
+    if (style && style->background.has_value()) {
+        const Color background = *style->background;
+        if (text_style.color.a == 0 || low_contrast(text_style.color, background)) {
+            text_style.color = high_contrast_text(background);
+        }
+    }
     std::string value = input_value(element);
     TextMetrics metrics = graphics.measure_text(value, text_style);
     TextMetrics caret_metrics =
@@ -139,6 +187,8 @@ void DocumentInputController::reset() {
 bool DocumentInputController::focus_input_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
                                              const Layout::Rect& viewport, float scroll_y) {
     DOM::Element* hit = hit_test_input(render_tree, point, viewport, scroll_y);
+    HB_LOG_DEBUG("[input] focus_input_at point=(" << point.x << "," << point.y << ") scroll_y=" << scroll_y
+                                                  << " hit=" << describe_input_target(hit));
     if (hit == focused_input_) {
         caret_ = focused_input_ ? input_value(*focused_input_).size() : 0;
         return focused_input_ != nullptr;
@@ -190,6 +240,8 @@ DocumentInputController::EditResult DocumentInputController::handle_text_input(s
     std::string value = input_value(*focused_input_);
     if (Core::Utils::TextEditBuffer::insert_text(value, caret_, text)) {
         set_input_value(*focused_input_, value);
+        HB_LOG_DEBUG("[input] text input appended bytes=" << text.size() << " new_value='" << value
+                                                          << "' caret=" << caret_);
     }
 
     result.handled = true;
@@ -287,6 +339,18 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
             paint_input_value(*paint_data, graphics);
 
             if (element == focused_input_) {
+                HB_LOG_DEBUG("[input] draw focused value='" << paint_data->value << "' text_pos=" << paint_data->text_x
+                                                            << "," << paint_data->text_y << " text_h="
+                                                            << paint_data->text_height << " color=("
+                                                            << static_cast<int>(paint_data->text_style.color.r) << ","
+                                                            << static_cast<int>(paint_data->text_style.color.g) << ","
+                                                            << static_cast<int>(paint_data->text_style.color.b) << ","
+                                                            << static_cast<int>(paint_data->text_style.color.a)
+                                                            << ") font_size=" << paint_data->text_style.font_size
+                                                            << " content=" << paint_data->content.x << ","
+                                                            << paint_data->content.y << " "
+                                                            << paint_data->content.width << "x"
+                                                            << paint_data->content.height);
                 paint_input_caret(*paint_data, graphics, caret_, scroll_y, repaint_background);
             }
 

@@ -366,20 +366,25 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     const auto viewport = compute_content_viewport(win_w, win_h);
     Hummingbird::Layout::Point point{static_cast<float>(event.mouse_button.x),
                                      static_cast<float>(event.mouse_button.y)};
+    HB_LOG_DEBUG("[input] mouse click at (" << point.x << "," << point.y << ") viewport=(" << viewport.x << ","
+                                            << viewport.y << "," << viewport.width << "," << viewport.height << ")");
     auto click_result = active_tab().dispatch_click(point, viewport, *graphics_);
     if (click_result.mutated) {
         document_dirty_ = true;
     }
     bool was_focused = active_tab().has_focused_input();
     bool now_focused = active_tab().focus_input_at(point, viewport);
-    if (was_focused != now_focused) {
-        if (window_) {
-            if (now_focused) {
-                window_->start_text_input();
-            } else {
-                window_->stop_text_input();
-            }
+    HB_LOG_DEBUG("[input] focus probe was=" << was_focused << " now=" << now_focused);
+    // URL bar deactivation stops platform text input. Re-enable it here whenever
+    // a document input is focused, even if focus state did not transition.
+    if (window_) {
+        if (now_focused) {
+            window_->start_text_input();
+        } else {
+            window_->stop_text_input();
         }
+    }
+    if (tab_text_input_active_ != now_focused || was_focused != now_focused) {
         tab_text_input_active_ = now_focused;
         controls_dirty_ = true;
     }
@@ -388,6 +393,10 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     }
     auto submit = active_tab().submit_form_at(point, viewport);
     if (submit) {
+        HB_LOG_DEBUG("[input] submit hit method=" << (submit->method == Hummingbird::Engine::FormSubmitMethod::Post
+                                                          ? "POST"
+                                                          : "GET")
+                                                  << " url=" << submit->url);
         url_bar_.set_text(submit->url);
         navigate_active_tab(*submit);
         document_dirty_ = true;

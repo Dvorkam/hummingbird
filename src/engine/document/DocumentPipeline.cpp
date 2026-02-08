@@ -68,6 +68,23 @@ const DOM::Element* resolve_submit_element(const DOM::Node* node) {
     return nullptr;
 }
 
+std::string describe_submit_target(const DOM::Element* element) {
+    if (!element) {
+        return "<none>";
+    }
+    std::string desc = "<" + element->get_tag_name() + ">";
+    if (const auto* id = element->find_attribute(Hummingbird::Html::AttributeNames::Id); id && !id->empty()) {
+        desc += "#" + *id;
+    }
+    if (const auto* cls = element->find_attribute(Hummingbird::Html::AttributeNames::Class); cls && !cls->empty()) {
+        desc += "." + *cls;
+    }
+    if (const auto* type = element->find_attribute(Hummingbird::Html::AttributeNames::Type); type && !type->empty()) {
+        desc += "[type=" + *type + "]";
+    }
+    return desc;
+}
+
 }  // namespace
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
@@ -188,6 +205,8 @@ std::optional<FormSubmission> DocumentPipeline::submit_form_at(const HitTestCont
             if (!submit) {
                 return std::nullopt;
             }
+            HB_LOG_DEBUG("[input] submit_form_at point=(" << context.point.x << "," << context.point.y
+                                                          << ") hit=" << describe_submit_target(submit));
             return model_.build_form_submission(*submit, context.base_url);
         });
 }

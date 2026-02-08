@@ -20,6 +20,7 @@ enum class TokenType {
     Dot,
     Hash,
     Star,
+    Percent,
     Url,
     End,
 };
@@ -36,6 +37,7 @@ public:
 
 private:
     char peek() const;
+    char peek_next(size_t offset = 1) const;
     char advance();
     bool eof() const;
     void skip_whitespace();

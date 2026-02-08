@@ -16,6 +16,19 @@
 
 namespace Hummingbird::Css::StyleDefaults {
 
+namespace {
+bool input_type_is_text_like(const DOM::Element& element) {
+    const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
+    if (!type || type->empty()) {
+        return true;
+    }
+    return !Core::Utils::equals_ignore_case(*type, "button") && !Core::Utils::equals_ignore_case(*type, "submit") &&
+           !Core::Utils::equals_ignore_case(*type, "reset") && !Core::Utils::equals_ignore_case(*type, "checkbox") &&
+           !Core::Utils::equals_ignore_case(*type, "radio") && !Core::Utils::equals_ignore_case(*type, "file") &&
+           !Core::Utils::equals_ignore_case(*type, "hidden") && !Core::Utils::equals_ignore_case(*type, "image");
+}
+}  // namespace
+
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,
                                bool display_set, const ComputedStyle* parent_style) {
     const auto& tag = element.get_tag_name();
@@ -82,8 +95,13 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.padding.right = 6.0f;
         style.padding.top = 4.0f;
         style.padding.bottom = 4.0f;
-        style.width = 180.0f;
-        style.height = 24.0f;
+        if (input_type_is_text_like(element)) {
+            style.width = 180.0f;
+            style.height = 24.0f;
+        } else {
+            style.width = 80.0f;
+            style.height = 24.0f;
+        }
         style.background = Color{255, 255, 255, 255};
     } else if (tag == Hummingbird::Html::TagNames::Button) {
         style.border_style = ComputedStyle::BorderStyle::Solid;

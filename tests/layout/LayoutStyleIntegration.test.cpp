@@ -231,3 +231,41 @@ TEST(LayoutStyleIntegrationTest, AppliesInputDefaultSizing) {
     EXPECT_FLOAT_EQ(rect.width, 180.0f + 2.0f * (6.0f + 1.0f));
     EXPECT_FLOAT_EQ(rect.height, 24.0f + 2.0f * (4.0f + 1.0f));
 }
+
+TEST(LayoutStyleIntegrationTest, ResolvesPercentWidthsAgainstContainingBlock) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto parent = DomFactory::create_element(arena, "div");
+    parent->set_attribute("class", "parent");
+    auto child = DomFactory::create_element(arena, "div");
+    child->set_attribute("class", "child");
+    parent->append_child(std::move(child));
+    dom_root->append_child(std::move(parent));
+
+    std::string css = R"(
+        body { margin: 0; padding: 0; }
+        .parent { width: 400px; margin: 0; padding: 0; }
+        .child { width: 70%; margin: 0; padding: 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& children = render_root->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    const auto& parent_rect = children[0]->get_rect();
+    ASSERT_EQ(children[0]->get_children().size(), 1u);
+    const auto& child_rect = children[0]->get_children()[0]->get_rect();
+
+    EXPECT_FLOAT_EQ(parent_rect.width, 400.0f);
+    EXPECT_FLOAT_EQ(child_rect.width, 280.0f);
+}

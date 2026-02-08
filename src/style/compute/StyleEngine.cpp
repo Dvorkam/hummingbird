@@ -117,6 +117,12 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.min_height = source.min_height;
     target.max_width = source.max_width;
     target.max_height = source.max_height;
+    target.width_is_percent = source.width_is_percent;
+    target.height_is_percent = source.height_is_percent;
+    target.min_width_is_percent = source.min_width_is_percent;
+    target.min_height_is_percent = source.min_height_is_percent;
+    target.max_width_is_percent = source.max_width_is_percent;
+    target.max_height_is_percent = source.max_height_is_percent;
     target.display = source.display;
     target.border_width = source.border_width;
     target.border_color = source.border_color;
@@ -131,6 +137,10 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.right = source.right;
     target.bottom = source.bottom;
     target.left = source.left;
+    target.top_is_percent = source.top_is_percent;
+    target.right_is_percent = source.right_is_percent;
+    target.bottom_is_percent = source.bottom_is_percent;
+    target.left_is_percent = source.left_is_percent;
     target.z_index = source.z_index;
     target.float_type = source.float_type;
 }

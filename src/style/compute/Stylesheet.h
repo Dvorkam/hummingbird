@@ -22,6 +22,7 @@ enum class Property {
 enum class Unit {
     Px,
     Em,
+    Percent,
     Unknown,
 };
 

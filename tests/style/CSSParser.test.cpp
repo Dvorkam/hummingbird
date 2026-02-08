@@ -115,6 +115,64 @@ TEST(CSSParserTest, ParsesFullHexColorWithDigits) {
     EXPECT_EQ(rule.declarations[0].value.color.b, 0x99);
 }
 
+TEST(CSSParserTest, ParsesPercentLengths) {
+    Parser parser("div { width: 70%; top: 24%; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 2u);
+
+    EXPECT_EQ(decls[0].property, Property::Width);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Length);
+    EXPECT_FLOAT_EQ(decls[0].value.length.value, 70.0f);
+    EXPECT_EQ(decls[0].value.length.unit, Unit::Percent);
+
+    EXPECT_EQ(decls[1].property, Property::Top);
+    ASSERT_EQ(decls[1].value.type, Value::Type::Length);
+    EXPECT_FLOAT_EQ(decls[1].value.length.value, 24.0f);
+    EXPECT_EQ(decls[1].value.length.unit, Unit::Percent);
+}
+
+TEST(CSSParserTest, ParsesLeadingDotAndSignedNumbers) {
+    Parser parser("div { padding: .75em; margin-left: -0.35em; right: 2px; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_GE(decls.size(), 6u);
+
+    bool saw_padding_top = false;
+    for (const auto& decl : decls) {
+        if (decl.property != Property::PaddingTop) {
+            continue;
+        }
+        ASSERT_EQ(decl.value.type, Value::Type::Length);
+        EXPECT_FLOAT_EQ(decl.value.length.value, 0.75f);
+        EXPECT_EQ(decl.value.length.unit, Unit::Em);
+        saw_padding_top = true;
+        break;
+    }
+    EXPECT_TRUE(saw_padding_top);
+
+    bool saw_negative_margin = false;
+    bool saw_right_px = false;
+    for (const auto& decl : sheet.rules[0].declarations) {
+        if (decl.property == Property::MarginLeft) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, -0.35f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Em);
+            saw_negative_margin = true;
+        }
+        if (decl.property == Property::Right) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 2.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_right_px = true;
+        }
+    }
+    EXPECT_TRUE(saw_negative_margin);
+    EXPECT_TRUE(saw_right_px);
+}
+
 TEST(CSSParserTest, ParsesBackgroundColorAndShortHex) {
     Parser parser("div { color: #333; background-color: white; }");
     auto sheet = parser.parse();
