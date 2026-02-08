@@ -181,9 +181,8 @@ ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
 
     const auto process_end = Core::Clock::now();
     HB_LOG_INFO("[perf] resource batch ms="
-                << Core::duration_ms(process_start, process_end) << " pending=" << pending_count
-                << " doc=" << static_cast<int>(stats.document_ready)
-                << " styles=" << static_cast<int>(stats.stylesheet_ready)
+                << Core::duration_ms(process_start, process_end) << " pending=" << pending_count << " doc="
+                << static_cast<int>(stats.document_ready) << " styles=" << static_cast<int>(stats.stylesheet_ready)
                 << " images=" << static_cast<int>(stats.image_ready) << " decode_ms=" << stats.image_decode_ms
                 << " decoded_images=" << stats.image_decode_count);
 

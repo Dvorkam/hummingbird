@@ -15,13 +15,14 @@ void handle_document_update(ResourceLoader::PendingResourceUpdate& update, Resou
     result.document_error = update.error;
 }
 
-void handle_stylesheet_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store, ProcessingStats& stats) {
+void handle_stylesheet_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store,
+                              ProcessingStats& stats) {
     store.mark_ready(update.url, update.type, std::move(update.body));
     stats.stylesheet_ready = true;
 }
 
-void handle_image_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store, IImageDecoder* image_decoder,
-                         ProcessingStats& stats) {
+void handle_image_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store,
+                         IImageDecoder* image_decoder, ProcessingStats& stats) {
     if (!image_decoder) {
         HB_LOG_WARN("[image] decode skipped (no decoder): " << update.url);
         store.mark_failed(update.url, update.type);
