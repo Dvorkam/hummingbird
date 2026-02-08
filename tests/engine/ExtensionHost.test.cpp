@@ -43,6 +43,7 @@ struct EvalRecord {
 struct EvalSink {
     std::vector<EvalRecord> evals;
     bool fail = false;
+    size_t fail_after = 0;
     std::string error = "boom";
 };
 
@@ -53,9 +54,10 @@ public:
     void bind_host(Hummingbird::IScriptHost* /*host*/) override {}
 
     Hummingbird::ScriptEvalResult eval(std::string_view source, std::string_view filename) override {
+        const size_t call_index = sink_ ? sink_->evals.size() : 0u;
         if (sink_) {
             sink_->evals.push_back(EvalRecord{std::string(filename), std::string(source)});
-            if (sink_->fail) {
+            if (sink_->fail && call_index >= sink_->fail_after) {
                 return Hummingbird::ScriptEvalResult{false, sink_->error};
             }
         }
@@ -96,15 +98,15 @@ TEST(ExtensionHostTest, StartsBackgroundScriptsOncePerExtension) {
     host.set_extensions(std::move(extensions));
 
     host.start_background_scripts();
-    ASSERT_EQ(sink.evals.size(), 2u);
+    ASSERT_EQ(sink.evals.size(), 4u);  // bootstrap + background per extension
 
     host.start_background_scripts();
-    EXPECT_EQ(sink.evals.size(), 2u);
+    EXPECT_EQ(sink.evals.size(), 4u);
     EXPECT_TRUE(host.errors().empty());
 
     host.shutdown();
     host.start_background_scripts();
-    EXPECT_EQ(sink.evals.size(), 4u);
+    EXPECT_EQ(sink.evals.size(), 8u);
 }
 
 TEST(ExtensionHostTest, SurfacesEvalErrorsPerExtension) {
@@ -118,12 +120,13 @@ TEST(ExtensionHostTest, SurfacesEvalErrorsPerExtension) {
     EvalSink sink;
     sink.fail = true;
     sink.error = "eval failed";
+    sink.fail_after = 1;  // allow bootstrap, fail the background script
 
     Hummingbird::Engine::ExtensionHost host([&sink]() { return std::make_unique<RecordingScriptEngine>(&sink); });
     host.set_extensions(std::move(extensions));
     host.start_background_scripts();
 
-    ASSERT_EQ(sink.evals.size(), 1u);
+    ASSERT_EQ(sink.evals.size(), 2u);  // bootstrap + background
     ASSERT_EQ(host.errors().size(), 1u);
     EXPECT_EQ(host.errors()[0].extension_name, "E");
     EXPECT_FALSE(host.errors()[0].message.empty());
@@ -150,15 +153,48 @@ TEST(ExtensionHostTest, DisabledExtensionsDoNotStartAndCanBeToggled) {
     host.set_extensions(std::move(extensions));
 
     host.start_background_scripts();
-    ASSERT_EQ(sink.evals.size(), 1u);
+    ASSERT_EQ(sink.evals.size(), 2u);  // bootstrap + background for A
 
     EXPECT_FALSE(host.set_extension_enabled("nope", false));
     EXPECT_TRUE(host.set_extension_enabled("b", true));
 
-    ASSERT_EQ(sink.evals.size(), 2u);
+    ASSERT_EQ(sink.evals.size(), 4u);  // bootstrap + background for B
     EXPECT_TRUE(host.set_extension_enabled("b", false));
 
     // Disabling should tear down; re-enabling should start again.
     EXPECT_TRUE(host.set_extension_enabled("b", true));
-    EXPECT_EQ(sink.evals.size(), 3u);
+    EXPECT_EQ(sink.evals.size(), 6u);
+}
+
+TEST(ExtensionHostTest, TabEventDispatchEvaluatesEmitCalls) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-events");
+    auto ext_root = root.path() / "dark-mode";
+    write_text(ext_root / "bg.js",
+               "browser.tabs.onCreated.addListener(function(t){ console.log('created', t.id); });"
+               "browser.tabs.onActivated.addListener(function(t){ console.log('activated', t.id); });"
+               "browser.tabs.onNavigated.addListener(function(t){ console.log('navigated', t.id); });");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Dark", "bg.js"));
+
+    EvalSink sink;
+    Hummingbird::Engine::ExtensionHost host([&sink]() { return std::make_unique<RecordingScriptEngine>(&sink); });
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    host.notify_tab_created(7, "https://example.dev");
+    host.notify_tab_activated(7);
+    host.notify_tab_navigated(7, "https://example.dev/js");
+
+    bool saw_created = false;
+    bool saw_activated = false;
+    bool saw_navigated = false;
+    for (const auto& eval : sink.evals) {
+        if (eval.source.find("__hb_emitTabCreated") != std::string::npos) saw_created = true;
+        if (eval.source.find("__hb_emitTabActivated") != std::string::npos) saw_activated = true;
+        if (eval.source.find("__hb_emitTabNavigated") != std::string::npos) saw_navigated = true;
+    }
+    EXPECT_TRUE(saw_created);
+    EXPECT_TRUE(saw_activated);
+    EXPECT_TRUE(saw_navigated);
 }

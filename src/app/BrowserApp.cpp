@@ -81,7 +81,7 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
       tab_manager_(make_tab_factory(primary_backend_for_env())),
       extension_host_([]() { return create_script_engine(); }) {
-    tab_manager_.create_tab();
+    const auto first_tab_id = tab_manager_.create_tab();
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
     if (provider && decoder) {
@@ -100,6 +100,8 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
         HB_LOG_INFO("[ext] loaded extensions: " << extension_host_.extension_count());
     }
     extension_host_.start_background_scripts();
+    extension_host_.notify_tab_created(first_tab_id, url_bar_.text());
+    extension_host_.notify_tab_activated(first_tab_id);
 }
 
 BrowserApp::~BrowserApp() {
@@ -131,7 +133,7 @@ void BrowserApp::shutdown() {
 
 void BrowserApp::start() {
     // initial navigation
-    active_tab().navigate(url_bar_.text());
+    navigate_active_tab(url_bar_.text());
 
     // initial focus
     url_bar_.set_active(true, window_.get(), "[ui] URL bar focused (default)");
@@ -272,7 +274,7 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     auto result = url_bar_.handle_key_down(event, window_.get());
     if (result.handled) {
         if (result.submitted_url) {
-            active_tab().navigate(*result.submitted_url);
+            navigate_active_tab(*result.submitted_url);
             document_dirty_ = true;
             chrome_dirty_ = true;
         }
@@ -286,7 +288,7 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (tab_result.handled) {
         if (tab_result.submitted_url) {
             url_bar_.set_text(*tab_result.submitted_url);
-            active_tab().navigate(*tab_result.submitted_url);
+            navigate_active_tab(*tab_result.submitted_url);
             document_dirty_ = true;
             chrome_dirty_ = true;
         }
@@ -329,7 +331,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     if (url_result.handled) {
         if (url_result.security_override_requested) {
             if (active_tab().allow_insecure_for_current_host()) {
-                active_tab().navigate(active_tab().requested_url());
+                navigate_active_tab(active_tab().requested_url());
                 document_dirty_ = true;
                 chrome_dirty_ = true;
             }
@@ -376,7 +378,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     auto submit = active_tab().submit_form_at(point, viewport);
     if (submit) {
         url_bar_.set_text(*submit);
-        active_tab().navigate(*submit);
+        navigate_active_tab(*submit);
         document_dirty_ = true;
         chrome_dirty_ = true;
         return;
@@ -384,7 +386,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     auto link = active_tab().hit_test_link(point, viewport);
     if (link) {
         url_bar_.set_text(*link);
-        active_tab().navigate(*link);
+        navigate_active_tab(*link);
         document_dirty_ = true;
         chrome_dirty_ = true;
     }
@@ -497,11 +499,21 @@ void BrowserApp::on_active_tab_changed() {
     }
 }
 
+void BrowserApp::navigate_active_tab(std::string_view url) {
+    auto id = tab_manager_.active_tab_id();
+    active_tab().navigate(url);
+    if (id) {
+        extension_host_.notify_tab_navigated(*id, url);
+    }
+}
+
 bool BrowserApp::new_tab() {
-    tab_manager_.create_tab();
+    const auto id = tab_manager_.create_tab();
     // Keep this simple for MVP: new tabs start on the current URL bar target.
-    active_tab().navigate(url_bar_.text());
+    navigate_active_tab(url_bar_.text());
     on_active_tab_changed();
+    extension_host_.notify_tab_created(id, url_bar_.text());
+    extension_host_.notify_tab_activated(id);
     return true;
 }
 
@@ -511,18 +523,27 @@ bool BrowserApp::close_active_tab() {
         tab_manager_.create_tab();
     }
     on_active_tab_changed();
+    if (auto id = tab_manager_.active_tab_id()) {
+        extension_host_.notify_tab_activated(*id);
+    }
     return true;
 }
 
 bool BrowserApp::activate_next_tab() {
     if (!tab_manager_.activate_next()) return false;
     on_active_tab_changed();
+    if (auto id = tab_manager_.active_tab_id()) {
+        extension_host_.notify_tab_activated(*id);
+    }
     return true;
 }
 
 bool BrowserApp::activate_prev_tab() {
     if (!tab_manager_.activate_prev()) return false;
     on_active_tab_changed();
+    if (auto id = tab_manager_.active_tab_id()) {
+        extension_host_.notify_tab_activated(*id);
+    }
     return true;
 }
 }  // namespace Hummingbird::App

@@ -9,6 +9,7 @@
 #include "core/platform_api/IScriptEngine.h"
 #include "engine/extensions/ExtensionLoader.h"
 #include "engine/extensions/ExtensionSettings.h"
+#include "engine/tab/TabManager.h"
 
 namespace Hummingbird::Engine {
 
@@ -35,6 +36,11 @@ public:
     // If enabling and background scripts have already been started, this will start it.
     bool set_extension_enabled(std::string_view id, bool enabled);
 
+    // Tab events (5.3.1). These are best-effort until deterministic commit wiring (5.3.3) lands.
+    void notify_tab_created(TabId id, std::string_view url);
+    void notify_tab_activated(TabId id);
+    void notify_tab_navigated(TabId id, std::string_view url);
+
     // Tears down all extension runtimes.
     void shutdown();
 
@@ -47,6 +53,7 @@ private:
         bool started = false;
     };
 
+    void eval_all_started(std::string_view source, std::string_view filename);
     bool start_background_script(Runtime& runtime);
 
     ScriptEngineFactory create_engine_;

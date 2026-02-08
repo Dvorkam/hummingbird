@@ -54,6 +54,7 @@ private:
 
 private:
     void on_active_tab_changed();
+    void navigate_active_tab(std::string_view url);
     bool new_tab();
     bool close_active_tab();
     bool activate_next_tab();
