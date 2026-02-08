@@ -1,9 +1,12 @@
 #include "app/BrowserApp.h"
 
 #include <algorithm>
+#include <cctype>
+#include <cstdlib>
 #include <optional>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "core/platform_api/IGraphicsContext.h"
@@ -20,6 +23,27 @@ namespace Hummingbird::App {
 namespace {
 // You can keep constants here to avoid re-allocating per frame
 constexpr Color kClearColor{255, 255, 255, 255};
+
+bool env_truthy(const char* name) {
+    const char* value = std::getenv(name);
+    if (!value || !value[0]) return false;
+    std::string_view view(value);
+    auto equals = [&](std::string_view needle) {
+        if (view.size() != needle.size()) return false;
+        for (size_t i = 0; i < view.size(); ++i) {
+            char a = static_cast<char>(std::tolower(static_cast<unsigned char>(view[i])));
+            char b = static_cast<char>(std::tolower(static_cast<unsigned char>(needle[i])));
+            if (a != b) return false;
+        }
+        return true;
+    };
+    return equals("1") || equals("true") || equals("yes") || equals("on");
+}
+
+NetworkBackend primary_backend_for_env() {
+    // Headless smoke should avoid libcurl lifecycle/teardown variance on CI.
+    return env_truthy("HB_HEADLESS") ? NetworkBackend::Stub : NetworkBackend::Curl;
+}
 
 std::optional<ImageBitmap> load_icon(IResourceProvider* provider, IImageDecoder* decoder, std::string_view path) {
     if (!provider || !decoder) return std::nullopt;
@@ -44,7 +68,7 @@ UrlBar::SecurityIcons load_security_icons(IResourceProvider* provider, IImageDec
 BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     : window_(std::move(window)),
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
-      tab_(create_network(NetworkBackend::Curl), create_network(NetworkBackend::Stub), create_resource_provider(),
+      tab_(create_network(primary_backend_for_env()), create_network(NetworkBackend::Stub), create_resource_provider(),
            create_image_decoder(), create_script_engine()) {
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
