@@ -9,7 +9,7 @@
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
 #include "core/utils/Timing.h"
-#include "engine/ResourceUrl.h"
+#include "engine/resources/ResourceUrl.h"
 #include "engine/document/HitTestUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"

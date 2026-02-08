@@ -388,7 +388,7 @@ P0: DDG HTML End-to-End Usability (Mandatory)
 
 P1+: Refactors and Polish (Only if Needed / Time Allows)
 - [x] T-ARCH-INCLUDE-1 (M5 P1): Slim Tab.h and DocumentPipeline.h Includes
-- [ ] T-REF-ENGINE-1 (M5 P1): Reshuffle Engine Modules
+- [x] T-REF-ENGINE-1 (M5 P1): Reshuffle Engine Modules
 - [ ] T-ARCH-CYCLE-1 (M5 P1): Break Engine Document/Script Cycle
 - [ ] T-ARCH-CYCLE-2 (M5 P1): Break PlatformApi/Geometry Cycle
 - [ ] T-ARCH-SPLIT-1 (M5 P2): DocumentPipeline Responsibility Split

@@ -7,7 +7,7 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/IResourceProvider.h"
 #include "core/utils/Log.h"
-#include "engine/ResourceUrl.h"
+#include "engine/resources/ResourceUrl.h"
 #include "engine/resources/ResourceStore.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"

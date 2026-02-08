@@ -9,7 +9,7 @@
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "core/utils/Url.h"
-#include "engine/ResourceUrl.h"
+#include "engine/resources/ResourceUrl.h"
 
 namespace Hummingbird::Engine {
 

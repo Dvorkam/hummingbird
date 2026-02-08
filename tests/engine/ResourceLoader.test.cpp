@@ -7,7 +7,7 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "engine/ResourceUrl.h"
+#include "engine/resources/ResourceUrl.h"
 #include "platform/decoders/CompositeImageDecoder.h"
 #include "test_utils/TestFakes.h"
 
