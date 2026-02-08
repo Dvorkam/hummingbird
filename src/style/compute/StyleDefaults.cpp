@@ -12,7 +12,7 @@
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Css::StyleDefaults {
 

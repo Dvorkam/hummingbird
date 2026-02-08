@@ -8,7 +8,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/RenderObject.h"
 #include "layout/flow/inline/InlineTypes.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird {
 class IGraphicsContext;

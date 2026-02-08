@@ -393,7 +393,7 @@ P1+: Refactors and Polish (Only if Needed / Time Allows)
 - [x] T-ARCH-CYCLE-2 (M5 P1): Break PlatformApi/Geometry Cycle
 - [x] T-ARCH-SPLIT-1 (M5 P2): DocumentPipeline Responsibility Split
 - [x] T-ARCH-SPLIT-2 (M5 P2): ResourceLoader Decomposition
-- [ ] T-ARCH-CYCLE-3 (M5 P3): Break Dom/StyleCompute Cycle
+- [x] T-ARCH-CYCLE-3 (M5 P3): Break Dom/StyleCompute Cycle
 - [ ] T-PERF-3 (M5 P1): Split UI Chrome From Page Render
 - [ ] T-LAYOUT-INLINE-2 (M5 P1): Inline-Block Baseline Alignment
 - [ ] T-CSS-SEL-2 (M5 P1): Child combinator selector (`>`)

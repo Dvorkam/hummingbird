@@ -10,7 +10,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 #include "style/compute/StyleDefaults.h"
 #include "style/compute/Stylesheet.h"
 #include "style/compute/apply/PropertyApplier.h"

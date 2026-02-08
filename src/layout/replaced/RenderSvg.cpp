@@ -13,7 +13,7 @@
 #include "layout/geometry/metrics/ReplacedElementUtils.h"
 #include "layout/paint/PaintUtils.h"
 #include "layout/replaced/ReplacedSizingUtils.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 

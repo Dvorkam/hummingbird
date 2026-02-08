@@ -9,7 +9,7 @@
 #include "core/utils/ParseUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout::ReplacedElementUtils {
 

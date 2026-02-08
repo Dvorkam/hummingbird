@@ -1,6 +1,6 @@
 #pragma once
 
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 #include "style/compute/StyleDefaults.h"
 #include "style/compute/Stylesheet.h"
 

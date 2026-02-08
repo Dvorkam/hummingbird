@@ -1,6 +1,6 @@
 #pragma once
 
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird {
 namespace Css {

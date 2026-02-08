@@ -9,7 +9,7 @@
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout::TextStyleUtils {
 

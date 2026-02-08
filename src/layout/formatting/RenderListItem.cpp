@@ -11,7 +11,7 @@
 #include "layout/flow/inline/InlineRef.h"
 #include "layout/geometry/Geometry.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird {
 namespace DOM {

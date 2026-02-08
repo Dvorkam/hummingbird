@@ -4,7 +4,7 @@
 #include <string_view>
 #include <vector>
 
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout::TextLayoutUtils {
 

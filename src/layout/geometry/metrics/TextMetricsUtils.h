@@ -4,7 +4,7 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/flow/TextStyleUtils.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout::TextMetricsUtils {
 

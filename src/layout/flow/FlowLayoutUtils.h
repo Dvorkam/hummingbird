@@ -9,7 +9,7 @@
 #include "layout/RenderObject.h"
 #include "layout/block/FloatLayoutUtils.h"
 #include "layout/flow/inline/InlineLayoutUtils.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird {
 class IGraphicsContext;
