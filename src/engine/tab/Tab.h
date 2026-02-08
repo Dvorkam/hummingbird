@@ -18,6 +18,7 @@
 #include "core/platform_api/IScriptEngine.h"
 #include "core/platform_api/InputEvent.h"
 #include "engine/document/DocumentPipeline.h"
+#include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
 #include "engine/resources/ResourceStore.h"
 #include "layout/geometry/Geometry.h"
@@ -36,7 +37,7 @@ public:
     struct KeyResult {
         bool handled = false;
         bool needs_repaint = false;
-        std::optional<std::string> submitted_url;
+        std::optional<FormSubmission> submitted_form;
     };
     struct ClickResult {
         bool handled = false;
@@ -54,6 +55,7 @@ public:
     void shutdown();
 
     void navigate(std::string_view url);
+    void navigate(const FormSubmission& submission);
 
     // Processes pending navigation results and keeps layout in sync with the viewport.
     // Returns true if the document changed in a way that needs repainting.
@@ -67,7 +69,7 @@ public:
     // Returns a resolved link URL for the render node under the window-space point.
     std::optional<std::string> hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const;
     ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics);
-    std::optional<std::string> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
+    std::optional<FormSubmission> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport);
     bool clear_input_focus();
     bool has_focused_input() const;

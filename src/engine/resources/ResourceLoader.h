@@ -20,6 +20,17 @@ namespace Hummingbird::Engine {
 
 class ResourceLoader {
 public:
+    struct DocumentRequest {
+        enum class Method {
+            Get,
+            Post,
+        };
+
+        Method method = Method::Get;
+        std::string body;
+        std::string content_type;
+    };
+
     struct PendingResourceUpdate {
         ResourceType type;
         std::string url;
@@ -50,6 +61,7 @@ public:
     void shutdown();
     void reset();
     void navigate(std::string_view url);
+    void navigate(std::string_view url, const DocumentRequest& request);
     void allow_insecure_host(std::string_view host);
     bool is_insecure_allowed_for_url(std::string_view url) const;
 

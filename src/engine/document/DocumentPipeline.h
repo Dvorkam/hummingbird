@@ -15,6 +15,7 @@
 #include "engine/document/DocumentModel.h"
 #include "engine/document/DocumentPainter.h"
 #include "engine/document/DocumentResources.h"
+#include "engine/forms/FormSubmission.h"
 #include "engine/script/DocumentScriptController.h"
 #include "layout/geometry/Geometry.h"
 
@@ -46,7 +47,7 @@ public:
     struct InputEditResult {
         bool handled = false;
         bool needs_repaint = false;
-        std::optional<std::string> submitted_url;
+        std::optional<FormSubmission> submitted_form;
     };
 
     using ScriptDispatchResult = DocumentScriptController::ScriptDispatchResult;
@@ -74,7 +75,7 @@ public:
     void paint(IGraphicsContext& graphics, const PaintContext& context);
     void paint_controls(IGraphicsContext& graphics, const PaintContext& context, bool repaint_background);
     std::optional<std::string> hit_test_link(const HitTestContext& context) const;
-    std::optional<std::string> submit_form_at(const HitTestContext& context) const;
+    std::optional<FormSubmission> submit_form_at(const HitTestContext& context) const;
     bool focus_input_at(const HitTestContext& context);
     bool focus_autofocus_input();
     bool clear_input_focus();

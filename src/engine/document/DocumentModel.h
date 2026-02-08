@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "core/ArenaAllocator.h"
+#include "engine/forms/FormSubmission.h"
 #include "layout/TreeBuilder.h"
 #include "style/compute/StyleEngine.h"
 
@@ -32,7 +33,7 @@ public:
     ParseResult parse_html(std::string_view html);
     void apply_styles(const std::string& css);
     bool build_render_tree();
-    std::optional<std::string> build_form_submission_url(const DOM::Element& input, std::string_view base_url) const;
+    std::optional<FormSubmission> build_form_submission(const DOM::Element& input, std::string_view base_url) const;
 
     bool has_dom_tree() const { return static_cast<bool>(dom_tree_); }
     bool has_render_tree() const { return static_cast<bool>(render_tree_); }

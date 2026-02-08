@@ -42,7 +42,18 @@ class CapturingNetwork final : public Hummingbird::INetwork {
 public:
     void get(const std::string& url, std::function<void(NetworkResponse)> callback,
              const NetworkRequestOptions& options = {}) override {
-        requests.emplace_back(Request{url, options});
+        requests.emplace_back(Request{url, "GET", {}, options});
+        NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        response.body = body;
+        response.error = error;
+        if (callback) callback(std::move(response));
+    }
+
+    void post(const std::string& url, std::string_view body_data, std::function<void(NetworkResponse)> callback,
+              const NetworkRequestOptions& options = {}) override {
+        requests.emplace_back(Request{url, "POST", std::string(body_data), options});
         NetworkResponse response;
         response.url = url;
         response.effective_url = url;
@@ -55,6 +66,8 @@ public:
 
     struct Request {
         std::string url;
+        std::string method;
+        std::string body;
         NetworkRequestOptions options;
     };
 
@@ -137,4 +150,28 @@ TEST(ResourceLoaderTest, SvgImagesDecodeThroughCompositeDecoder) {
     ASSERT_NE(view->image, nullptr);
     EXPECT_GT(view->image->width, 0);
     EXPECT_GT(view->image->height, 0);
+}
+
+TEST(ResourceLoaderTest, NavigatePostUsesNetworkPostWithBodyAndContentType) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html><body>posted</body></html>";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "q=duck%20duck%20go";
+    request.content_type = "application/x-www-form-urlencoded";
+
+    loader.navigate("https://example.dev/html/", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].method, "POST");
+    EXPECT_EQ(network_ptr->requests[0].url, "https://example.dev/html/");
+    EXPECT_EQ(network_ptr->requests[0].body, "q=duck%20duck%20go");
+    EXPECT_EQ(network_ptr->requests[0].options.content_type, "application/x-www-form-urlencoded");
+
+    auto batch = loader.consume_pending_updates();
+    EXPECT_TRUE(batch.document_ready);
+    EXPECT_EQ(batch.document_url, "https://example.dev/html/");
 }

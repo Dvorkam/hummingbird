@@ -251,4 +251,105 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
     });
 }
 
+void CurlNetwork::post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+                       const NetworkRequestOptions& options) {
+    if (!ok()) {
+        if (callback) callback(Hummingbird::Platform::make_response(url));
+        return;
+    }
+    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
+
+    auto cb = std::move(callback);
+    const std::string body_copy(body);
+    const bool allow_insecure = options.allow_insecure;
+    const std::string content_type =
+        options.content_type.empty() ? "application/x-www-form-urlencoded" : options.content_type;
+
+    thread_pool_.submit([url, body_copy, cb = std::move(cb), this, allow_insecure, content_type]() mutable {
+        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
+        std::string response_body;
+        NetworkResponse response = Hummingbird::Platform::make_response(url);
+        CURL* curl = curl_easy_init();
+        if (!curl) {
+            HB_LOG_WARN("[network] curl init failed: url=" << url);
+            if (cb) cb(std::move(response));
+            return;
+        }
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
+        curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, accept_encoding());
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Hummingbird/0.2");
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_copy.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body_copy.size()));
+
+        struct curl_slist* headers = nullptr;
+        const std::string content_type_header = "Content-Type: " + content_type;
+        headers = curl_slist_append(headers, content_type_header.c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+
+        const TlsConfig& tls = tls_config();
+        const bool allow_insecure_request = tls.insecure || allow_insecure;
+        if (allow_insecure_request) {
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        } else {
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+            if (!tls.ca_bundle.empty()) {
+                curl_easy_setopt(curl, CURLOPT_CAINFO, tls.ca_bundle.c_str());
+            }
+            if (!tls.ca_path.empty()) {
+                curl_easy_setopt(curl, CURLOPT_CAPATH, tls.ca_path.c_str());
+            }
+        }
+
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
+
+        CURLcode res = curl_easy_perform(curl);
+        long status = 0;
+        long ssl_verify_result = 0;
+        std::string effective_url;
+        std::string response_content_type;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+        curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT, &ssl_verify_result);
+        char* content_type_ptr = nullptr;
+        curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type_ptr);
+        if (content_type_ptr) {
+            response_content_type = content_type_ptr;
+        }
+        char* effective = nullptr;
+        curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective);
+        if (effective) {
+            effective_url = effective;
+        }
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+
+        if (res != CURLE_OK) {
+            response.error =
+                is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
+            HB_LOG_WARN("[network] curl failed: url=" << url << " code=" << res << " err=" << curl_easy_strerror(res)
+                                                      << " status=" << status << " ssl_verify=" << ssl_verify_result
+                                                      << " effective=" << effective_url << " content_type="
+                                                      << response_content_type << " bytes=" << response_body.size());
+        } else if (status >= 400) {
+            HB_LOG_WARN("[network] http error: url=" << url << " status=" << status << " effective=" << effective_url
+                                                     << " content_type=" << response_content_type
+                                                     << " bytes=" << response_body.size());
+        }
+
+        if (res == CURLE_OK || !response_body.empty()) {
+            response.body = std::move(response_body);
+            response.status = status;
+            response.effective_url = std::move(effective_url);
+        }
+        if (cb) cb(std::move(response));
+    });
+}
+
 }  // namespace Hummingbird::Platform

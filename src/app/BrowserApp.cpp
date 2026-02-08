@@ -295,9 +295,9 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
 
     auto tab_result = active_tab().handle_key_down(event);
     if (tab_result.handled) {
-        if (tab_result.submitted_url) {
-            url_bar_.set_text(*tab_result.submitted_url);
-            navigate_active_tab(*tab_result.submitted_url);
+        if (tab_result.submitted_form) {
+            url_bar_.set_text(tab_result.submitted_form->url);
+            navigate_active_tab(*tab_result.submitted_form);
             document_dirty_ = true;
             chrome_dirty_ = true;
         }
@@ -388,7 +388,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     }
     auto submit = active_tab().submit_form_at(point, viewport);
     if (submit) {
-        url_bar_.set_text(*submit);
+        url_bar_.set_text(submit->url);
         navigate_active_tab(*submit);
         document_dirty_ = true;
         chrome_dirty_ = true;
@@ -531,6 +531,10 @@ void BrowserApp::sync_tab_text_input_mode() {
 
 void BrowserApp::navigate_active_tab(std::string_view url) {
     active_tab().navigate(url);
+}
+
+void BrowserApp::navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission) {
+    active_tab().navigate(submission);
 }
 
 bool BrowserApp::insert_extension_css(Hummingbird::Engine::TabId tab_id, std::string_view css_text) {

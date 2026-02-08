@@ -53,6 +53,24 @@ void Tab::navigate(std::string_view url) {
     resource_loader_.navigate(requested_url_);
 }
 
+void Tab::navigate(const FormSubmission& submission) {
+    if (shutting_down_.load(std::memory_order_relaxed)) return;
+
+    std::string normalized = Core::normalize_input_url(submission.url);
+    requested_url_ = std::move(normalized);
+    pending_navigation_commit_url_.reset();
+    security_state_ = security_state_for_url(requested_url_);
+    reset_document_state();
+
+    ResourceLoader::DocumentRequest request{};
+    if (submission.method == FormSubmitMethod::Post) {
+        request.method = ResourceLoader::DocumentRequest::Method::Post;
+        request.body = submission.body;
+        request.content_type = submission.content_type;
+    }
+    resource_loader_.navigate(requested_url_, request);
+}
+
 bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (shutting_down_.load(std::memory_order_relaxed)) return false;
 
@@ -115,7 +133,7 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
     return {result.handled, result.mutated};
 }
 
-std::optional<std::string> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
+std::optional<FormSubmission> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
     DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
     return document_pipeline_.submit_form_at(context);
 }
@@ -140,7 +158,7 @@ bool Tab::handle_text_input(std::string_view text) {
 
 Tab::KeyResult Tab::handle_key_down(const InputEvent& event) {
     auto result = document_pipeline_.handle_key_down(event, requested_url_);
-    return {result.handled, result.needs_repaint, std::move(result.submitted_url)};
+    return {result.handled, result.needs_repaint, std::move(result.submitted_form)};
 }
 
 std::optional<std::string> Tab::focused_input_value() const {

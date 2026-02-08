@@ -18,6 +18,7 @@ std::string normalize_path(std::string_view path) {
     out.reserve(path.size());
 
     bool absolute = !path.empty() && path.front() == '/';
+    const bool preserve_trailing_slash = path.size() > 1 && path.back() == '/';
     size_t i = 0;
     while (i < path.size()) {
         while (i < path.size() && path[i] == '/') ++i;
@@ -44,6 +45,9 @@ std::string normalize_path(std::string_view path) {
 
     if (out.empty()) {
         return absolute ? "/" : std::string{};
+    }
+    if (preserve_trailing_slash && out.back() != '/') {
+        out.push_back('/');
     }
     return out;
 }

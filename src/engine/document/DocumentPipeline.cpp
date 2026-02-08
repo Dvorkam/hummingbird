@@ -180,15 +180,15 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
         [&](const Layout::RenderObject& node) { return resolve_anchor_href(node.get_dom_node(), context.base_url); });
 }
 
-std::optional<std::string> DocumentPipeline::submit_form_at(const HitTestContext& context) const {
-    return HitTest::hit_test_z_order<std::string>(
+std::optional<FormSubmission> DocumentPipeline::submit_form_at(const HitTestContext& context) const {
+    return HitTest::hit_test_z_order<FormSubmission>(
         model_.render_tree(), context.point, context.viewport, context.scroll_y,
-        [&](const Layout::RenderObject& node) -> std::optional<std::string> {
+        [&](const Layout::RenderObject& node) -> std::optional<FormSubmission> {
             const auto* submit = resolve_submit_element(node.get_dom_node());
             if (!submit) {
                 return std::nullopt;
             }
-            return model_.build_form_submission_url(*submit, context.base_url);
+            return model_.build_form_submission(*submit, context.base_url);
         });
 }
 
@@ -217,7 +217,7 @@ DocumentPipeline::InputEditResult DocumentPipeline::handle_key_down(const InputE
     if (event.key.key == Key::Enter && input_controller_.has_focus()) {
         const auto* focused = input_controller_.focused_element();
         if (focused) {
-            output.submitted_url = model_.build_form_submission_url(*focused, base_url);
+            output.submitted_form = model_.build_form_submission(*focused, base_url);
         }
         output.handled = true;
     }

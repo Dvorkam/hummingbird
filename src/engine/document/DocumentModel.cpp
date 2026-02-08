@@ -127,6 +127,18 @@ std::string append_query(std::string base, std::string_view query) {
     return base;
 }
 
+FormSubmitMethod parse_form_method(const DOM::Element& form) {
+    const auto* method = form.find_attribute(Hummingbird::Html::AttributeNames::Method);
+    if (!method || method->empty() || Core::Utils::equals_ignore_case(*method, "get")) {
+        return FormSubmitMethod::Get;
+    }
+    if (Core::Utils::equals_ignore_case(*method, "post")) {
+        return FormSubmitMethod::Post;
+    }
+    HB_LOG_WARN("[form] unsupported method: " << *method << ", falling back to GET");
+    return FormSubmitMethod::Get;
+}
+
 void collect_script_text(const DOM::Node* node, std::string& out) {
     if (!node) return;
     if (auto* text_node = dynamic_cast<const DOM::Text*>(node)) {
@@ -246,8 +258,8 @@ bool DocumentModel::build_render_tree() {
     return true;
 }
 
-std::optional<std::string> DocumentModel::build_form_submission_url(const DOM::Element& input,
-                                                                    std::string_view base_url) const {
+std::optional<FormSubmission> DocumentModel::build_form_submission(const DOM::Element& input,
+                                                                   std::string_view base_url) const {
     if (base_url.empty()) {
         return std::nullopt;
     }
@@ -273,12 +285,7 @@ std::optional<std::string> DocumentModel::build_form_submission_url(const DOM::E
         return std::nullopt;
     }
 
-    if (const auto* method = form->find_attribute(Hummingbird::Html::AttributeNames::Method)) {
-        if (!method->empty() && !Core::Utils::equals_ignore_case(*method, "get")) {
-            HB_LOG_WARN("[form] unsupported method: " << *method);
-            return std::nullopt;
-        }
-    }
+    const FormSubmitMethod form_method = parse_form_method(*form);
 
     std::string action;
     if (const auto* action_attr = form->find_attribute(Hummingbird::Html::AttributeNames::Action)) {
@@ -303,17 +310,27 @@ std::optional<std::string> DocumentModel::build_form_submission_url(const DOM::E
         }
     }
 
-    std::string query;
+    std::string encoded_fields;
     for (size_t i = 0; i < fields.size(); ++i) {
         if (i > 0) {
-            query.push_back('&');
+            encoded_fields.push_back('&');
         }
-        query.append(Core::Utils::url_encode_component(fields[i].name));
-        query.push_back('=');
-        query.append(Core::Utils::url_encode_component(fields[i].value));
+        encoded_fields.append(Core::Utils::url_encode_component(fields[i].name));
+        encoded_fields.push_back('=');
+        encoded_fields.append(Core::Utils::url_encode_component(fields[i].value));
     }
 
-    return append_query(std::move(resolved_action), query);
+    FormSubmission submission;
+    submission.method = form_method;
+    submission.content_type = "application/x-www-form-urlencoded";
+    if (form_method == FormSubmitMethod::Post) {
+        submission.url = std::move(resolved_action);
+        submission.body = std::move(encoded_fields);
+        return submission;
+    }
+
+    submission.url = append_query(std::move(resolved_action), encoded_fields);
+    return submission;
 }
 
 size_t DocumentModel::render_tree_children() const {

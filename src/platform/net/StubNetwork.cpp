@@ -34,12 +34,14 @@ std::optional<std::string> try_load_example_asset(const std::string& url) {
     return Hummingbird::Core::Utils::load_asset_bytes(rest, false);
 }
 
-std::string build_stub_body(const std::string& url) {
+std::string build_stub_body(const std::string& url, std::string_view post_body = {}) {
     if (url.rfind("http://example.dev/search", 0) == 0 || url.rfind("https://example.dev/search", 0) == 0) {
         std::string query;
         auto query_pos = url.find('?');
         if (query_pos != std::string::npos && query_pos + 1 < url.size()) {
             query = url.substr(query_pos + 1);
+        } else if (!post_body.empty()) {
+            query.assign(post_body.begin(), post_body.end());
         }
         return R"HTML(
 <!doctype html>
@@ -334,7 +336,8 @@ aligned.</pre>
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
 }
 
-void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb) {
+void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb,
+                      std::string_view post_body = {}) {
     if (auto asset_body = try_load_example_asset(url)) {
         NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
         response.status = 200;
@@ -343,7 +346,7 @@ void run_stub_request(const std::string& url, std::function<void(NetworkResponse
         return;
     }
 
-    std::string body = build_stub_body(url);
+    std::string body = build_stub_body(url, post_body);
     NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
     response.status = 200;
     response.body = std::move(body);
@@ -365,6 +368,20 @@ void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse
     thread_pool_.submit([url, cb = std::move(cb), this]() mutable {
         if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         run_stub_request(url, std::move(cb));
+    });
+}
+
+void StubNetwork::post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+                       const NetworkRequestOptions& options) {
+    (void)options;
+    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
+
+    auto cb = std::move(callback);
+    const std::string body_copy(body);
+
+    thread_pool_.submit([url, body_copy, cb = std::move(cb), this]() mutable {
+        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
+        run_stub_request(url, std::move(cb), body_copy);
     });
 }
 

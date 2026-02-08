@@ -35,6 +35,12 @@ public:
         if (callback) callback(std::move(response));
     }
 
+    void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+              const Hummingbird::NetworkRequestOptions& options = {}) override {
+        (void)body;
+        get(url, std::move(callback), options);
+    }
+
     void shutdown() override {}
 
     bool last_allow_insecure() const { return last_allow_insecure_; }
@@ -532,8 +538,9 @@ TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
     enter_event.key.key = Hummingbird::Key::Enter;
     auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
-    ASSERT_TRUE(result.submitted_url.has_value());
-    EXPECT_EQ(*result.submitted_url, "https://example.dev/search?q=hello%20world&lang=en");
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=hello%20world&lang=en");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Get);
 }
 
 TEST(EngineTabTest, FormWithEmptyMethodSubmitsAsGet) {
@@ -565,8 +572,172 @@ TEST(EngineTabTest, FormWithEmptyMethodSubmitsAsGet) {
     enter_event.key.key = Hummingbird::Key::Enter;
     auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
-    ASSERT_TRUE(result.submitted_url.has_value());
-    EXPECT_EQ(*result.submitted_url, "https://example.dev/search?q=test");
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=test");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Get);
+}
+
+TEST(EngineTabTest, SubmitsInputSubmitControlByClick) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/search" method="get">
+      <input id="submit" type="submit" value="Search">
+      <input name="q" value="saturn">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=saturn");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
+}
+
+TEST(EngineTabTest, SubmitsInputSubmitControlWithFormAttribute) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <input id="submit" type="submit" form="search-form" value="Search">
+    <form id="search-form" action="/search" method="get">
+      <input name="q" value="venus">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=venus");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
+}
+
+TEST(EngineTabTest, EnterSubmitsFormWithInputSubmitControl) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/search" method="get">
+      <input name="q">
+      <input type="submit" value="Search">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("pluto"));
+
+    Hummingbird::InputEvent enter_event;
+    enter_event.type = Hummingbird::EventType::KeyDown;
+    enter_event.key.key = Hummingbird::Key::Enter;
+    auto result = harness.tab().handle_key_down(enter_event);
+    EXPECT_TRUE(result.handled);
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=pluto");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Get);
+}
+
+TEST(EngineTabTest, EnterSubmitsPostFormWithEncodedBody) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/html/" method="post">
+      <input name="q">
+      <input type="submit" value="Search">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("duck duck go"));
+
+    Hummingbird::InputEvent enter_event;
+    enter_event.type = Hummingbird::EventType::KeyDown;
+    enter_event.key.key = Hummingbird::Key::Enter;
+    auto result = harness.tab().handle_key_down(enter_event);
+    EXPECT_TRUE(result.handled);
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://example.dev/html/");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Post);
+    EXPECT_EQ(result.submitted_form->body, "q=duck%20duck%20go");
+    EXPECT_EQ(result.submitted_form->content_type, "application/x-www-form-urlencoded");
+}
+
+TEST(EngineTabTest, ClickSubmitReturnsPostFormSubmission) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/html/" method="post">
+      <input type="submit" value="Search">
+      <input name="q" value="venus">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->url, "https://example.dev/html/");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Post);
+    EXPECT_EQ(submitted->body, "q=venus");
+    EXPECT_EQ(submitted->content_type, "application/x-www-form-urlencoded");
 }
 
 TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
@@ -594,7 +765,8 @@ TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
     Hummingbird::Layout::Point point{12.0f, 12.0f};
     auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
-    EXPECT_EQ(*submitted, "https://example.dev/search?q=moon");
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=moon");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
 }
 
 TEST(EngineTabTest, ButtonWithEmptyTypeDefaultsToSubmit) {
@@ -622,7 +794,8 @@ TEST(EngineTabTest, ButtonWithEmptyTypeDefaultsToSubmit) {
     Hummingbird::Layout::Point point{12.0f, 12.0f};
     auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
-    EXPECT_EQ(*submitted, "https://example.dev/search?q=mars");
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=mars");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
 }
 
 TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {

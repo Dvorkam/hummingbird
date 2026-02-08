@@ -36,6 +36,8 @@ TEST(UrlTest, ResolveUrlHandlesSpecialForms) {
     std::string_view base = "https://example.com:8080/dir/page.html";
     EXPECT_EQ(Hummingbird::Core::resolve_url(base, "//cdn.example.com/a.css"), "https://cdn.example.com/a.css");
     EXPECT_EQ(Hummingbird::Core::resolve_url(base, "/styles/main.css"), "https://example.com:8080/styles/main.css");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "/html/"), "https://example.com:8080/html/");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "subdir/"), "https://example.com:8080/dir/subdir/");
     EXPECT_EQ(Hummingbird::Core::resolve_url(base, "?q=1"), "https://example.com:8080/dir/page.html?q=1");
     EXPECT_EQ(Hummingbird::Core::resolve_url(base, "#top"), "https://example.com:8080/dir/page.html#top");
 }

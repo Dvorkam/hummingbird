@@ -79,6 +79,10 @@ void ResourceLoader::reset() {
 }
 
 void ResourceLoader::navigate(std::string_view url) {
+    navigate(url, {});
+}
+
+void ResourceLoader::navigate(std::string_view url, const DocumentRequest& request) {
     const uint64_t id = ++nav_counter_;
     active_nav_.store(id, std::memory_order_release);
     std::string url_copy(url);
@@ -89,24 +93,38 @@ void ResourceLoader::navigate(std::string_view url) {
 
     // Built-in demo URL: keep startup deterministic and avoid network timeouts.
     if ((url_copy == "http://example.dev" || url_copy == "https://example.dev") && fallback_network_) {
-        fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse response) {
+        auto callback = [this, id, url_copy](NetworkResponse response) {
             if (id != active_nav_.load(std::memory_order_acquire)) return;
             bool success = !response.body.empty();
             enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
                                     std::move(response.effective_url), response.error);
-        });
+        };
+        if (request.method == DocumentRequest::Method::Post) {
+            NetworkRequestOptions post_options{};
+            post_options.content_type = request.content_type;
+            fallback_network_->post(url_copy, request.body, std::move(callback), post_options);
+        } else {
+            fallback_network_->get(url_copy, std::move(callback));
+        }
         return;
     }
 
     if (!network_) {
         HB_LOG_ERROR("[network] no backend available for " << url);
         if (fallback_network_) {
-            fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse response) {
+            auto callback = [this, id, url_copy](NetworkResponse response) {
                 if (id != active_nav_.load(std::memory_order_acquire)) return;
                 bool success = !response.body.empty();
                 enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
                                         std::move(response.effective_url), response.error);
-            });
+            };
+            if (request.method == DocumentRequest::Method::Post) {
+                NetworkRequestOptions post_options{};
+                post_options.content_type = request.content_type;
+                fallback_network_->post(url_copy, request.body, std::move(callback), post_options);
+            } else {
+                fallback_network_->get(url_copy, std::move(callback));
+            }
         } else {
             enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
         }
@@ -115,20 +133,34 @@ void ResourceLoader::navigate(std::string_view url) {
 
     NetworkRequestOptions options{};
     options.allow_insecure = is_insecure_allowed_for_url(url_copy);
-    network_->get(
-        url_copy,
-        [this, id, url_copy](NetworkResponse response) {
-            if (id != active_nav_.load(std::memory_order_acquire)) return;
+    options.content_type = request.content_type;
 
-            if (response.body.empty()) {
-                if (response.error == NetworkError::TlsVerificationFailed) {
-                    HB_LOG_WARN("[network] TLS verification failed for " << url_copy << ", showing warning page");
-                    std::string body = build_tls_error_body(url_copy);
-                    enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), true,
-                                            std::move(response.effective_url), response.error);
+    auto callback = [this, id, url_copy, request_method = request.method, post_body = request.body,
+                     post_content_type = request.content_type](NetworkResponse response) {
+        if (id != active_nav_.load(std::memory_order_acquire)) return;
+
+        if (response.body.empty()) {
+            if (response.error == NetworkError::TlsVerificationFailed) {
+                HB_LOG_WARN("[network] TLS verification failed for " << url_copy << ", showing warning page");
+                std::string body = build_tls_error_body(url_copy);
+                enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), true,
+                                        std::move(response.effective_url), response.error);
+            } else {
+                HB_LOG_WARN("[network] curl returned empty for " << url_copy << ", using stub");
+                if (!fallback_network_) return;
+                if (request_method == DocumentRequest::Method::Post) {
+                    NetworkRequestOptions post_options{};
+                    post_options.content_type = post_content_type;
+                    fallback_network_->post(
+                        url_copy, post_body,
+                        [this, id, url_copy](NetworkResponse fallback) {
+                            if (id != active_nav_.load(std::memory_order_acquire)) return;
+                            bool success = !fallback.body.empty();
+                            enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
+                                                    std::move(fallback.effective_url), fallback.error);
+                        },
+                        post_options);
                 } else {
-                    HB_LOG_WARN("[network] curl returned empty for " << url_copy << ", using stub");
-                    if (!fallback_network_) return;
                     fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse fallback) {
                         if (id != active_nav_.load(std::memory_order_acquire)) return;
                         bool success = !fallback.body.empty();
@@ -136,14 +168,20 @@ void ResourceLoader::navigate(std::string_view url) {
                                                 std::move(fallback.effective_url), fallback.error);
                     });
                 }
-                return;
             }
+            return;
+        }
 
-            HB_LOG_INFO("[network] fetched " << response.body.size() << " bytes from " << url_copy);
-            enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), true,
-                                    std::move(response.effective_url), response.error);
-        },
-        options);
+        HB_LOG_INFO("[network] fetched " << response.body.size() << " bytes from " << url_copy);
+        enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), true,
+                                std::move(response.effective_url), response.error);
+    };
+
+    if (request.method == DocumentRequest::Method::Post) {
+        network_->post(url_copy, request.body, std::move(callback), options);
+    } else {
+        network_->get(url_copy, std::move(callback), options);
+    }
 }
 
 void ResourceLoader::allow_insecure_host(std::string_view host) {

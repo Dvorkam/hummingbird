@@ -43,6 +43,12 @@ public:
         if (callback) callback(std::move(response));
     }
 
+    void post(const std::string& url, std::string_view body, std::function<void(Hummingbird::NetworkResponse)> callback,
+              const Hummingbird::NetworkRequestOptions& options = {}) override {
+        (void)body;
+        get(url, std::move(callback), options);
+    }
+
     void shutdown() override {}
 
 private:
