@@ -12,9 +12,6 @@ namespace Hummingbird {
 namespace DOM {
 class Node;
 }  // namespace DOM
-namespace Layout {
-struct Rect;
-}  // namespace Layout
 }  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
