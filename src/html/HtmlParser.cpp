@@ -85,6 +85,19 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
     maybe_close_list_item(state, lowered_name);
     maybe_close_paragraph(state, lowered_name);
 
+    // HTML parsers treat SVG content as "foreign content". We currently do not build a full SVG DOM/render tree
+    // (we decode/paint <svg> as a replaced element), so avoid emitting "unsupported HTML tag" warnings for SVG
+    // element names like <rect>/<circle> within an <svg> subtree.
+    const bool in_svg_subtree = [&]() -> bool {
+        for (auto* node : state.open_elements) {
+            auto* element = dynamic_cast<DOM::Element*>(node);
+            if (element && element->get_tag_name() == Hummingbird::Html::TagNames::Svg) {
+                return true;
+            }
+        }
+        return false;
+    }();
+
     auto new_element = DOM::DomFactory::create_element(m_arena, lowered_name);
     if (!new_element) {
         m_failed = true;
@@ -96,7 +109,9 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
     parent->append_child(std::move(new_element));
 
     DOM::Node* appended = parent->get_children().back().get();
-    track_unsupported_tag(lowered_name);
+    if (!in_svg_subtree) {
+        track_unsupported_tag(lowered_name);
+    }
     track_semantic_tag(lowered_name);
     if (lowered_name == Hummingbird::Html::TagNames::Link) {
         auto rel = Core::Utils::to_lower(Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
