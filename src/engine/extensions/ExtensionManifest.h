@@ -30,4 +30,3 @@ struct ExtensionManifest {
 std::optional<ExtensionManifest> parse_extension_manifest(std::string_view json, ManifestParseError* error);
 
 }  // namespace Hummingbird::Engine
-

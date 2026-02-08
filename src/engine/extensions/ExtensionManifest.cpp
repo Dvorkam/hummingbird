@@ -330,4 +330,3 @@ std::optional<ExtensionManifest> parse_extension_manifest(std::string_view json,
 }
 
 }  // namespace Hummingbird::Engine
-

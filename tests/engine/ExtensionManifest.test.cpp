@@ -1,8 +1,8 @@
+#include "engine/extensions/ExtensionManifest.h"
+
 #include <gtest/gtest.h>
 
 #include <string_view>
-
-#include "engine/extensions/ExtensionManifest.h"
 
 namespace {
 using Hummingbird::Engine::ManifestParseError;
@@ -89,4 +89,3 @@ TEST(ExtensionManifestTest, RejectsNonStringPermissions) {
     EXPECT_FALSE(manifest.has_value());
     EXPECT_EQ(error.message, "Expected string");
 }
-
