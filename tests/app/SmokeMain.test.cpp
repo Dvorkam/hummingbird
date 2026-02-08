@@ -3,11 +3,13 @@
 #include <cctype>
 #include <chrono>
 #include <cstdlib>
+#include <memory>
+#include <string>
 #include <string_view>
-#include <utility>
 
 #include "app/BrowserApp.h"
-#include "core/platform_api/WindowFactory.h"
+#include "core/platform_api/IWindow.h"
+#include "test_utils/TestGraphicsContext.h"
 
 namespace {
 bool is_truthy_env(const char* value) {
@@ -25,17 +27,28 @@ bool is_truthy_env(const char* value) {
     return equals("1") || equals("true") || equals("yes") || equals("on");
 }
 
-void set_env_if_missing(const char* key, const char* value) {
-    const char* existing = std::getenv(key);
-    if (existing && existing[0] != '\0') {
-        return;
+class FakeWindow final : public Hummingbird::IWindow {
+public:
+    void open() override { is_open_ = true; }
+    void update() override {}
+    void close() override { is_open_ = false; }
+    bool is_open() const override { return is_open_; }
+
+    std::unique_ptr<Hummingbird::IGraphicsContext> get_graphics_context() override {
+        return std::make_unique<Hummingbird::Test::TestGraphicsContext>();
     }
-#ifdef _WIN32
-    _putenv_s(key, value);
-#else
-    setenv(key, value, 0);
-#endif
-}
+
+    std::pair<int, int> get_size() const override { return {1024, 768}; }
+
+    bool wait_event(Hummingbird::InputEvent& /*out*/, int /*timeout_ms*/) override { return false; }
+    bool poll_event(Hummingbird::InputEvent& /*out*/) override { return false; }
+    void start_text_input() override {}
+    void stop_text_input() override {}
+    std::string get_clipboard_text() const override { return {}; }
+
+private:
+    bool is_open_{false};
+};
 }  // namespace
 
 TEST(SmokeMainTest, StartsAndTicks) {
@@ -43,16 +56,7 @@ TEST(SmokeMainTest, StartsAndTicks) {
         GTEST_SKIP() << "Set HB_RUN_SMOKE_TEST=1 to enable the smoke test.";
     }
 
-    // Make smoke runs deterministic in CI if callers did not provide SDL env.
-    // SDL's dummy video backend is reliable on Linux but can be unstable on Windows.
-#ifdef _WIN32
-    set_env_if_missing("SDL_RENDER_DRIVER", "software");
-#else
-    set_env_if_missing("SDL_VIDEODRIVER", "dummy");
-    set_env_if_missing("SDL_RENDER_DRIVER", "software");
-#endif
-
-    auto window = Hummingbird::create_window();
+    auto window = std::make_unique<FakeWindow>();
     ASSERT_NE(window, nullptr);
     window->open();
     ASSERT_TRUE(window->is_open());
