@@ -66,4 +66,3 @@ private:
 };
 
 }  // namespace Hummingbird::Engine
-

@@ -125,8 +125,7 @@ void TabManager::shutdown() {
 }
 
 size_t TabManager::index_for_id(TabId id) const {
-    const auto it =
-        std::find_if(tabs_.begin(), tabs_.end(), [&](const Entry& entry) { return entry.id == id; });
+    const auto it = std::find_if(tabs_.begin(), tabs_.end(), [&](const Entry& entry) { return entry.id == id; });
     if (it == tabs_.end()) {
         return std::numeric_limits<size_t>::max();
     }
@@ -134,4 +133,3 @@ size_t TabManager::index_for_id(TabId id) const {
 }
 
 }  // namespace Hummingbird::Engine
-

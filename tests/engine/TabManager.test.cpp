@@ -1,10 +1,11 @@
+#include "engine/tab/TabManager.h"
+
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <string>
 
 #include "core/platform_api/ResourceProviderFactory.h"
-#include "engine/tab/TabManager.h"
 #include "test_utils/TestFakes.h"
 
 namespace {
@@ -61,4 +62,3 @@ TEST(TabManagerTest, ClosingActiveTabSelectsAnotherOrEmpties) {
     EXPECT_FALSE(manager.active_tab_id().has_value());
     EXPECT_EQ(manager.tab_count(), 0u);
 }
-
