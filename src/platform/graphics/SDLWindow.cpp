@@ -11,8 +11,13 @@
 #include <SDL_surface.h>
 #include <SDL_video.h>
 
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
 #include <memory>
 #include <ostream>
+#include <string>
+#include <string_view>
 #include <utility>
 
 #include "core/utils/AssetPath.h"
@@ -23,6 +28,19 @@
 namespace Hummingbird::Platform {
 
 namespace {
+bool env_truthy(const char* name) {
+    const char* value = std::getenv(name);
+    if (!value || !value[0]) {
+        return false;
+    }
+    std::string_view raw(value);
+    std::string normalized;
+    normalized.reserve(raw.size());
+    std::transform(raw.begin(), raw.end(), std::back_inserter(normalized),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return normalized == "1" || normalized == "true" || normalized == "yes" || normalized == "on";
+}
+
 SDL_Surface* load_window_icon_surface() {
     static bool sdl_image_ready = false;
     if (!sdl_image_ready) {
@@ -64,21 +82,34 @@ SDLWindow::~SDLWindow() {
 }
 
 void SDLWindow::open() {
-    m_window = SDL_CreateWindow("Hummingbird", 100, 100, 1024, 768, SDL_WINDOW_SHOWN);
+    const bool headless = env_truthy("HB_HEADLESS");
+    const Uint32 window_flags = headless ? SDL_WINDOW_HIDDEN : SDL_WINDOW_SHOWN;
+
+    m_window = SDL_CreateWindow("Hummingbird", 100, 100, 1024, 768, window_flags);
     if (m_window == nullptr) {
         HB_LOG_ERROR("[platform] SDL_CreateWindow failed: " << SDL_GetError());
         return;
     }
 
-    if (SDL_Surface* icon = load_window_icon_surface()) {
-        SDL_SetWindowIcon(m_window, icon);
-        SDL_FreeSurface(icon);
+    if (!headless) {
+        if (SDL_Surface* icon = load_window_icon_surface()) {
+            SDL_SetWindowIcon(m_window, icon);
+            SDL_FreeSurface(icon);
+        }
     }
 
-    m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (m_renderer == nullptr) {
+    if (headless) {
+        m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_SOFTWARE);
+    } else {
+        m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    }
+    if (m_renderer == nullptr && !headless) {
         HB_LOG_WARN("[platform] SDL_CreateRenderer (accelerated) failed: " << SDL_GetError());
         m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_SOFTWARE);
+    }
+    if (m_renderer == nullptr && headless) {
+        HB_LOG_WARN("[platform] SDL_CreateRenderer (software headless) failed: " << SDL_GetError());
+        m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_ACCELERATED);
     }
     if (m_renderer == nullptr) {
         HB_LOG_ERROR("[platform] SDL_CreateRenderer failed: " << SDL_GetError());

@@ -47,6 +47,7 @@ jobs:
         run: ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
         env:
           HB_RUN_SMOKE_TEST: "1"
+          HB_HEADLESS: "1"
           SDL_RENDER_DRIVER: "software"
 
       - name: Stage + Zip
