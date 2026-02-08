@@ -30,6 +30,7 @@ public:
     const DOM::Element* focused_element() const { return focused_input_; }
     bool focus_input_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
                         const Layout::Rect& viewport, float scroll_y);
+    bool focus_autofocus_input(const Layout::RenderObject* render_tree);
     bool clear_focus();
 
     EditResult handle_text_input(std::string_view text);

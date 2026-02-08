@@ -196,6 +196,10 @@ bool DocumentPipeline::focus_input_at(const HitTestContext& context) {
     return input_controller_.focus_input_at(model_.render_tree(), context.point, context.viewport, context.scroll_y);
 }
 
+bool DocumentPipeline::focus_autofocus_input() {
+    return input_controller_.focus_autofocus_input(model_.render_tree());
+}
+
 bool DocumentPipeline::clear_input_focus() {
     return input_controller_.clear_focus();
 }

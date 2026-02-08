@@ -54,6 +54,7 @@ private:
 
 private:
     void on_active_tab_changed();
+    void sync_tab_text_input_mode();
     void navigate_active_tab(std::string_view url);
     bool insert_extension_css(Hummingbird::Engine::TabId tab_id, std::string_view css_text);
     bool new_tab();
@@ -79,6 +80,7 @@ private:
     bool chrome_dirty_ = true;
     bool controls_dirty_ = false;
     bool document_cache_valid_ = false;
+    bool tab_text_input_active_ = false;
 
     // Event draining controls
     int max_events_per_tick_ = 200;

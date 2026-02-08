@@ -160,3 +160,17 @@ TEST(DocumentInputControllerTest, PrefersEditableTextInputOverSubmitInputAtSameP
     EXPECT_EQ(*text_value, "abc");
     EXPECT_EQ(tree.submit_input->find_attribute("value"), nullptr);
 }
+
+TEST(DocumentInputControllerTest, FocusesAutofocusInputOnLoadPath) {
+    InputRenderTree tree;
+    tree.input->set_attribute("autofocus", "");
+
+    DocumentInputController controller;
+    EXPECT_TRUE(controller.focus_autofocus_input(tree.render_root.get()));
+    EXPECT_TRUE(controller.has_focus());
+
+    auto edit = controller.handle_text_input("ddg");
+    EXPECT_TRUE(edit.handled);
+    ASSERT_TRUE(controller.focused_value().has_value());
+    EXPECT_EQ(*controller.focused_value(), "ddg");
+}

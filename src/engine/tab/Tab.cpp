@@ -241,11 +241,17 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
     if (has_render_tree) {
         update_layout_state(viewport);
+        if (document_pipeline_.focus_autofocus_input()) {
+            dirty_ = true;
+        }
     }
     auto load_result = document_pipeline_.dispatch_load();
     if (load_result.mutated) {
         if (document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_)) {
             update_layout_state(viewport);
+            if (document_pipeline_.focus_autofocus_input()) {
+                dirty_ = true;
+            }
         }
         dirty_ = true;
     }

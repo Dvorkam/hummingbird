@@ -380,7 +380,7 @@ P0: Tests and Guardrails
 
 P0: DDG HTML End-to-End Usability (Mandatory)
 - [x] 5.5.1: Input Focus/Hit-Test Reliability on Real Pages
-- [ ] 5.5.2: `autofocus` Behavior
+- [x] 5.5.2: `autofocus` Behavior
 - [ ] 5.5.3: Submit Controls Parity (`<input type="submit">`)
 - [ ] 5.5.4: Form `method="post"` Support (MVP)
 - [ ] T-FORM-3 (M5 P3): URL-encoded + spaces

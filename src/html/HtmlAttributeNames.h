@@ -10,6 +10,7 @@ static constexpr std::string_view Action = "action";
 static constexpr std::string_view BgColor = "bgcolor";
 static constexpr std::string_view Class = "class";
 static constexpr std::string_view ColSpan = "colspan";
+static constexpr std::string_view Autofocus = "autofocus";
 static constexpr std::string_view Face = "face";
 static constexpr std::string_view Form = "form";
 static constexpr std::string_view Height = "height";

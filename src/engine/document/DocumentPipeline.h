@@ -76,6 +76,7 @@ public:
     std::optional<std::string> hit_test_link(const HitTestContext& context) const;
     std::optional<std::string> submit_form_at(const HitTestContext& context) const;
     bool focus_input_at(const HitTestContext& context);
+    bool focus_autofocus_input();
     bool clear_input_focus();
     bool has_focused_input() const { return input_controller_.has_focus(); }
     InputEditResult handle_text_input(std::string_view text);

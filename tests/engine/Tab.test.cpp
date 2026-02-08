@@ -472,6 +472,35 @@ TEST(EngineTabTest, FocusPrefersTextInputOverOverlappingSubmitInput) {
     EXPECT_EQ(*value, "duck");
 }
 
+TEST(EngineTabTest, AutofocusInputIsFocusedAfterDocumentLoad) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form>
+      <input id="search" name="q" autofocus>
+      <input id="submit" type="submit" value="Search">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().has_focused_input());
+    EXPECT_TRUE(harness.tab().handle_text_input("hello"));
+    auto value = harness.tab().focused_input_value();
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, "hello");
+}
+
 TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
     const std::string html = R"HTML(
 <!doctype html>

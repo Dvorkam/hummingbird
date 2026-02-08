@@ -166,6 +166,7 @@ bool BrowserApp::tick() {
         if (url_bar_.set_security_state(active_tab().security_state())) {
             chrome_dirty_ = true;
         }
+        sync_tab_text_input_mode();
     }
     render_if_needed();
 
@@ -347,6 +348,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
         if (active_tab().clear_input_focus()) {
             controls_dirty_ = true;
         }
+        tab_text_input_active_ = false;
         if (url_result.needs_repaint) {
             chrome_dirty_ = true;
         }
@@ -378,6 +380,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
                 window_->stop_text_input();
             }
         }
+        tab_text_input_active_ = now_focused;
         controls_dirty_ = true;
     }
     if (now_focused) {
@@ -502,9 +505,28 @@ void BrowserApp::on_active_tab_changed() {
     controls_dirty_ = true;
 
     window_->stop_text_input();
-    if (tab->has_focused_input()) {
-        window_->start_text_input();
+    tab_text_input_active_ = false;
+    sync_tab_text_input_mode();
+}
+
+void BrowserApp::sync_tab_text_input_mode() {
+    if (!window_) return;
+    if (url_bar_.is_active()) {
+        tab_text_input_active_ = false;
+        return;
     }
+
+    const bool should_be_active = active_tab().has_focused_input();
+    if (should_be_active == tab_text_input_active_) {
+        return;
+    }
+
+    if (should_be_active) {
+        window_->start_text_input();
+    } else {
+        window_->stop_text_input();
+    }
+    tab_text_input_active_ = should_be_active;
 }
 
 void BrowserApp::navigate_active_tab(std::string_view url) {

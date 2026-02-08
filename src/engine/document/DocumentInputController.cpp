@@ -12,6 +12,7 @@
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/geometry/GeometryUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
+#include "layout/paint/RenderTreeTraversal.h"
 
 namespace Hummingbird::Engine {
 
@@ -47,6 +48,13 @@ bool is_editable_input_element(const DOM::Element* element) {
            !Core::Utils::equals_ignore_case(*type, "reset") && !Core::Utils::equals_ignore_case(*type, "checkbox") &&
            !Core::Utils::equals_ignore_case(*type, "radio") && !Core::Utils::equals_ignore_case(*type, "file") &&
            !Core::Utils::equals_ignore_case(*type, "hidden") && !Core::Utils::equals_ignore_case(*type, "image");
+}
+
+bool is_autofocus_input_element(const DOM::Element* element) {
+    if (!is_editable_input_element(element)) {
+        return false;
+    }
+    return element->find_attribute(Hummingbird::Html::AttributeNames::Autofocus) != nullptr;
 }
 
 std::string input_value(const DOM::Element& element) {
@@ -138,6 +146,32 @@ bool DocumentInputController::focus_input_at(const Layout::RenderObject* render_
     focused_input_ = hit;
     caret_ = focused_input_ ? input_value(*focused_input_).size() : 0;
     return focused_input_ != nullptr;
+}
+
+bool DocumentInputController::focus_autofocus_input(const Layout::RenderObject* render_tree) {
+    if (!render_tree || focused_input_) {
+        return false;
+    }
+
+    DOM::Element* autofocus_element = nullptr;
+    Layout::Point offset{0.0f, 0.0f};
+    Layout::Traversal::traverse_render_tree(
+        *render_tree, offset,
+        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+            auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
+            if (!is_autofocus_input_element(element)) {
+                return Layout::Traversal::TraverseAction::Continue;
+            }
+            autofocus_element = const_cast<DOM::Element*>(element);
+            return Layout::Traversal::TraverseAction::Stop;
+        });
+
+    if (!autofocus_element) {
+        return false;
+    }
+    focused_input_ = autofocus_element;
+    caret_ = input_value(*focused_input_).size();
+    return true;
 }
 
 bool DocumentInputController::clear_focus() {
