@@ -6,6 +6,7 @@
 #include <string_view>
 #include <vector>
 
+#include "core/platform_api/IExtensionApiHost.h"
 #include "core/platform_api/IScriptEngine.h"
 #include "engine/extensions/ExtensionLoader.h"
 #include "engine/extensions/ExtensionSettings.h"
@@ -19,9 +20,10 @@ struct ExtensionRuntimeError {
     std::filesystem::path path;
 };
 
-class ExtensionHost {
+class ExtensionHost : public Hummingbird::IExtensionApiHost {
 public:
     using ScriptEngineFactory = std::function<Hummingbird::ScriptEnginePtr()>;
+    using InsertCssHandler = std::function<bool(TabId, std::string_view)>;
 
     explicit ExtensionHost(ScriptEngineFactory create_engine);
 
@@ -35,11 +37,14 @@ public:
     // Enables/disables an extension by ID. If disabling a started extension, it is torn down.
     // If enabling and background scripts have already been started, this will start it.
     bool set_extension_enabled(std::string_view id, bool enabled);
+    void set_insert_css_handler(InsertCssHandler handler);
 
     // Tab events (5.3.1). These are best-effort until deterministic commit wiring (5.3.3) lands.
     void notify_tab_created(TabId id, std::string_view url);
     void notify_tab_activated(TabId id);
     void notify_tab_navigated(TabId id, std::string_view url);
+
+    bool insert_css(std::uint32_t tab_id, std::string_view css_text) override;
 
     // Tears down all extension runtimes.
     void shutdown();
@@ -60,6 +65,7 @@ private:
     std::vector<Runtime> runtimes_;
     std::vector<ExtensionRuntimeError> errors_;
     ExtensionSettings settings_;
+    InsertCssHandler insert_css_handler_;
     bool started_ = false;
 };
 

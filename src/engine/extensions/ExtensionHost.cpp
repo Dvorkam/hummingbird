@@ -75,6 +75,7 @@ constexpr std::string_view kExtensionBootstrap = R"JS(
 
   if (!globalThis.browser) globalThis.browser = {};
   if (!browser.tabs) browser.tabs = {};
+  if (!browser.scripting) browser.scripting = {};
 
   browser.tabs.onCreated = { addListener: function(fn){ hb.tabs.listeners.created.push(fn); } };
   browser.tabs.onActivated = { addListener: function(fn){ hb.tabs.listeners.activated.push(fn); } };
@@ -83,6 +84,14 @@ constexpr std::string_view kExtensionBootstrap = R"JS(
   browser.tabs.active = function() {
     if (hb.tabs.activeTabId === null || hb.tabs.activeTabId === undefined) return null;
     return { id: hb.tabs.activeTabId };
+  };
+
+  browser.scripting.insertCSS = function(args) {
+    if (!args || typeof args.cssText !== "string") return false;
+    const id = Number(args.tabId);
+    if (!Number.isInteger(id) || id < 0) return false;
+    if (typeof globalThis.__hb_nativeInsertCss !== "function") return false;
+    return !!globalThis.__hb_nativeInsertCss(id, args.cssText);
   };
 })();
 )JS";
@@ -126,6 +135,8 @@ bool ExtensionHost::start_background_script(Runtime& runtime) {
         HB_LOG_WARN("[ext] failed to create script engine for " << runtime.extension.manifest.name);
         return false;
     }
+
+    runtime.engine->bind_extension_host(this);
 
     auto bootstrap = runtime.engine->eval(kExtensionBootstrap, "hb-extension-bootstrap");
     if (!bootstrap.ok) {
@@ -199,6 +210,10 @@ bool ExtensionHost::set_extension_enabled(std::string_view id, bool enabled) {
     return found;
 }
 
+void ExtensionHost::set_insert_css_handler(InsertCssHandler handler) {
+    insert_css_handler_ = std::move(handler);
+}
+
 void ExtensionHost::eval_all_started(std::string_view source, std::string_view filename) {
     for (auto& runtime : runtimes_) {
         if (!runtime.started || !runtime.engine) continue;
@@ -224,6 +239,13 @@ void ExtensionHost::notify_tab_navigated(TabId id, std::string_view url) {
     std::ostringstream ss;
     ss << "globalThis.__hb_emitTabNavigated({id:" << id << ",url:" << js_string_literal(url) << "});";
     eval_all_started(ss.str(), "hb-tab-navigated");
+}
+
+bool ExtensionHost::insert_css(std::uint32_t tab_id, std::string_view css_text) {
+    if (!insert_css_handler_) {
+        return false;
+    }
+    return insert_css_handler_(tab_id, css_text);
 }
 
 void ExtensionHost::shutdown() {

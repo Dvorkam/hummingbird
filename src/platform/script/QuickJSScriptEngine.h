@@ -16,6 +16,7 @@ public:
     ~QuickJSScriptEngine() override;
 
     void bind_host(IScriptHost* host) override;
+    void bind_extension_host(IExtensionApiHost* host) override;
     ScriptEvalResult eval(std::string_view source, std::string_view filename) override;
 
 private:
@@ -25,9 +26,11 @@ private:
     static JSValue js_element_get_text_content(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_element_set_text_content(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_element_set_attribute(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_native_insert_css(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
     void install_console_bindings();
     void install_document_bindings();
+    void install_extension_bindings();
     void clear_bindings();
     JSValue wrap_element(DOM::Element* element);
 
@@ -36,6 +39,7 @@ private:
     JSClassID element_class_id_ = 0;
     bool console_ready_ = false;
     bool document_ready_ = false;
+    bool extension_ready_ = false;
 };
 
 }  // namespace Hummingbird::Platform

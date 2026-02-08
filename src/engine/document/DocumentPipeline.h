@@ -64,6 +64,7 @@ public:
 
     bool parse_html(std::string_view html);
     bool run_scripts();
+    void set_extension_style_blocks(const std::vector<std::string>& style_blocks);
     ScriptDispatchResult dispatch_click(const HitTestContext& context);
     ScriptDispatchResult dispatch_load();
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
@@ -96,6 +97,7 @@ private:
     DocumentModel model_;
     DocumentPainter painter_;
     DocumentScriptController script_controller_;
+    std::vector<std::string> extension_style_blocks_;
 };
 
 }  // namespace Hummingbird::Engine

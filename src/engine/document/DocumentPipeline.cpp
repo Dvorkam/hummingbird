@@ -96,6 +96,10 @@ bool DocumentPipeline::run_scripts() {
     return script_controller_.run_inline_scripts(model_);
 }
 
+void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>& style_blocks) {
+    extension_style_blocks_ = style_blocks;
+}
+
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_click(const HitTestContext& context) {
     return script_controller_.dispatch_click(model_, model_.render_tree(), context.viewport, context.point,
                                              context.scroll_y);
@@ -107,7 +111,9 @@ DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
-    std::string css = resources_.build_css_source(base_url, model_.style_blocks(), model_.stylesheet_links());
+    std::vector<std::string> style_blocks = model_.style_blocks();
+    style_blocks.insert(style_blocks.end(), extension_style_blocks_.begin(), extension_style_blocks_.end());
+    std::string css = resources_.build_css_source(base_url, style_blocks, model_.stylesheet_links());
     model_.apply_styles(css);
 
     if (!model_.build_render_tree()) {

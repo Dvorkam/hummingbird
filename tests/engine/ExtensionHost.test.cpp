@@ -6,8 +6,11 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
+
+#include "core/platform_api/ScriptEngineFactory.h"
 
 namespace {
 class TempDirGuard {
@@ -52,6 +55,7 @@ public:
     explicit RecordingScriptEngine(EvalSink* sink) : sink_(sink) {}
 
     void bind_host(Hummingbird::IScriptHost* /*host*/) override {}
+    void bind_extension_host(Hummingbird::IExtensionApiHost* /*host*/) override {}
 
     Hummingbird::ScriptEvalResult eval(std::string_view source, std::string_view filename) override {
         const size_t call_index = sink_ ? sink_->evals.size() : 0u;
@@ -197,4 +201,33 @@ TEST(ExtensionHostTest, TabEventDispatchEvaluatesEmitCalls) {
     EXPECT_TRUE(saw_created);
     EXPECT_TRUE(saw_activated);
     EXPECT_TRUE(saw_navigated);
+}
+
+TEST(ExtensionHostTest, InsertCssApiRoutesToHostHandler) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-insert-css");
+    auto ext_root = root.path() / "dark-mode";
+    write_text(ext_root / "bg.js",
+               "const ok = browser.scripting.insertCSS({tabId: 17, cssText: 'body { color: red; }'});"
+               "console.log('insert css', ok);");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Dark", "bg.js"));
+
+    int called = 0;
+    Hummingbird::Engine::TabId last_id = 0;
+    std::string last_css;
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_insert_css_handler([&](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
+        ++called;
+        last_id = tab_id;
+        last_css = std::string(css_text);
+        return true;
+    });
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    EXPECT_EQ(called, 1);
+    EXPECT_EQ(last_id, 17u);
+    EXPECT_EQ(last_css, "body { color: red; }");
+    EXPECT_TRUE(host.errors().empty());
 }

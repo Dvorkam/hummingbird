@@ -95,6 +95,9 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
         HB_LOG_WARN("[ext] " << e.message << ": " << e.path.string());
     }
     extension_host_.set_settings(Hummingbird::Engine::extension_settings_from_env());
+    extension_host_.set_insert_css_handler([this](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
+        return insert_extension_css(tab_id, css_text);
+    });
     extension_host_.set_extensions(std::move(loaded));
     if (extension_host_.extension_count() > 0) {
         HB_LOG_INFO("[ext] loaded extensions: " << extension_host_.extension_count());
@@ -505,6 +508,19 @@ void BrowserApp::navigate_active_tab(std::string_view url) {
     if (id) {
         extension_host_.notify_tab_navigated(*id, url);
     }
+}
+
+bool BrowserApp::insert_extension_css(Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
+    auto* tab = tab_manager_.tab_by_id(tab_id);
+    if (!tab) {
+        return false;
+    }
+    if (!tab->insert_extension_css(css_text)) {
+        return false;
+    }
+    document_dirty_ = true;
+    controls_dirty_ = true;
+    return true;
 }
 
 bool BrowserApp::new_tab() {

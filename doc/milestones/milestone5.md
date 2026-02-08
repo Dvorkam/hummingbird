@@ -369,7 +369,7 @@ P0: Browser OS + Extensions (North Star)
 - [x] 5.3.1: `browser.tabs` Events + Active Query
 - [ ] 5.4.1: Extension Stylesheet Origin Layer
 - [ ] 5.4.2: Per-Tab Injected Stylesheet Store
-- [ ] 5.3.2: CSS Injection Primitive
+- [x] 5.3.2: CSS Injection Primitive
 - [ ] 5.6.4: Injection Invalidation Budget
 - [ ] 5.4.3: Built-In Dark Mode Extension
 

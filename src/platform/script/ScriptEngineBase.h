@@ -10,12 +10,14 @@ namespace Hummingbird::Platform {
 class ScriptEngineBase : public IScriptEngine {
 public:
     void bind_host(IScriptHost* host) override { host_ = host; }
+    void bind_extension_host(IExtensionApiHost* host) override { extension_host_ = host; }
 
 protected:
     static ScriptEvalResult ok_result() { return {true, {}}; }
     static ScriptEvalResult error_result(std::string message) { return {false, std::move(message)}; }
 
     [[maybe_unused]] IScriptHost* host_ = nullptr;
+    [[maybe_unused]] IExtensionApiHost* extension_host_ = nullptr;
 };
 
 }  // namespace Hummingbird::Platform

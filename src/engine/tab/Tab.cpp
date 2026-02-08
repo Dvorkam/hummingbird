@@ -57,6 +57,17 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
 
     consume_pending_resources(graphics, viewport);
 
+    if (extension_css_dirty_ && document_pipeline_.has_dom_tree()) {
+        document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
+        bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
+        resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
+        if (has_render_tree) {
+            update_layout_state(viewport);
+        }
+        extension_css_dirty_ = false;
+        dirty_ = true;
+    }
+
     if (document_pipeline_.has_render_tree()) {
         if (layout_state_.viewport_changed(viewport)) {
             document_pipeline_.relayout(graphics, viewport);
@@ -135,6 +146,16 @@ std::optional<std::string> Tab::focused_input_value() const {
     return document_pipeline_.focused_input_value();
 }
 
+bool Tab::insert_extension_css(std::string_view css_text) {
+    if (css_text.empty()) {
+        return false;
+    }
+    extension_style_blocks_.push_back(std::string(css_text));
+    extension_css_dirty_ = true;
+    dirty_ = true;
+    return true;
+}
+
 std::optional<ResourceView> Tab::resource_view(std::string_view url, ResourceType type) const {
     return resource_loader_.view(url, type);
 }
@@ -182,6 +203,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     if (!document_pipeline_.parse_html(entry->body)) {
         return;
     }
+    document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
     document_pipeline_.run_scripts();
     if (!document_pipeline_.stylesheet_links().empty()) {
         HB_LOG_INFO("[pipeline] discovered stylesheet links: " << document_pipeline_.stylesheet_links().size());

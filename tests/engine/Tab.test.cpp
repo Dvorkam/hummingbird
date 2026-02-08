@@ -196,6 +196,39 @@ TEST(EngineTabTest, RebuildsWhenStylesheetArrives) {
     EXPECT_TRUE(harness.tick());
 }
 
+TEST(EngineTabTest, ExtensionCssInjectionUpdatesStylePipeline) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Styled by extension</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    network->set_response("https://acme.test/ext.png", "PNGDATA");
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider),
+                               std::make_unique<InlineImageDecoder>());
+
+    harness.navigate("https://acme.test");
+    ASSERT_TRUE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("body { background-image: url('/ext.png'); }"));
+    EXPECT_TRUE(harness.tick());
+    EXPECT_TRUE(harness.tick());
+
+    auto view = harness.resource_view("https://acme.test/ext.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+}
+
 TEST(EngineTabTest, HitTestResolvesLink) {
     const std::string html = R"HTML(
 <!doctype html>
