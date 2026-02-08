@@ -45,6 +45,16 @@ NetworkBackend primary_backend_for_env() {
     return env_truthy("HB_HEADLESS") ? NetworkBackend::Stub : NetworkBackend::Curl;
 }
 
+Hummingbird::Engine::TabFactory make_tab_factory(NetworkBackend primary_backend) {
+    Hummingbird::Engine::TabFactory factory;
+    factory.create_network = [primary_backend]() { return create_network(primary_backend); };
+    factory.create_fallback_network = []() { return create_network(NetworkBackend::Stub); };
+    factory.create_resource_provider = []() { return create_resource_provider(); };
+    factory.create_image_decoder = []() { return create_image_decoder(); };
+    factory.create_script_engine = []() { return create_script_engine(); };
+    return factory;
+}
+
 std::optional<ImageBitmap> load_icon(IResourceProvider* provider, IImageDecoder* decoder, std::string_view path) {
     if (!provider || !decoder) return std::nullopt;
     auto bytes = provider->load_bytes(path);
@@ -68,8 +78,8 @@ UrlBar::SecurityIcons load_security_icons(IResourceProvider* provider, IImageDec
 BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     : window_(std::move(window)),
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
-      tab_(create_network(primary_backend_for_env()), create_network(NetworkBackend::Stub), create_resource_provider(),
-           create_image_decoder(), create_script_engine()) {
+      tab_manager_(make_tab_factory(primary_backend_for_env())) {
+    tab_manager_.create_tab();
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
     if (provider && decoder) {
@@ -89,7 +99,7 @@ void BrowserApp::shutdown() {
     // stop input first (safe even if already stopped)
     if (window_) window_->stop_text_input();
 
-    tab_.shutdown();
+    tab_manager_.shutdown();
 
     // close window last (or earlier if you prefer to hide UI immediately)
     if (window_ && window_->is_open()) window_->close();
@@ -97,7 +107,7 @@ void BrowserApp::shutdown() {
 
 void BrowserApp::start() {
     // initial navigation
-    tab_.navigate(url_bar_.text());
+    active_tab().navigate(url_bar_.text());
 
     // initial focus
     url_bar_.set_active(true, window_.get(), "[ui] URL bar focused (default)");
@@ -116,10 +126,10 @@ bool BrowserApp::tick() {
     if (graphics_) {
         auto [win_w, win_h] = window_->get_size();
         const auto viewport = compute_content_viewport(win_w, win_h);
-        if (tab_.tick(*graphics_, viewport)) {
+        if (active_tab().tick(*graphics_, viewport)) {
             document_dirty_ = true;
         }
-        if (url_bar_.set_security_state(tab_.security_state())) {
+        if (url_bar_.set_security_state(active_tab().security_state())) {
             chrome_dirty_ = true;
         }
     }
@@ -175,7 +185,7 @@ void BrowserApp::handle_text_input_event(const InputEvent& event) {
         chrome_dirty_ = true;
         return;
     }
-    if (tab_.handle_text_input(event.text.text)) {
+    if (active_tab().handle_text_input(event.text.text)) {
         controls_dirty_ = true;
     }
 }
@@ -190,7 +200,7 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (event.key.key == Key::L && event.mods.ctrl) {
         url_bar_.set_active(true, window_.get(), "[ui] URL bar focused");
         url_bar_.move_caret_to_end();
-        if (tab_.clear_input_focus()) {
+        if (active_tab().clear_input_focus()) {
             controls_dirty_ = true;
         }
         chrome_dirty_ = true;
@@ -200,7 +210,7 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     auto result = url_bar_.handle_key_down(event, window_.get());
     if (result.handled) {
         if (result.submitted_url) {
-            tab_.navigate(*result.submitted_url);
+            active_tab().navigate(*result.submitted_url);
             document_dirty_ = true;
             chrome_dirty_ = true;
         }
@@ -210,11 +220,11 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         return;
     }
 
-    auto tab_result = tab_.handle_key_down(event);
+    auto tab_result = active_tab().handle_key_down(event);
     if (tab_result.handled) {
         if (tab_result.submitted_url) {
             url_bar_.set_text(*tab_result.submitted_url);
-            tab_.navigate(*tab_result.submitted_url);
+            active_tab().navigate(*tab_result.submitted_url);
             document_dirty_ = true;
             chrome_dirty_ = true;
         }
@@ -236,13 +246,13 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     auto url_result = url_bar_.handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
     if (url_result.handled) {
         if (url_result.security_override_requested) {
-            if (tab_.allow_insecure_for_current_host()) {
-                tab_.navigate(tab_.requested_url());
+            if (active_tab().allow_insecure_for_current_host()) {
+                active_tab().navigate(active_tab().requested_url());
                 document_dirty_ = true;
                 chrome_dirty_ = true;
             }
         }
-        if (tab_.clear_input_focus()) {
+        if (active_tab().clear_input_focus()) {
             controls_dirty_ = true;
         }
         if (url_result.needs_repaint) {
@@ -262,12 +272,12 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     const auto viewport = compute_content_viewport(win_w, win_h);
     Hummingbird::Layout::Point point{static_cast<float>(event.mouse_button.x),
                                      static_cast<float>(event.mouse_button.y)};
-    auto click_result = tab_.dispatch_click(point, viewport, *graphics_);
+    auto click_result = active_tab().dispatch_click(point, viewport, *graphics_);
     if (click_result.mutated) {
         document_dirty_ = true;
     }
-    bool was_focused = tab_.has_focused_input();
-    bool now_focused = tab_.focus_input_at(point, viewport);
+    bool was_focused = active_tab().has_focused_input();
+    bool now_focused = active_tab().focus_input_at(point, viewport);
     if (was_focused != now_focused) {
         if (window_) {
             if (now_focused) {
@@ -281,18 +291,18 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     if (now_focused) {
         return;
     }
-    auto submit = tab_.submit_form_at(point, viewport);
+    auto submit = active_tab().submit_form_at(point, viewport);
     if (submit) {
         url_bar_.set_text(*submit);
-        tab_.navigate(*submit);
+        active_tab().navigate(*submit);
         document_dirty_ = true;
         chrome_dirty_ = true;
         return;
     }
-    auto link = tab_.hit_test_link(point, viewport);
+    auto link = active_tab().hit_test_link(point, viewport);
     if (link) {
         url_bar_.set_text(*link);
-        tab_.navigate(*link);
+        active_tab().navigate(*link);
         document_dirty_ = true;
         chrome_dirty_ = true;
     }
@@ -303,7 +313,7 @@ void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
 
     auto [win_w, win_h] = window_->get_size();
     const float viewport_h = static_cast<float>(std::max(0, win_h - url_bar_.height()));
-    tab_.scroll_by(delta, viewport_h);
+    active_tab().scroll_by(delta, viewport_h);
 
     document_dirty_ = true;
 }
@@ -330,17 +340,17 @@ void BrowserApp::render_if_needed() {
         document_dirty_ = true;
     }
     if (document_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=document chrome=1 controls=1 scroll_y=" << tab_.scroll_y());
+        // HB_LOG_DEBUG("[perf] render pass=document chrome=1 controls=1 scroll_y=" << active_tab().scroll_y());
         document_cache_valid_ = false;
         if (graphics_->begin_document_cache(full)) {
-            tab_.paint(*graphics_, viewport, debug_outlines_);
+            active_tab().paint(*graphics_, viewport, debug_outlines_);
             graphics_->end_document_cache();
             document_cache_valid_ = true;
         } else {
             graphics_->clear(kClearColor);
             graphics_->set_text_cache_owner(0);
             url_bar_.draw(*graphics_, win_w);
-            tab_.paint(*graphics_, viewport, debug_outlines_);
+            active_tab().paint(*graphics_, viewport, debug_outlines_);
             graphics_->present();
             document_dirty_ = false;
             chrome_dirty_ = false;
@@ -348,11 +358,11 @@ void BrowserApp::render_if_needed() {
             return;
         }
     } else if (chrome_dirty_ && controls_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=chrome+controls scroll_y=" << tab_.scroll_y());
+        // HB_LOG_DEBUG("[perf] render pass=chrome+controls scroll_y=" << active_tab().scroll_y());
     } else if (chrome_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=chrome scroll_y=" << tab_.scroll_y());
+        // HB_LOG_DEBUG("[perf] render pass=chrome scroll_y=" << active_tab().scroll_y());
     } else if (controls_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=controls scroll_y=" << tab_.scroll_y());
+        // HB_LOG_DEBUG("[perf] render pass=controls scroll_y=" << active_tab().scroll_y());
     }
     graphics_->clear(kClearColor);
     if (document_cache_valid_) {
@@ -362,7 +372,7 @@ void BrowserApp::render_if_needed() {
     graphics_->set_text_cache_owner(0);
     url_bar_.draw(*graphics_, win_w);
     if (!document_dirty_ && controls_dirty_) {
-        tab_.paint_controls(*graphics_, viewport);
+        active_tab().paint_controls(*graphics_, viewport);
     }
 
     graphics_->present();
@@ -371,4 +381,14 @@ void BrowserApp::render_if_needed() {
     controls_dirty_ = false;
 }
 
+Hummingbird::Engine::Tab& BrowserApp::active_tab() {
+    auto* tab = tab_manager_.active_tab();
+    // BrowserApp expects an active tab for all operations; TabManager is responsible
+    // for maintaining that invariant for the app.
+    if (!tab) {
+        tab_manager_.create_tab();
+        tab = tab_manager_.active_tab();
+    }
+    return *tab;
+}
 }  // namespace Hummingbird::App

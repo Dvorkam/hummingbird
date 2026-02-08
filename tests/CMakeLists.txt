@@ -14,6 +14,7 @@ add_executable(HummingbirdTests
     test_utils/TestFakes.h
     test_utils/TestGraphicsContext.h
     engine/Tab.test.cpp
+    engine/TabManager.test.cpp
     engine/ResourceStore.test.cpp
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp

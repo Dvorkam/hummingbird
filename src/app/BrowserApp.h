@@ -7,6 +7,7 @@
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 #include "engine/tab/Tab.h"
+#include "engine/tab/TabManager.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -45,12 +46,14 @@ private:
     void handle_resize_event(const InputEvent& e);
 
 private:
+    Hummingbird::Engine::Tab& active_tab();
+
     // App Utils
     bool shutting_down_ = false;
     // Platform
     std::unique_ptr<IWindow> window_;
     std::unique_ptr<IGraphicsContext> graphics_;
-    Hummingbird::Engine::Tab tab_;
+    Hummingbird::Engine::TabManager tab_manager_;
 
     // UI state
     UrlBar url_bar_;
