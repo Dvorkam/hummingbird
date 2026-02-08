@@ -1,8 +1,8 @@
 #pragma once
 
-#include "style/types/ComputedStyle.h"
 #include "style/compute/StyleDefaults.h"
 #include "style/compute/Stylesheet.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Css::Apply {
 
