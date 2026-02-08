@@ -359,7 +359,7 @@ This is the single recommended execution checklist, mixing numbered and named st
 
 P0: Browser OS + Extensions (North Star)
 - [x] 5.1.1: TabManager + Multi-Tab Model
-- [ ] 5.1.2: Per-Tab Isolation Contract
+- [x] 5.1.2: Per-Tab Isolation Contract
 - [ ] 5.1.3: Minimal Tab UI + Shortcuts
 - [ ] 5.2.1: Extension Manifest v0
 - [ ] 5.2.2: Extension Loader
