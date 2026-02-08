@@ -1,0 +1,7 @@
+{
+  "name": "Dark Mode",
+  "version": "0.1.0",
+  "background": { "entry": "background.js" },
+  "permissions": ["tabs", "scripting"]
+}
+

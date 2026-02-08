@@ -8,6 +8,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
+#include "engine/extensions/ExtensionLoader.h"
 #include "engine/tab/Tab.h"
 #include "engine/tab/TabManager.h"
 #include "layout/geometry/Geometry.h"
@@ -65,6 +66,7 @@ private:
     std::unique_ptr<IWindow> window_;
     std::unique_ptr<IGraphicsContext> graphics_;
     Hummingbird::Engine::TabManager tab_manager_;
+    std::vector<Hummingbird::Engine::LoadedExtension> loaded_extensions_;
 
     // UI state
     TabStrip tab_strip_;

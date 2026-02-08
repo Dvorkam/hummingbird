@@ -85,6 +85,16 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     if (provider && decoder) {
         url_bar_.set_security_icons(load_security_icons(provider.get(), decoder.get()));
     }
+
+    std::vector<Hummingbird::Engine::ExtensionLoadError> errors;
+    loaded_extensions_ =
+        Hummingbird::Engine::load_extensions_from_root(Hummingbird::Engine::default_extensions_root(), &errors);
+    for (const auto& e : errors) {
+        HB_LOG_WARN("[ext] " << e.message << ": " << e.path.string());
+    }
+    if (!loaded_extensions_.empty()) {
+        HB_LOG_INFO("[ext] loaded extensions: " << loaded_extensions_.size());
+    }
 }
 
 BrowserApp::~BrowserApp() {
