@@ -165,9 +165,12 @@ add_library(Engine STATIC
     src/engine/script/DocumentScriptController.cpp
     src/engine/script/DocumentScriptHost.cpp
     src/engine/resources/ResourceLoader.cpp
+    src/engine/resources/ResourceRequestPlanner.cpp
+    src/engine/resources/ResourceSecurityPolicy.cpp
     src/engine/tab/Tab.cpp
     src/engine/tab/TabManager.cpp
     src/engine/resources/ResourceStore.cpp
+    src/engine/resources/ResourceUpdateProcessor.cpp
 )
 target_include_directories(Engine
     PUBLIC

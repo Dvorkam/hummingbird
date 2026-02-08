@@ -1,47 +1,15 @@
 #include "engine/resources/ResourceLoader.h"
 
-#include <algorithm>
-#include <cctype>
 #include <functional>
 #include <ostream>
 #include <utility>
 
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
-#include "core/utils/Url.h"
-#include "engine/resources/ResourceUrl.h"
+#include "engine/resources/ResourceRequestPlanner.h"
+#include "engine/resources/ResourceUpdateProcessor.h"
 
 namespace Hummingbird::Engine {
-
-namespace {
-std::string build_tls_error_body(const std::string& url) {
-    std::string body;
-    body.reserve(512 + url.size());
-    body += R"HTML(<!doctype html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <title>TLS Verification Failed</title>
-    <style>
-      body { margin: 24px; font-family: sans-serif; color: #222; }
-      h1 { margin-bottom: 12px; }
-      code { background: #eee; padding: 2px 4px; }
-      .hint { margin-top: 16px; }
-    </style>
-  </head>
-  <body>
-    <h1>Secure connection failed</h1>
-    <p>Hummingbird could not verify the TLS certificate for:</p>
-    <p><code>)HTML";
-    body += url;
-    body += R"HTML(</code></p>
-    <p class="hint">If you trust this site, click the insecure icon in the URL bar to proceed once.</p>
-  </body>
-</html>
-)HTML";
-    return body;
-}
-}  // namespace
 
 ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
                                ImageDecoderPtr image_decoder)
@@ -142,7 +110,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         if (response.body.empty()) {
             if (response.error == NetworkError::TlsVerificationFailed) {
                 HB_LOG_WARN("[network] TLS verification failed for " << url_copy << ", showing warning page");
-                std::string body = build_tls_error_body(url_copy);
+                std::string body = ResourceSecurityPolicy::build_tls_error_body(url_copy);
                 enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), true,
                                         std::move(response.effective_url), response.error);
             } else {
@@ -185,19 +153,15 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
 }
 
 void ResourceLoader::allow_insecure_host(std::string_view host) {
-    const std::string normalized = normalize_host(host);
-    if (!normalized.empty()) {
-        insecure_hosts_.insert(normalized);
-        HB_LOG_WARN("[network] allowing insecure TLS for host: " << normalized);
-    }
+    security_policy_.allow_insecure_host(host);
 }
 
 void ResourceLoader::request_stylesheets(const std::vector<std::string>& links, std::string_view base_url) {
-    request_resources(links, base_url, stylesheet_request_options());
+    request_resources(links, base_url, ResourceRequestPlanning::stylesheet_request_options());
 }
 
 void ResourceLoader::request_images(const std::vector<std::string>& links, std::string_view base_url) {
-    request_resources(links, base_url, image_request_options());
+    request_resources(links, base_url, ResourceRequestPlanning::image_request_options());
 }
 
 ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
@@ -209,79 +173,24 @@ ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
 
     const auto process_start = Core::Clock::now();
     const size_t pending_count = pending.size();
-    bool document_ready = false;
-    bool stylesheet_ready = false;
-    bool image_ready = false;
-    size_t image_decode_count = 0;
-    double image_decode_ms = 0.0;
+    ResourceUpdateProcessor::ProcessingStats stats{};
 
     for (auto& update : pending) {
-        if (update.success) {
-            if (update.type == ResourceType::Document) {
-                handle_document_update(update, result, document_ready);
-            } else if (update.type == ResourceType::Stylesheet) {
-                handle_stylesheet_update(update, stylesheet_ready);
-            } else if (update.type == ResourceType::Image) {
-                handle_image_update(update, image_ready, image_decode_count, image_decode_ms);
-            }
-        } else {
-            handle_failed_update(update);
-        }
+        ResourceUpdateProcessor::process_update(update, resource_store_, image_decoder_.get(), result, stats);
     }
 
     const auto process_end = Core::Clock::now();
     HB_LOG_INFO("[perf] resource batch ms="
                 << Core::duration_ms(process_start, process_end) << " pending=" << pending_count
-                << " doc=" << static_cast<int>(document_ready) << " styles=" << static_cast<int>(stylesheet_ready)
-                << " images=" << static_cast<int>(image_ready) << " decode_ms=" << image_decode_ms
-                << " decoded_images=" << image_decode_count);
+                << " doc=" << static_cast<int>(stats.document_ready)
+                << " styles=" << static_cast<int>(stats.stylesheet_ready)
+                << " images=" << static_cast<int>(stats.image_ready) << " decode_ms=" << stats.image_decode_ms
+                << " decoded_images=" << stats.image_decode_count);
 
-    result.document_ready = document_ready;
-    result.stylesheet_ready = stylesheet_ready;
-    result.image_ready = image_ready;
+    result.document_ready = stats.document_ready;
+    result.stylesheet_ready = stats.stylesheet_ready;
+    result.image_ready = stats.image_ready;
     return result;
-}
-
-void ResourceLoader::handle_document_update(PendingResourceUpdate& update, BatchResult& result, bool& document_ready) {
-    resource_store_.mark_ready(update.url, update.type, std::move(update.body));
-    document_ready = true;
-    result.document_url = update.url;
-    result.effective_url = update.effective_url;
-    result.document_error = update.error;
-}
-
-void ResourceLoader::handle_stylesheet_update(PendingResourceUpdate& update, bool& stylesheet_ready) {
-    resource_store_.mark_ready(update.url, update.type, std::move(update.body));
-    stylesheet_ready = true;
-}
-
-void ResourceLoader::handle_image_update(PendingResourceUpdate& update, bool& image_ready, size_t& image_decode_count,
-                                         double& image_decode_ms) {
-    if (!image_decoder_) {
-        HB_LOG_WARN("[image] decode skipped (no decoder): " << update.url);
-        resource_store_.mark_failed(update.url, update.type);
-        return;
-    }
-    const auto decode_start = Core::Clock::now();
-    auto decoded = image_decoder_->decode(update.body);
-    const auto decode_end = Core::Clock::now();
-    image_decode_ms += Core::duration_ms(decode_start, decode_end);
-    ++image_decode_count;
-    if (!decoded) {
-        HB_LOG_WARN("[image] decode failed: " << update.url);
-        resource_store_.mark_failed(update.url, update.type);
-        return;
-    }
-    resource_store_.mark_ready(update.url, update.type, std::move(update.body));
-    resource_store_.set_image(update.url, update.type, std::move(*decoded));
-    image_ready = true;
-}
-
-void ResourceLoader::handle_failed_update(const PendingResourceUpdate& update) {
-    resource_store_.mark_failed(update.url, update.type);
-    if (update.type == ResourceType::Document) {
-        HB_LOG_WARN("[resource] document failed to load: " << update.url);
-    }
 }
 
 std::optional<ResourceView> ResourceLoader::view(std::string_view url, ResourceType type) const {
@@ -293,14 +202,14 @@ const ResourceEntry* ResourceLoader::find(std::string_view url, ResourceType typ
 }
 
 void ResourceLoader::request_resources(const std::vector<std::string>& links, std::string_view base_url,
-                                       const ResourceRequestOptions& options) {
+                                       const ResourceRequestPlanning::ResourceRequestOptions& options) {
     if (links.empty()) return;
 
     const uint64_t nav_id = active_nav_.load(std::memory_order_acquire);
     const std::string type_label(options.type_label);
 
     for (const auto& raw_url : links) {
-        auto resolved = resolve_resource_url(base_url, raw_url);
+        auto resolved = ResourceRequestPlanning::resolve_request_url(base_url, raw_url);
         const std::string& url = resolved.key;
         if (url.empty()) continue;
 
@@ -357,7 +266,7 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
 
         HB_LOG_DEBUG("[resource] fetching " << options.type_label << ": " << url);
         NetworkRequestOptions request_options{};
-        request_options.allow_insecure = is_insecure_allowed_for_url(url);
+        request_options.allow_insecure = security_policy_.is_insecure_allowed_for_url(url);
         fetcher->get(
             url,
             [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
@@ -385,46 +294,8 @@ std::vector<ResourceLoader::PendingResourceUpdate> ResourceLoader::take_pending_
     return pending;
 }
 
-ResourceLoader::ResourceRequestOptions ResourceLoader::stylesheet_request_options() {
-    ResourceRequestOptions options{};
-    options.type = ResourceType::Stylesheet;
-    options.type_label = "stylesheet";
-    options.attr_label = "href";
-    options.allow_fallback_network = false;
-    options.log_duplicates = true;
-    options.log_asset_load = true;
-    options.mark_ready_on_asset = true;
-    options.use_binary = false;
-    return options;
-}
-
-ResourceLoader::ResourceRequestOptions ResourceLoader::image_request_options() {
-    ResourceRequestOptions options{};
-    options.type = ResourceType::Image;
-    options.type_label = "image";
-    options.attr_label = "src";
-    options.allow_fallback_network = true;
-    options.log_duplicates = false;
-    options.log_asset_load = false;
-    options.mark_ready_on_asset = false;
-    options.use_binary = true;
-    return options;
-}
-
 bool ResourceLoader::is_insecure_allowed_for_url(std::string_view url) const {
-    auto parsed = Core::parse_absolute_url(url);
-    if (!parsed) return false;
-    if (parsed->scheme != "https") return false;
-    const std::string host = normalize_host(parsed->host);
-    if (host.empty()) return false;
-    return insecure_hosts_.find(host) != insecure_hosts_.end();
-}
-
-std::string ResourceLoader::normalize_host(std::string_view host) {
-    std::string normalized(host);
-    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
-                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    return normalized;
+    return security_policy_.is_insecure_allowed_for_url(url);
 }
 
 }  // namespace Hummingbird::Engine
