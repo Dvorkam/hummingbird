@@ -13,4 +13,3 @@ TEST(UrlEncodingTest, FormUrlEncodeComponentUsesPlusForSpace) {
 TEST(UrlEncodingTest, FormUrlEncodeComponentEscapesPlusSign) {
     EXPECT_EQ(Hummingbird::Core::Utils::form_url_encode_component("c++"), "c%2B%2B");
 }
-

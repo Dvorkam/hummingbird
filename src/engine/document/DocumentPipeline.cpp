@@ -5,6 +5,7 @@
 
 #include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
 #include "core/utils/Timing.h"

@@ -8,9 +8,7 @@
 #include <string_view>
 #include <vector>
 
-#include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IScriptEngine.h"
-#include "core/platform_api/InputEvent.h"
 #include "engine/document/DocumentInputController.h"
 #include "engine/document/DocumentModel.h"
 #include "engine/document/DocumentPainter.h"
@@ -23,6 +21,7 @@ namespace Hummingbird {
 class IResourceProvider;
 class IGraphicsContext;
 class IImageDecoder;
+struct InputEvent;
 }  // namespace Hummingbird
 
 namespace Hummingbird::Engine {

@@ -3,7 +3,6 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -11,25 +10,19 @@
 #include <vector>
 
 #include "core/SecurityState.h"
-#include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
 #include "core/platform_api/IScriptEngine.h"
-#include "core/platform_api/InputEvent.h"
 #include "engine/document/DocumentPipeline.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
-#include "engine/resources/ResourceStore.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
 class IGraphicsContext;
+struct InputEvent;
 }  // namespace Hummingbird
-
-namespace Hummingbird::DOM {
-class Node;
-}
 
 namespace Hummingbird::Engine {
 class Tab {

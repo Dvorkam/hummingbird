@@ -43,7 +43,8 @@ public:
         return metrics;
     }
 
-    void draw_text(const std::string& text, float /*x*/, float /*y*/, const Hummingbird::TextStyle& /*style*/) override {
+    void draw_text(const std::string& text, float /*x*/, float /*y*/,
+                   const Hummingbird::TextStyle& /*style*/) override {
         drawn_texts.push_back(text);
     }
 

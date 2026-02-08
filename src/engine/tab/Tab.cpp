@@ -6,6 +6,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "core/utils/Url.h"
