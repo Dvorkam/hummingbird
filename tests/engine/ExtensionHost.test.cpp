@@ -231,3 +231,34 @@ TEST(ExtensionHostTest, InsertCssApiRoutesToHostHandler) {
     EXPECT_EQ(last_css, "body { color: red; }");
     EXPECT_TRUE(host.errors().empty());
 }
+
+TEST(ExtensionHostTest, NavigatedListenerCanInjectCssForEventTab) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-nav-insert-css");
+    auto ext_root = root.path() / "dark-mode";
+    write_text(ext_root / "bg.js",
+               "browser.tabs.onNavigated.addListener(function(tab){"
+               "  browser.scripting.insertCSS({tabId: tab.id, cssText: 'p { color: #222; }'});"
+               "});");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Dark", "bg.js"));
+
+    int called = 0;
+    Hummingbird::Engine::TabId last_id = 0;
+    std::string last_css;
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_insert_css_handler([&](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
+        ++called;
+        last_id = tab_id;
+        last_css = std::string(css_text);
+        return true;
+    });
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+    host.notify_tab_navigated(23, "https://example.dev");
+
+    EXPECT_EQ(called, 1);
+    EXPECT_EQ(last_id, 23u);
+    EXPECT_EQ(last_css, "p { color: #222; }");
+    EXPECT_TRUE(host.errors().empty());
+}

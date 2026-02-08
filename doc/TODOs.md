@@ -15,6 +15,9 @@ Milestone defined in `doc/milestones/milestone4.md` (stories moved there).
 Milestone defined in `doc/milestones/milestone5.md` (stories moved there).
 
 - [ ] **[M5 P1] T-APP-TABS-REF-1: Extract Tab Orchestration From BrowserApp**; Goal: prevent `BrowserApp` from growing into a god object; Scope: introduce an app-owned `TabController`/`BrowserChrome` that owns `TabManager` + `TabStrip` and handles tab actions/events behind a narrow interface; Acceptance: `BrowserApp` delegates tab actions and tab-strip hit-testing; Tests: existing app tab tests continue to pass.
+- [ ] **[M5 P2] T-TABLE-LAYOUT-2: Stable Column Width Distribution**; Goal: prevent pathological table column squashing on common two-column layouts; Scope: table width allocation with intrinsic min-content guardrails and percentage balancing; Acceptance: 50/50 two-column table remains readable under normal viewport width and long inline text does not collapse columns to near-zero; Tests: table layout tests.
+- [ ] **[M5 P2] T-TABLE-LAYOUT-3: Table Compression Regression Coverage**; Goal: lock in table readability behavior; Scope: add focused regressions for wide container + two-column table + mixed inline content; Acceptance: tests fail on previous squashed behavior and pass on corrected behavior; Tests: layout/integration tests.
+- [ ] **[M6 P1] T-TABLE-LAYOUT-4: Real-Page Table Compatibility Pass**; Goal: improve table behavior on real-world pages while minimizing regressions; Scope: reconcile table intrinsic sizing and percentage width interactions against external samples; Acceptance: representative external pages and internal demos render without severe table collapse; Tests: layout tests + manual external-page verification checklist.
 
 ## Milestone 6+ (Big Rocks)
 

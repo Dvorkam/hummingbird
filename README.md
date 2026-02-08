@@ -162,13 +162,27 @@ What works:
 - Parse a minimal `manifest.json`.
 - Run a long-lived background script once at startup (one QuickJS context per extension).
 - `console.log(...)` works inside background scripts.
+- `browser.tabs` subset:
+  - `browser.tabs.active()`
+  - `browser.tabs.onCreated.addListener(fn)`
+  - `browser.tabs.onActivated.addListener(fn)`
+  - `browser.tabs.onNavigated.addListener(fn)` where `fn` receives `{ id, url, active }`
+- `browser.scripting.insertCSS({ tabId, cssText })`.
+- Built-in `dark-mode` extension that injects CSS when tabs are created/activated/navigated.
 - Enable/disable extensions via environment variables.
 
 What is not implemented yet:
 
-- No `browser.*` API yet (tabs events, CSS injection, etc).
-- No content scripts and no per-tab DOM access from extensions.
+- No content scripts and no direct per-tab DOM access from extensions.
+- No `removeCSS` API.
 - No permission enforcement, sandboxing, or security model.
+- No persistence for extension state across restarts.
+
+### Built-in dark mode demo
+
+- Open `https://example.dev` and find `Extension Dark Mode Scope Demo`.
+- The dark-mode extension intentionally applies only inside `.hb-dark-scope` to make side-by-side behavior easy to inspect.
+- Disable it with `HB_EXTENSIONS_DISABLE=dark-mode`.
 
 ### Directory layout
 

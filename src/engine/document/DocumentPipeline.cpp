@@ -112,8 +112,8 @@ DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
     std::vector<std::string> style_blocks = model_.style_blocks();
-    style_blocks.insert(style_blocks.end(), extension_style_blocks_.begin(), extension_style_blocks_.end());
-    std::string css = resources_.build_css_source(base_url, style_blocks, model_.stylesheet_links());
+    std::string css =
+        resources_.build_css_source(base_url, style_blocks, model_.stylesheet_links(), extension_style_blocks_);
     model_.apply_styles(css);
 
     if (!model_.build_render_tree()) {

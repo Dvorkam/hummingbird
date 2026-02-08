@@ -110,6 +110,11 @@ std::string build_stub_body(const std::string& url) {
       .baseline-demo { font-size: 16px; }
       .baseline-demo .big { font-size: 28px; }
       .baseline-demo .small { font-size: 12px; }
+      .dark-scope-demo { border: 1px solid #bbb; padding: 6px; }
+      .dark-scope-column { float: left; width: 320px; margin: 4px 10px 4px 0; }
+      .dark-scope-clear { clear: both; }
+      .dark-demo-card { border: 1px solid #888; padding: 6px; margin: 4px 0; }
+      .dark-demo-card .note { font-size: 13px; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -276,6 +281,30 @@ aligned.</pre>
       </form>
       <p>External submit button:</p>
       <button type="submit" form="search-form">Search (external)</button>
+    </div>
+
+    <div class="section">
+      <h2>Extension Dark Mode Scope Demo</h2>
+      <p>Dark Mode extension is scoped to <code>.hb-dark-scope</code>. Left side is inside scope, right side is not.</p>
+      <div class="dark-scope-demo">
+        <div class="dark-scope-column">
+          <div class="dark-demo-card hb-dark-scope">
+            <h3>Scoped Region</h3>
+            <p>This block should receive dark-mode colors.</p>
+            <p class="note">Link sample: <a href="https://example.dev">example.dev</a></p>
+            <p class="note"><code>code sample</code> in scoped region.</p>
+          </div>
+        </div>
+        <div class="dark-scope-column">
+          <div class="dark-demo-card">
+            <h3>Normal Region</h3>
+            <p>This block should keep the page default colors.</p>
+            <p class="note">Link sample: <a href="https://example.dev">example.dev</a></p>
+            <p class="note"><code>code sample</code> in normal region.</p>
+          </div>
+        </div>
+        <div class="dark-scope-clear"></div>
+      </div>
     </div>
 
     <div class="section">

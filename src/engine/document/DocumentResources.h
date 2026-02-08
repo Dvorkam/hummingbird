@@ -23,7 +23,8 @@ public:
         : resource_store_(resource_store), resource_provider_(resource_provider), image_decoder_(image_decoder) {}
 
     std::string build_css_source(std::string_view base_url, const std::vector<std::string>& style_blocks,
-                                 const std::vector<std::string>& stylesheet_links) const;
+                                 const std::vector<std::string>& stylesheet_links,
+                                 const std::vector<std::string>& extension_style_blocks = {}) const;
     bool update_image_resources(Layout::RenderObject* render_tree, std::string_view base_url) const;
     bool update_svg_resources(Layout::RenderObject* render_tree) const;
 
