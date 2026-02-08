@@ -582,8 +582,9 @@ TEST(InlineLayoutTest, AlignsInlineBlockOnTextBaseline) {
 
     body->append_child(std::move(p));
 
-    std::string css = ".big { font-size: 24px; } .ib { display: inline-block; padding: 2px; border-width: 1px; "
-                      "border-style: solid; }";
+    std::string css =
+        ".big { font-size: 24px; } .ib { display: inline-block; padding: 2px; border-width: 1px; "
+        "border-style: solid; }";
     Parser parser(css);
     auto sheet = parser.parse();
 
