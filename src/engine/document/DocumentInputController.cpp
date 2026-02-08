@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "core/dom/Element.h"
+#include "core/utils/StringUtils.h"
 #include "core/utils/TextEditBuffer.h"
 #include "engine/document/HitTestUtils.h"
 #include "html/HtmlAttributeNames.h"
@@ -32,6 +33,22 @@ bool is_input_element(const DOM::Element* element) {
     return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
 }
 
+bool is_editable_input_element(const DOM::Element* element) {
+    if (!is_input_element(element)) {
+        return false;
+    }
+
+    const auto* type = element->find_attribute(Hummingbird::Html::AttributeNames::Type);
+    if (!type || type->empty()) {
+        return true;  // default <input> type is text
+    }
+
+    return !Core::Utils::equals_ignore_case(*type, "button") && !Core::Utils::equals_ignore_case(*type, "submit") &&
+           !Core::Utils::equals_ignore_case(*type, "reset") && !Core::Utils::equals_ignore_case(*type, "checkbox") &&
+           !Core::Utils::equals_ignore_case(*type, "radio") && !Core::Utils::equals_ignore_case(*type, "file") &&
+           !Core::Utils::equals_ignore_case(*type, "hidden") && !Core::Utils::equals_ignore_case(*type, "image");
+}
+
 std::string input_value(const DOM::Element& element) {
     if (const auto* value = element.find_attribute(Hummingbird::Html::AttributeNames::Value)) {
         return *value;
@@ -48,7 +65,7 @@ DOM::Element* hit_test_input(const Layout::RenderObject* render_tree, const Layo
     auto hit = HitTest::hit_test_z_order<DOM::Element*>(
         render_tree, point, viewport, scroll_y, [&](const Layout::RenderObject& node) -> std::optional<DOM::Element*> {
             auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
-            if (!is_input_element(element)) {
+            if (!is_editable_input_element(element)) {
                 return std::nullopt;
             }
             return const_cast<DOM::Element*>(element);

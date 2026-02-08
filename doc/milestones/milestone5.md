@@ -379,7 +379,7 @@ P0: Tests and Guardrails
 - [x] 5.6.3: Dependency Firewall Audit
 
 P0: DDG HTML End-to-End Usability (Mandatory)
-- [ ] 5.5.1: Input Focus/Hit-Test Reliability on Real Pages
+- [x] 5.5.1: Input Focus/Hit-Test Reliability on Real Pages
 - [ ] 5.5.2: `autofocus` Behavior
 - [ ] 5.5.3: Submit Controls Parity (`<input type="submit">`)
 - [ ] 5.5.4: Form `method="post"` Support (MVP)
