@@ -158,6 +158,11 @@ bool BrowserApp::tick() {
         if (active_tab().tick(*graphics_, viewport)) {
             document_dirty_ = true;
         }
+        if (auto id = tab_manager_.active_tab_id()) {
+            if (auto committed = active_tab().consume_navigation_commit_url()) {
+                extension_host_.notify_tab_navigated(*id, *committed);
+            }
+        }
         if (url_bar_.set_security_state(active_tab().security_state())) {
             chrome_dirty_ = true;
         }
@@ -503,11 +508,7 @@ void BrowserApp::on_active_tab_changed() {
 }
 
 void BrowserApp::navigate_active_tab(std::string_view url) {
-    auto id = tab_manager_.active_tab_id();
     active_tab().navigate(url);
-    if (id) {
-        extension_host_.notify_tab_navigated(*id, url);
-    }
 }
 
 bool BrowserApp::insert_extension_css(Hummingbird::Engine::TabId tab_id, std::string_view css_text) {

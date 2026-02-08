@@ -39,7 +39,7 @@ public:
     bool set_extension_enabled(std::string_view id, bool enabled);
     void set_insert_css_handler(InsertCssHandler handler);
 
-    // Tab events (5.3.1). These are best-effort until deterministic commit wiring (5.3.3) lands.
+    // Tab events (5.3.1/5.3.3). BrowserApp emits navigate events on committed document transitions.
     void notify_tab_created(TabId id, std::string_view url);
     void notify_tab_activated(TabId id);
     void notify_tab_navigated(TabId id, std::string_view url);

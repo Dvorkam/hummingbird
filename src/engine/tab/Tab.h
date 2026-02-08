@@ -73,6 +73,7 @@ public:
     bool handle_text_input(std::string_view text);
     KeyResult handle_key_down(const InputEvent& event);
     std::optional<std::string> focused_input_value() const;
+    std::optional<std::string> consume_navigation_commit_url();
     bool insert_extension_css(std::string_view css_text);
 
     void scroll_by(float delta_px, float viewport_height);
@@ -114,6 +115,7 @@ private:
     DocumentPipeline document_pipeline_;
     std::vector<std::string> extension_style_blocks_;
     bool extension_css_dirty_ = false;
+    std::optional<std::string> pending_navigation_commit_url_;
 
     std::string requested_url_;
     SecurityState security_state_ = SecurityState::Unknown;

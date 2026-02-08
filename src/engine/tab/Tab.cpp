@@ -47,6 +47,7 @@ void Tab::navigate(std::string_view url) {
 
     std::string normalized = Core::normalize_input_url(url);
     requested_url_ = std::move(normalized);
+    pending_navigation_commit_url_.reset();
     security_state_ = security_state_for_url(requested_url_);
     reset_document_state();
     resource_loader_.navigate(requested_url_);
@@ -146,6 +147,15 @@ std::optional<std::string> Tab::focused_input_value() const {
     return document_pipeline_.focused_input_value();
 }
 
+std::optional<std::string> Tab::consume_navigation_commit_url() {
+    if (!pending_navigation_commit_url_) {
+        return std::nullopt;
+    }
+    auto url = std::move(pending_navigation_commit_url_);
+    pending_navigation_commit_url_.reset();
+    return url;
+}
+
 bool Tab::insert_extension_css(std::string_view css_text) {
     if (css_text.empty()) {
         return false;
@@ -203,6 +213,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     if (!document_pipeline_.parse_html(entry->body)) {
         return;
     }
+    pending_navigation_commit_url_ = requested_url_;
     document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
     document_pipeline_.run_scripts();
     if (!document_pipeline_.stylesheet_links().empty()) {
@@ -264,6 +275,7 @@ void Tab::reset_document_state() {
     document_pipeline_.reset();
     resource_loader_.reset();
     layout_state_.reset();
+    pending_navigation_commit_url_.reset();
     dirty_ = true;
 }
 

@@ -287,6 +287,41 @@ TEST(EngineTabTest, ExtensionCssInjectionInvalidatesOnceWithoutResourceFollowups
     EXPECT_FALSE(harness.tick());
 }
 
+TEST(EngineTabTest, NavigationCommitUrlIsExposedOncePerCommittedDocument) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Commit test</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<DeferredNetwork>();
+    auto* network_ptr = network.get();
+    network->defer_response("https://acme.test", html);
+    auto fallback = std::make_unique<DeferredNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test");
+    EXPECT_TRUE(harness.tick());
+    EXPECT_FALSE(harness.tab().consume_navigation_commit_url().has_value());
+    EXPECT_FALSE(harness.tick());
+    EXPECT_FALSE(harness.tab().consume_navigation_commit_url().has_value());
+
+    network_ptr->complete("https://acme.test");
+    EXPECT_TRUE(harness.tick());
+
+    auto first = harness.tab().consume_navigation_commit_url();
+    ASSERT_TRUE(first.has_value());
+    EXPECT_EQ(*first, "https://acme.test");
+    EXPECT_FALSE(harness.tab().consume_navigation_commit_url().has_value());
+}
+
 TEST(EngineTabTest, HitTestResolvesLink) {
     const std::string html = R"HTML(
 <!doctype html>

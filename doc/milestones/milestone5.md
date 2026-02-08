@@ -365,7 +365,7 @@ P0: Browser OS + Extensions (North Star)
 - [x] 5.2.2: Extension Loader
 - [x] 5.2.3: Background Script Runtime
 - [x] 5.2.4: Enable/Disable Lifecycle
-- [ ] 5.3.3: Deterministic Event Wiring
+- [x] 5.3.3: Deterministic Event Wiring
 - [x] 5.3.1: `browser.tabs` Events + Active Query
 - [x] 5.4.1: Extension Stylesheet Origin Layer
 - [x] 5.4.2: Per-Tab Injected Stylesheet Store
