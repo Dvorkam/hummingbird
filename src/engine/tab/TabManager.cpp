@@ -71,6 +71,29 @@ bool TabManager::set_active(TabId id) {
     return true;
 }
 
+bool TabManager::activate_next() {
+    if (tabs_.empty() || !active_id_) return false;
+    const size_t index = index_for_id(*active_id_);
+    if (index == std::numeric_limits<size_t>::max()) return false;
+    const size_t next = (index + 1) % tabs_.size();
+    active_id_ = tabs_[next].id;
+    return true;
+}
+
+bool TabManager::activate_prev() {
+    if (tabs_.empty() || !active_id_) return false;
+    const size_t index = index_for_id(*active_id_);
+    if (index == std::numeric_limits<size_t>::max()) return false;
+    const size_t prev = (index + tabs_.size() - 1) % tabs_.size();
+    active_id_ = tabs_[prev].id;
+    return true;
+}
+
+bool TabManager::close_active() {
+    if (!active_id_) return false;
+    return close_tab(*active_id_);
+}
+
 size_t TabManager::tab_count() const {
     return tabs_.size();
 }

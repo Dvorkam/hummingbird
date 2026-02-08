@@ -38,6 +38,9 @@ public:
     TabId create_tab();
     bool close_tab(TabId id);
     bool set_active(TabId id);
+    bool activate_next();
+    bool activate_prev();
+    bool close_active();
 
     size_t tab_count() const;
     std::vector<TabId> tab_ids() const;

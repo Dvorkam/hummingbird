@@ -174,6 +174,8 @@ target_link_libraries(Engine PUBLIC Core Html Layout Renderer Style)
 add_library(App
     src/app/BrowserApp.cpp
     src/app/BrowserApp.h
+    src/app/TabStrip.cpp
+    src/app/TabStrip.h
     src/app/UrlBar.cpp
     src/app/UrlBar.h
 )

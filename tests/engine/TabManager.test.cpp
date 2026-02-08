@@ -98,6 +98,41 @@ TEST(TabManagerTest, ClosingActiveTabSelectsAnotherOrEmpties) {
     EXPECT_EQ(manager.tab_count(), 0u);
 }
 
+TEST(TabManagerTest, ActivatesNextAndPrev) {
+    auto manager = make_manager("<!doctype html><html><body>tab</body></html>");
+
+    const TabId first = manager.create_tab();
+    const TabId second = manager.create_tab();
+    const TabId third = manager.create_tab();
+
+    EXPECT_EQ(*manager.active_tab_id(), third);
+
+    EXPECT_TRUE(manager.activate_next());
+    EXPECT_EQ(*manager.active_tab_id(), first);
+
+    EXPECT_TRUE(manager.activate_prev());
+    EXPECT_EQ(*manager.active_tab_id(), third);
+
+    EXPECT_TRUE(manager.set_active(second));
+    EXPECT_EQ(*manager.active_tab_id(), second);
+
+    EXPECT_TRUE(manager.activate_prev());
+    EXPECT_EQ(*manager.active_tab_id(), first);
+}
+
+TEST(TabManagerTest, CloseActiveClosesAndMovesActive) {
+    auto manager = make_manager("<!doctype html><html><body>tab</body></html>");
+
+    const TabId first = manager.create_tab();
+    const TabId second = manager.create_tab();
+
+    EXPECT_EQ(*manager.active_tab_id(), second);
+    EXPECT_TRUE(manager.close_active());
+    ASSERT_TRUE(manager.active_tab_id().has_value());
+    EXPECT_EQ(*manager.active_tab_id(), first);
+    EXPECT_EQ(manager.tab_count(), 1u);
+}
+
 TEST(TabManagerTest, TabsDoNotShareResourceStores) {
     auto state = std::make_shared<SharedRoutingNetwork::State>();
 

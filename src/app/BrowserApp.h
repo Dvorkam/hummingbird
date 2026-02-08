@@ -1,7 +1,9 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 
+#include "app/TabStrip.h"
 #include "app/UrlBar.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IWindow.h"
@@ -30,6 +32,9 @@ public:
     // Runs one iteration: events + pipeline + render. Returns false when app should exit.
     bool tick();
 
+    size_t tab_count() const;
+    std::optional<Hummingbird::Engine::TabId> active_tab_id() const;
+
 private:
     // --- main tick phases ---
     void pump_events();
@@ -46,6 +51,12 @@ private:
     void handle_resize_event(const InputEvent& e);
 
 private:
+    void on_active_tab_changed();
+    bool new_tab();
+    bool close_active_tab();
+    bool activate_next_tab();
+    bool activate_prev_tab();
+
     Hummingbird::Engine::Tab& active_tab();
 
     // App Utils
@@ -56,6 +67,7 @@ private:
     Hummingbird::Engine::TabManager tab_manager_;
 
     // UI state
+    TabStrip tab_strip_;
     UrlBar url_bar_;
     bool debug_outlines_ = false;
     bool document_dirty_ = true;

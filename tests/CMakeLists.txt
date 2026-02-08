@@ -73,6 +73,7 @@ target_link_libraries(HummingbirdTests PRIVATE
 # App-only smoke test target.
 add_executable(HummingbirdAppTests
     app/SmokeMain.test.cpp
+    app/BrowserAppTabs.test.cpp
     app/UrlBar.test.cpp
 )
 target_link_libraries(HummingbirdAppTests PRIVATE
