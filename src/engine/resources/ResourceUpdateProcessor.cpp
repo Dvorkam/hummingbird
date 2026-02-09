@@ -29,6 +29,16 @@ void handle_image_update(ResourceLoader::PendingResourceUpdate& update, Resource
         return;
     }
     const auto decode_start = Core::Clock::now();
+    auto animated = image_decoder->decode_animation(update.body);
+    if (animated) {
+        store.mark_ready(update.url, update.type, std::move(update.body));
+        store.set_animation(update.url, update.type, std::move(*animated));
+        const auto decode_end = Core::Clock::now();
+        stats.image_decode_ms += Core::duration_ms(decode_start, decode_end);
+        ++stats.image_decode_count;
+        stats.image_ready = true;
+        return;
+    }
     auto decoded = image_decoder->decode(update.body);
     const auto decode_end = Core::Clock::now();
     stats.image_decode_ms += Core::duration_ms(decode_start, decode_end);

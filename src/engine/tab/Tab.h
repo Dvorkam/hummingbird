@@ -8,6 +8,7 @@
 #include <string_view>
 #include <unordered_set>
 #include <vector>
+#include <chrono>
 
 #include "core/SecurityState.h"
 #include "core/platform_api/IImageDecoder.h"
@@ -119,6 +120,8 @@ private:
     LayoutState layout_state_{};
 
     bool dirty_ = true;
+    std::chrono::steady_clock::time_point last_animation_tick_{};
+    bool has_animation_tick_ = false;
 };
 
 }  // namespace Hummingbird::Engine

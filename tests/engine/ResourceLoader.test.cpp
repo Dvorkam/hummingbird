@@ -75,6 +75,30 @@ public:
     std::string body;
     NetworkError error = NetworkError::None;
 };
+
+class AnimatedImageDecoder final : public Hummingbird::IImageDecoder {
+public:
+    std::optional<Hummingbird::AnimatedImage> decode_animation(std::string_view bytes) override {
+        if (bytes.empty()) {
+            return std::nullopt;
+        }
+        Hummingbird::AnimatedImage animation;
+        Hummingbird::ImageBitmap first{};
+        first.width = 1;
+        first.height = 1;
+        first.stride = 4;
+        first.format = Hummingbird::PixelFormat::BGRA32;
+        first.pixels = {0, 0, 0, 255};
+        Hummingbird::ImageBitmap second = first;
+        second.pixels = {1, 0, 0, 255};
+        animation.frames.push_back(first);
+        animation.frames.push_back(second);
+        animation.delays_ms = {100, 100};
+        return animation;
+    }
+
+    std::optional<Hummingbird::ImageBitmap> decode(std::string_view) override { return std::nullopt; }
+};
 }  // namespace
 
 TEST(ResourceLoaderTest, StylesheetAssetsMarkReadyWithoutNetwork) {
@@ -174,4 +198,29 @@ TEST(ResourceLoaderTest, NavigatePostUsesNetworkPostWithBodyAndContentType) {
     auto batch = loader.consume_pending_updates();
     EXPECT_TRUE(batch.document_ready);
     EXPECT_EQ(batch.document_url, "https://example.dev/html/");
+}
+
+TEST(ResourceLoaderTest, StoresAnimatedImagesWhenDecoderProvidesFrames) {
+    auto fallback = std::make_unique<CapturingNetwork>();
+    auto* fallback_ptr = fallback.get();
+    fallback_ptr->body = "ANIMDATA";
+
+    ResourceLoader loader(nullptr, std::move(fallback), nullptr, std::make_unique<AnimatedImageDecoder>());
+    const std::string base_url = "https://example.dev/index.html";
+    loader.request_images({"/img/anim.gif"}, base_url);
+
+    auto batch = loader.consume_pending_updates();
+    EXPECT_TRUE(batch.image_ready);
+
+    auto resolved = resolve_resource_url(base_url, "/img/anim.gif");
+    auto first = loader.view(resolved.key, ResourceType::Image);
+    ASSERT_TRUE(first.has_value());
+    ASSERT_NE(first->image, nullptr);
+    EXPECT_EQ(first->image->pixels[0], 0);
+
+    EXPECT_TRUE(loader.store().tick_animations(110));
+    auto second = loader.view(resolved.key, ResourceType::Image);
+    ASSERT_TRUE(second.has_value());
+    ASSERT_NE(second->image, nullptr);
+    EXPECT_EQ(second->image->pixels[0], 1);
 }

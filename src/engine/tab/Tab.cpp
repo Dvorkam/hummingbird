@@ -95,6 +95,20 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
         }
     }
 
+    const auto now = Core::Clock::now();
+    if (!has_animation_tick_) {
+        last_animation_tick_ = now;
+        has_animation_tick_ = true;
+    } else {
+        int delta_ms = static_cast<int>(Core::duration_ms(last_animation_tick_, now));
+        last_animation_tick_ = now;
+        if (resource_loader_.store().tick_animations(delta_ms) && document_pipeline_.has_render_tree()) {
+            if (document_pipeline_.update_image_resources(requested_url_)) {
+                dirty_ = true;
+            }
+        }
+    }
+
     bool dirty = dirty_;
     dirty_ = false;
     return dirty;
@@ -310,6 +324,7 @@ void Tab::reset_document_state() {
     resource_loader_.reset();
     layout_state_.reset();
     pending_navigation_commit_url_.reset();
+    has_animation_tick_ = false;
     dirty_ = true;
 }
 

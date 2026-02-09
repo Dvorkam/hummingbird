@@ -12,6 +12,7 @@ namespace Hummingbird::Platform {
 class CompositeImageDecoder final : public IImageDecoder {
 public:
     std::optional<ImageBitmap> decode(std::string_view bytes) override;
+    std::optional<AnimatedImage> decode_animation(std::string_view bytes) override;
 
 private:
     SvgImageDecoder svg_decoder_;
