@@ -189,6 +189,26 @@ TEST(CSSParserTest, ParsesVerticalAlignProperty) {
     EXPECT_EQ(decls[0].value.ident, "middle");
 }
 
+TEST(CSSParserTest, ParsesBoxShadowProperty) {
+    Parser parser("div { box-shadow: 2px 4px 6px #000; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+
+    EXPECT_EQ(decls[0].property, Property::BoxShadow);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Shadow);
+    EXPECT_FLOAT_EQ(decls[0].value.shadow.offset_x.value, 2.0f);
+    EXPECT_EQ(decls[0].value.shadow.offset_x.unit, Unit::Px);
+    EXPECT_FLOAT_EQ(decls[0].value.shadow.offset_y.value, 4.0f);
+    EXPECT_EQ(decls[0].value.shadow.offset_y.unit, Unit::Px);
+    EXPECT_FLOAT_EQ(decls[0].value.shadow.blur.value, 6.0f);
+    EXPECT_EQ(decls[0].value.shadow.blur.unit, Unit::Px);
+    EXPECT_EQ(decls[0].value.shadow.color.r, 0);
+    EXPECT_EQ(decls[0].value.shadow.color.g, 0);
+    EXPECT_EQ(decls[0].value.shadow.color.b, 0);
+}
+
 TEST(CSSParserTest, ParsesLeadingDotAndSignedNumbers) {
     Parser parser("div { padding: .75em; margin-left: -0.35em; right: 2px; }");
     auto sheet = parser.parse();

@@ -51,8 +51,8 @@ TEST(CssPropertyRegistryTest, PropertyListMetadataMatchesRegistryAccessors) {
 }
 
 TEST(CssPropertyRegistryTest, EveryTypedHookIsUsedByAtLeastOneProperty) {
-    std::array<bool, enum_index(PropertyRegistry::ParserHook::parse_opacity) + 1> parser_seen{};
-    std::array<bool, enum_index(PropertyRegistry::ApplyHook::apply_background_size) + 1> applier_seen{};
+    std::array<bool, enum_index(PropertyRegistry::ParserHook::parse_box_shadow) + 1> parser_seen{};
+    std::array<bool, enum_index(PropertyRegistry::ApplyHook::apply_box_shadow) + 1> applier_seen{};
 
     for (const auto& entry : PropertyRegistry::property_list()) {
         parser_seen[enum_index(entry.parser_hook)] = true;

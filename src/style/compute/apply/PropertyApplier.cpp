@@ -204,6 +204,9 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_background_size:
             (void)apply_background_property(Property::BackgroundSize, value, style, overrides, context);
             return;
+        case ApplyHook::apply_box_shadow:
+            (void)apply_layout_property(property, value, style, overrides, context);
+            return;
         case ApplyHook::Unknown:
             return;
     }

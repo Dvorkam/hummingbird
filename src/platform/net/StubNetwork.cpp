@@ -111,6 +111,7 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
         border-left: 7px inset #8aa2d6;
       }
       .outline-demo { width: 220px; padding: 8px; border: 1px solid #555; outline: 3px solid #2c7a4b; outline-offset: 4px; margin: 12px; }
+      .box-shadow-demo { width: 220px; padding: 8px; border: 1px solid #666; background-color: #ffffff; box-shadow: 6px 6px 8px #444444; }
       .table-align-demo { border: 1px solid #bbb; }
       .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
       .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
@@ -195,6 +196,7 @@ aligned.</pre>
       <p class="border-radius-demo">Rounded border demo (border-radius: 14px).</p>
       <p class="border-sides-demo">Side-specific border shorthand demo.</p>
       <p class="outline-demo">Outline demo (outline + outline-offset).</p>
+      <p class="box-shadow-demo">Box-shadow demo.</p>
     </div>
 
     <div class="section">

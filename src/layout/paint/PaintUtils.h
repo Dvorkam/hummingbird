@@ -224,6 +224,28 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
     if (!style) {
         return;
     }
+    if (style->box_shadow.has_value()) {
+        const auto& shadow = *style->box_shadow;
+        const float blur = std::max(0.0f, shadow.blur);
+        Rect shadow_rect{
+            rect.x + shadow.offset_x - blur,
+            rect.y + shadow.offset_y - blur,
+            rect.width + blur * 2.0f,
+            rect.height + blur * 2.0f,
+        };
+        if (shadow_rect.width > 0.0f && shadow_rect.height > 0.0f) {
+            Color shadow_color = shadow.color;
+            if (blur > 0.0f) {
+                shadow_color.a = static_cast<uint8_t>(shadow_color.a * 0.6f);
+            }
+            const float shadow_radius = std::max(0.0f, style->border_radius + blur);
+            if (shadow_radius > 0.0f) {
+                draw_rounded_fill(context, shadow_rect, shadow_radius, shadow_color);
+            } else {
+                context.fill_rect(shadow_rect, shadow_color);
+            }
+        }
+    }
     const float radius = std::max(0.0f, style->border_radius);
     if (style->background.has_value()) {
         if (radius > 0.0f) {

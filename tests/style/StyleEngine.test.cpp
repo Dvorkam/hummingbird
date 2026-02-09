@@ -1014,6 +1014,28 @@ TEST(StyleEngineTest, AppliesVerticalAlignProperty) {
     EXPECT_EQ(style->vertical_align, ComputedStyle::VerticalAlign::Middle);
 }
 
+TEST(StyleEngineTest, AppliesBoxShadowProperty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { box-shadow: 3px 5px 7px #112233; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->box_shadow.has_value());
+    EXPECT_FLOAT_EQ(style->box_shadow->offset_x, 3.0f);
+    EXPECT_FLOAT_EQ(style->box_shadow->offset_y, 5.0f);
+    EXPECT_FLOAT_EQ(style->box_shadow->blur, 7.0f);
+    EXPECT_EQ(style->box_shadow->color.r, 0x11);
+    EXPECT_EQ(style->box_shadow->color.g, 0x22);
+    EXPECT_EQ(style->box_shadow->color.b, 0x33);
+}
+
 TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

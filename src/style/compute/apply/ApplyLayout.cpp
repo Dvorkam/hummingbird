@@ -446,6 +446,25 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             return true;
         case Property::Border:
             return true;
+        case Property::BoxShadow:
+            if (value.type == Value::Type::Identifier && value.ident == ValueNames::None) {
+                style.box_shadow.reset();
+                return true;
+            }
+            if (value.type == Value::Type::Shadow) {
+                auto to_px = [&](const Length& length) {
+                    if (length.unit == Unit::Px) return length.value;
+                    if (length.unit == Unit::Em) return length.value * style.font_size;
+                    return 0.0f;
+                };
+                ComputedStyle::BoxShadow shadow;
+                shadow.offset_x = to_px(value.shadow.offset_x);
+                shadow.offset_y = to_px(value.shadow.offset_y);
+                shadow.blur = std::max(0.0f, to_px(value.shadow.blur));
+                shadow.color = value.shadow.color;
+                style.box_shadow = shadow;
+            }
+            return true;
         default:
             return false;
     }

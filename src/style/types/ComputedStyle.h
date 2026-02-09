@@ -96,6 +96,13 @@ struct ComputedStyle {
     std::string font_face;
     std::optional<Color> background;
     std::optional<std::string> background_image;
+    struct BoxShadow {
+        float offset_x = 0.0f;
+        float offset_y = 0.0f;
+        float blur = 0.0f;
+        Color color{0, 0, 0, 255};
+    };
+    std::optional<BoxShadow> box_shadow;
     enum class BackgroundRepeat { Repeat, NoRepeat, RepeatX, RepeatY };
     BackgroundRepeat background_repeat = BackgroundRepeat::Repeat;
     struct BackgroundPosition {

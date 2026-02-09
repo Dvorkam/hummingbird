@@ -39,6 +39,7 @@ enum class ParserHook : std::uint8_t {
     parse_background_size,
     parse_outline_shorthand,
     parse_opacity,
+    parse_box_shadow,
 };
 
 enum class ApplyHook : std::uint8_t {
@@ -107,6 +108,7 @@ enum class ApplyHook : std::uint8_t {
     apply_background_repeat,
     apply_background_position,
     apply_background_size,
+    apply_box_shadow,
 };
 
 constexpr PropertyFlags operator|(PropertyFlags lhs, PropertyFlags rhs) {

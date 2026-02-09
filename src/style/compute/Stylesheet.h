@@ -38,6 +38,14 @@ struct Value {
         Color,
         Url,
         Number,
+        Shadow,
+    };
+
+    struct Shadow {
+        Length offset_x;
+        Length offset_y;
+        Length blur;
+        Color color{0, 0, 0, 255};
     };
 
     Type type = Type::Identifier;
@@ -45,6 +53,7 @@ struct Value {
     Length length;
     Color color{0, 0, 0, 255};
     float number = 0.0f;
+    Shadow shadow;
 
     static Value identifier(std::string text) {
         Value v;
@@ -78,6 +87,13 @@ struct Value {
         Value v;
         v.type = Type::Number;
         v.number = value;
+        return v;
+    }
+
+    static Value shadow_value(Shadow shadow) {
+        Value v;
+        v.type = Type::Shadow;
+        v.shadow = shadow;
         return v;
     }
 };

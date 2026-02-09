@@ -142,6 +142,8 @@ HB_CSS_PROPERTY(BackgroundPosition, BackgroundPosition, "background-position", "
                 ParserHook::parse_background_position, ApplyHook::apply_background_position, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BackgroundSize, BackgroundSize, "background-size", "background-size", ParserHook::parse_background_size,
                 ApplyHook::apply_background_size, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BoxShadow, BoxShadow, "box-shadow", "box-shadow", ParserHook::parse_box_shadow, ApplyHook::apply_box_shadow,
+                PropertyFlags::None)
 
 // Alias property names that map to canonical entries
 HB_CSS_PROPERTY_ALIAS(BoxSizing, WebkitBoxSizing, "-webkit-box-sizing", "box-sizing", ParserHook::parse_identifier,

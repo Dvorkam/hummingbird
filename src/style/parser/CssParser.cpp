@@ -163,6 +163,9 @@ std::string value_to_text(const Value& value) {
     if (value.type == Value::Type::Number) {
         return std::to_string(value.number);
     }
+    if (value.type == Value::Type::Shadow) {
+        return "";
+    }
     return "";
 }
 
@@ -585,6 +588,49 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                     push_decl(Property::Outline, Value::identifier(std::move(text)));
                 }
             }
+            return true;
+        }
+        case PropertyRegistry::ParserHook::parse_box_shadow: {
+            if (values.size() == 1 && values[0].type == Value::Type::Identifier &&
+                values[0].ident == ValueNames::None) {
+                push_decl(property, values[0]);
+                return true;
+            }
+
+            std::vector<Length> lengths;
+            std::optional<Color> color;
+            for (const auto& value : values) {
+                if (value.type == Value::Type::Color && !color) {
+                    color = value.color;
+                    continue;
+                }
+                if (value.type == Value::Type::Length) {
+                    lengths.push_back(value.length);
+                    continue;
+                }
+                if (value.type == Value::Type::Number) {
+                    Length length;
+                    length.value = value.number;
+                    length.unit = Unit::Px;
+                    lengths.push_back(length);
+                }
+            }
+
+            if (lengths.size() < 2) {
+                return true;
+            }
+
+            Value::Shadow shadow;
+            shadow.offset_x = lengths[0];
+            shadow.offset_y = lengths[1];
+            if (lengths.size() >= 3) {
+                shadow.blur = lengths[2];
+            }
+            if (color) {
+                shadow.color = *color;
+            }
+
+            push_decl(property, Value::shadow_value(shadow));
             return true;
         }
         case PropertyRegistry::ParserHook::parse_background_shorthand: {

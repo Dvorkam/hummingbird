@@ -136,6 +136,7 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.outline_color = source.outline_color;
     target.background = source.background;
     target.background_image = source.background_image;
+    target.box_shadow = source.box_shadow;
     target.background_repeat = source.background_repeat;
     target.background_position = source.background_position;
     target.background_size = source.background_size;
