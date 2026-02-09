@@ -15,6 +15,7 @@ TEST(ElementSemanticRoleTest, ReturnsImpliedLandmarkRolesForSemanticTags) {
     auto nav = Element::create(arena, Hummingbird::Html::TagNames::Nav);
     auto main = Element::create(arena, Hummingbird::Html::TagNames::Main);
     auto section = Element::create(arena, Hummingbird::Html::TagNames::Section);
+    section->set_attribute("aria-label", "Section title");
     auto article = Element::create(arena, Hummingbird::Html::TagNames::Article);
     auto aside = Element::create(arena, Hummingbird::Html::TagNames::Aside);
     auto footer = Element::create(arena, Hummingbird::Html::TagNames::Footer);
@@ -34,6 +35,13 @@ TEST(ElementSemanticRoleTest, ReturnsImpliedLandmarkRolesForSemanticTags) {
     EXPECT_EQ(article->get_accessibility_role().value(), "article");
     EXPECT_EQ(aside->get_accessibility_role().value(), "complementary");
     EXPECT_EQ(footer->get_accessibility_role().value(), "contentinfo");
+}
+
+TEST(ElementSemanticRoleTest, SectionWithoutAccessibleNameHasNoImpliedRegionRole) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto section = Element::create(arena, Hummingbird::Html::TagNames::Section);
+
+    EXPECT_FALSE(section->get_accessibility_role().has_value());
 }
 
 TEST(ElementSemanticRoleTest, ExplicitRoleAttributeOverridesImpliedRole) {

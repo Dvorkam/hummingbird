@@ -52,18 +52,26 @@ public:
         if (const auto* explicit_role = find_attribute("role"); explicit_role && !explicit_role->empty()) {
             return std::string_view(*explicit_role);
         }
-        return implied_accessibility_role_for_tag(m_tag_name);
+        return implied_accessibility_role();
     }
 
 private:
-    static std::optional<std::string_view> implied_accessibility_role_for_tag(std::string_view tag_name) {
-        if (tag_name == "header") return std::string_view("banner");
-        if (tag_name == "nav") return std::string_view("navigation");
-        if (tag_name == "main") return std::string_view("main");
-        if (tag_name == "section") return std::string_view("region");
-        if (tag_name == "article") return std::string_view("article");
-        if (tag_name == "aside") return std::string_view("complementary");
-        if (tag_name == "footer") return std::string_view("contentinfo");
+    bool has_accessible_name() const {
+        const auto is_non_empty = [this](std::string_view name) {
+            const auto* value = find_attribute(name);
+            return value && !Core::Utils::trim_ascii_whitespace(*value).empty();
+        };
+        return is_non_empty("aria-label") || is_non_empty("aria-labelledby") || is_non_empty("title");
+    }
+
+    std::optional<std::string_view> implied_accessibility_role() const {
+        if (m_tag_name == "header") return std::string_view("banner");
+        if (m_tag_name == "nav") return std::string_view("navigation");
+        if (m_tag_name == "main") return std::string_view("main");
+        if (m_tag_name == "section" && has_accessible_name()) return std::string_view("region");
+        if (m_tag_name == "article") return std::string_view("article");
+        if (m_tag_name == "aside") return std::string_view("complementary");
+        if (m_tag_name == "footer") return std::string_view("contentinfo");
         return std::nullopt;
     }
 
