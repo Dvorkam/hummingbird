@@ -398,9 +398,9 @@ P1+: Refactors and Polish (Only if Needed / Time Allows)
 - [x] T-LAYOUT-INLINE-2 (M5 P1): Inline-Block Baseline Alignment
 - [x] T-CSS-SEL-2 (M5 P1): Child combinator selector (`>`)
 - [x] T-CSS-VIS-1 (M5 P1): opacity (paint-only)
-- [ ] T-CSS-BORDER-2 (M5 P2): border-radius (paint)
-- [ ] T-CSS-DECOR-1 (M5 P2): outline + outline-offset
-- [ ] T-CSS-TEXT-1 (M5 P2): Text Effects Polish
+- [x] T-CSS-BORDER-2 (M5 P2): border-radius (paint)
+- [x] T-CSS-DECOR-1 (M5 P2): outline + outline-offset
+- [x] T-CSS-TEXT-1 (M5 P2): Text Effects Polish
 - [ ] T-CSS-CODE-1 (M5 P3): Code/Pre Background Defaults
 - [ ] T-LIST-1 (M5 P3): Ordered List Markers
 - [ ] T-TABLE-1 (M5 P3): Table Borders for Visibility

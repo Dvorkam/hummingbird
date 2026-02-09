@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
@@ -9,7 +10,98 @@
 
 namespace Hummingbird::Layout::PaintUtils {
 
-inline void draw_outline(IGraphicsContext& context, const Rect& rect, const Color& color, float thickness = 1.0f) {
+inline void draw_outline(IGraphicsContext& context, const Rect& rect, const Color& color, float thickness = 1.0f);
+
+inline float scanline_inset(float y_local, float height, float radius) {
+    if (radius <= 0.0f || height <= 0.0f) {
+        return 0.0f;
+    }
+    if (y_local < 0.0f || y_local >= height) {
+        return 0.0f;
+    }
+
+    const float r = std::min(radius, height * 0.5f);
+    if (y_local < r) {
+        const float dy = r - (y_local + 0.5f);
+        return r - std::sqrt(std::max(0.0f, r * r - dy * dy));
+    }
+    if (y_local >= height - r) {
+        const float dy = (y_local - (height - r)) + 0.5f;
+        return r - std::sqrt(std::max(0.0f, r * r - dy * dy));
+    }
+    return 0.0f;
+}
+
+inline void draw_rounded_fill(IGraphicsContext& context, const Rect& rect, float radius, const Color& color) {
+    const float clamped_radius = std::max(0.0f, std::min(radius, std::min(rect.width, rect.height) * 0.5f));
+    if (clamped_radius <= 0.0f) {
+        context.fill_rect(rect, color);
+        return;
+    }
+
+    const int row_count = std::max(1, static_cast<int>(std::ceil(rect.height)));
+    for (int row = 0; row < row_count; ++row) {
+        const float y = rect.y + static_cast<float>(row);
+        const float inset = scanline_inset(static_cast<float>(row), rect.height, clamped_radius);
+        const float x = rect.x + inset;
+        const float width = std::max(0.0f, rect.width - inset * 2.0f);
+        if (width <= 0.0f) {
+            continue;
+        }
+        context.fill_rect(Rect{x, y, width, 1.0f}, color);
+    }
+}
+
+inline bool is_uniform_border_width(const Css::EdgeSizes& width, float epsilon = 0.01f) {
+    return std::fabs(width.top - width.right) < epsilon && std::fabs(width.top - width.bottom) < epsilon &&
+           std::fabs(width.top - width.left) < epsilon;
+}
+
+inline void draw_uniform_rounded_border(IGraphicsContext& context, const Rect& rect, float radius, float thickness,
+                                        const Color& color) {
+    if (thickness <= 0.0f) {
+        return;
+    }
+    const float clamped_radius = std::max(0.0f, std::min(radius, std::min(rect.width, rect.height) * 0.5f));
+    if (clamped_radius <= 0.0f) {
+        draw_outline(context, rect, color, thickness);
+        return;
+    }
+
+    const Rect inner{rect.x + thickness, rect.y + thickness, std::max(0.0f, rect.width - thickness * 2.0f),
+                     std::max(0.0f, rect.height - thickness * 2.0f)};
+    const float inner_radius = std::max(0.0f, clamped_radius - thickness);
+    const int row_count = std::max(1, static_cast<int>(std::ceil(rect.height)));
+
+    for (int row = 0; row < row_count; ++row) {
+        const float y_abs = rect.y + static_cast<float>(row);
+        const float outer_inset = scanline_inset(static_cast<float>(row), rect.height, clamped_radius);
+        const float outer_left = rect.x + outer_inset;
+        const float outer_right = rect.x + rect.width - outer_inset;
+        if (outer_right <= outer_left) {
+            continue;
+        }
+
+        if (y_abs < inner.y || y_abs >= inner.y + inner.height || inner.width <= 0.0f || inner.height <= 0.0f) {
+            context.fill_rect(Rect{outer_left, y_abs, outer_right - outer_left, 1.0f}, color);
+            continue;
+        }
+
+        const float inner_y_local = y_abs - inner.y;
+        const float inner_inset = scanline_inset(inner_y_local, inner.height, inner_radius);
+        const float inner_left = inner.x + inner_inset;
+        const float inner_right = inner.x + inner.width - inner_inset;
+
+        if (inner_left > outer_left) {
+            context.fill_rect(Rect{outer_left, y_abs, inner_left - outer_left, 1.0f}, color);
+        }
+        if (outer_right > inner_right) {
+            context.fill_rect(Rect{inner_right, y_abs, outer_right - inner_right, 1.0f}, color);
+        }
+    }
+}
+
+inline void draw_outline(IGraphicsContext& context, const Rect& rect, const Color& color, float thickness) {
     Rect top{rect.x, rect.y, rect.width, thickness};
     Rect bottom{rect.x, rect.y + rect.height - thickness, rect.width, thickness};
     Rect left{rect.x, rect.y, thickness, rect.height};
@@ -132,8 +224,13 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
     if (!style) {
         return;
     }
+    const float radius = std::max(0.0f, style->border_radius);
     if (style->background.has_value()) {
-        context.fill_rect(rect, *style->background);
+        if (radius > 0.0f) {
+            draw_rounded_fill(context, rect, radius, *style->background);
+        } else {
+            context.fill_rect(rect, *style->background);
+        }
     }
     if (background_image && style->background_image.has_value()) {
         draw_background_image(context, rect, *background_image, *style);
@@ -141,22 +238,39 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
     if (style->border_style != Css::ComputedStyle::BorderStyle::None) {
         const auto& bw = style->border_width;
         const auto& color = style->border_color;
+        if (radius > 0.0f && is_uniform_border_width(bw)) {
+            draw_uniform_rounded_border(context, rect, radius, bw.top, color);
+        } else {
+            if (bw.top > 0.0f) {
+                Rect top{rect.x, rect.y, rect.width, bw.top};
+                context.fill_rect(top, color);
+            }
+            if (bw.bottom > 0.0f) {
+                Rect bottom{rect.x, rect.y + rect.height - bw.bottom, rect.width, bw.bottom};
+                context.fill_rect(bottom, color);
+            }
+            if (bw.left > 0.0f) {
+                Rect left{rect.x, rect.y, bw.left, rect.height};
+                context.fill_rect(left, color);
+            }
+            if (bw.right > 0.0f) {
+                Rect right{rect.x + rect.width - bw.right, rect.y, bw.right, rect.height};
+                context.fill_rect(right, color);
+            }
+        }
+    }
 
-        if (bw.top > 0.0f) {
-            Rect top{rect.x, rect.y, rect.width, bw.top};
-            context.fill_rect(top, color);
-        }
-        if (bw.bottom > 0.0f) {
-            Rect bottom{rect.x, rect.y + rect.height - bw.bottom, rect.width, bw.bottom};
-            context.fill_rect(bottom, color);
-        }
-        if (bw.left > 0.0f) {
-            Rect left{rect.x, rect.y, bw.left, rect.height};
-            context.fill_rect(left, color);
-        }
-        if (bw.right > 0.0f) {
-            Rect right{rect.x + rect.width - bw.right, rect.y, bw.right, rect.height};
-            context.fill_rect(right, color);
+    if (style->outline_width > 0.0f) {
+        const float expand = style->outline_offset + style->outline_width;
+        Rect outline_rect{rect.x - expand, rect.y - expand, rect.width + expand * 2.0f, rect.height + expand * 2.0f};
+        if (outline_rect.width > 0.0f && outline_rect.height > 0.0f) {
+            const float outline_radius = std::max(0.0f, radius + expand);
+            if (outline_radius > 0.0f) {
+                draw_uniform_rounded_border(context, outline_rect, outline_radius, style->outline_width,
+                                            style->outline_color);
+            } else {
+                draw_outline(context, outline_rect, style->outline_color, style->outline_width);
+            }
         }
     }
 }

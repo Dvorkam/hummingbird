@@ -35,8 +35,18 @@ HB_CSS_PROPERTY(Border, Border, "border", "border", ParserHook::parse_border_sho
                 PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BorderWidth, BorderWidth, "border-width", "border-width", ParserHook::parse_length, ApplyHook::apply_border_width,
                 PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderRadius, BorderRadius, "border-radius", "border-radius", ParserHook::parse_length,
+                ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BorderColor, BorderColor, "border-color", "border-color", ParserHook::parse_color, ApplyHook::apply_border_color,
                 PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(Outline, Outline, "outline", "outline", ParserHook::parse_outline_shorthand, ApplyHook::apply_outline,
+                PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(OutlineWidth, OutlineWidth, "outline-width", "outline-width", ParserHook::parse_length,
+                ApplyHook::apply_outline_width, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(OutlineColor, OutlineColor, "outline-color", "outline-color", ParserHook::parse_color,
+                ApplyHook::apply_outline_color, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(OutlineOffset, OutlineOffset, "outline-offset", "outline-offset", ParserHook::parse_length,
+                ApplyHook::apply_outline_offset, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BorderStyle, BorderStyle, "border-style", "border-style", ParserHook::parse_identifier, ApplyHook::apply_border_style,
                 PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Width, Width, "width", "width", ParserHook::parse_length_auto, ApplyHook::apply_width, PropertyFlags::LayoutAffecting)
@@ -59,6 +69,16 @@ HB_CSS_PROPERTY(ZIndex, ZIndex, "z-index", "z-index", ParserHook::parse_number_a
                 PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Opacity, Opacity, "opacity", "opacity", ParserHook::parse_opacity, ApplyHook::apply_opacity, PropertyFlags::None)
 HB_CSS_PROPERTY(TextAlign, TextAlign, "text-align", "text-align", ParserHook::parse_identifier, ApplyHook::apply_text_align,
+                PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(TextTransform, TextTransform, "text-transform", "text-transform", ParserHook::parse_identifier,
+                ApplyHook::apply_text_transform, PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(LetterSpacing, LetterSpacing, "letter-spacing", "letter-spacing", ParserHook::parse_length_number,
+                ApplyHook::apply_letter_spacing, PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(TextIndent, TextIndent, "text-indent", "text-indent", ParserHook::parse_length,
+                ApplyHook::apply_text_indent, PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(TextOverflow, TextOverflow, "text-overflow", "text-overflow", ParserHook::parse_identifier,
+                ApplyHook::apply_text_overflow, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(WordWrap, WordWrap, "word-wrap", "word-wrap", ParserHook::parse_identifier, ApplyHook::apply_word_wrap,
                 PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(TextDecoration, TextDecoration, "text-decoration", "text-decoration", ParserHook::parse_text_decoration,
                 ApplyHook::apply_text_decoration, PropertyFlags::Inherited)

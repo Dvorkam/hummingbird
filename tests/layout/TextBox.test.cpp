@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <string>
+#include <vector>
 
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
@@ -34,6 +35,21 @@ public:
     void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const TextStyle& /*style*/) override {}
 
     std::string last_font_path;
+};
+
+class DrawCaptureContext : public Hummingbird::Test::TestGraphicsContext {
+public:
+    void draw_text(const std::string& text, float x, float y, const TextStyle& /*style*/) override {
+        draws.push_back({text, x, y});
+    }
+
+    struct DrawCall {
+        std::string text;
+        float x = 0.0f;
+        float y = 0.0f;
+    };
+
+    std::vector<DrawCall> draws;
 };
 
 // NOTE: This test requires the font file 'assets/fonts/Roboto-Regular.ttf' to be present.
@@ -137,4 +153,67 @@ TEST(TextBoxLayoutTest, IncludesPaddingAndBorderInSize) {
 
     const auto& rect = text_box->get_rect();
     EXPECT_FLOAT_EQ(rect.width, 16.0f + 6.0f);
+}
+
+TEST(TextBoxLayoutTest, AppliesTextTransformDuringLayout) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "mixed Case");
+    auto style = Hummingbird::Css::default_computed_style();
+    style.text_transform = Hummingbird::Css::ComputedStyle::TextTransform::Uppercase;
+    dom_text->set_computed_style(std::make_shared<Hummingbird::Css::ComputedStyle>(style));
+
+    auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
+    Hummingbird::Layout::Rect bounds = {0, 0, 800, 600};
+    Hummingbird::Test::TestGraphicsContext context;
+    text_box->layout(context, bounds);
+
+    EXPECT_EQ(text_box->rendered_text(), "MIXED CASE");
+}
+
+TEST(TextBoxLayoutTest, UsesTextOverflowEllipsisForNoWrap) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "This is a long single-line sentence.");
+    auto style = Hummingbird::Css::default_computed_style();
+    style.whitespace = Hummingbird::Css::ComputedStyle::WhiteSpace::NoWrap;
+    style.text_overflow = Hummingbird::Css::ComputedStyle::TextOverflow::Ellipsis;
+    dom_text->set_computed_style(std::make_shared<Hummingbird::Css::ComputedStyle>(style));
+
+    auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
+    DrawCaptureContext context;
+    text_box->layout(context, {0, 0, 80, 40});
+    text_box->paint_self(context, {0.0f, 0.0f});
+
+    ASSERT_FALSE(context.draws.empty());
+    const auto& drawn = context.draws.back().text;
+    EXPECT_NE(drawn.find("..."), std::string::npos);
+}
+
+TEST(TextBoxLayoutTest, BreakWordWrapIncreasesLineCountForLongWords) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "SupercalifragilisticexpialidociousWord");
+    auto style = Hummingbird::Css::default_computed_style();
+    style.word_wrap = Hummingbird::Css::ComputedStyle::WordWrap::BreakWord;
+    dom_text->set_computed_style(std::make_shared<Hummingbird::Css::ComputedStyle>(style));
+
+    auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
+    Hummingbird::Test::TestGraphicsContext context;
+    text_box->layout(context, {0, 0, 80, 400});
+
+    EXPECT_GT(text_box->get_rect().height, style.font_size);
+}
+
+TEST(TextBoxLayoutTest, AppliesTextIndentToFirstLinePaint) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Indent me");
+    auto style = Hummingbird::Css::default_computed_style();
+    style.text_indent = 12.0f;
+    dom_text->set_computed_style(std::make_shared<Hummingbird::Css::ComputedStyle>(style));
+
+    auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
+    DrawCaptureContext context;
+    text_box->layout(context, {0, 0, 400, 80});
+    text_box->paint_self(context, {0.0f, 0.0f});
+
+    ASSERT_FALSE(context.draws.empty());
+    EXPECT_GE(context.draws.front().x, 0.0f);
 }

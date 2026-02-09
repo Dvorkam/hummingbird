@@ -188,6 +188,81 @@ TEST(PainterTest, PaintsOutsetBordersFromComputedStyle) {
     EXPECT_GE(context.fill_calls.size(), 4u);
 }
 
+TEST(PainterTest, PaintsRoundedBordersFromComputedStyle) {
+    std::string_view html = "<html><body><div></div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css =
+        "div { width: 120px; height: 40px; background-color: #dde6ff; border-width: 2px; border-style: solid; "
+        "border-color: #223366; border-radius: 10px; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 240, 180};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    ASSERT_FALSE(context.fill_calls.empty());
+    float max_width = 0.0f;
+    float min_width = 1000000.0f;
+    for (const auto& call : context.fill_calls) {
+        if (call.height <= 1.1f) {
+            max_width = std::max(max_width, call.width);
+            min_width = std::min(min_width, call.width);
+        }
+    }
+    EXPECT_GT(max_width, 0.0f);
+    EXPECT_GT(max_width - min_width, 1.0f);
+}
+
+TEST(PainterTest, PaintsOutlineOutsideBorderBox) {
+    std::string_view html = "<html><body><div></div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css =
+        "div { width: 80px; height: 24px; border-width: 1px; border-style: solid; border-color: #000; outline: 3px "
+        "solid #336699; outline-offset: 2px; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 240, 180};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    bool saw_outline_outside = false;
+    for (const auto& call : context.fill_calls) {
+        if (call.x < 0.0f || call.y < 0.0f) {
+            saw_outline_outside = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(saw_outline_outside);
+}
+
 namespace {
 bool rect_matches(const Hummingbird::Layout::Rect& a, const Hummingbird::Layout::Rect& b) {
     constexpr float kEpsilon = 0.01f;

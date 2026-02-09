@@ -110,6 +110,7 @@ InlineLayout::InlineLayoutResult layout_inline_group(IGraphicsContext& context,
                                                      std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
                                                      LineCursor& cursor, float base_x, float content_width,
                                                      Css::ComputedStyle::TextAlign text_align, float wrap_width,
+                                                     bool no_wrap, bool text_overflow_ellipsis,
                                                      bool capture_fragments) {
     InlineLayout::GroupLayoutContext layout_context;
     layout_context.start_x = cursor.x - base_x;
@@ -118,6 +119,8 @@ InlineLayout::InlineLayoutResult layout_inline_group(IGraphicsContext& context,
     layout_context.content_width = content_width;
     layout_context.align = text_align;
     layout_context.wrap_width = wrap_width;
+    layout_context.no_wrap = no_wrap;
+    layout_context.text_overflow_ellipsis = text_overflow_ellipsis;
     layout_context.capture_fragments = capture_fragments;
     InlineLayout::InlineLayoutResult result = InlineLayout::layout_inline_group(context, children, i, layout_context);
 

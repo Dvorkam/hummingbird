@@ -85,6 +85,11 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .nowrap-demo { white-space: nowrap; border: 1px dashed #bbb; padding: 4px; width: 180px; }
       .underline-demo { text-decoration: underline; }
       .underline-offset-demo { text-decoration: underline; text-decoration-thickness: 3px; text-underline-offset: 4px; }
+      .text-transform-demo { text-transform: uppercase; }
+      .letter-spacing-demo { letter-spacing: 2px; }
+      .text-indent-demo { text-indent: 18px; border: 1px dashed #bbb; padding: 4px; width: 260px; }
+      .text-overflow-demo { white-space: nowrap; text-overflow: ellipsis; width: 190px; border: 1px dashed #bbb; padding: 4px; }
+      .word-wrap-demo { word-wrap: break-word; width: 180px; border: 1px dashed #bbb; padding: 4px; }
       .no-underline a { text-decoration: none; }
       .em-demo { font-size: 18px; margin-top: 1.5em; padding: 1em; border: 1px solid #888; background-color: #f5f5f5; }
       .font-demo-sans { font-family: roboto, sans-serif; }
@@ -94,6 +99,8 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .font-demo-bold-italic { font-weight: bold; font-style: italic; }
       .var-demo { color: var(--brand); background-color: var(--panel, #444); padding: 4px; }
       .border-style-demo { border-width: 3px; border-style: outset; border-color: #5b3a12; padding: 6px; }
+      .border-radius-demo { border-width: 3px; border-style: solid; border-color: #2d4a9b; background-color: #dfe9ff; padding: 10px; width: 220px; border-radius: 14px; }
+      .outline-demo { width: 220px; padding: 8px; border: 1px solid #555; outline: 3px solid #2c7a4b; outline-offset: 4px; margin: 12px; }
       .table-align-demo { border: 1px solid #bbb; }
       .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
       .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
@@ -149,6 +156,8 @@ aligned.</pre>
     <div class="section">
       <h2>Border Styles</h2>
       <p class="border-style-demo">Outset border demo.</p>
+      <p class="border-radius-demo">Rounded border demo (border-radius: 14px).</p>
+      <p class="outline-demo">Outline demo (outline + outline-offset).</p>
     </div>
 
     <div class="section">
@@ -157,6 +166,11 @@ aligned.</pre>
       <p class="nowrap-demo">This sentence should stay on one line even in a narrow box.</p>
       <p class="underline-demo">Underlined via CSS text-decoration.</p>
       <p class="underline-offset-demo">Underline thickness/offset demo.</p>
+      <p class="text-transform-demo">text-transform uppercase demo.</p>
+      <p class="letter-spacing-demo">letter-spacing demo.</p>
+      <p class="text-indent-demo">This paragraph demonstrates first-line text-indent behavior.</p>
+      <p class="text-overflow-demo">This long line should render with an ellipsis on the right edge.</p>
+      <p class="word-wrap-demo">SupercalifragilisticexpialidociousLongWordWrapSample</p>
       <p class="no-underline"><a href="https://example.dev">Link with underline removed.</a></p>
       <div class="em-demo">Em-based spacing: padding and margin scale with font-size.</div>
     </div>

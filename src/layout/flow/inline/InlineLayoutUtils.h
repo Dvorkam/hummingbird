@@ -32,6 +32,8 @@ struct GroupLayoutContext {
     float content_width = 0.0f;
     Css::ComputedStyle::TextAlign align = Css::ComputedStyle::TextAlign::Left;
     float wrap_width = 0.0f;
+    bool no_wrap = false;
+    bool text_overflow_ellipsis = false;
     bool capture_fragments = false;
 };
 

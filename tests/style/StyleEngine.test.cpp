@@ -746,6 +746,44 @@ TEST(StyleEngineTest, AppliesBorderProperties) {
     EXPECT_EQ(style->border_color.b, 0x00);
 }
 
+TEST(StyleEngineTest, AppliesBorderRadiusProperty) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "rounded");
+
+    std::string css = R"(#rounded { border-radius: 12px; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_radius, 12.0f);
+}
+
+TEST(StyleEngineTest, AppliesOutlineAndOffsetProperties) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "outlined");
+
+    std::string css = R"(#outlined { outline: 3px solid #336699; outline-offset: 2px; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->outline_width, 3.0f);
+    EXPECT_FLOAT_EQ(style->outline_offset, 2.0f);
+    EXPECT_EQ(style->outline_color.r, 0x33);
+    EXPECT_EQ(style->outline_color.g, 0x66);
+    EXPECT_EQ(style->outline_color.b, 0x99);
+}
+
 TEST(StyleEngineTest, AppliesBackgroundColor) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
@@ -978,4 +1016,26 @@ TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
     EXPECT_FLOAT_EQ(font_style->font_size, 32.0f);
     EXPECT_EQ(font_style->font_face, "sans-serif");
     EXPECT_EQ(font_style->display, ComputedStyle::Display::Inline);
+}
+
+TEST(StyleEngineTest, AppliesTextEffectsProperties) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "text-fx");
+
+    std::string css =
+        R"(.text-fx { text-transform: uppercase; letter-spacing: 2px; text-indent: 12px; text-overflow: ellipsis; word-wrap: break-word; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->text_transform, ComputedStyle::TextTransform::Uppercase);
+    EXPECT_FLOAT_EQ(style->letter_spacing, 2.0f);
+    EXPECT_FLOAT_EQ(style->text_indent, 12.0f);
+    EXPECT_EQ(style->text_overflow, ComputedStyle::TextOverflow::Ellipsis);
+    EXPECT_EQ(style->word_wrap, ComputedStyle::WordWrap::BreakWord);
 }

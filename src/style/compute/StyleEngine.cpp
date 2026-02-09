@@ -125,8 +125,12 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.max_height_is_percent = source.max_height_is_percent;
     target.display = source.display;
     target.border_width = source.border_width;
+    target.border_radius = source.border_radius;
     target.border_color = source.border_color;
     target.border_style = source.border_style;
+    target.outline_width = source.outline_width;
+    target.outline_offset = source.outline_offset;
+    target.outline_color = source.outline_color;
     target.background = source.background;
     target.background_image = source.background_image;
     target.background_repeat = source.background_repeat;
@@ -144,6 +148,7 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.z_index = source.z_index;
     target.opacity = source.opacity;
     target.float_type = source.float_type;
+    target.text_overflow = source.text_overflow;
 }
 
 void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& source,
@@ -161,6 +166,10 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
     if (overrides.font_size) target.font_size = source.font_size;
     if (overrides.font_face) target.font_face = source.font_face;
     if (overrides.text_align) target.text_align = source.text_align;
+    if (overrides.text_transform) target.text_transform = source.text_transform;
+    if (overrides.letter_spacing) target.letter_spacing = source.letter_spacing;
+    if (overrides.text_indent) target.text_indent = source.text_indent;
+    if (overrides.word_wrap) target.word_wrap = source.word_wrap;
     if (overrides.background) target.background = source.background;
     if (overrides.line_height) target.line_height = source.line_height;
     if (overrides.list_style_type) target.list_style_type = source.list_style_type;

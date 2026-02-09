@@ -85,6 +85,55 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                 }
             }
             return true;
+        case Property::TextTransform:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Uppercase) {
+                    style.text_transform = ComputedStyle::TextTransform::Uppercase;
+                    overrides.text_transform = true;
+                } else if (value.ident == ValueNames::Lowercase) {
+                    style.text_transform = ComputedStyle::TextTransform::Lowercase;
+                    overrides.text_transform = true;
+                } else if (value.ident == ValueNames::Capitalize) {
+                    style.text_transform = ComputedStyle::TextTransform::Capitalize;
+                    overrides.text_transform = true;
+                } else if (value.ident == ValueNames::None) {
+                    style.text_transform = ComputedStyle::TextTransform::None;
+                    overrides.text_transform = true;
+                }
+            }
+            return true;
+        case Property::LetterSpacing:
+            if (value.type == Value::Type::Identifier && value.ident == ValueNames::Normal) {
+                style.letter_spacing = 0.0f;
+                overrides.letter_spacing = true;
+                return true;
+            }
+            style.letter_spacing = StyleValueUtils::value_to_length(value, style.letter_spacing, style.font_size);
+            overrides.letter_spacing = true;
+            return true;
+        case Property::TextIndent:
+            style.text_indent = StyleValueUtils::value_to_length(value, style.text_indent, style.font_size);
+            overrides.text_indent = true;
+            return true;
+        case Property::TextOverflow:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Ellipsis) {
+                    style.text_overflow = ComputedStyle::TextOverflow::Ellipsis;
+                } else {
+                    style.text_overflow = ComputedStyle::TextOverflow::Clip;
+                }
+            }
+            return true;
+        case Property::WordWrap:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::BreakWord) {
+                    style.word_wrap = ComputedStyle::WordWrap::BreakWord;
+                } else {
+                    style.word_wrap = ComputedStyle::WordWrap::Normal;
+                }
+                overrides.word_wrap = true;
+            }
+            return true;
         case Property::TextDecoration:
             if (value.type == Value::Type::Identifier) {
                 if (value.ident == ValueNames::Underline) {

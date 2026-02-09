@@ -488,6 +488,33 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             }
             return true;
         }
+        case PropertyRegistry::ParserHook::parse_outline_shorthand: {
+            std::optional<Value> outline_width;
+            std::optional<Value> outline_color;
+            for (const auto& value : values) {
+                if (!outline_width && value.type == Value::Type::Length) {
+                    outline_width = value;
+                    continue;
+                }
+                if (!outline_color && value.type == Value::Type::Color) {
+                    outline_color = value;
+                    continue;
+                }
+            }
+            if (outline_width) {
+                push_decl(Property::OutlineWidth, *outline_width);
+            }
+            if (outline_color) {
+                push_decl(Property::OutlineColor, *outline_color);
+            }
+            if (!outline_width && !outline_color) {
+                std::string text = join_value_list(values);
+                if (!text.empty()) {
+                    push_decl(Property::Outline, Value::identifier(std::move(text)));
+                }
+            }
+            return true;
+        }
         case PropertyRegistry::ParserHook::parse_background_shorthand: {
             std::string var_expr = build_var_expression(values);
             if (!var_expr.empty()) {

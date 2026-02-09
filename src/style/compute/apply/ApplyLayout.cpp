@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/utils/ColorUtils.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "style/compute/StyleValueUtils.h"
@@ -184,6 +185,36 @@ void apply_border_style(ComputedStyle& style, const Value& value) {
     }
 }
 
+std::optional<Color> parse_outline_color_token(std::string_view token) {
+    token = Core::Utils::trim_ascii_whitespace(token);
+    if (token.empty()) {
+        return std::nullopt;
+    }
+    if (token.starts_with("#")) {
+        return Core::Utils::parse_hex_color(token.substr(1));
+    }
+    if (token == ValueNames::Red) return Color{255, 0, 0, 255};
+    if (token == ValueNames::Blue) return Color{0, 0, 255, 255};
+    if (token == ValueNames::Black) return Color{0, 0, 0, 255};
+    if (token == ValueNames::White) return Color{255, 255, 255, 255};
+    return std::nullopt;
+}
+
+void apply_outline_shorthand(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return;
+    }
+    for (auto token : StyleValueUtils::split_tokens(value.ident)) {
+        if (auto length = StyleValueUtils::parse_length_token(token, style.font_size)) {
+            style.outline_width = std::max(0.0f, *length);
+            continue;
+        }
+        if (auto color = parse_outline_color_token(token)) {
+            style.outline_color = *color;
+        }
+    }
+}
+
 void apply_position_value(ComputedStyle& style, const Value& value) {
     if (value.type != Value::Type::Identifier) {
         return;
@@ -307,10 +338,27 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
         case Property::BorderWidth:
             apply_edge(style.border_width, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
             return true;
+        case Property::BorderRadius:
+            style.border_radius = std::max(0.0f, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            return true;
         case Property::BorderColor:
             if (value.type == Value::Type::Color) {
                 style.border_color = value.color;
             }
+            return true;
+        case Property::Outline:
+            apply_outline_shorthand(style, value);
+            return true;
+        case Property::OutlineWidth:
+            style.outline_width = std::max(0.0f, StyleValueUtils::value_to_length(value, style.outline_width, style.font_size));
+            return true;
+        case Property::OutlineColor:
+            if (value.type == Value::Type::Color) {
+                style.outline_color = value.color;
+            }
+            return true;
+        case Property::OutlineOffset:
+            style.outline_offset = StyleValueUtils::value_to_length(value, style.outline_offset, style.font_size);
             return true;
         case Property::BorderStyle:
             apply_border_style(style, value);

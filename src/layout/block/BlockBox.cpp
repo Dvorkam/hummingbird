@@ -100,9 +100,16 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         }
         float wrap_width =
             (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) ? 0.0f : (band.right - band.left);
+        bool no_wrap = style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap;
+        bool text_overflow_ellipsis = style && style->text_overflow == Css::ComputedStyle::TextOverflow::Ellipsis;
+        bool at_block_first_line =
+            cursor.line_height == 0.0f && cursor.y == metrics.insets.top && cursor.x <= (band.left + 0.01f);
+        if (at_block_first_line && style && style->text_indent != 0.0f) {
+            cursor.x = std::clamp(cursor.x + style->text_indent, band.left, band.right);
+        }
         cursor.x = std::max(cursor.x, band.left);
         FlowLayout::layout_inline_group(context, m_children, i, cursor, band.left, band.right - band.left, align,
-                                        wrap_width, false);
+                                        wrap_width, no_wrap, text_overflow_ellipsis, false);
     }
 
     FlowLayout::flush_line(cursor, metrics.insets.left);
