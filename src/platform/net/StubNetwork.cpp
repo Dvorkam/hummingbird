@@ -138,6 +138,8 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .baseline-demo .big { font-size: 28px; }
       .baseline-demo .small { font-size: 12px; }
       .vertical-align-demo { border: 1px dashed #bbb; padding: 4px; }
+      .vertical-align-guide { display: inline-block; font-size: 26px; margin-right: 6px; }
+      .vertical-align-run { display: inline-block; font-size: 12px; }
       .vertical-align-chip {
         display: inline-block;
         border: 1px solid #666;
@@ -171,10 +173,11 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       <p class="baseline-demo">Baseline <span class="big">BIG</span> <span class="small">small</span> aligned.</p>
       <p class="vertical-align-demo">
         vertical-align:
-        <span class="vertical-align-chip">baseline</span>
-        <span class="vertical-align-chip vertical-align-top">top</span>
-        <span class="vertical-align-chip vertical-align-middle">middle</span>
-        <span class="vertical-align-chip vertical-align-bottom">bottom</span>
+        <span class="vertical-align-guide">Ag</span>
+        <span class="vertical-align-chip vertical-align-run">baseline</span>
+        <span class="vertical-align-chip vertical-align-run vertical-align-top">top</span>
+        <span class="vertical-align-chip vertical-align-run vertical-align-middle">middle</span>
+        <span class="vertical-align-chip vertical-align-run vertical-align-bottom">bottom</span>
       </p>
       <pre>Preformatted
 text stays
