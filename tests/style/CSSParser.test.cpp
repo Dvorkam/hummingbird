@@ -149,6 +149,22 @@ TEST(CSSParserTest, ParsesPercentLengths) {
     EXPECT_EQ(decls[1].value.length.unit, Unit::Percent);
 }
 
+TEST(CSSParserTest, ParsesOverflowProperties) {
+    Parser parser("div { overflow: hidden; overflow-y: scroll; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 2u);
+
+    EXPECT_EQ(decls[0].property, Property::Overflow);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Identifier);
+    EXPECT_EQ(decls[0].value.ident, "hidden");
+
+    EXPECT_EQ(decls[1].property, Property::OverflowY);
+    ASSERT_EQ(decls[1].value.type, Value::Type::Identifier);
+    EXPECT_EQ(decls[1].value.ident, "scroll");
+}
+
 TEST(CSSParserTest, ParsesLeadingDotAndSignedNumbers) {
     Parser parser("div { padding: .75em; margin-left: -0.35em; right: 2px; }");
     auto sheet = parser.parse();

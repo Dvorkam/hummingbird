@@ -23,6 +23,9 @@ struct ComputedStyle {
     enum class Position { Static, Relative, Absolute };
     Position position = Position::Static;
     enum class TextAlign { Left, Center, Right };
+    enum class Overflow { Visible, Hidden, Scroll, Auto };
+    Overflow overflow_x = Overflow::Visible;
+    Overflow overflow_y = Overflow::Visible;
     TextAlign text_align = TextAlign::Left;
     enum class TextTransform { None, Uppercase, Lowercase, Capitalize };
     TextTransform text_transform = TextTransform::None;

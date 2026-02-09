@@ -124,6 +124,8 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.max_width_is_percent = source.max_width_is_percent;
     target.max_height_is_percent = source.max_height_is_percent;
     target.display = source.display;
+    target.overflow_x = source.overflow_x;
+    target.overflow_y = source.overflow_y;
     target.border_width = source.border_width;
     target.border_radius = source.border_radius;
     target.border_color = source.border_color;

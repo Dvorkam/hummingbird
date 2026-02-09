@@ -229,6 +229,25 @@ void apply_position_value(ComputedStyle& style, const Value& value) {
     }
 }
 
+std::optional<ComputedStyle::Overflow> parse_overflow_value(const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return std::nullopt;
+    }
+    if (value.ident == ValueNames::Visible) {
+        return ComputedStyle::Overflow::Visible;
+    }
+    if (value.ident == ValueNames::Hidden) {
+        return ComputedStyle::Overflow::Hidden;
+    }
+    if (value.ident == ValueNames::Scroll) {
+        return ComputedStyle::Overflow::Scroll;
+    }
+    if (value.ident == ValueNames::Auto) {
+        return ComputedStyle::Overflow::Auto;
+    }
+    return std::nullopt;
+}
+
 void apply_z_index_value(ComputedStyle& style, const Value& value) {
     if (value.type == Value::Type::Number) {
         style.z_index = static_cast<int>(value.number);
@@ -281,6 +300,17 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             return true;
         case Property::Position:
             apply_position_value(style, value);
+            return true;
+        case Property::Overflow:
+            if (auto overflow = parse_overflow_value(value)) {
+                style.overflow_x = *overflow;
+                style.overflow_y = *overflow;
+            }
+            return true;
+        case Property::OverflowY:
+            if (auto overflow = parse_overflow_value(value)) {
+                style.overflow_y = *overflow;
+            }
             return true;
         case Property::Margin:
             apply_edge(style.margin, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));

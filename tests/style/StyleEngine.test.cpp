@@ -943,6 +943,23 @@ TEST(StyleEngineTest, AppliesPositionProperties) {
     EXPECT_EQ(*style->z_index, 3);
 }
 
+TEST(StyleEngineTest, AppliesOverflowProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { overflow: hidden; overflow-y: scroll; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->overflow_x, ComputedStyle::Overflow::Hidden);
+    EXPECT_EQ(style->overflow_y, ComputedStyle::Overflow::Scroll);
+}
+
 TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

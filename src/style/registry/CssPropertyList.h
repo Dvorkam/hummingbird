@@ -45,6 +45,7 @@ enum class ApplyHook : std::uint8_t {
     Unknown,
     apply_display,
     apply_position,
+    apply_overflow,
     apply_font_size,
     apply_line_height,
     apply_margin,
