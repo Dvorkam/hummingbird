@@ -124,6 +124,9 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.padding.top = 4.0f;
         style.padding.bottom = 4.0f;
         style.background = Color{230, 230, 230, 255};
+    } else if (tag == Hummingbird::Html::TagNames::Td || tag == Hummingbird::Html::TagNames::Th) {
+        style.padding.left = style.padding.right = 2.0f;
+        style.padding.top = style.padding.bottom = 2.0f;
     } else if (tag == Hummingbird::Html::TagNames::Strong) {
         style.weight = ComputedStyle::FontWeight::Bold;
         overrides.weight = true;

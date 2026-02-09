@@ -72,10 +72,10 @@ TEST(TableLayoutTest, AlignsCellsIntoColumns) {
     ASSERT_NE(cell21_render, nullptr);
     ASSERT_NE(cell22_render, nullptr);
 
-    EXPECT_FLOAT_EQ(cell11_render->get_rect().width, 24.0f);
-    EXPECT_FLOAT_EQ(cell12_render->get_rect().width, 32.0f);
-    EXPECT_FLOAT_EQ(cell21_render->get_rect().width, 24.0f);
-    EXPECT_FLOAT_EQ(cell22_render->get_rect().width, 32.0f);
+    EXPECT_FLOAT_EQ(cell11_render->get_rect().width, 28.0f);
+    EXPECT_FLOAT_EQ(cell12_render->get_rect().width, 36.0f);
+    EXPECT_FLOAT_EQ(cell21_render->get_rect().width, 28.0f);
+    EXPECT_FLOAT_EQ(cell22_render->get_rect().width, 36.0f);
 
     EXPECT_FLOAT_EQ(cell12_render->get_rect().x, cell11_render->get_rect().width);
     EXPECT_FLOAT_EQ(cell22_render->get_rect().x, cell21_render->get_rect().width);
@@ -194,10 +194,10 @@ TEST(TableLayoutTest, ColspanExpandsColumnWidths) {
     ASSERT_NE(cell13_render, nullptr);
     ASSERT_NE(cell21_render, nullptr);
 
-    EXPECT_FLOAT_EQ(cell11_render->get_rect().width, 16.0f);
-    EXPECT_FLOAT_EQ(cell12_render->get_rect().width, 24.0f);
-    EXPECT_FLOAT_EQ(cell13_render->get_rect().width, 32.0f);
-    EXPECT_FLOAT_EQ(cell21_render->get_rect().width, 72.0f);
+    EXPECT_NEAR(cell11_render->get_rect().width, 17.333334f, 0.001f);
+    EXPECT_NEAR(cell12_render->get_rect().width, 25.333334f, 0.001f);
+    EXPECT_NEAR(cell13_render->get_rect().width, 33.333332f, 0.001f);
+    EXPECT_FLOAT_EQ(cell21_render->get_rect().width, 76.0f);
 }
 
 TEST(TableLayoutTest, AlignDoesNotInflateIntrinsicWidths) {
@@ -238,9 +238,9 @@ TEST(TableLayoutTest, AlignDoesNotInflateIntrinsicWidths) {
     ASSERT_NE(cell1_render, nullptr);
     ASSERT_NE(cell2_render, nullptr);
 
-    EXPECT_FLOAT_EQ(table_render->get_rect().width, 48.0f);
-    EXPECT_FLOAT_EQ(cell1_render->get_rect().width, 40.0f);
-    EXPECT_FLOAT_EQ(cell2_render->get_rect().width, 8.0f);
+    EXPECT_FLOAT_EQ(table_render->get_rect().width, 56.0f);
+    EXPECT_FLOAT_EQ(cell1_render->get_rect().width, 44.0f);
+    EXPECT_FLOAT_EQ(cell2_render->get_rect().width, 12.0f);
 }
 
 TEST(TableLayoutTest, AlignsBlockChildrenInCells) {
@@ -282,5 +282,5 @@ TEST(TableLayoutTest, AlignsBlockChildrenInCells) {
     EXPECT_FLOAT_EQ(cell_render->get_rect().width, 100.0f);
     const auto& block_rect = cell_render->get_children()[0]->get_rect();
     EXPECT_FLOAT_EQ(block_rect.width, 20.0f);
-    EXPECT_FLOAT_EQ(block_rect.x, 80.0f);
+    EXPECT_FLOAT_EQ(block_rect.x, 78.0f);
 }

@@ -131,6 +131,35 @@ TEST(StyleEngineTest, SubmitInputUsesCompactDefaultWidth) {
     EXPECT_FLOAT_EQ(*text_style->width, 180.0f);
 }
 
+TEST(StyleEngineTest, TableCellsUseDefaultPaddingForReadability) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto td = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
+    auto th = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Th);
+
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Table);
+    root->append_child(std::move(td));
+    root->append_child(std::move(th));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, root.get());
+
+    auto td_style = dynamic_cast<Element*>(root->get_children()[0].get())->get_computed_style();
+    auto th_style = dynamic_cast<Element*>(root->get_children()[1].get())->get_computed_style();
+    ASSERT_TRUE(td_style);
+    ASSERT_TRUE(th_style);
+
+    EXPECT_FLOAT_EQ(td_style->padding.left, 2.0f);
+    EXPECT_FLOAT_EQ(td_style->padding.right, 2.0f);
+    EXPECT_FLOAT_EQ(td_style->padding.top, 2.0f);
+    EXPECT_FLOAT_EQ(td_style->padding.bottom, 2.0f);
+
+    EXPECT_FLOAT_EQ(th_style->padding.left, 2.0f);
+    EXPECT_FLOAT_EQ(th_style->padding.right, 2.0f);
+    EXPECT_FLOAT_EQ(th_style->padding.top, 2.0f);
+    EXPECT_FLOAT_EQ(th_style->padding.bottom, 2.0f);
+}
+
 TEST(StyleEngineTest, StoresAndInheritsCustomProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
