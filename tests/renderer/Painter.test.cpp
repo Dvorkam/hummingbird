@@ -45,6 +45,7 @@ public:
     void draw_text(const std::string& text, float, float, const TextStyle&) override {
         ++draw_calls;
         last_text = text;
+        drawn_texts.push_back(text);
         draw_alphas.push_back(current_alpha);
     }
     void set_global_alpha(float alpha) override { current_alpha = alpha; }
@@ -52,6 +53,7 @@ public:
     int draw_calls = 0;
     int image_calls = 0;
     std::string last_text;
+    std::vector<std::string> drawn_texts;
     std::vector<Hummingbird::Layout::Rect> fill_calls;
     std::vector<float> draw_alphas;
     float current_alpha = 1.0f;
@@ -720,6 +722,39 @@ TEST(PainterTest, PaintsListMarkersWithCulling) {
     painter.paint(*render_tree, context, opts);
 
     EXPECT_FALSE(context.fill_calls.empty());
+}
+
+TEST(PainterTest, PaintsOrderedListMarkerText) {
+    std::string_view html = "<html><body><ol><li>Item</li></ol></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    Hummingbird::Css::Stylesheet sheet;
+    Hummingbird::Css::StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    opts.viewport = viewport;
+    painter.paint(*render_tree, context, opts);
+
+    bool saw_marker = false;
+    for (const auto& text : context.drawn_texts) {
+        if (text == "1.") {
+            saw_marker = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(saw_marker);
 }
 
 TEST(PainterTest, PaintsHorizontalRuleWithCulling) {

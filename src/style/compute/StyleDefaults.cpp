@@ -55,6 +55,13 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
 
     if (tag == Hummingbird::Html::TagNames::Ul || tag == Hummingbird::Html::TagNames::Ol) {
         style.padding.left = 20.0f;
+        if (tag == Hummingbird::Html::TagNames::Ol) {
+            style.list_style_type = ComputedStyle::ListStyleType::Decimal;
+            overrides.list_style_type = true;
+        } else {
+            style.list_style_type = ComputedStyle::ListStyleType::Disc;
+            overrides.list_style_type = true;
+        }
     } else if (tag == Hummingbird::Html::TagNames::Pre) {
         if (style.whitespace == ComputedStyle::WhiteSpace::Normal) {
             style.whitespace = ComputedStyle::WhiteSpace::Preserve;

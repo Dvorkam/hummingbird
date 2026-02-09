@@ -520,6 +520,45 @@ TEST(StyleEngineTest, InheritsListStyleFromParent) {
     EXPECT_EQ(li_style->list_style_type, ComputedStyle::ListStyleType::None);
 }
 
+TEST(StyleEngineTest, AppliesDecimalListStyleType) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto ol = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ol);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    ol->append_child(std::move(li));
+
+    std::string css = R"(ol { list-style-type: decimal; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, ol.get());
+
+    auto ol_style = ol->get_computed_style();
+    auto li_style = ol->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(ol_style);
+    ASSERT_TRUE(li_style);
+    EXPECT_EQ(ol_style->list_style_type, ComputedStyle::ListStyleType::Decimal);
+    EXPECT_EQ(li_style->list_style_type, ComputedStyle::ListStyleType::Decimal);
+}
+
+TEST(StyleEngineTest, AppliesOrderedListUaDefault) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto ol = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ol);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    ol->append_child(std::move(li));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, ol.get());
+
+    auto ol_style = ol->get_computed_style();
+    auto li_style = ol->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(ol_style);
+    ASSERT_TRUE(li_style);
+    EXPECT_EQ(ol_style->list_style_type, ComputedStyle::ListStyleType::Decimal);
+    EXPECT_EQ(li_style->list_style_type, ComputedStyle::ListStyleType::Decimal);
+}
+
 TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

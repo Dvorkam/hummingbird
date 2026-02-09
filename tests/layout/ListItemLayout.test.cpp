@@ -150,3 +150,32 @@ TEST(ListItemLayoutTest, InlineRunsShareLineWithinListItem) {
     EXPECT_EQ(first_rect.y, second_rect.y);
     EXPECT_GT(second_rect.x, first_rect.x);
 }
+
+TEST(ListItemLayoutTest, UsesWiderMarkerForOrderedList) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
+    auto ol = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ol);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    li->append_child(DomFactory::create_text(arena, "Item"));
+    ol->append_child(std::move(li));
+    body->append_child(std::move(ol));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 200};
+    render_root->layout(context, viewport);
+
+    const auto& ol_box = render_root->get_children()[0];
+    auto* list_item = dynamic_cast<RenderListItem*>(ol_box->get_children()[0].get());
+    ASSERT_NE(list_item, nullptr);
+
+    const auto& marker = list_item->marker_rect();
+    EXPECT_GT(marker.width, kListMarkerSizePx);
+}

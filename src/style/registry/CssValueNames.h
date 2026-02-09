@@ -32,6 +32,7 @@ static constexpr std::string_view Clip = "clip";
 static constexpr std::string_view BreakWord = "break-word";
 static constexpr std::string_view Underline = "underline";
 static constexpr std::string_view Disc = "disc";
+static constexpr std::string_view Decimal = "decimal";
 static constexpr std::string_view Inside = "inside";
 static constexpr std::string_view Outside = "outside";
 static constexpr std::string_view Static = "static";

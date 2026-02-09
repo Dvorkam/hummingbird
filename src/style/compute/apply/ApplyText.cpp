@@ -18,6 +18,11 @@ void apply_list_style_token(std::string_view token, ComputedStyle& style, StyleD
         overrides.list_style_type = true;
         return;
     }
+    if (token == ValueNames::Decimal) {
+        style.list_style_type = ComputedStyle::ListStyleType::Decimal;
+        overrides.list_style_type = true;
+        return;
+    }
     if (token == ValueNames::Inside) {
         style.list_style_position = ComputedStyle::ListStylePosition::Inside;
         overrides.list_style_position = true;

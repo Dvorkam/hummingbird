@@ -107,7 +107,7 @@ struct ComputedStyle {
         std::optional<float> height;
     };
     BackgroundSize background_size;
-    enum class ListStyleType { Disc, None };
+    enum class ListStyleType { Disc, Decimal, None };
     enum class ListStylePosition { Outside, Inside };
     ListStyleType list_style_type = ListStyleType::Disc;
     ListStylePosition list_style_position = ListStylePosition::Outside;
