@@ -269,3 +269,41 @@ TEST(LayoutStyleIntegrationTest, ResolvesPercentWidthsAgainstContainingBlock) {
     EXPECT_FLOAT_EQ(parent_rect.width, 400.0f);
     EXPECT_FLOAT_EQ(child_rect.width, 280.0f);
 }
+
+TEST(LayoutStyleIntegrationTest, InputKeepsMinimumContentBoxUnderBorderBoxConstraints) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto input = DomFactory::create_element(arena, "input");
+    input->set_attribute("type", "text");
+    dom_root->append_child(std::move(input));
+
+    std::string css = R"(
+        input {
+            width: 20px;
+            height: 10px;
+            box-sizing: border-box;
+            padding: 5px 7px;
+            border: 1px solid #666;
+        }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& children = render_root->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    const auto& rect = children[0]->get_rect();
+
+    // 8+8 horizontal and 6+6 vertical insets + minimum content box (8x12).
+    EXPECT_FLOAT_EQ(rect.width, 24.0f);
+    EXPECT_FLOAT_EQ(rect.height, 24.0f);
+}

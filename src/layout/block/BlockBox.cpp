@@ -5,6 +5,8 @@
 #include <utility>
 #include <vector>
 
+#include "core/dom/Element.h"
+#include "html/HtmlTagNames.h"
 #include "layout/block/FloatLayoutUtils.h"
 #include "layout/flow/FlowLayoutUtils.h"
 #include "layout/flow/inline/InlineRef.h"
@@ -21,6 +23,23 @@ class IGraphicsContext;
 namespace Hummingbird::Layout {
 
 constexpr float kInlineAtomicLayoutWidth = 100000.0f;
+constexpr float kMinInputContentWidth = 8.0f;
+constexpr float kMinInputContentHeight = 12.0f;
+
+bool is_input_element(const RenderObject& node) {
+    const auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
+    return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
+}
+
+void enforce_min_input_content_box(RenderObject& node, const Metrics::Insets& insets) {
+    if (!is_input_element(node)) {
+        return;
+    }
+    auto rect = node.get_rect();
+    rect.width = std::max(rect.width, insets.left + insets.right + kMinInputContentWidth);
+    rect.height = std::max(rect.height, insets.top + insets.bottom + kMinInputContentHeight);
+    node.set_rect(rect);
+}
 
 void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
@@ -202,11 +221,12 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
             }
         }
     }
+    Metrics::Insets insets = Metrics::compute_insets(style);
     if (style && style->width.has_value()) {
+        enforce_min_input_content_box(*this, insets);
         return;
     }
 
-    Metrics::Insets insets = Metrics::compute_insets(style);
     float inset_left = insets.left;
     float inset_right = insets.right;
 
@@ -224,6 +244,8 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     }
 
     m_rect.width = std::min(m_rect.width, required_width);
+
+    enforce_min_input_content_box(*this, insets);
 }
 
 }  // namespace Hummingbird::Layout

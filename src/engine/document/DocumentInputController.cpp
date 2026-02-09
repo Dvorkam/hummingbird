@@ -122,16 +122,7 @@ std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element
     Layout::Rect content = {absolute.x + insets.left, absolute.y + insets.top,
                             absolute.width - insets.left - insets.right, absolute.height - insets.top - insets.bottom};
     if (content.width <= 0.0f || content.height <= 0.0f) {
-        // Fallback for pages with pathological CSS where padding/border collapses
-        // the computed content box to zero. Keep input text and caret visible.
-        content = {absolute.x + 2.0f, absolute.y + 1.0f, std::max(0.0f, absolute.width - 4.0f),
-                   std::max(0.0f, absolute.height - 2.0f)};
-        HB_LOG_DEBUG("[input] fallback content box abs=" << absolute.x << "," << absolute.y << " " << absolute.width
-                                                         << "x" << absolute.height << " content=" << content.x << ","
-                                                         << content.y << " " << content.width << "x" << content.height);
-        if (content.width <= 0.0f || content.height <= 0.0f) {
-            return std::nullopt;
-        }
+        return std::nullopt;
     }
 
     TextStyle text_style = Layout::TextStyleUtils::build_text_style(style);
