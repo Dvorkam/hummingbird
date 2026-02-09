@@ -26,6 +26,8 @@ namespace Hummingbird::Layout {
 
 namespace {
 constexpr float kTableMeasureWidth = 100000.0f;
+constexpr float kTableGridStroke = 1.0f;
+constexpr Color kTableGridColor{150, 150, 150, 255};
 
 struct ParsedWidth {
     float value;
@@ -356,6 +358,20 @@ void RenderTableCell::layout(IGraphicsContext& context, const Rect& bounds) {
         float child_x = margin_box_x + margin_left;
         child->set_rect({child_x, child->get_rect().y, child->get_rect().width, child->get_rect().height});
     }
+}
+
+void RenderTableCell::paint_self(IGraphicsContext& context, const Point& offset) const {
+    BlockBox::paint_self(context, offset);
+
+    Rect abs{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
+    if (abs.width <= 0.0f || abs.height <= 0.0f) {
+        return;
+    }
+
+    context.fill_rect({abs.x, abs.y, abs.width, kTableGridStroke}, kTableGridColor);
+    context.fill_rect({abs.x, abs.y + abs.height - kTableGridStroke, abs.width, kTableGridStroke}, kTableGridColor);
+    context.fill_rect({abs.x, abs.y, kTableGridStroke, abs.height}, kTableGridColor);
+    context.fill_rect({abs.x + abs.width - kTableGridStroke, abs.y, kTableGridStroke, abs.height}, kTableGridColor);
 }
 
 }  // namespace Hummingbird::Layout

@@ -403,7 +403,7 @@ P1+: Refactors and Polish (Only if Needed / Time Allows)
 - [x] T-CSS-TEXT-1 (M5 P2): Text Effects Polish
 - [x] T-CSS-CODE-1 (M5 P3): Code/Pre Background Defaults
 - [x] T-LIST-1 (M5 P3): Ordered List Markers
-- [ ] T-TABLE-1 (M5 P3): Table Borders for Visibility
+- [x] T-TABLE-1 (M5 P3): Table Borders for Visibility
 - [ ] T-IMG-1 (M5 P2): Animated GIF/WebP Playback
 - [ ] T-IMG-2 (M5 P2): SVG Image Decode (Raster)
 - [ ] T-UI-FORM-1 (M5 P2): Form Control Styling Polish
