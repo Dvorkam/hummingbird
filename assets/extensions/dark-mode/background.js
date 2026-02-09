@@ -1,18 +1,23 @@
-const DARK_SCOPE_SELECTOR = ".hb-dark-scope";
-
 const DARK_MODE_CSS = `
-${DARK_SCOPE_SELECTOR},
-${DARK_SCOPE_SELECTOR} * {
+html,
+body,
+body * {
   background-color: #151821 !important;
   color: #e6e8ef !important;
   border-color: #3f455f !important;
 }
-${DARK_SCOPE_SELECTOR} a {
+a {
   color: #8fc7ff !important;
 }
-${DARK_SCOPE_SELECTOR} code,
-${DARK_SCOPE_SELECTOR} pre {
+code,
+pre {
   background-color: #1f2433 !important;
+}
+img,
+svg,
+video,
+canvas {
+  background-color: transparent !important;
 }
 `;
 
@@ -40,4 +45,4 @@ if (active) {
   injectDarkModeForTab(active);
 }
 
-console.log("dark-mode extension loaded (scoped)");
+console.log("dark-mode extension loaded (global)");
