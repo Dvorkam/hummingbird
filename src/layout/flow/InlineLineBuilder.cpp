@@ -66,7 +66,21 @@ std::vector<InlineLine> InlineLineBuilder::layout(float max_width, float start_x
         for (auto& fragment : line.fragments) {
             const auto& run = m_runs[fragment.run_index];
             float run_ascent = resolve_run_ascent(run);
-            fragment.rect.y = line_top + (line_ascent - run_ascent);
+            switch (run.vertical_align) {
+                case InlineVerticalAlign::Top:
+                    fragment.rect.y = line_top;
+                    break;
+                case InlineVerticalAlign::Middle:
+                    fragment.rect.y = line_top + std::max(0.0f, (line.height - run.height) * 0.5f);
+                    break;
+                case InlineVerticalAlign::Bottom:
+                    fragment.rect.y = line_top + std::max(0.0f, line.height - run.height);
+                    break;
+                case InlineVerticalAlign::Baseline:
+                default:
+                    fragment.rect.y = line_top + (line_ascent - run_ascent);
+                    break;
+            }
         }
         cursor.line_height = line.height;
     };

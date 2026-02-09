@@ -11,6 +11,7 @@
 #include "core/utils/Utf8Utils.h"
 #include "layout/flow/TextLayoutUtils.h"
 #include "layout/flow/TextStyleUtils.h"
+#include "layout/flow/inline/InlineVerticalAlignUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "layout/geometry/metrics/TextMetricsUtils.h"
 #include "style/types/ComputedStyle.h"
@@ -396,6 +397,7 @@ void TextBox::measure_inline(IGraphicsContext& context) {
         run.width = m_rect.width;
         run.height = m_rect.height;
         run.ascent = compute_text_ascent(m_last_metrics, m_line_height);
+        run.vertical_align = resolve_inline_vertical_align(style);
         m_inline_runs.push_back(std::move(run));
         return;
     }
@@ -427,6 +429,7 @@ void TextBox::measure_inline(IGraphicsContext& context) {
                 run.width = run.text.empty() ? 0.0f : metrics.width + letter_spacing;
                 run.height = line_height;
                 run.ascent = compute_text_ascent(metrics, line_height);
+                run.vertical_align = resolve_inline_vertical_align(style);
                 m_inline_runs.push_back(std::move(run));
                 idx = next;
             }
@@ -441,6 +444,7 @@ void TextBox::measure_inline(IGraphicsContext& context) {
         run.width = measure_spaced_text(context, token, text_style, letter_spacing);
         run.height = line_height;
         run.ascent = compute_text_ascent(metrics, line_height);
+        run.vertical_align = resolve_inline_vertical_align(style);
         m_inline_runs.push_back(std::move(run));
     }
     m_fragments.resize(m_inline_runs.size());

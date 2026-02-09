@@ -998,6 +998,22 @@ TEST(StyleEngineTest, CursorIsInheritedToChildren) {
     EXPECT_EQ(child_style->cursor, ComputedStyle::Cursor::Text);
 }
 
+TEST(StyleEngineTest, AppliesVerticalAlignProperty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+
+    std::string css = "span { vertical-align: middle; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->vertical_align, ComputedStyle::VerticalAlign::Middle);
+}
+
 TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

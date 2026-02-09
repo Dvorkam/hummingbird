@@ -24,10 +24,12 @@ struct ComputedStyle {
     Position position = Position::Static;
     enum class TextAlign { Left, Center, Right };
     enum class Cursor { Auto, Default, Pointer, Text };
+    enum class VerticalAlign { Baseline, Top, Middle, Bottom };
     enum class Overflow { Visible, Hidden, Scroll, Auto };
     Overflow overflow_x = Overflow::Visible;
     Overflow overflow_y = Overflow::Visible;
     Cursor cursor = Cursor::Auto;
+    VerticalAlign vertical_align = VerticalAlign::Baseline;
     TextAlign text_align = TextAlign::Left;
     enum class TextTransform { None, Uppercase, Lowercase, Capitalize };
     TextTransform text_transform = TextTransform::None;

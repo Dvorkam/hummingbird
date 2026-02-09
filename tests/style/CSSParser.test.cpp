@@ -177,6 +177,18 @@ TEST(CSSParserTest, ParsesCursorProperty) {
     EXPECT_EQ(decls[0].value.ident, "pointer");
 }
 
+TEST(CSSParserTest, ParsesVerticalAlignProperty) {
+    Parser parser("span { vertical-align: middle; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+
+    EXPECT_EQ(decls[0].property, Property::VerticalAlign);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Identifier);
+    EXPECT_EQ(decls[0].value.ident, "middle");
+}
+
 TEST(CSSParserTest, ParsesLeadingDotAndSignedNumbers) {
     Parser parser("div { padding: .75em; margin-left: -0.35em; right: 2px; }");
     auto sheet = parser.parse();

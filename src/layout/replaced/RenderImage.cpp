@@ -12,6 +12,7 @@
 #include "core/utils/AssetPath.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/flow/inline/InlineTypes.h"
+#include "layout/flow/inline/InlineVerticalAlignUtils.h"
 #include "layout/geometry/metrics/ReplacedElementUtils.h"
 #include "layout/paint/PaintUtils.h"
 #include "layout/replaced/ReplacedSizingUtils.h"
@@ -132,12 +133,14 @@ void RenderImage::measure_inline(IGraphicsContext& /*context*/) {
 }
 
 void RenderImage::collect_inline_runs(IGraphicsContext& /*context*/, std::vector<InlineRun>& runs) {
+    const auto* style = get_computed_style();
     InlineRun run;
     run.owner = this;
     run.local_index = 0;
     run.width = m_inline_measured_width;
     run.height = m_inline_measured_height;
     run.ascent = m_inline_measured_height;
+    run.vertical_align = resolve_inline_vertical_align(style);
     runs.push_back(std::move(run));
 }
 

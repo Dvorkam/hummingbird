@@ -126,6 +126,7 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.display = source.display;
     target.overflow_x = source.overflow_x;
     target.overflow_y = source.overflow_y;
+    target.vertical_align = source.vertical_align;
     target.border_width = source.border_width;
     target.border_radius = source.border_radius;
     target.border_color = source.border_color;

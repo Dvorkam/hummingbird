@@ -6,6 +6,7 @@
 
 #include "layout/flow/inline/InlineRef.h"
 #include "layout/flow/inline/InlineTypes.h"
+#include "layout/flow/inline/InlineVerticalAlignUtils.h"
 #include "layout/geometry/PositioningUtils.h"
 #include "layout/geometry/metrics/InlineBaselineUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
@@ -74,6 +75,7 @@ void InlineBox::collect_inline_runs(IGraphicsContext& context, std::vector<Inlin
         run.height = m_inline_measured_height;
         run.ascent =
             InlineBaselineUtils::resolve_atomic_inline_ascent(context, style, insets, run.height, !m_children.empty());
+        run.vertical_align = resolve_inline_vertical_align(style);
         runs.push_back(std::move(run));
         return;
     }

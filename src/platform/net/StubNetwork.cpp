@@ -137,6 +137,17 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .baseline-demo { font-size: 16px; }
       .baseline-demo .big { font-size: 28px; }
       .baseline-demo .small { font-size: 12px; }
+      .vertical-align-demo { border: 1px dashed #bbb; padding: 4px; }
+      .vertical-align-chip {
+        display: inline-block;
+        border: 1px solid #666;
+        padding: 2px 6px;
+        margin-right: 4px;
+        background-color: #f5f5f5;
+      }
+      .vertical-align-top { vertical-align: top; }
+      .vertical-align-middle { vertical-align: middle; }
+      .vertical-align-bottom { vertical-align: bottom; }
       .dark-mode-demo { border: 1px solid #bbb; padding: 6px; }
       .dark-mode-column { float: left; width: 320px; margin: 4px 10px 4px 0; }
       .dark-mode-clear { clear: both; }
@@ -158,6 +169,13 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       <p class="boxed">Bordered example paragraph.</p>
       <p><span class="inline-block">Inline</span> <span class="inline-block">Block</span></p>
       <p class="baseline-demo">Baseline <span class="big">BIG</span> <span class="small">small</span> aligned.</p>
+      <p class="vertical-align-demo">
+        vertical-align:
+        <span class="vertical-align-chip">baseline</span>
+        <span class="vertical-align-chip vertical-align-top">top</span>
+        <span class="vertical-align-chip vertical-align-middle">middle</span>
+        <span class="vertical-align-chip vertical-align-bottom">bottom</span>
+      </p>
       <pre>Preformatted
 text stays
 aligned.</pre>

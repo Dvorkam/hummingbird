@@ -124,6 +124,19 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                 }
             }
             return true;
+        case Property::VerticalAlign:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Baseline) {
+                    style.vertical_align = ComputedStyle::VerticalAlign::Baseline;
+                } else if (value.ident == ValueNames::Top) {
+                    style.vertical_align = ComputedStyle::VerticalAlign::Top;
+                } else if (value.ident == ValueNames::Middle) {
+                    style.vertical_align = ComputedStyle::VerticalAlign::Middle;
+                } else if (value.ident == ValueNames::Bottom) {
+                    style.vertical_align = ComputedStyle::VerticalAlign::Bottom;
+                }
+            }
+            return true;
         case Property::LetterSpacing:
             if (value.type == Value::Type::Identifier && value.ident == ValueNames::Normal) {
                 style.letter_spacing = 0.0f;

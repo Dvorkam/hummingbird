@@ -84,6 +84,7 @@ enum class ApplyHook : std::uint8_t {
     apply_text_align,
     apply_text_transform,
     apply_cursor,
+    apply_vertical_align,
     apply_letter_spacing,
     apply_text_indent,
     apply_text_overflow,
