@@ -33,8 +33,24 @@ HB_CSS_PROPERTY(Transform, Transform, "transform", "transform", ParserHook::pars
                 PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Border, Border, "border", "border", ParserHook::parse_border_shorthand, ApplyHook::apply_border,
                 PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderTop, BorderTop, "border-top", "border-top", ParserHook::parse_border_shorthand, ApplyHook::apply_border,
+                PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderRight, BorderRight, "border-right", "border-right", ParserHook::parse_border_shorthand,
+                ApplyHook::apply_border, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderBottom, BorderBottom, "border-bottom", "border-bottom", ParserHook::parse_border_shorthand,
+                ApplyHook::apply_border, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderLeft, BorderLeft, "border-left", "border-left", ParserHook::parse_border_shorthand,
+                ApplyHook::apply_border, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BorderWidth, BorderWidth, "border-width", "border-width", ParserHook::parse_length, ApplyHook::apply_border_width,
                 PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderTopWidth, BorderTopWidth, "border-top-width", "border-top-width", ParserHook::parse_length,
+                ApplyHook::apply_border_width, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderRightWidth, BorderRightWidth, "border-right-width", "border-right-width", ParserHook::parse_length,
+                ApplyHook::apply_border_width, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderBottomWidth, BorderBottomWidth, "border-bottom-width", "border-bottom-width", ParserHook::parse_length,
+                ApplyHook::apply_border_width, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderLeftWidth, BorderLeftWidth, "border-left-width", "border-left-width", ParserHook::parse_length,
+                ApplyHook::apply_border_width, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BorderRadius, BorderRadius, "border-radius", "border-radius", ParserHook::parse_length,
                 ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BorderColor, BorderColor, "border-color", "border-color", ParserHook::parse_color, ApplyHook::apply_border_color,

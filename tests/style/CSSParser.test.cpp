@@ -220,6 +220,87 @@ TEST(CSSParserTest, ParsesBackgroundImageUrl) {
     EXPECT_EQ(decls[0].value.ident, "/img/logo.png");
 }
 
+TEST(CSSParserTest, ParsesBorderSideShorthandIntoSideWidthDeclaration) {
+    Parser parser(
+        "div { border-top: 3px solid #123456; border-left: 2px ridge #999; border-bottom: 4px solid #111; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+
+    bool saw_top_width = false;
+    bool saw_left_width = false;
+    bool saw_bottom_width = false;
+    bool saw_style = false;
+    bool saw_color = false;
+    bool saw_global_border_width = false;
+    for (const auto& decl : decls) {
+        if (decl.property == Property::BorderTopWidth) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 3.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_top_width = true;
+        }
+        if (decl.property == Property::BorderLeftWidth) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 2.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_left_width = true;
+        }
+        if (decl.property == Property::BorderBottomWidth) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 4.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_bottom_width = true;
+        }
+        if (decl.property == Property::BorderWidth) {
+            saw_global_border_width = true;
+        }
+        if (decl.property == Property::BorderStyle) {
+            saw_style = true;
+        }
+        if (decl.property == Property::BorderColor) {
+            saw_color = true;
+        }
+    }
+
+    EXPECT_TRUE(saw_top_width);
+    EXPECT_TRUE(saw_left_width);
+    EXPECT_TRUE(saw_bottom_width);
+    EXPECT_TRUE(saw_style);
+    EXPECT_TRUE(saw_color);
+    EXPECT_FALSE(saw_global_border_width);
+}
+
+TEST(CSSParserTest, ParsesBorderSideWidthsWithoutCollapsingToGlobalBorderWidth) {
+    Parser parser("div { border-top: 5px solid #224488; border-right-width: 3px; border-bottom: 2px inset #224488; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+
+    bool saw_top = false;
+    bool saw_right = false;
+    bool saw_bottom = false;
+    bool saw_global = false;
+    for (const auto& decl : decls) {
+        if (decl.property == Property::BorderTopWidth) {
+            saw_top = true;
+        }
+        if (decl.property == Property::BorderRightWidth) {
+            saw_right = true;
+        }
+        if (decl.property == Property::BorderBottomWidth) {
+            saw_bottom = true;
+        }
+        if (decl.property == Property::BorderWidth) {
+            saw_global = true;
+        }
+    }
+    EXPECT_TRUE(saw_top);
+    EXPECT_TRUE(saw_right);
+    EXPECT_TRUE(saw_bottom);
+    EXPECT_FALSE(saw_global);
+}
+
 TEST(CSSParserTest, ExpandsBackgroundShorthandForImages) {
     Parser parser("div { background: url(/img/logo.png) no-repeat center; }");
     auto sheet = parser.parse();

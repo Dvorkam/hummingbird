@@ -100,6 +100,15 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .var-demo { color: var(--brand); background-color: var(--panel, #444); padding: 4px; }
       .border-style-demo { border-width: 3px; border-style: outset; border-color: #5b3a12; padding: 6px; }
       .border-radius-demo { border-width: 3px; border-style: solid; border-color: #2d4a9b; background-color: #dfe9ff; padding: 10px; width: 220px; border-radius: 14px; }
+      .border-sides-demo {
+        width: 240px;
+        padding: 8px;
+        background-color: #f8fbff;
+        border-top: 5px solid #2d4a9b;
+        border-right: 3px ridge #5b7bb8;
+        border-bottom: 2px solid #2d4a9b;
+        border-left: 7px inset #8aa2d6;
+      }
       .outline-demo { width: 220px; padding: 8px; border: 1px solid #555; outline: 3px solid #2c7a4b; outline-offset: 4px; margin: 12px; }
       .table-align-demo { border: 1px solid #bbb; }
       .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
@@ -162,6 +171,7 @@ aligned.</pre>
       <h2>Border Styles</h2>
       <p class="border-style-demo">Outset border demo.</p>
       <p class="border-radius-demo">Rounded border demo (border-radius: 14px).</p>
+      <p class="border-sides-demo">Side-specific border shorthand demo.</p>
       <p class="outline-demo">Outline demo (outline + outline-offset).</p>
     </div>
 

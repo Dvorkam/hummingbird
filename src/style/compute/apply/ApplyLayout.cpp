@@ -338,6 +338,20 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
         case Property::BorderWidth:
             apply_edge(style.border_width, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
             return true;
+        case Property::BorderTopWidth:
+            style.border_width.top = StyleValueUtils::value_to_length(value, style.border_width.top, style.font_size);
+            return true;
+        case Property::BorderRightWidth:
+            style.border_width.right =
+                StyleValueUtils::value_to_length(value, style.border_width.right, style.font_size);
+            return true;
+        case Property::BorderBottomWidth:
+            style.border_width.bottom =
+                StyleValueUtils::value_to_length(value, style.border_width.bottom, style.font_size);
+            return true;
+        case Property::BorderLeftWidth:
+            style.border_width.left = StyleValueUtils::value_to_length(value, style.border_width.left, style.font_size);
+            return true;
         case Property::BorderRadius:
             style.border_radius = std::max(0.0f, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
             return true;

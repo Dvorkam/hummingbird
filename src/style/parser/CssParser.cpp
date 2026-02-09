@@ -441,6 +441,20 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             emit_edges(Property::PaddingTop, Property::PaddingRight, Property::PaddingBottom, Property::PaddingLeft);
             return true;
         case PropertyRegistry::ParserHook::parse_border_shorthand: {
+            auto border_width_property_for = [&](Property target) {
+                switch (target) {
+                    case Property::BorderTop:
+                        return Property::BorderTopWidth;
+                    case Property::BorderRight:
+                        return Property::BorderRightWidth;
+                    case Property::BorderBottom:
+                        return Property::BorderBottomWidth;
+                    case Property::BorderLeft:
+                        return Property::BorderLeftWidth;
+                    default:
+                        return Property::BorderWidth;
+                }
+            };
             std::optional<Value> border_width;
             std::optional<Value> border_style;
             std::optional<Value> border_color;
@@ -460,7 +474,9 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                     border_style = value;
                 }
             }
-            if (border_width) push_decl(Property::BorderWidth, *border_width);
+            if (border_width) {
+                push_decl(border_width_property_for(property), *border_width);
+            }
             if (border_style) push_decl(Property::BorderStyle, *border_style);
             if (border_color) push_decl(Property::BorderColor, *border_color);
             return true;

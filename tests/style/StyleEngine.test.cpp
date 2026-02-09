@@ -815,6 +815,35 @@ TEST(StyleEngineTest, AppliesBorderProperties) {
     EXPECT_EQ(style->border_color.b, 0x00);
 }
 
+TEST(StyleEngineTest, AppliesBorderSideShorthandsToIndividualWidths) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = R"(
+        div {
+            border-top: 5px solid #224488;
+            border-right-width: 3px;
+            border-bottom: 2px inset #224488;
+        }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_width.top, 5.0f);
+    EXPECT_FLOAT_EQ(style->border_width.right, 3.0f);
+    EXPECT_FLOAT_EQ(style->border_width.bottom, 2.0f);
+    EXPECT_FLOAT_EQ(style->border_width.left, 0.0f);
+    EXPECT_EQ(style->border_style, ComputedStyle::BorderStyle::Inset);
+    EXPECT_EQ(style->border_color.r, 0x22);
+    EXPECT_EQ(style->border_color.g, 0x44);
+    EXPECT_EQ(style->border_color.b, 0x88);
+}
+
 TEST(StyleEngineTest, AppliesBorderRadiusProperty) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

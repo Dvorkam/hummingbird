@@ -61,10 +61,10 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
             (void)apply_layout_property(Property::Transform, value, style, overrides, context);
             return;
         case ApplyHook::apply_border:
-            (void)apply_layout_property(Property::Border, value, style, overrides, context);
+            (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::apply_border_width:
-            (void)apply_layout_property(Property::BorderWidth, value, style, overrides, context);
+            (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::apply_border_radius:
             (void)apply_layout_property(Property::BorderRadius, value, style, overrides, context);
