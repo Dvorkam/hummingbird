@@ -401,7 +401,7 @@ P1+: Refactors and Polish (Only if Needed / Time Allows)
 - [x] T-CSS-BORDER-2 (M5 P2): border-radius (paint)
 - [x] T-CSS-DECOR-1 (M5 P2): outline + outline-offset
 - [x] T-CSS-TEXT-1 (M5 P2): Text Effects Polish
-- [ ] T-CSS-CODE-1 (M5 P3): Code/Pre Background Defaults
+- [x] T-CSS-CODE-1 (M5 P3): Code/Pre Background Defaults
 - [ ] T-LIST-1 (M5 P3): Ordered List Markers
 - [ ] T-TABLE-1 (M5 P3): Table Borders for Visibility
 - [ ] T-IMG-1 (M5 P2): Animated GIF/WebP Playback

@@ -49,7 +49,6 @@ InlineLayout::InlineLayoutResult layout_inline_group(IGraphicsContext& context,
                                                      std::vector<std::unique_ptr<RenderObject>>& children, size_t& i,
                                                      LineCursor& cursor, float base_x, float content_width,
                                                      Css::ComputedStyle::TextAlign text_align, float wrap_width,
-                                                     bool no_wrap, bool text_overflow_ellipsis,
-                                                     bool capture_fragments);
+                                                     bool no_wrap, bool text_overflow_ellipsis, bool capture_fragments);
 
 }  // namespace Hummingbird::Layout::FlowLayout

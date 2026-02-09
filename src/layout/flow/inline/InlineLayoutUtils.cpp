@@ -17,7 +17,8 @@ namespace Hummingbird::Layout::InlineLayout {
 
 namespace {
 
-float measure_text_width(IGraphicsContext& context, std::string_view text, const TextStyle& style, float letter_spacing) {
+float measure_text_width(IGraphicsContext& context, std::string_view text, const TextStyle& style,
+                         float letter_spacing) {
     if (text.empty()) {
         return 0.0f;
     }
@@ -55,8 +56,8 @@ std::string ellipsize_inline_text(IGraphicsContext& context, std::string_view te
     return out;
 }
 
-void apply_ellipsis_to_first_line(IGraphicsContext& context, std::vector<InlineLine>& lines, std::vector<InlineRun>& runs,
-                                  float content_width) {
+void apply_ellipsis_to_first_line(IGraphicsContext& context, std::vector<InlineLine>& lines,
+                                  std::vector<InlineRun>& runs, float content_width) {
     if (lines.empty() || content_width <= 0.0f) {
         return;
     }

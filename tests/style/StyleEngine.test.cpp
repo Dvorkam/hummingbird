@@ -87,6 +87,7 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     EXPECT_FLOAT_EQ(ul_style->padding.left, 20.0f);
     EXPECT_EQ(pre_style->whitespace, ComputedStyle::WhiteSpace::Preserve);
     EXPECT_TRUE(pre_style->font_monospace);
+    EXPECT_FALSE(pre_style->background.has_value());
 
     EXPECT_EQ(a_style->color.r, 0);
     EXPECT_EQ(a_style->color.g, 0);
@@ -1038,4 +1039,33 @@ TEST(StyleEngineTest, AppliesTextEffectsProperties) {
     EXPECT_FLOAT_EQ(style->text_indent, 12.0f);
     EXPECT_EQ(style->text_overflow, ComputedStyle::TextOverflow::Ellipsis);
     EXPECT_EQ(style->word_wrap, ComputedStyle::WordWrap::BreakWord);
+}
+
+TEST(StyleEngineTest, AuthorBackgroundOverridesCodeAndPreDefaults) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto code = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Code);
+    auto pre = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Pre);
+    root->append_child(std::move(code));
+    root->append_child(std::move(pre));
+
+    std::string css = "code { background-color: #eeeeee; } pre { background-color: #dddddd; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto code_style = dynamic_cast<Element*>(root->get_children()[0].get())->get_computed_style();
+    auto pre_style = dynamic_cast<Element*>(root->get_children()[1].get())->get_computed_style();
+    ASSERT_TRUE(code_style);
+    ASSERT_TRUE(pre_style);
+    ASSERT_TRUE(code_style->background.has_value());
+    ASSERT_TRUE(pre_style->background.has_value());
+    EXPECT_EQ(code_style->background->r, 238);
+    EXPECT_EQ(code_style->background->g, 238);
+    EXPECT_EQ(code_style->background->b, 238);
+    EXPECT_EQ(pre_style->background->r, 221);
+    EXPECT_EQ(pre_style->background->g, 221);
+    EXPECT_EQ(pre_style->background->b, 221);
 }

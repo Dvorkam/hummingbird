@@ -132,9 +132,9 @@ void RenderListItem::layout(IGraphicsContext& context, const Rect& bounds) {
         bool no_wrap = style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap;
         bool text_overflow_ellipsis = style && style->text_overflow == Css::ComputedStyle::TextOverflow::Ellipsis;
         cursor.x = std::max(cursor.x, band.left);
-        InlineLayout::InlineLayoutResult inline_layout = FlowLayout::layout_inline_group(
-            context, m_children, i, cursor, band.left, band.right - band.left, align, wrap_width, no_wrap,
-            text_overflow_ellipsis, true);
+        InlineLayout::InlineLayoutResult inline_layout =
+            FlowLayout::layout_inline_group(context, m_children, i, cursor, band.left, band.right - band.left, align,
+                                            wrap_width, no_wrap, text_overflow_ellipsis, true);
         update_marker_for_inline(inline_layout, marker_y_set, marker_y, metrics.insets.top);
     }
 

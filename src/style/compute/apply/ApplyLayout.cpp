@@ -350,7 +350,8 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             apply_outline_shorthand(style, value);
             return true;
         case Property::OutlineWidth:
-            style.outline_width = std::max(0.0f, StyleValueUtils::value_to_length(value, style.outline_width, style.font_size));
+            style.outline_width =
+                std::max(0.0f, StyleValueUtils::value_to_length(value, style.outline_width, style.font_size));
             return true;
         case Property::OutlineColor:
             if (value.type == Value::Type::Color) {

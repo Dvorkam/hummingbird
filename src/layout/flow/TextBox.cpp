@@ -7,8 +7,8 @@
 #include <ostream>
 #include <utility>
 
-#include "core/utils/Utf8Utils.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/utils/Utf8Utils.h"
 #include "layout/flow/TextLayoutUtils.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
@@ -213,7 +213,9 @@ void build_wrapped_lines(IGraphicsContext& context, const std::string& text, con
     // Greedy wrap by tokens (words and explicit spaces) to preserve spacing around inline elements.
     auto tokens = TextLayoutUtils::tokenize_text(text);
 
-    auto measure_word = [&](const std::string& w) { return measure_spaced_text(context, w, text_style, letter_spacing); };
+    auto measure_word = [&](const std::string& w) {
+        return measure_spaced_text(context, w, text_style, letter_spacing);
+    };
     float space_width = measure_spaced_text(context, " ", text_style, 0.0f);
 
     std::string line_text;
@@ -227,8 +229,8 @@ void build_wrapped_lines(IGraphicsContext& context, const std::string& text, con
                 std::string remaining = tok;
                 while (!remaining.empty()) {
                     std::string tail;
-                    std::string head = split_token_by_width(context, remaining, text_style, letter_spacing,
-                                                            available_width, tail);
+                    std::string head =
+                        split_token_by_width(context, remaining, text_style, letter_spacing, available_width, tail);
                     if (head.empty()) {
                         head = tail.substr(0, 1);
                         tail = tail.substr(head.size());
@@ -310,7 +312,8 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     float content_width = 0.0f;
     float available_width = Metrics::compute_available_width(style, bounds, insets);
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve) {
-        build_preserved_lines(context, m_rendered_text, text_style, m_lines, m_line_widths, content_width, letter_spacing);
+        build_preserved_lines(context, m_rendered_text, text_style, m_lines, m_line_widths, content_width,
+                              letter_spacing);
     } else if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) {
         build_wrapped_lines(context, m_rendered_text, text_style, 0.0f, m_lines, m_line_widths, content_width,
                             letter_spacing, false);
@@ -549,7 +552,8 @@ void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_s
             info.max_y = std::max(info.max_y, frag_bottom);
             info.baseline = std::max(info.baseline, frag.rect.y + frag.ascent);
         }
-        draw_spaced_text(context, frag.text, absolute_x + frag.rect.x, absolute_y + frag.rect.y, text_style, letter_spacing);
+        draw_spaced_text(context, frag.text, absolute_x + frag.rect.x, absolute_y + frag.rect.y, text_style,
+                         letter_spacing);
     }
 
     if (!underline) {

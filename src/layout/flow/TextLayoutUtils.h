@@ -64,12 +64,8 @@ inline std::string build_rendered_text(std::string_view text, const Css::Compute
         return rendered;
     }
 
-    auto to_lower_char = [](char c) -> char {
-        return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
-    };
-    auto to_upper_char = [](char c) -> char {
-        return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
-    };
+    auto to_lower_char = [](char c) -> char { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); };
+    auto to_upper_char = [](char c) -> char { return static_cast<char>(std::toupper(static_cast<unsigned char>(c))); };
 
     switch (style->text_transform) {
         case Css::ComputedStyle::TextTransform::Uppercase:
