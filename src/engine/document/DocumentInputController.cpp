@@ -204,8 +204,9 @@ void paint_input_focus_ring(const Layout::Rect& absolute, IGraphicsContext& grap
 }
 }  // namespace
 
-bool DocumentInputController::set_control_interaction_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
-                                                         const Layout::Rect& viewport, float scroll_y) {
+bool DocumentInputController::set_control_interaction_at(const Layout::RenderObject* render_tree,
+                                                         const Layout::Point& point, const Layout::Rect& viewport,
+                                                         float scroll_y) {
     DOM::Element* hit = hit_test_interactive_control(render_tree, point, viewport, scroll_y);
     bool changed = false;
     if (hovered_active_control_ && hovered_active_control_ != hit) {

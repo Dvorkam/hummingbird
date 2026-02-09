@@ -224,7 +224,8 @@ std::vector<float> collect_column_absolute_hints(const std::vector<RenderTableRo
     return hints;
 }
 
-void apply_column_absolute_min_widths(std::vector<float>& column_widths, const std::vector<float>& column_absolute_hints) {
+void apply_column_absolute_min_widths(std::vector<float>& column_widths,
+                                      const std::vector<float>& column_absolute_hints) {
     if (column_widths.size() != column_absolute_hints.size()) {
         return;
     }
@@ -450,10 +451,9 @@ void log_table_seam_anomaly(const RenderTableCell& cell) {
     if (!warn_once.should_log(key)) {
         return;
     }
-    HB_LOG_WARN("[table-debug] seam " << (delta < 0.0f ? "overlap" : "gap")
-                                      << " table_class='" << table_class_for_cell(cell) << "' prev_right="
-                                      << previous_right << " current_left=" << cell.get_rect().x
-                                      << " delta=" << delta);
+    HB_LOG_WARN("[table-debug] seam " << (delta < 0.0f ? "overlap" : "gap") << " table_class='"
+                                      << table_class_for_cell(cell) << "' prev_right=" << previous_right
+                                      << " current_left=" << cell.get_rect().x << " delta=" << delta);
 }
 }  // namespace
 
@@ -626,14 +626,10 @@ void RenderTableCell::paint_self(IGraphicsContext& context, const Point& offset)
         const auto& bw = style->border_width;
         if (bw.top > 0.0f || bw.right > 0.0f || bw.bottom > 0.0f || bw.left > 0.0f) {
             if (seam_verbose) {
-                HB_LOG_WARN("[table-debug] skip fallback grid due css border table_class='" << table_class
-                                                                                << "' class='" << class_name
-                                                                                << "' rect=("
-                                                                                << m_rect.x << "," << m_rect.y << ","
-                                                                                << m_rect.width << "," << m_rect.height
-                                                                                << ") border=(" << bw.top << ","
-                                                                                << bw.right << "," << bw.bottom << ","
-                                                                                << bw.left << ")");
+                HB_LOG_WARN("[table-debug] skip fallback grid due css border table_class='"
+                            << table_class << "' class='" << class_name << "' rect=(" << m_rect.x << "," << m_rect.y
+                            << "," << m_rect.width << "," << m_rect.height << ") border=(" << bw.top << "," << bw.right
+                            << "," << bw.bottom << "," << bw.left << ")");
             }
             return;
         }
@@ -653,11 +649,10 @@ void RenderTableCell::paint_self(IGraphicsContext& context, const Point& offset)
     float snapped_height = std::max(kTableGridStroke, bottom - top);
 
     if (seam_verbose) {
-        HB_LOG_WARN("[table-debug] draw fallback grid table_class='" << table_class << "' class='" << class_name
-                                                                     << "' abs=(" << abs.x << "," << abs.y
-                                                               << "," << abs.width << "," << abs.height
-                                                               << ") snapped=(" << left << "," << top << "," << right
-                                                               << "," << bottom << ")");
+        HB_LOG_WARN("[table-debug] draw fallback grid table_class='"
+                    << table_class << "' class='" << class_name << "' abs=(" << abs.x << "," << abs.y << ","
+                    << abs.width << "," << abs.height << ") snapped=(" << left << "," << top << "," << right << ","
+                    << bottom << ")");
     }
 
     context.fill_rect({left, top, snapped_width, kTableGridStroke}, kTableGridColor);
