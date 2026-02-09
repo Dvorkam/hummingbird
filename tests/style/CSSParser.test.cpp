@@ -300,6 +300,54 @@ TEST(CSSParserTest, ParsesBorderSideWidthsWithoutCollapsingToGlobalBorderWidth) 
     EXPECT_FALSE(saw_global);
 }
 
+TEST(CSSParserTest, ParsesFontShorthandIntoComponentDeclarations) {
+    Parser parser("p { font: italic 700 20px/1.5 Roboto Mono, monospace; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+
+    bool saw_style = false;
+    bool saw_weight = false;
+    bool saw_size = false;
+    bool saw_line_height = false;
+    bool saw_family = false;
+    for (const auto& decl : decls) {
+        if (decl.property == Property::FontStyle) {
+            ASSERT_EQ(decl.value.type, Value::Type::Identifier);
+            EXPECT_EQ(decl.value.ident, "italic");
+            saw_style = true;
+        }
+        if (decl.property == Property::FontWeight) {
+            ASSERT_EQ(decl.value.type, Value::Type::Number);
+            EXPECT_FLOAT_EQ(decl.value.number, 700.0f);
+            saw_weight = true;
+        }
+        if (decl.property == Property::FontSize) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 20.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_size = true;
+        }
+        if (decl.property == Property::LineHeight) {
+            ASSERT_EQ(decl.value.type, Value::Type::Number);
+            EXPECT_FLOAT_EQ(decl.value.number, 1.5f);
+            saw_line_height = true;
+        }
+        if (decl.property == Property::FontFamily) {
+            ASSERT_EQ(decl.value.type, Value::Type::Identifier);
+            EXPECT_EQ(decl.value.ident, "Roboto Mono monospace");
+            saw_family = true;
+        }
+        EXPECT_NE(decl.property, Property::Font);
+    }
+
+    EXPECT_TRUE(saw_style);
+    EXPECT_TRUE(saw_weight);
+    EXPECT_TRUE(saw_size);
+    EXPECT_TRUE(saw_line_height);
+    EXPECT_TRUE(saw_family);
+}
+
 TEST(CSSParserTest, ExpandsBackgroundShorthandForImages) {
     Parser parser("div { background: url(/img/logo.png) no-repeat center; }");
     auto sheet = parser.parse();

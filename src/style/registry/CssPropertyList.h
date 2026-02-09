@@ -18,6 +18,7 @@ enum class ParserHook : std::uint8_t {
     Unknown,
     parse_identifier,
     parse_font_size,
+    parse_font_shorthand,
     parse_length_number,
     parse_margin_shorthand,
     parse_length_auto,

@@ -726,6 +726,26 @@ TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
     EXPECT_FLOAT_EQ(style->line_height, 30.0f);
 }
 
+TEST(StyleEngineTest, AppliesFontShorthandComponents) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font: italic 700 20px/1.5 Roboto Mono, monospace; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->style, ComputedStyle::FontStyle::Italic);
+    EXPECT_EQ(style->weight, ComputedStyle::FontWeight::Bold);
+    EXPECT_FLOAT_EQ(style->font_size, 20.0f);
+    EXPECT_FLOAT_EQ(style->line_height, 30.0f);
+    EXPECT_EQ(style->font_face, "Roboto Mono monospace");
+}
+
 TEST(StyleEngineTest, LinkSourcesApplyInDocumentOrder) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);

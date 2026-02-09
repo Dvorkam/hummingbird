@@ -481,6 +481,62 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             if (border_color) push_decl(Property::BorderColor, *border_color);
             return true;
         }
+        case PropertyRegistry::ParserHook::parse_font_shorthand: {
+            std::optional<Value> font_style;
+            std::optional<Value> font_weight;
+            std::optional<Value> font_size;
+            std::optional<Value> line_height;
+            std::vector<Value> font_family_tokens;
+
+            bool after_size = false;
+            for (const auto& value : values) {
+                if (!after_size) {
+                    if (value.type == Value::Type::Identifier &&
+                        (value.ident == ValueNames::Italic || value.ident == ValueNames::Normal)) {
+                        font_style = value;
+                        continue;
+                    }
+                    if ((value.type == Value::Type::Identifier &&
+                         (value.ident == ValueNames::Bold || value.ident == ValueNames::Normal)) ||
+                        value.type == Value::Type::Number) {
+                        font_weight = value;
+                        continue;
+                    }
+                    if (value.type == Value::Type::Length) {
+                        font_size = value;
+                        after_size = true;
+                        continue;
+                    }
+                } else if (!line_height && (value.type == Value::Type::Length || value.type == Value::Type::Number)) {
+                    line_height = value;
+                    continue;
+                }
+
+                if (after_size) {
+                    font_family_tokens.push_back(value);
+                }
+            }
+
+            if (font_style) {
+                push_decl(Property::FontStyle, *font_style);
+            }
+            if (font_weight) {
+                push_decl(Property::FontWeight, *font_weight);
+            }
+            if (font_size) {
+                push_decl(Property::FontSize, *font_size);
+            }
+            if (line_height) {
+                push_decl(Property::LineHeight, *line_height);
+            }
+            if (!font_family_tokens.empty()) {
+                std::string family = join_value_list(font_family_tokens);
+                if (!family.empty()) {
+                    push_decl(Property::FontFamily, Value::identifier(std::move(family)));
+                }
+            }
+            return true;
+        }
         case PropertyRegistry::ParserHook::parse_background_image:
             for (const auto& value : values) {
                 if (value.type == Value::Type::Url) {

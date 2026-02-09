@@ -3,6 +3,8 @@ HB_CSS_PROPERTY(Display, Display, "display", "display", ParserHook::parse_identi
                 PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Position, Position, "position", "position", ParserHook::parse_identifier, ApplyHook::apply_position,
                 PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(Font, Font, "font", "font", ParserHook::parse_font_shorthand, ApplyHook::apply_font_family,
+                PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(FontSize, FontSize, "font-size", "font-size", ParserHook::parse_font_size, ApplyHook::apply_font_size,
                 PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(LineHeight, LineHeight, "line-height", "line-height", ParserHook::parse_length_number, ApplyHook::apply_line_height,

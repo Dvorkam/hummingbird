@@ -97,6 +97,7 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .font-demo-bold { font-weight: bold; }
       .font-demo-italic { font-style: italic; }
       .font-demo-bold-italic { font-weight: bold; font-style: italic; }
+      .font-demo-shorthand { font: italic 700 20px/1.4 roboto mono, monospace; }
       .var-demo { color: var(--brand); background-color: var(--panel, #444); padding: 4px; }
       .border-style-demo { border-width: 3px; border-style: outset; border-color: #5b3a12; padding: 6px; }
       .border-radius-demo { border-width: 3px; border-style: solid; border-color: #2d4a9b; background-color: #dfe9ff; padding: 10px; width: 220px; border-radius: 14px; }
@@ -197,6 +198,7 @@ aligned.</pre>
       <p class="font-demo-bold">Bold sample: Font weight from CSS.</p>
       <p class="font-demo-italic">Italic sample: Font style from CSS.</p>
       <p class="font-demo-bold-italic">Bold italic sample: combined CSS style.</p>
+      <p class="font-demo-shorthand">Font shorthand sample: italic + bold + size/line-height + family.</p>
     </div>
 
     <div class="section">
