@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -8,7 +9,6 @@
 #include <string_view>
 #include <unordered_set>
 #include <vector>
-#include <chrono>
 
 #include "core/SecurityState.h"
 #include "core/platform_api/IImageDecoder.h"

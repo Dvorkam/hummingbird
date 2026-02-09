@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -47,7 +48,25 @@ public:
         m_attributes[Core::Utils::to_lower(key)] = std::string(value);
     }
 
+    std::optional<std::string_view> get_accessibility_role() const {
+        if (const auto* explicit_role = find_attribute("role"); explicit_role && !explicit_role->empty()) {
+            return std::string_view(*explicit_role);
+        }
+        return implied_accessibility_role_for_tag(m_tag_name);
+    }
+
 private:
+    static std::optional<std::string_view> implied_accessibility_role_for_tag(std::string_view tag_name) {
+        if (tag_name == "header") return std::string_view("banner");
+        if (tag_name == "nav") return std::string_view("navigation");
+        if (tag_name == "main") return std::string_view("main");
+        if (tag_name == "section") return std::string_view("region");
+        if (tag_name == "article") return std::string_view("article");
+        if (tag_name == "aside") return std::string_view("complementary");
+        if (tag_name == "footer") return std::string_view("contentinfo");
+        return std::nullopt;
+    }
+
     template <typename T, typename... Args>
     // Allow arena_new to invoke the private constructor while keeping creation centralized.
     friend T* Core::arena_new(Core::ArenaAllocator&, Args&&...);

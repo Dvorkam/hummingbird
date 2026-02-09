@@ -97,23 +97,28 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
     } else if (tag == Hummingbird::Html::TagNames::Input) {
         style.border_style = ComputedStyle::BorderStyle::Solid;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
-        style.border_color = {120, 120, 120, 255};
-        style.padding.left = 6.0f;
-        style.padding.right = 6.0f;
+        style.border_color = {125, 125, 125, 255};
+        style.border_radius = 2.0f;
+        style.padding.left = 8.0f;
+        style.padding.right = 8.0f;
         style.padding.top = 4.0f;
         style.padding.bottom = 4.0f;
         if (input_type_is_text_like(element)) {
             style.width = 180.0f;
             style.height = 24.0f;
+            style.border_style = ComputedStyle::BorderStyle::Inset;
+            style.background = Color{255, 255, 255, 255};
         } else {
             style.width = 80.0f;
             style.height = 24.0f;
+            style.border_style = ComputedStyle::BorderStyle::Outset;
+            style.background = Color{236, 236, 236, 255};
         }
-        style.background = Color{255, 255, 255, 255};
     } else if (tag == Hummingbird::Html::TagNames::Button) {
-        style.border_style = ComputedStyle::BorderStyle::Solid;
+        style.border_style = ComputedStyle::BorderStyle::Outset;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
         style.border_color = {80, 80, 80, 255};
+        style.border_radius = 2.0f;
         style.padding.left = 10.0f;
         style.padding.right = 10.0f;
         style.padding.top = 4.0f;

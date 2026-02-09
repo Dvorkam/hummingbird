@@ -21,6 +21,7 @@ namespace Hummingbird::Engine {
 namespace {
 constexpr float kCaretWidth = 1.0f;
 constexpr const char* kCaretFallbackGlyph = "A";
+constexpr Color kFocusRingColor{66, 133, 244, 255};
 
 struct InputPaintData {
     Layout::Rect absolute;
@@ -147,6 +148,10 @@ std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element
     float text_height = metrics.height > 0.0f ? metrics.height : caret_metrics.height;
     float text_x = content.x;
     float text_y = content.y + std::max(0.0f, (content.height - text_height) * 0.5f);
+    if (!is_editable_input_element(&element)) {
+        text_style.bold = true;
+        text_x = content.x + std::max(0.0f, (content.width - metrics.width) * 0.5f);
+    }
 
     return InputPaintData{
         absolute, content, std::move(text_style), std::move(value), text_x, text_y, text_height,
@@ -176,6 +181,14 @@ void paint_input_caret(const InputPaintData& data, IGraphicsContext& graphics, s
                                                << " content=" << data.content.x << "," << data.content.y << " "
                                                << data.content.width << "x" << data.content.height
                                                << " scroll_y=" << scroll_y << " repaint_bg=" << repaint_background);
+}
+
+void paint_input_focus_ring(const Layout::Rect& absolute, IGraphicsContext& graphics) {
+    constexpr float kStroke = 1.0f;
+    graphics.fill_rect({absolute.x, absolute.y, absolute.width, kStroke}, kFocusRingColor);
+    graphics.fill_rect({absolute.x, absolute.y + absolute.height - kStroke, absolute.width, kStroke}, kFocusRingColor);
+    graphics.fill_rect({absolute.x, absolute.y, kStroke, absolute.height}, kFocusRingColor);
+    graphics.fill_rect({absolute.x + absolute.width - kStroke, absolute.y, kStroke, absolute.height}, kFocusRingColor);
 }
 }  // namespace
 
@@ -339,6 +352,7 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
             paint_input_value(*paint_data, graphics);
 
             if (element == focused_input_) {
+                paint_input_focus_ring(absolute, graphics);
                 HB_LOG_DEBUG("[input] draw focused value='"
                              << paint_data->value << "' text_pos=" << paint_data->text_x << "," << paint_data->text_y
                              << " text_h=" << paint_data->text_height << " color=("

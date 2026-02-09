@@ -406,5 +406,5 @@ P1+: Refactors and Polish (Only if Needed / Time Allows)
 - [x] T-TABLE-1 (M5 P3): Table Borders for Visibility
 - [x] T-IMG-1 (M5 P2): Animated GIF/WebP Playback
 - [x] T-IMG-2 (M5 P2): SVG Image Decode (Raster)
-- [ ] T-UI-FORM-1 (M5 P2): Form Control Styling Polish
-- [ ] T-HTML-SEM-2 (M5 P3): Semantic Landmark Roles (A11y)
+- [x] T-UI-FORM-1 (M5 P2): Form Control Styling Polish
+- [x] T-HTML-SEM-2 (M5 P3): Semantic Landmark Roles (A11y)

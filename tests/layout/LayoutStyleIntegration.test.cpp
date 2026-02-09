@@ -228,7 +228,7 @@ TEST(LayoutStyleIntegrationTest, AppliesInputDefaultSizing) {
     const auto& children = render_root->get_children();
     ASSERT_EQ(children.size(), 1u);
     const auto& rect = children[0]->get_rect();
-    EXPECT_FLOAT_EQ(rect.width, 180.0f + 2.0f * (6.0f + 1.0f));
+    EXPECT_FLOAT_EQ(rect.width, 180.0f + 2.0f * (8.0f + 1.0f));
     EXPECT_FLOAT_EQ(rect.height, 24.0f + 2.0f * (4.0f + 1.0f));
 }
 
