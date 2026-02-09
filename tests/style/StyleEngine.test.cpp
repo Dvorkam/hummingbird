@@ -960,6 +960,44 @@ TEST(StyleEngineTest, AppliesOverflowProperties) {
     EXPECT_EQ(style->overflow_y, ComputedStyle::Overflow::Scroll);
 }
 
+TEST(StyleEngineTest, AppliesCursorProperty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+
+    std::string css = "a { cursor: pointer; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->cursor, ComputedStyle::Cursor::Pointer);
+}
+
+TEST(StyleEngineTest, CursorIsInheritedToChildren) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "wrap");
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
+
+    std::string css = ".wrap { cursor: text; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto parent_style = root->get_computed_style();
+    ASSERT_TRUE(parent_style);
+    EXPECT_EQ(parent_style->cursor, ComputedStyle::Cursor::Text);
+
+    auto child_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child_style);
+    EXPECT_EQ(child_style->cursor, ComputedStyle::Cursor::Text);
+}
+
 TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

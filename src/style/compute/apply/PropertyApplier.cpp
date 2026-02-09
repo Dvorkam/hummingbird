@@ -132,6 +132,9 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_text_transform:
             (void)apply_text_property(Property::TextTransform, value, style, overrides, context);
             return;
+        case ApplyHook::apply_cursor:
+            (void)apply_text_property(property, value, style, overrides, context);
+            return;
         case ApplyHook::apply_letter_spacing:
             (void)apply_text_property(Property::LetterSpacing, value, style, overrides, context);
             return;

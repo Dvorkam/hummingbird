@@ -36,6 +36,7 @@ struct StyleOverrides {
     bool line_height = false;
     bool list_style_type = false;
     bool list_style_position = false;
+    bool cursor = false;
 };
 
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,

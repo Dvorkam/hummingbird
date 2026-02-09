@@ -107,6 +107,23 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                 }
             }
             return true;
+        case Property::Cursor:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Auto) {
+                    style.cursor = ComputedStyle::Cursor::Auto;
+                    overrides.cursor = true;
+                } else if (value.ident == ValueNames::Default) {
+                    style.cursor = ComputedStyle::Cursor::Default;
+                    overrides.cursor = true;
+                } else if (value.ident == ValueNames::Pointer) {
+                    style.cursor = ComputedStyle::Cursor::Pointer;
+                    overrides.cursor = true;
+                } else if (value.ident == ValueNames::Text) {
+                    style.cursor = ComputedStyle::Cursor::Text;
+                    overrides.cursor = true;
+                }
+            }
+            return true;
         case Property::LetterSpacing:
             if (value.type == Value::Type::Identifier && value.ident == ValueNames::Normal) {
                 style.letter_spacing = 0.0f;

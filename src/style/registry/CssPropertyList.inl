@@ -94,6 +94,8 @@ HB_CSS_PROPERTY(TextAlign, TextAlign, "text-align", "text-align", ParserHook::pa
                 PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(TextTransform, TextTransform, "text-transform", "text-transform", ParserHook::parse_identifier,
                 ApplyHook::apply_text_transform, PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(Cursor, Cursor, "cursor", "cursor", ParserHook::parse_identifier, ApplyHook::apply_cursor,
+                PropertyFlags::Inherited)
 HB_CSS_PROPERTY(LetterSpacing, LetterSpacing, "letter-spacing", "letter-spacing", ParserHook::parse_length_number,
                 ApplyHook::apply_letter_spacing, PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(TextIndent, TextIndent, "text-indent", "text-indent", ParserHook::parse_length,

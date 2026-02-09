@@ -169,6 +169,7 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
     if (overrides.font_face) target.font_face = source.font_face;
     if (overrides.text_align) target.text_align = source.text_align;
     if (overrides.text_transform) target.text_transform = source.text_transform;
+    if (overrides.cursor) target.cursor = source.cursor;
     if (overrides.letter_spacing) target.letter_spacing = source.letter_spacing;
     if (overrides.text_indent) target.text_indent = source.text_indent;
     if (overrides.word_wrap) target.word_wrap = source.word_wrap;
