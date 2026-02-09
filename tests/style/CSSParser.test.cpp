@@ -221,8 +221,7 @@ TEST(CSSParserTest, ParsesBackgroundImageUrl) {
 }
 
 TEST(CSSParserTest, ParsesBorderSideShorthandIntoSideWidthDeclaration) {
-    Parser parser(
-        "div { border-top: 3px solid #123456; border-left: 2px ridge #999; border-bottom: 4px solid #111; }");
+    Parser parser("div { border-top: 3px solid #123456; border-left: 2px ridge #999; border-bottom: 4px solid #111; }");
     auto sheet = parser.parse();
     ASSERT_EQ(sheet.rules.size(), 1u);
     const auto& decls = sheet.rules[0].declarations;
