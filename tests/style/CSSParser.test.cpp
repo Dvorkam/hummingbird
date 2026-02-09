@@ -105,6 +105,29 @@ TEST(CSSParserTest, ParsesChildSelector) {
     EXPECT_EQ(rule.selectors[0].parts[1].classes[0], "note");
 }
 
+TEST(CSSParserTest, ParsesPseudoClassSelector) {
+    Parser parser("input:focus, button:hover, button:active { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& selectors = sheet.rules[0].selectors;
+    ASSERT_EQ(selectors.size(), 3u);
+
+    ASSERT_EQ(selectors[0].parts.size(), 1u);
+    EXPECT_EQ(selectors[0].parts[0].tag, "input");
+    ASSERT_EQ(selectors[0].parts[0].pseudo_classes.size(), 1u);
+    EXPECT_EQ(selectors[0].parts[0].pseudo_classes[0], SelectorPart::PseudoClass::Focus);
+
+    ASSERT_EQ(selectors[1].parts.size(), 1u);
+    EXPECT_EQ(selectors[1].parts[0].tag, "button");
+    ASSERT_EQ(selectors[1].parts[0].pseudo_classes.size(), 1u);
+    EXPECT_EQ(selectors[1].parts[0].pseudo_classes[0], SelectorPart::PseudoClass::Hover);
+
+    ASSERT_EQ(selectors[2].parts.size(), 1u);
+    EXPECT_EQ(selectors[2].parts[0].tag, "button");
+    ASSERT_EQ(selectors[2].parts[0].pseudo_classes.size(), 1u);
+    EXPECT_EQ(selectors[2].parts[0].pseudo_classes[0], SelectorPart::PseudoClass::Active);
+}
+
 TEST(CSSParserTest, ParsesHexColor) {
     Parser parser("div { color: #abc; }");
     auto sheet = parser.parse();

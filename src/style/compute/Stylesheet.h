@@ -99,14 +99,22 @@ struct Value {
 };
 
 struct SelectorPart {
+    enum class PseudoClass {
+        Hover,
+        Active,
+        Focus,
+    };
+
     std::string tag;
     std::string id;
     std::vector<std::string> classes;
+    std::vector<PseudoClass> pseudo_classes;
 
     int specificity() const {
         int spec = 0;
         if (!id.empty()) spec += 100;
         spec += static_cast<int>(classes.size()) * 10;
+        spec += static_cast<int>(pseudo_classes.size()) * 10;
         if (!tag.empty() && tag != "*") spec += 1;
         return spec;
     }

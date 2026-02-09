@@ -338,15 +338,26 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
 
     auto url_result = url_bar_.handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
     if (url_result.handled) {
+        bool interaction_state_changed = false;
+        interaction_state_changed |= active_tab().clear_control_interaction();
+        interaction_state_changed |= active_tab().clear_input_focus();
+        if (interaction_state_changed && graphics_ && window_) {
+            auto [w, h] = window_->get_size();
+            const auto viewport = compute_content_viewport(w, h);
+            if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
+                document_dirty_ = true;
+                controls_dirty_ = true;
+            }
+        } else if (interaction_state_changed) {
+            document_dirty_ = true;
+            controls_dirty_ = true;
+        }
         if (url_result.security_override_requested) {
             if (active_tab().allow_insecure_for_current_host()) {
                 navigate_active_tab(active_tab().requested_url());
                 document_dirty_ = true;
                 chrome_dirty_ = true;
             }
-        }
-        if (active_tab().clear_input_focus()) {
-            controls_dirty_ = true;
         }
         tab_text_input_active_ = false;
         if (url_result.needs_repaint) {
@@ -372,6 +383,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     if (click_result.mutated) {
         document_dirty_ = true;
     }
+    bool interaction_changed = active_tab().set_control_interaction_at(point, viewport);
     bool was_focused = active_tab().has_focused_input();
     bool now_focused = active_tab().focus_input_at(point, viewport);
     HB_LOG_DEBUG("[input] focus probe was=" << was_focused << " now=" << now_focused);
@@ -387,6 +399,12 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     if (tab_text_input_active_ != now_focused || was_focused != now_focused) {
         tab_text_input_active_ = now_focused;
         controls_dirty_ = true;
+    }
+    if (interaction_changed || was_focused || now_focused) {
+        if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
+            document_dirty_ = true;
+            controls_dirty_ = true;
+        }
     }
     if (now_focused) {
         return;

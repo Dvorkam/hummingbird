@@ -1036,6 +1036,25 @@ TEST(StyleEngineTest, AppliesBoxShadowProperty) {
     EXPECT_EQ(style->box_shadow->color.b, 0x33);
 }
 
+TEST(StyleEngineTest, AppliesPseudoClassFocusForInput) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    root->set_pseudo_state(Hummingbird::DOM::Element::PseudoState::Focus, true);
+
+    std::string css = "input:focus { border-color: #ff0000; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->border_color.r, 255);
+    EXPECT_EQ(style->border_color.g, 0);
+    EXPECT_EQ(style->border_color.b, 0);
+}
+
 TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

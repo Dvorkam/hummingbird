@@ -388,3 +388,97 @@ TEST(TableLayoutTest, KeepsColumnsReadableWithMixedInlineContentAndPercentHints)
     EXPECT_GE(first_cell->get_rect().width, 240.0f);
     EXPECT_GE(second_cell->get_rect().width, 240.0f);
 }
+
+TEST(TableLayoutTest, NormalizesOvercommittedPercentHints) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, TagNames::Body);
+    auto table = DomFactory::create_element(arena, TagNames::Table);
+    table->set_attribute(Attr::Width, "100%");
+
+    auto row = DomFactory::create_element(arena, TagNames::Tr);
+    auto first = DomFactory::create_element(arena, TagNames::Td);
+    first->set_attribute(Attr::Width, "70%");
+    first->append_child(DomFactory::create_text(arena, "Short"));
+    auto second = DomFactory::create_element(arena, TagNames::Td);
+    second->set_attribute(Attr::Width, "70%");
+    second->append_child(DomFactory::create_text(arena, "Also short"));
+    row->append_child(std::move(first));
+    row->append_child(std::move(second));
+    table->append_child(std::move(row));
+    body->append_child(std::move(table));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 300, 200};
+    render_root->layout(context, viewport);
+
+    auto* table_render = dynamic_cast<RenderTable*>(render_root->get_children()[0].get());
+    ASSERT_NE(table_render, nullptr);
+    auto* row_render = dynamic_cast<RenderTableRow*>(table_render->get_children()[0].get());
+    ASSERT_NE(row_render, nullptr);
+    ASSERT_EQ(row_render->get_children().size(), 2u);
+
+    auto* first_cell = dynamic_cast<RenderTableCell*>(row_render->get_children()[0].get());
+    auto* second_cell = dynamic_cast<RenderTableCell*>(row_render->get_children()[1].get());
+    ASSERT_NE(first_cell, nullptr);
+    ASSERT_NE(second_cell, nullptr);
+
+    EXPECT_FLOAT_EQ(table_render->get_rect().width, 300.0f);
+    EXPECT_NEAR(first_cell->get_rect().width, 150.0f, 0.01f);
+    EXPECT_NEAR(second_cell->get_rect().width, 150.0f, 0.01f);
+}
+
+TEST(TableLayoutTest, RespectsAbsoluteCellWidthHintsOnPercentTable) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, TagNames::Body);
+    auto table = DomFactory::create_element(arena, TagNames::Table);
+    table->set_attribute(Attr::Width, "100%");
+
+    auto row = DomFactory::create_element(arena, TagNames::Tr);
+    auto first = DomFactory::create_element(arena, TagNames::Td);
+    first->set_attribute(Attr::Width, "180");
+    first->append_child(DomFactory::create_text(arena, "A"));
+    auto second = DomFactory::create_element(arena, TagNames::Td);
+    second->append_child(DomFactory::create_text(arena, "B"));
+    row->append_child(std::move(first));
+    row->append_child(std::move(second));
+    table->append_child(std::move(row));
+    body->append_child(std::move(table));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 300, 200};
+    render_root->layout(context, viewport);
+
+    auto* table_render = dynamic_cast<RenderTable*>(render_root->get_children()[0].get());
+    ASSERT_NE(table_render, nullptr);
+    auto* row_render = dynamic_cast<RenderTableRow*>(table_render->get_children()[0].get());
+    ASSERT_NE(row_render, nullptr);
+    ASSERT_EQ(row_render->get_children().size(), 2u);
+
+    auto* first_cell = dynamic_cast<RenderTableCell*>(row_render->get_children()[0].get());
+    auto* second_cell = dynamic_cast<RenderTableCell*>(row_render->get_children()[1].get());
+    ASSERT_NE(first_cell, nullptr);
+    ASSERT_NE(second_cell, nullptr);
+
+    EXPECT_FLOAT_EQ(table_render->get_rect().width, 300.0f);
+    EXPECT_GE(first_cell->get_rect().width, 180.0f);
+    EXPECT_LE(first_cell->get_rect().width, 288.0f);
+    EXPECT_GT(second_cell->get_rect().width, 0.0f);
+    EXPECT_NEAR(second_cell->get_rect().x, first_cell->get_rect().width, 0.01f);
+    EXPECT_LE(first_cell->get_rect().width + second_cell->get_rect().width, table_render->get_rect().width);
+}

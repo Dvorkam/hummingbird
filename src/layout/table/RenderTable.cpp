@@ -3,16 +3,22 @@
 #include <stddef.h>
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <numeric>
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include "core/dom/Element.h"
 #include "core/dom/ElementUtils.h"
 #include "core/dom/Node.h"
+#include "core/utils/Log.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
+#include "core/utils/WarnOnce.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
 #include "layout/geometry/Geometry.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
@@ -170,17 +176,87 @@ std::vector<float> collect_column_percent_hints(const std::vector<RenderTableRow
     return hints;
 }
 
+std::optional<float> cell_width_absolute_hint(const RenderTableCell& cell) {
+    const auto* style = cell.get_computed_style();
+    Metrics::Insets insets = Metrics::compute_insets(style);
+    if (style && style->width.has_value() && !style->width_is_percent) {
+        float width = std::max(0.0f, *style->width);
+        return Metrics::resolve_border_box_width(style, width, insets);
+    }
+
+    auto* element = dynamic_cast<const DOM::Element*>(cell.get_dom_node());
+    if (!element) {
+        return std::nullopt;
+    }
+    auto attr = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::Width);
+    if (!attr) {
+        return std::nullopt;
+    }
+    auto parsed = parse_width_value(*attr);
+    if (!parsed || parsed->is_percent) {
+        return std::nullopt;
+    }
+    float width = std::max(0.0f, parsed->value);
+    return Metrics::resolve_border_box_width(style, width, insets);
+}
+
+std::vector<float> collect_column_absolute_hints(const std::vector<RenderTableRow*>& rows, size_t column_count) {
+    std::vector<float> hints(column_count, 0.0f);
+    for (auto* row : rows) {
+        size_t col = 0;
+        for (const auto& child : row->get_children()) {
+            auto* cell = dynamic_cast<RenderTableCell*>(child.get());
+            if (!cell) {
+                continue;
+            }
+            size_t span = cell_colspan(*cell);
+            if (span == 0) {
+                span = 1;
+            }
+            if (span == 1 && col < hints.size()) {
+                if (auto hint = cell_width_absolute_hint(*cell)) {
+                    hints[col] = std::max(hints[col], *hint);
+                }
+            }
+            col += span;
+        }
+    }
+    return hints;
+}
+
+void apply_column_absolute_min_widths(std::vector<float>& column_widths, const std::vector<float>& column_absolute_hints) {
+    if (column_widths.size() != column_absolute_hints.size()) {
+        return;
+    }
+    for (size_t i = 0; i < column_widths.size(); ++i) {
+        float hint = column_absolute_hints[i];
+        if (hint <= 0.0f) {
+            continue;
+        }
+        column_widths[i] = std::max(column_widths[i], hint);
+    }
+}
+
 void apply_column_percent_min_widths(std::vector<float>& column_widths, const std::vector<float>& column_percent_hints,
                                      float target_width) {
     if (target_width <= 0.0f || column_widths.size() != column_percent_hints.size()) {
         return;
     }
+    float hinted_total = 0.0f;
+    for (float hint : column_percent_hints) {
+        if (hint > 0.0f) {
+            hinted_total += hint;
+        }
+    }
+    // Real pages sometimes overcommit percent hints (for example 70% + 70%).
+    // Normalize to 100% so hints stay useful without forcing table overflow.
+    float normalization = hinted_total > 100.0f ? (100.0f / hinted_total) : 1.0f;
     for (size_t i = 0; i < column_widths.size(); ++i) {
         float hint = column_percent_hints[i];
         if (hint <= 0.0f) {
             continue;
         }
-        float min_width = target_width * (hint / 100.0f);
+        float min_width = target_width * ((hint * normalization) / 100.0f);
         column_widths[i] = std::max(column_widths[i], min_width);
     }
 }
@@ -296,6 +372,89 @@ float layout_table_children(RenderTable& table, IGraphicsContext& context, const
     }
     return cursor_y + insets.bottom;
 }
+
+bool table_seam_debug_enabled() {
+    static const bool enabled = std::getenv("HB_DEBUG_TABLE_SEAMS") != nullptr;
+    return enabled;
+}
+
+bool table_seam_verbose_enabled() {
+    static const bool enabled = std::getenv("HB_DEBUG_TABLE_SEAMS_VERBOSE") != nullptr;
+    return enabled;
+}
+
+std::string table_class_for_cell(const RenderTableCell& cell) {
+    const RenderObject* node = &cell;
+    while (node) {
+        const auto* element = dynamic_cast<const DOM::Element*>(node->get_dom_node());
+        if (element && element->get_tag_name() == Hummingbird::Html::TagNames::Table) {
+            if (auto cls = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::Class)) {
+                return std::string(*cls);
+            }
+            return {};
+        }
+        node = node->get_parent();
+    }
+    return {};
+}
+
+bool should_log_table_seam(const RenderTableCell& cell) {
+    if (!table_seam_debug_enabled()) {
+        return false;
+    }
+    const std::string table_class = table_class_for_cell(cell);
+    const char* filter_env = std::getenv("HB_DEBUG_TABLE_SEAMS_FILTER");
+    const std::string filter = filter_env && *filter_env ? std::string(filter_env) : "table-balance-demo";
+    if (filter.empty()) {
+        return true;
+    }
+    return table_class.find(filter) != std::string::npos;
+}
+
+const RenderTableCell* previous_cell_in_row(const RenderTableCell& cell) {
+    const auto* row = dynamic_cast<const RenderTableRow*>(cell.get_parent());
+    if (!row) {
+        return nullptr;
+    }
+    const RenderTableCell* previous = nullptr;
+    for (const auto& child : row->get_children()) {
+        const auto* current = dynamic_cast<const RenderTableCell*>(child.get());
+        if (!current) {
+            continue;
+        }
+        if (current == &cell) {
+            return previous;
+        }
+        previous = current;
+    }
+    return nullptr;
+}
+
+void log_table_seam_anomaly(const RenderTableCell& cell) {
+    if (!should_log_table_seam(cell)) {
+        return;
+    }
+    const auto* previous = previous_cell_in_row(cell);
+    if (!previous) {
+        return;
+    }
+    float previous_right = previous->get_rect().x + previous->get_rect().width;
+    float delta = cell.get_rect().x - previous_right;
+    if (std::fabs(delta) <= 0.25f) {
+        return;
+    }
+    static Core::Utils::WarnOnce warn_once;
+    const int right_px = static_cast<int>(std::lround(previous_right * 10.0f));
+    const int this_px = static_cast<int>(std::lround(cell.get_rect().x * 10.0f));
+    std::string key = table_class_for_cell(cell) + ":" + std::to_string(right_px) + ":" + std::to_string(this_px);
+    if (!warn_once.should_log(key)) {
+        return;
+    }
+    HB_LOG_WARN("[table-debug] seam " << (delta < 0.0f ? "overlap" : "gap")
+                                      << " table_class='" << table_class_for_cell(cell) << "' prev_right="
+                                      << previous_right << " current_left=" << cell.get_rect().x
+                                      << " delta=" << delta);
+}
 }  // namespace
 
 void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
@@ -306,8 +465,10 @@ void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
     size_t column_count = compute_column_count(rows);
     auto column_widths = compute_column_widths(context, rows, column_count);
     auto column_percent_hints = collect_column_percent_hints(rows, column_count);
+    auto column_absolute_hints = collect_column_absolute_hints(rows, column_count);
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     float target_width = resolve_table_target_width(*element, style, available_width);
+    apply_column_absolute_min_widths(column_widths, column_absolute_hints);
     apply_column_percent_min_widths(column_widths, column_percent_hints, target_width);
     float content_width = sum_widths(column_widths);
     content_width = apply_target_width(column_widths, column_percent_hints, content_width, target_width);
@@ -364,7 +525,7 @@ void RenderTableRow::layout_row(IGraphicsContext& context, const Rect& bounds,
         Rect cell_bounds{cursor_x, 0.0f, cell_width, 0.0f};
         cell->layout(context, cell_bounds);
         row_height = std::max(row_height, cell->get_rect().height);
-        cursor_x += cell_width;
+        cursor_x += cell->get_rect().width;
         col += span;
     }
 
@@ -448,16 +609,61 @@ void RenderTableCell::layout(IGraphicsContext& context, const Rect& bounds) {
 
 void RenderTableCell::paint_self(IGraphicsContext& context, const Point& offset) const {
     BlockBox::paint_self(context, offset);
+    log_table_seam_anomaly(*this);
+
+    const auto* style = get_computed_style();
+    const bool seam_debug = should_log_table_seam(*this);
+    const bool seam_verbose = seam_debug && table_seam_verbose_enabled();
+    const auto* element = dynamic_cast<const DOM::Element*>(get_dom_node());
+    std::string class_name;
+    std::string table_class = table_class_for_cell(*this);
+    if (element) {
+        if (auto cls = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::Class)) {
+            class_name.assign(*cls);
+        }
+    }
+    if (style && style->border_style != Css::ComputedStyle::BorderStyle::None) {
+        const auto& bw = style->border_width;
+        if (bw.top > 0.0f || bw.right > 0.0f || bw.bottom > 0.0f || bw.left > 0.0f) {
+            if (seam_verbose) {
+                HB_LOG_WARN("[table-debug] skip fallback grid due css border table_class='" << table_class
+                                                                                << "' class='" << class_name
+                                                                                << "' rect=("
+                                                                                << m_rect.x << "," << m_rect.y << ","
+                                                                                << m_rect.width << "," << m_rect.height
+                                                                                << ") border=(" << bw.top << ","
+                                                                                << bw.right << "," << bw.bottom << ","
+                                                                                << bw.left << ")");
+            }
+            return;
+        }
+    }
 
     Rect abs{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
     if (abs.width <= 0.0f || abs.height <= 0.0f) {
         return;
     }
 
-    context.fill_rect({abs.x, abs.y, abs.width, kTableGridStroke}, kTableGridColor);
-    context.fill_rect({abs.x, abs.y + abs.height - kTableGridStroke, abs.width, kTableGridStroke}, kTableGridColor);
-    context.fill_rect({abs.x, abs.y, kTableGridStroke, abs.height}, kTableGridColor);
-    context.fill_rect({abs.x + abs.width - kTableGridStroke, abs.y, kTableGridStroke, abs.height}, kTableGridColor);
+    // Snap all edges with the same rule to keep adjacent cell seams on one pixel.
+    float left = std::floor(abs.x + 0.001f);
+    float top = std::floor(abs.y + 0.001f);
+    float right = std::floor(abs.x + abs.width + 0.001f);
+    float bottom = std::floor(abs.y + abs.height + 0.001f);
+    float snapped_width = std::max(kTableGridStroke, right - left);
+    float snapped_height = std::max(kTableGridStroke, bottom - top);
+
+    if (seam_verbose) {
+        HB_LOG_WARN("[table-debug] draw fallback grid table_class='" << table_class << "' class='" << class_name
+                                                                     << "' abs=(" << abs.x << "," << abs.y
+                                                               << "," << abs.width << "," << abs.height
+                                                               << ") snapped=(" << left << "," << top << "," << right
+                                                               << "," << bottom << ")");
+    }
+
+    context.fill_rect({left, top, snapped_width, kTableGridStroke}, kTableGridColor);
+    context.fill_rect({left, bottom, snapped_width, kTableGridStroke}, kTableGridColor);
+    context.fill_rect({left, top, kTableGridStroke, snapped_height}, kTableGridColor);
+    context.fill_rect({right, top, kTableGridStroke, snapped_height}, kTableGridColor);
 }
 
 }  // namespace Hummingbird::Layout

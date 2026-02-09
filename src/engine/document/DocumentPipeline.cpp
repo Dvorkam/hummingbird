@@ -143,6 +143,15 @@ bool DocumentPipeline::clear_input_focus() {
     return input_controller_.clear_focus();
 }
 
+bool DocumentPipeline::set_control_interaction_at(const HitTestContext& context) {
+    return input_controller_.set_control_interaction_at(model_.render_tree(), context.point, context.viewport,
+                                                        context.scroll_y);
+}
+
+bool DocumentPipeline::clear_control_interaction() {
+    return input_controller_.clear_control_interaction();
+}
+
 DocumentPipeline::InputEditResult DocumentPipeline::handle_text_input(std::string_view text) {
     auto result = input_controller_.handle_text_input(text);
     return {result.handled, result.needs_repaint, std::nullopt};

@@ -58,7 +58,29 @@ bool matches_simple_selector(const DOM::Node* node, const SelectorPart& selector
     if (!selector.id.empty() && !has_id(*element, selector.id)) {
         return false;
     }
-    return has_all_classes(*element, selector.classes);
+    if (!has_all_classes(*element, selector.classes)) {
+        return false;
+    }
+
+    for (auto pseudo : selector.pseudo_classes) {
+        bool matches = false;
+        switch (pseudo) {
+            case SelectorPart::PseudoClass::Hover:
+                matches = element->has_pseudo_state(DOM::Element::PseudoState::Hover);
+                break;
+            case SelectorPart::PseudoClass::Active:
+                matches = element->has_pseudo_state(DOM::Element::PseudoState::Active);
+                break;
+            case SelectorPart::PseudoClass::Focus:
+                matches = element->has_pseudo_state(DOM::Element::PseudoState::Focus);
+                break;
+        }
+        if (!matches) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool matches_selector(const DOM::Node* node, const Selector& selector) {

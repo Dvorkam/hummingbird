@@ -133,3 +133,21 @@ TEST(SelectorMatcherTest, MatchesChildSelector) {
     descendant_selector.combinators.push_back(Selector::Combinator::Descendant);
     EXPECT_TRUE(matches_selector(target, descendant_selector));
 }
+
+TEST(SelectorMatcherTest, MatchesPseudoClassStates) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto elem = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    elem->set_pseudo_state(Element::PseudoState::Focus, true);
+
+    Selector focus_selector;
+    SelectorPart focus_part = make_part(Hummingbird::Html::TagNames::Input);
+    focus_part.pseudo_classes.push_back(SelectorPart::PseudoClass::Focus);
+    focus_selector.parts.push_back(std::move(focus_part));
+    EXPECT_TRUE(matches_selector(elem.get(), focus_selector));
+
+    Selector hover_selector;
+    SelectorPart hover_part = make_part(Hummingbird::Html::TagNames::Input);
+    hover_part.pseudo_classes.push_back(SelectorPart::PseudoClass::Hover);
+    hover_selector.parts.push_back(std::move(hover_part));
+    EXPECT_FALSE(matches_selector(elem.get(), hover_selector));
+}

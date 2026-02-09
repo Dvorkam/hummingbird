@@ -162,6 +162,26 @@ bool Tab::clear_input_focus() {
     return document_pipeline_.clear_input_focus();
 }
 
+bool Tab::set_control_interaction_at(const Layout::Point& point, const Layout::Rect& viewport) {
+    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
+    return document_pipeline_.set_control_interaction_at(context);
+}
+
+bool Tab::clear_control_interaction() {
+    return document_pipeline_.clear_control_interaction();
+}
+
+bool Tab::refresh_styles_for_interaction(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    if (!document_pipeline_.has_dom_tree()) {
+        return false;
+    }
+    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
+    if (has_render_tree) {
+        update_layout_state(viewport);
+    }
+    return has_render_tree;
+}
+
 bool Tab::has_focused_input() const {
     return document_pipeline_.has_focused_input();
 }

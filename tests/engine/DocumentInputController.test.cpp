@@ -84,6 +84,26 @@ struct OverlappingInputRenderTree {
         render_root->set_rect(Rect{0.0f, 0.0f, 200.0f, 60.0f});
     }
 };
+
+struct InputButtonRenderTree {
+    ArenaAllocator arena;
+    ArenaPtr<Element> root;
+    Element* button = nullptr;
+    std::unique_ptr<BlockBox> render_root;
+
+    InputButtonRenderTree() : arena(2048) {
+        root = Element::create(arena, "div");
+        auto button_node = Element::create(arena, "button");
+        button = button_node.get();
+        root->append_child(std::move(button_node));
+
+        render_root = BlockBox::create(root.get());
+        auto button_box = BlockBox::create(button);
+        button_box->set_rect(Rect{20.0f, 8.0f, 80.0f, 22.0f});
+        render_root->set_rect(Rect{0.0f, 0.0f, 200.0f, 60.0f});
+        render_root->append_child(std::move(button_box));
+    }
+};
 }  // namespace
 
 TEST(DocumentInputControllerTest, FocusesAndClearsInput) {
@@ -173,4 +193,36 @@ TEST(DocumentInputControllerTest, FocusesAutofocusInputOnLoadPath) {
     EXPECT_TRUE(edit.handled);
     ASSERT_TRUE(controller.focused_value().has_value());
     EXPECT_EQ(*controller.focused_value(), "ddg");
+}
+
+TEST(DocumentInputControllerTest, FocusStateTracksFocusedInputPseudoClass) {
+    InputRenderTree tree;
+    DocumentInputController controller;
+    Rect viewport{0.0f, 0.0f, 200.0f, 50.0f};
+    Point hit{15.0f, 10.0f};
+
+    EXPECT_FALSE(tree.input->has_pseudo_state(Element::PseudoState::Focus));
+    ASSERT_TRUE(controller.focus_input_at(tree.render_root.get(), hit, viewport, 0.0f));
+    EXPECT_TRUE(tree.input->has_pseudo_state(Element::PseudoState::Focus));
+    EXPECT_TRUE(controller.clear_focus());
+    EXPECT_FALSE(tree.input->has_pseudo_state(Element::PseudoState::Focus));
+}
+
+TEST(DocumentInputControllerTest, InteractionStateTracksHoverAndActiveOnButton) {
+    InputButtonRenderTree tree;
+    DocumentInputController controller;
+    Rect viewport{0.0f, 0.0f, 200.0f, 60.0f};
+    Point hit{30.0f, 15.0f};
+    Point miss{180.0f, 50.0f};
+
+    EXPECT_FALSE(tree.button->has_pseudo_state(Element::PseudoState::Hover));
+    EXPECT_FALSE(tree.button->has_pseudo_state(Element::PseudoState::Active));
+
+    EXPECT_TRUE(controller.set_control_interaction_at(tree.render_root.get(), hit, viewport, 0.0f));
+    EXPECT_TRUE(tree.button->has_pseudo_state(Element::PseudoState::Hover));
+    EXPECT_TRUE(tree.button->has_pseudo_state(Element::PseudoState::Active));
+
+    EXPECT_TRUE(controller.set_control_interaction_at(tree.render_root.get(), miss, viewport, 0.0f));
+    EXPECT_FALSE(tree.button->has_pseudo_state(Element::PseudoState::Hover));
+    EXPECT_FALSE(tree.button->has_pseudo_state(Element::PseudoState::Active));
 }

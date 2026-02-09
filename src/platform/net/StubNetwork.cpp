@@ -159,6 +159,9 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .form-demo { display: flex; align-items: center; gap: 6px; }
       .form-demo input { width: 260px; padding: 6px 8px; border: 1px solid #6f6f6f; border-radius: 4px; background-color: #ffffff; }
       .form-demo button, .form-demo-external { padding: 6px 12px; border: 1px solid #5f5f5f; border-radius: 4px; background-color: #ececec; }
+      .form-demo input:focus { border-color: #2e8b57; background-color: #f4fff7; }
+      .form-demo button:hover, .form-demo-external:hover { background-color: #dbe8ff; border-color: #3e5f9a; }
+      .form-demo button:active, .form-demo-external:active { background-color: #bcd0f5; border-color: #31496f; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -268,6 +271,20 @@ aligned.</pre>
         <tr>
           <td width="50%">Short cell</td>
           <td width="50%">Longer content cell that should still keep a balanced split.</td>
+        </tr>
+      </table>
+      <p>Overcommitted width-hint demo (70/70 should normalize to a balanced split):</p>
+      <table class="table-balance-demo" width="100%">
+        <tr>
+          <td width="70%">First hint 70%</td>
+          <td width="70%">Second hint 70%</td>
+        </tr>
+      </table>
+      <p>Absolute width-hint demo (first column should stay at least 180px):</p>
+      <table class="table-balance-demo" width="100%">
+        <tr>
+          <td width="180">Fixed 180px hint</td>
+          <td>Remaining width column</td>
         </tr>
       </table>
     </div>

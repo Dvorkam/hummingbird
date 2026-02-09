@@ -54,6 +54,32 @@ inline std::vector<std::string> split_font_families(std::string_view list) {
         }
         start = comma + 1;
     }
+    if (families.size() == 1 && list.find(',') == std::string_view::npos) {
+        const std::string& single = families.front();
+        auto split_suffix = [&](std::string_view suffix) {
+            if (single.size() <= suffix.size()) {
+                return;
+            }
+            if (!single.ends_with(suffix)) {
+                return;
+            }
+            size_t split_pos = single.size() - suffix.size();
+            if (split_pos == 0 || single[split_pos - 1] != ' ') {
+                return;
+            }
+            std::string prefix = single.substr(0, split_pos - 1);
+            if (prefix.empty()) {
+                return;
+            }
+            families.clear();
+            families.push_back(std::move(prefix));
+            families.emplace_back(suffix);
+        };
+        split_suffix("monospace");
+        if (families.size() == 1) split_suffix("sans-serif");
+        if (families.size() == 1) split_suffix("sans serif");
+        if (families.size() == 1) split_suffix("serif");
+    }
     return families;
 }
 

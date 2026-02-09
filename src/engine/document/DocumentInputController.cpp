@@ -37,6 +37,14 @@ bool is_input_element(const DOM::Element* element) {
     return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
 }
 
+bool is_button_element(const DOM::Element* element) {
+    return element && element->get_tag_name() == Hummingbird::Html::TagNames::Button;
+}
+
+bool is_interactive_control_element(const DOM::Element* element) {
+    return is_input_element(element) || is_button_element(element);
+}
+
 Color high_contrast_text(Color background) {
     const int luma = (static_cast<int>(background.r) * 299 + static_cast<int>(background.g) * 587 +
                       static_cast<int>(background.b) * 114) /
@@ -115,6 +123,19 @@ DOM::Element* hit_test_input(const Layout::RenderObject* render_tree, const Layo
     return hit.value_or(nullptr);
 }
 
+DOM::Element* hit_test_interactive_control(const Layout::RenderObject* render_tree, const Layout::Point& point,
+                                           const Layout::Rect& viewport, float scroll_y) {
+    auto hit = HitTest::hit_test_z_order<DOM::Element*>(
+        render_tree, point, viewport, scroll_y, [&](const Layout::RenderObject& node) -> std::optional<DOM::Element*> {
+            auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
+            if (!is_interactive_control_element(element)) {
+                return std::nullopt;
+            }
+            return const_cast<DOM::Element*>(element);
+        });
+    return hit.value_or(nullptr);
+}
+
 std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element, const Layout::RenderObject& node,
                                                      const Layout::Rect& absolute, IGraphicsContext& graphics) {
     const auto* style = node.get_computed_style();
@@ -183,9 +204,36 @@ void paint_input_focus_ring(const Layout::Rect& absolute, IGraphicsContext& grap
 }
 }  // namespace
 
+bool DocumentInputController::set_control_interaction_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
+                                                         const Layout::Rect& viewport, float scroll_y) {
+    DOM::Element* hit = hit_test_interactive_control(render_tree, point, viewport, scroll_y);
+    bool changed = false;
+    if (hovered_active_control_ && hovered_active_control_ != hit) {
+        changed |= hovered_active_control_->set_pseudo_state(DOM::Element::PseudoState::Hover, false);
+        changed |= hovered_active_control_->set_pseudo_state(DOM::Element::PseudoState::Active, false);
+    }
+    hovered_active_control_ = hit;
+    if (hovered_active_control_) {
+        changed |= hovered_active_control_->set_pseudo_state(DOM::Element::PseudoState::Hover, true);
+        changed |= hovered_active_control_->set_pseudo_state(DOM::Element::PseudoState::Active, true);
+    }
+    return changed;
+}
+
+bool DocumentInputController::clear_control_interaction() {
+    if (!hovered_active_control_) {
+        return false;
+    }
+    bool changed = false;
+    changed |= hovered_active_control_->set_pseudo_state(DOM::Element::PseudoState::Hover, false);
+    changed |= hovered_active_control_->set_pseudo_state(DOM::Element::PseudoState::Active, false);
+    hovered_active_control_ = nullptr;
+    return changed;
+}
+
 void DocumentInputController::reset() {
-    focused_input_ = nullptr;
-    caret_ = 0;
+    clear_control_interaction();
+    clear_focus();
 }
 
 bool DocumentInputController::focus_input_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
@@ -197,7 +245,13 @@ bool DocumentInputController::focus_input_at(const Layout::RenderObject* render_
         caret_ = focused_input_ ? input_value(*focused_input_).size() : 0;
         return focused_input_ != nullptr;
     }
+    if (focused_input_) {
+        focused_input_->set_pseudo_state(DOM::Element::PseudoState::Focus, false);
+    }
     focused_input_ = hit;
+    if (focused_input_) {
+        focused_input_->set_pseudo_state(DOM::Element::PseudoState::Focus, true);
+    }
     caret_ = focused_input_ ? input_value(*focused_input_).size() : 0;
     return focused_input_ != nullptr;
 }
@@ -224,6 +278,7 @@ bool DocumentInputController::focus_autofocus_input(const Layout::RenderObject* 
         return false;
     }
     focused_input_ = autofocus_element;
+    focused_input_->set_pseudo_state(DOM::Element::PseudoState::Focus, true);
     caret_ = input_value(*focused_input_).size();
     return true;
 }
@@ -232,6 +287,7 @@ bool DocumentInputController::clear_focus() {
     if (!focused_input_) {
         return false;
     }
+    focused_input_->set_pseudo_state(DOM::Element::PseudoState::Focus, false);
     focused_input_ = nullptr;
     caret_ = 0;
     return true;

@@ -66,6 +66,9 @@ public:
     std::optional<FormSubmission> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport);
     bool clear_input_focus();
+    bool set_control_interaction_at(const Layout::Point& point, const Layout::Rect& viewport);
+    bool clear_control_interaction();
+    bool refresh_styles_for_interaction(IGraphicsContext& graphics, const Layout::Rect& viewport);
     bool has_focused_input() const;
     bool handle_text_input(std::string_view text);
     KeyResult handle_key_down(const InputEvent& event);

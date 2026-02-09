@@ -28,3 +28,10 @@ TEST(TextStyleUtilsTest, ResolvesRobotoForSansFamily) {
     EXPECT_NE(path.find("Roboto-"), std::string::npos);
     EXPECT_EQ(path.find("RobotoMono-"), std::string::npos);
 }
+
+TEST(TextStyleUtilsTest, ResolvesRobotoMonoForShorthandFamilyListWithoutCommaToken) {
+    ComputedStyle style;
+    style.font_face = "Roboto Mono monospace";
+    auto path = resolve_text_font_path(&style);
+    EXPECT_NE(path.find("RobotoMono-"), std::string::npos);
+}

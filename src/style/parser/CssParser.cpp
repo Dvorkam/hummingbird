@@ -110,6 +110,20 @@ SelectorPart Parser::parse_simple_selector() {
             }
             break;
         }
+        if (match(TokenType::Colon)) {
+            if (peek().type == TokenType::Identifier) {
+                auto pseudo = Core::Utils::to_lower(std::string(advance().lexeme));
+                if (pseudo == "hover") {
+                    selector.pseudo_classes.push_back(SelectorPart::PseudoClass::Hover);
+                } else if (pseudo == "active") {
+                    selector.pseudo_classes.push_back(SelectorPart::PseudoClass::Active);
+                } else if (pseudo == "focus") {
+                    selector.pseudo_classes.push_back(SelectorPart::PseudoClass::Focus);
+                }
+                continue;
+            }
+            break;
+        }
         break;
     }
     return selector;

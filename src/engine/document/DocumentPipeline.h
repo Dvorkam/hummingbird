@@ -79,6 +79,8 @@ public:
     bool focus_input_at(const HitTestContext& context);
     bool focus_autofocus_input();
     bool clear_input_focus();
+    bool set_control_interaction_at(const HitTestContext& context);
+    bool clear_control_interaction();
     bool has_focused_input() const { return input_controller_.has_focus(); }
     InputEditResult handle_text_input(std::string_view text);
     InputEditResult handle_key_down(const InputEvent& event, std::string_view base_url);
