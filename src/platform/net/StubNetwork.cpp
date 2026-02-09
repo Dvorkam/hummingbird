@@ -130,6 +130,9 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .dark-scope-clear { clear: both; }
       .dark-demo-card { border: 1px solid #888; padding: 6px; margin: 4px 0; }
       .dark-demo-card .note { font-size: 13px; }
+      .form-demo { display: flex; align-items: center; gap: 6px; }
+      .form-demo input { width: 260px; padding: 6px 8px; border: 1px solid #6f6f6f; border-radius: 4px; background-color: #ffffff; }
+      .form-demo button, .form-demo-external { padding: 6px 12px; border: 1px solid #5f5f5f; border-radius: 4px; background-color: #ececec; }
     </style>
   </head>
   <body bgcolor="#f0f7ff" text="#222222" link="#0066cc" vlink="#663399"
@@ -308,12 +311,12 @@ aligned.</pre>
 
     <div class="section">
       <h2>Form Controls</h2>
-      <form id="search-form" action="https://example.dev/search" method="get">
+      <form id="search-form" class="form-demo" action="https://example.dev/search" method="get">
         <input name="q">
         <button type="submit">Search</button>
       </form>
       <p>External submit button:</p>
-      <button type="submit" form="search-form">Search (external)</button>
+      <button class="form-demo-external" type="submit" form="search-form">Search (external)</button>
     </div>
 
     <div class="section">
