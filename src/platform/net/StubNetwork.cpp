@@ -104,6 +104,8 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
       .table-align-demo { border: 1px solid #bbb; }
       .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
       .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
+      .table-balance-demo { width: 100%; border: 1px solid #bbb; }
+      .table-balance-demo td { border: 1px solid #ddd; }
       .list-reset { list-style: none; padding-left: 0; }
       .bg-demo { height: 120px; border: 1px solid #aaa; background-image: url(assets/logos/hummingbird.svg); background-repeat: no-repeat; background-position: center; background-size: contain; }
       .bg-demo-tile { height: 80px; border: 1px solid #aaa; background-image: url(assets/icons/page_security/secure.png); background-repeat: repeat; background-position: left top; background-size: 16px 16px; }
@@ -224,6 +226,13 @@ aligned.</pre>
         <tr>
           <td align="right"><div class="cell-block">Right</div></td>
           <td align="center"><div class="cell-block">Center</div></td>
+        </tr>
+      </table>
+      <p>50/50 width-hint balancing demo:</p>
+      <table class="table-balance-demo" width="100%">
+        <tr>
+          <td width="50%">Short cell</td>
+          <td width="50%">Longer content cell that should still keep a balanced split.</td>
         </tr>
       </table>
     </div>

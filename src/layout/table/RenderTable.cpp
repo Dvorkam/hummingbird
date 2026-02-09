@@ -125,6 +125,66 @@ float sum_widths(const std::vector<float>& widths) {
     return std::accumulate(widths.begin(), widths.end(), 0.0f);
 }
 
+std::optional<float> cell_width_percent_hint(const RenderTableCell& cell) {
+    const auto* style = cell.get_computed_style();
+    if (style && style->width.has_value() && style->width_is_percent) {
+        return std::max(0.0f, *style->width);
+    }
+
+    auto* element = dynamic_cast<const DOM::Element*>(cell.get_dom_node());
+    if (!element) {
+        return std::nullopt;
+    }
+    auto attr = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::Width);
+    if (!attr) {
+        return std::nullopt;
+    }
+    auto parsed = parse_width_value(*attr);
+    if (!parsed || !parsed->is_percent) {
+        return std::nullopt;
+    }
+    return parsed->value;
+}
+
+std::vector<float> collect_column_percent_hints(const std::vector<RenderTableRow*>& rows, size_t column_count) {
+    std::vector<float> hints(column_count, 0.0f);
+    for (auto* row : rows) {
+        size_t col = 0;
+        for (const auto& child : row->get_children()) {
+            auto* cell = dynamic_cast<RenderTableCell*>(child.get());
+            if (!cell) {
+                continue;
+            }
+            size_t span = cell_colspan(*cell);
+            if (span == 0) {
+                span = 1;
+            }
+            if (span == 1 && col < hints.size()) {
+                if (auto hint = cell_width_percent_hint(*cell)) {
+                    hints[col] = std::max(hints[col], *hint);
+                }
+            }
+            col += span;
+        }
+    }
+    return hints;
+}
+
+void apply_column_percent_min_widths(std::vector<float>& column_widths, const std::vector<float>& column_percent_hints,
+                                     float target_width) {
+    if (target_width <= 0.0f || column_widths.size() != column_percent_hints.size()) {
+        return;
+    }
+    for (size_t i = 0; i < column_widths.size(); ++i) {
+        float hint = column_percent_hints[i];
+        if (hint <= 0.0f) {
+            continue;
+        }
+        float min_width = target_width * (hint / 100.0f);
+        column_widths[i] = std::max(column_widths[i], min_width);
+    }
+}
+
 std::vector<RenderTableRow*> collect_table_rows(RenderTable& table) {
     std::vector<RenderTableRow*> rows;
     collect_rows(table, rows);
@@ -180,15 +240,39 @@ std::vector<float> compute_column_widths(IGraphicsContext& context, const std::v
     return column_widths;
 }
 
-float apply_target_width(std::vector<float>& column_widths, float content_width, float target_width) {
+float apply_target_width(std::vector<float>& column_widths, const std::vector<float>& column_percent_hints,
+                         float content_width, float target_width) {
     if (target_width <= 0.0f || target_width <= content_width) {
         return content_width;
     }
     if (!column_widths.empty()) {
+        std::vector<float> weights(column_widths.size(), 1.0f);
+        if (column_percent_hints.size() == column_widths.size()) {
+            float hinted_total = 0.0f;
+            size_t unhinted_count = 0;
+            for (float hint : column_percent_hints) {
+                if (hint > 0.0f) {
+                    hinted_total += hint;
+                } else {
+                    ++unhinted_count;
+                }
+            }
+            if (hinted_total > 0.0f) {
+                float remainder = std::max(0.0f, 100.0f - hinted_total);
+                float unhinted_weight = unhinted_count > 0 ? (remainder / static_cast<float>(unhinted_count)) : 0.0f;
+                for (size_t i = 0; i < weights.size(); ++i) {
+                    weights[i] = column_percent_hints[i] > 0.0f ? column_percent_hints[i] : unhinted_weight;
+                }
+            }
+        }
+        float total_weight = sum_widths(weights);
+        if (total_weight <= 0.0f) {
+            std::fill(weights.begin(), weights.end(), 1.0f);
+            total_weight = static_cast<float>(weights.size());
+        }
         float extra = target_width - content_width;
-        float per_column = extra / static_cast<float>(column_widths.size());
-        for (auto& width : column_widths) {
-            width += per_column;
+        for (size_t i = 0; i < column_widths.size(); ++i) {
+            column_widths[i] += extra * (weights[i] / total_weight);
         }
     }
     return target_width;
@@ -221,10 +305,12 @@ void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
     auto rows = collect_table_rows(*this);
     size_t column_count = compute_column_count(rows);
     auto column_widths = compute_column_widths(context, rows, column_count);
-    float content_width = sum_widths(column_widths);
+    auto column_percent_hints = collect_column_percent_hints(rows, column_count);
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     float target_width = resolve_table_target_width(*element, style, available_width);
-    content_width = apply_target_width(column_widths, content_width, target_width);
+    apply_column_percent_min_widths(column_widths, column_percent_hints, target_width);
+    float content_width = sum_widths(column_widths);
+    content_width = apply_target_width(column_widths, column_percent_hints, content_width, target_width);
 
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
