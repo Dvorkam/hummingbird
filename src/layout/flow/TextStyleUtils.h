@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cctype>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,6 +34,13 @@ inline std::string normalize_family_name(std::string_view name) {
         } else {
             normalized.push_back(c);
             in_space = false;
+        }
+    }
+    if (normalized.size() >= 2) {
+        char first = normalized.front();
+        char last = normalized.back();
+        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+            normalized = normalized.substr(1, normalized.size() - 2);
         }
     }
     return normalized;
@@ -92,6 +100,23 @@ inline bool is_sans_family(const std::string& family) {
            family == "noto sans" || family == "noto-sans" || family == "sans" || family == "serif";
 }
 
+inline bool has_token(std::string_view text, std::string_view token) {
+    if (token.empty()) {
+        return false;
+    }
+    size_t pos = text.find(token);
+    while (pos != std::string_view::npos) {
+        const bool left_ok = pos == 0 || std::isspace(static_cast<unsigned char>(text[pos - 1]));
+        const size_t end = pos + token.size();
+        const bool right_ok = end == text.size() || std::isspace(static_cast<unsigned char>(text[end]));
+        if (left_ok && right_ok) {
+            return true;
+        }
+        pos = text.find(token, pos + 1);
+    }
+    return false;
+}
+
 // Minimal font-family mapping: handle common sans/mono names and fall back to bundled Roboto.
 inline FontFamily resolve_font_family(const Css::ComputedStyle* style) {
     bool prefers_monospace = style && style->font_monospace;
@@ -102,6 +127,18 @@ inline FontFamily resolve_font_family(const Css::ComputedStyle* style) {
             return FontFamily::Monospace;
         }
         if (is_sans_family(family)) {
+            return FontFamily::Sans;
+        }
+    }
+    // Some shorthand/font-family parse paths can collapse fallback lists into a
+    // whitespace-only token stream (e.g. "roboto mono monospace").
+    if (families.size() == 1) {
+        const auto& family = families.front();
+        if (has_token(family, "monospace") || has_token(family, "roboto mono")) {
+            return FontFamily::Monospace;
+        }
+        if (has_token(family, "sans") || has_token(family, "sans-serif") || has_token(family, "system-ui") ||
+            has_token(family, "roboto")) {
             return FontFamily::Sans;
         }
     }

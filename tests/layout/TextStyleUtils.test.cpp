@@ -35,3 +35,17 @@ TEST(TextStyleUtilsTest, ResolvesRobotoMonoForShorthandFamilyListWithoutCommaTok
     auto path = resolve_text_font_path(&style);
     EXPECT_NE(path.find("RobotoMono-"), std::string::npos);
 }
+
+TEST(TextStyleUtilsTest, ResolvesRobotoMonoForLowercaseCollapsedFamilyList) {
+    ComputedStyle style;
+    style.font_face = "roboto mono monospace";
+    auto path = resolve_text_font_path(&style);
+    EXPECT_NE(path.find("RobotoMono-"), std::string::npos);
+}
+
+TEST(TextStyleUtilsTest, ResolvesRobotoMonoForQuotedFamilyNames) {
+    ComputedStyle style;
+    style.font_face = "\"roboto mono\", monospace";
+    auto path = resolve_text_font_path(&style);
+    EXPECT_NE(path.find("RobotoMono-"), std::string::npos);
+}

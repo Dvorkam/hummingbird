@@ -3,15 +3,14 @@
 #include <memory>
 #include <optional>
 
-#include "app/TabStrip.h"
-#include "app/UrlBar.h"
+#include "app/BrowserChrome.h"
+#include "app/TabController.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 #include "engine/extensions/ExtensionHost.h"
 #include "engine/extensions/ExtensionLoader.h"
 #include "engine/tab/Tab.h"
-#include "engine/tab/TabManager.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -70,12 +69,11 @@ private:
     // Platform
     std::unique_ptr<IWindow> window_;
     std::unique_ptr<IGraphicsContext> graphics_;
-    Hummingbird::Engine::TabManager tab_manager_;
+    TabController tab_controller_;
     Hummingbird::Engine::ExtensionHost extension_host_;
 
     // UI state
-    TabStrip tab_strip_;
-    UrlBar url_bar_;
+    BrowserChrome browser_chrome_;
     bool debug_outlines_ = false;
     bool document_dirty_ = true;
     bool chrome_dirty_ = true;

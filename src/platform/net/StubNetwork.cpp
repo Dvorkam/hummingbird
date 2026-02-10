@@ -287,6 +287,22 @@ aligned.</pre>
           <td>Remaining width column</td>
         </tr>
       </table>
+      <p>Real-page-like table demo (thead/tbody + mixed absolute/percent hints):</p>
+      <table class="table-balance-demo" width="100%">
+        <thead>
+          <tr><th>Name</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td width="180">Fixed column</td>
+            <td width="70%">Longer content that should stay readable and aligned with header.</td>
+          </tr>
+          <tr>
+            <td>Short</td>
+            <td>Second row keeps the same split without seam artifacts.</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
 
     <div class="section">

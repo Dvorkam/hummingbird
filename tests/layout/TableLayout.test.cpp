@@ -482,3 +482,87 @@ TEST(TableLayoutTest, RespectsAbsoluteCellWidthHintsOnPercentTable) {
     EXPECT_NEAR(second_cell->get_rect().x, first_cell->get_rect().width, 0.01f);
     EXPECT_LE(first_cell->get_rect().width + second_cell->get_rect().width, table_render->get_rect().width);
 }
+
+TEST(TableLayoutTest, KeepsMixedSectionRowsAlignedWithAbsoluteAndPercentHints) {
+    Hummingbird::Core::ArenaAllocator arena(8192);
+    auto body = DomFactory::create_element(arena, TagNames::Body);
+    auto table = DomFactory::create_element(arena, TagNames::Table);
+    table->set_attribute(Attr::Width, "100%");
+
+    auto thead = DomFactory::create_element(arena, TagNames::Thead);
+    auto head_row = DomFactory::create_element(arena, TagNames::Tr);
+    auto head_first = DomFactory::create_element(arena, TagNames::Th);
+    head_first->append_child(DomFactory::create_text(arena, "Name"));
+    auto head_second = DomFactory::create_element(arena, TagNames::Th);
+    head_second->append_child(DomFactory::create_text(arena, "Description"));
+    head_row->append_child(std::move(head_first));
+    head_row->append_child(std::move(head_second));
+    thead->append_child(std::move(head_row));
+    table->append_child(std::move(thead));
+
+    auto tbody = DomFactory::create_element(arena, TagNames::Tbody);
+    auto row1 = DomFactory::create_element(arena, TagNames::Tr);
+    auto row1_first = DomFactory::create_element(arena, TagNames::Td);
+    row1_first->set_attribute(Attr::Width, "180");
+    row1_first->append_child(DomFactory::create_text(arena, "Fixed column"));
+    auto row1_second = DomFactory::create_element(arena, TagNames::Td);
+    row1_second->set_attribute(Attr::Width, "70%");
+    row1_second->append_child(DomFactory::create_text(arena, "Longer content that should stay readable."));
+    row1->append_child(std::move(row1_first));
+    row1->append_child(std::move(row1_second));
+    tbody->append_child(std::move(row1));
+
+    auto row2 = DomFactory::create_element(arena, TagNames::Tr);
+    auto row2_first = DomFactory::create_element(arena, TagNames::Td);
+    row2_first->append_child(DomFactory::create_text(arena, "Short"));
+    auto row2_second = DomFactory::create_element(arena, TagNames::Td);
+    row2_second->append_child(DomFactory::create_text(arena, "Second row still aligns to same split."));
+    row2->append_child(std::move(row2_first));
+    row2->append_child(std::move(row2_second));
+    tbody->append_child(std::move(row2));
+    table->append_child(std::move(tbody));
+    body->append_child(std::move(table));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 520, 260};
+    render_root->layout(context, viewport);
+
+    auto* table_render = dynamic_cast<RenderTable*>(render_root->get_children()[0].get());
+    ASSERT_NE(table_render, nullptr);
+    ASSERT_EQ(table_render->get_children().size(), 2u);
+
+    auto* section_head = dynamic_cast<RenderTableSection*>(table_render->get_children()[0].get());
+    auto* section_body = dynamic_cast<RenderTableSection*>(table_render->get_children()[1].get());
+    ASSERT_NE(section_head, nullptr);
+    ASSERT_NE(section_body, nullptr);
+    ASSERT_EQ(section_head->get_children().size(), 1u);
+    ASSERT_EQ(section_body->get_children().size(), 2u);
+
+    auto* head_row_render = dynamic_cast<RenderTableRow*>(section_head->get_children()[0].get());
+    auto* body_row_render = dynamic_cast<RenderTableRow*>(section_body->get_children()[0].get());
+    ASSERT_NE(head_row_render, nullptr);
+    ASSERT_NE(body_row_render, nullptr);
+    ASSERT_EQ(head_row_render->get_children().size(), 2u);
+    ASSERT_EQ(body_row_render->get_children().size(), 2u);
+
+    auto* head_second_cell = dynamic_cast<RenderTableCell*>(head_row_render->get_children()[1].get());
+    auto* body_first_cell = dynamic_cast<RenderTableCell*>(body_row_render->get_children()[0].get());
+    auto* body_second_cell = dynamic_cast<RenderTableCell*>(body_row_render->get_children()[1].get());
+    ASSERT_NE(head_second_cell, nullptr);
+    ASSERT_NE(body_first_cell, nullptr);
+    ASSERT_NE(body_second_cell, nullptr);
+
+    EXPECT_GE(table_render->get_rect().width, 520.0f);
+    EXPECT_GE(body_first_cell->get_rect().width, 180.0f);
+    EXPECT_NEAR(body_second_cell->get_rect().x, body_first_cell->get_rect().width, 0.01f);
+    EXPECT_NEAR(head_second_cell->get_rect().x, body_second_cell->get_rect().x, 0.01f);
+    EXPECT_LE(body_first_cell->get_rect().width + body_second_cell->get_rect().width, table_render->get_rect().width);
+}

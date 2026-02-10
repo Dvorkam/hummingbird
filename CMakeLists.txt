@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Hummingbird)
+project(Hummingbird VERSION 0.5.0)
 
 # Set C++ standard to C++20
 set(CMAKE_CXX_STANDARD 20)
@@ -182,6 +182,10 @@ target_link_libraries(Engine PUBLIC Core Html Layout Renderer Style)
 add_library(App
     src/app/BrowserApp.cpp
     src/app/BrowserApp.h
+    src/app/BrowserChrome.cpp
+    src/app/BrowserChrome.h
+    src/app/TabController.cpp
+    src/app/TabController.h
     src/app/TabStrip.cpp
     src/app/TabStrip.h
     src/app/UrlBar.cpp
