@@ -18,13 +18,16 @@ This is an early prototype:
 
 ## What works today (high level)
 
+- Multi-tab app flow (create/switch/close) with per-tab isolation.
+- Extension host MVP (manifest + loader + long-lived background scripts + `browser.tabs` events + CSS injection).
 - HTML tokenizer + parser building a DOM tree.
 - CSS parsing for a subset of selectors/properties, including `<style>` blocks and external stylesheets.
 - Resource pipeline for HTML/CSS/images/SVG with incremental restyles as data arrives.
 - URL normalization + relative URL resolution for linked resources.
-- Basic block + inline layout, list markers, table layout, and key positioning/box-model features.
-- Form controls MVP (`<form>`, `<input>`, `<button>`), focus/editing, and GET form submission.
-- Background images, basic transforms, and text-decoration underline variants used by real-world pages.
+- Block + inline layout, list markers, table layout, and key positioning/box-model features (including percent sizing/positioning and table width-hint balancing).
+- Form controls (`<form>`, `<input>`, `<button>`), focus/editing, `autofocus`, GET+POST submit flows, and external submit controls.
+- Real-page CSS polish coverage including border-radius/outline/box-shadow, text effects, overflow handling, cursor, and vertical-align.
+- Background images and basic transforms used by real-world pages.
 - QuickJS integration with `onclick`/`load` dispatch and basic DOM mutation bindings.
 - Painting via Blend2D into an SDL2 window.
 - Image decoding via SDL2_image + SVG decoding via lunasvg.
@@ -36,6 +39,8 @@ Releases are published on GitHub as:
 
 - **Linux AppImage**: `Hummingbird-<version>-linux-x86_64.AppImage`
 - **Windows portable zip**: `Hummingbird-<version>-win64.zip`
+
+Release highlights are tracked in `CHANGELOG.md`.
 
 ### Linux (AppImage)
 
@@ -180,8 +185,8 @@ What is not implemented yet:
 
 ### Built-in dark mode demo
 
-- Open `https://example.dev` and find `Extension Dark Mode Scope Demo`.
-- The dark-mode extension intentionally applies only inside `.hb-dark-scope` to make side-by-side behavior easy to inspect.
+- Open `https://example.dev` and find `Extension Dark Mode Demo`.
+- The built-in dark-mode extension now applies across ordinary page content (with targeted readability safeguards), not only a demo-only scope class.
 - Disable it with `HB_EXTENSIONS_DISABLE=dark-mode`.
 
 ### Directory layout

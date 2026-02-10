@@ -322,9 +322,8 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
         if (event.mouse_button.y >= tabs_top_y && event.mouse_button.y < tabs_bottom_y) {
             const auto [win_w, win_h] = window_->get_size();
             (void)win_h;
-            auto result =
-                browser_chrome_.handle_tab_strip_mouse_down(event.mouse_button.x, event.mouse_button.y, win_w,
-                                                            tabs_top_y, tab_controller_.manager());
+            auto result = browser_chrome_.handle_tab_strip_mouse_down(event.mouse_button.x, event.mouse_button.y, win_w,
+                                                                      tabs_top_y, tab_controller_.manager());
             if (result.handled) {
                 if (result.activated_tab && tab_controller_.set_active(*result.activated_tab)) {
                     on_active_tab_changed();
@@ -337,7 +336,8 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
         }
     }
 
-    auto url_result = browser_chrome_.url_bar().handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
+    auto url_result =
+        browser_chrome_.url_bar().handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
     if (url_result.handled) {
         bool interaction_state_changed = false;
         interaction_state_changed |= active_tab().clear_control_interaction();
@@ -434,8 +434,8 @@ void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
     const float delta = static_cast<float>(event.wheel.dy) * 32.0f;
 
     auto [win_w, win_h] = window_->get_size();
-    const float viewport_h =
-        static_cast<float>(std::max(0, win_h - browser_chrome_.url_bar().height() - browser_chrome_.tab_strip_height()));
+    const float viewport_h = static_cast<float>(
+        std::max(0, win_h - browser_chrome_.url_bar().height() - browser_chrome_.tab_strip_height()));
     active_tab().scroll_by(delta, viewport_h);
 
     document_dirty_ = true;
@@ -474,7 +474,8 @@ void BrowserApp::render_if_needed() {
             graphics_->clear(kClearColor);
             graphics_->set_text_cache_owner(0);
             browser_chrome_.url_bar().draw(*graphics_, win_w);
-            browser_chrome_.draw_tab_strip(*graphics_, win_w, browser_chrome_.url_bar().height(), tab_controller_.manager());
+            browser_chrome_.draw_tab_strip(*graphics_, win_w, browser_chrome_.url_bar().height(),
+                                           tab_controller_.manager());
             active_tab().paint(*graphics_, viewport, debug_outlines_);
             graphics_->present();
             document_dirty_ = false;
