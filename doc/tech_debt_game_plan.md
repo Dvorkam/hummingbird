@@ -27,6 +27,7 @@
   - [x] Split `Tab::tick` into lifecycle phase helpers (`apply_extension_css_if_needed`, `relayout_if_viewport_changed`, `process_animation_updates`). (2026-02-11)
   - [x] Consolidated repeated rebuild + layout-sync + background-image request flow into `rebuild_document_and_sync_layout`. (2026-02-11)
   - [x] Broke `handle_document_ready` into helpers for security-state update, document preparation, and resource discovery/request phases. (2026-02-11)
+  - [x] Separated incremental stylesheet/image update handling from `consume_pending_resources`. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Tab currently owns navigation normalization, security state, resource loader lifecycle, extension CSS state, layout state, and input dispatch plumbing.
     - [ ] `tick()` mixes resource consumption, extension CSS rebuilds, viewport relayout, and animation tick gating; this is multiple lifecycles in one loop.

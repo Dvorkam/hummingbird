@@ -90,6 +90,9 @@ public:
 
 private:
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void process_incremental_resource_updates(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
+                                              const Layout::Rect& viewport);
+    void sync_extension_styles_before_stylesheet_update();
     void handle_document_ready(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
                                const Layout::Rect& viewport);
     void handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);

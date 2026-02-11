@@ -285,16 +285,26 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
         handle_document_ready(result, graphics, viewport);
         return;
     }
+    process_incremental_resource_updates(result, graphics, viewport);
+}
+
+void Tab::process_incremental_resource_updates(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
+                                               const Layout::Rect& viewport) {
     if (result.stylesheet_ready && document_pipeline_.has_dom_tree()) {
-        if (extension_css_dirty_) {
-            document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
-            extension_css_dirty_ = false;
-        }
+        sync_extension_styles_before_stylesheet_update();
         handle_stylesheet_ready(graphics, viewport);
     }
     if (result.image_ready && document_pipeline_.has_render_tree()) {
         handle_image_ready(graphics, viewport);
     }
+}
+
+void Tab::sync_extension_styles_before_stylesheet_update() {
+    if (!extension_css_dirty_) {
+        return;
+    }
+    document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
+    extension_css_dirty_ = false;
 }
 
 void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
