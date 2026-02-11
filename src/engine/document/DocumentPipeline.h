@@ -11,7 +11,7 @@
 #include "core/platform_api/IScriptEngine.h"
 #include "engine/document/DocumentInteraction.h"
 #include "engine/document/DocumentModel.h"
-#include "engine/document/DocumentPainter.h"
+#include "engine/document/DocumentRenderer.h"
 #include "engine/document/DocumentResources.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/script/DocumentScriptController.h"
@@ -30,12 +30,6 @@ class ResourceStore;
 
 class DocumentPipeline {
 public:
-    struct PaintContext {
-        Layout::Rect viewport;
-        bool debug_outlines = false;
-        float scroll_y = 0.0f;
-    };
-
     struct HitTestContext {
         Layout::Point point;
         Layout::Rect viewport;
@@ -43,8 +37,8 @@ public:
         float scroll_y = 0.0f;
     };
 
+    using PaintContext = DocumentRenderer::PaintContext;
     using InputEditResult = DocumentInteraction::InputEditResult;
-
     using ScriptDispatchResult = DocumentScriptController::ScriptDispatchResult;
 
     DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider, IImageDecoder* image_decoder,
@@ -83,18 +77,17 @@ public:
 
     bool has_dom_tree() const { return model_.has_dom_tree(); }
     bool has_render_tree() const { return model_.has_render_tree(); }
-    float content_height() const { return content_height_; }
+    float content_height() const { return renderer_.content_height(); }
     size_t render_tree_children() const;
     const std::vector<std::string>& stylesheet_links() const { return model_.stylesheet_links(); }
     const std::vector<std::string>& image_links() const { return model_.image_links(); }
     const std::vector<std::string>& background_image_links() const { return model_.background_image_links(); }
 
 private:
-    float content_height_ = 0.0f;
     DocumentResources resources_;
     DocumentModel model_;
     DocumentInteraction interaction_{model_};
-    DocumentPainter painter_;
+    DocumentRenderer renderer_{model_, interaction_};
     DocumentScriptController script_controller_;
     std::vector<std::string> extension_style_blocks_;
 };
