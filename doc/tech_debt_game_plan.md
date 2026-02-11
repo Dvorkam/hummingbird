@@ -66,7 +66,7 @@
 ## Large File Candidates (Line Count)
 - [ ] `src/layout/table/RenderTable.cpp` (~804)
   - [ ] Split width-hint distribution vs layout/paint vs debug logging.
-  - [ ] Consolidate repeated column width calculations into helpers.
+  - [x] Consolidate repeated column width calculations into helpers. (2026-02-11)
   - [ ] Verify table compatibility work stays localized and testable.
 - [ ] `src/style/parser/CssParser.cpp` (~736)
   - [ ] Identify parsing hot paths vs property-specific parsing.

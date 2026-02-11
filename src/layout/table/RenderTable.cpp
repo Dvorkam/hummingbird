@@ -152,29 +152,10 @@ std::optional<float> cell_width_percent_hint(const RenderTableCell& cell) {
     return parsed->value;
 }
 
-std::vector<float> collect_column_percent_hints(const std::vector<RenderTableRow*>& rows, size_t column_count) {
-    std::vector<float> hints(column_count, 0.0f);
-    for (auto* row : rows) {
-        size_t col = 0;
-        for (const auto& child : row->get_children()) {
-            auto* cell = dynamic_cast<RenderTableCell*>(child.get());
-            if (!cell) {
-                continue;
-            }
-            size_t span = cell_colspan(*cell);
-            if (span == 0) {
-                span = 1;
-            }
-            if (span == 1 && col < hints.size()) {
-                if (auto hint = cell_width_percent_hint(*cell)) {
-                    hints[col] = std::max(hints[col], *hint);
-                }
-            }
-            col += span;
-        }
-    }
-    return hints;
-}
+struct ColumnWidthHints {
+    std::vector<float> percent;
+    std::vector<float> absolute;
+};
 
 std::optional<float> cell_width_absolute_hint(const RenderTableCell& cell) {
     const auto* style = cell.get_computed_style();
@@ -200,8 +181,8 @@ std::optional<float> cell_width_absolute_hint(const RenderTableCell& cell) {
     return Metrics::resolve_border_box_width(style, width, insets);
 }
 
-std::vector<float> collect_column_absolute_hints(const std::vector<RenderTableRow*>& rows, size_t column_count) {
-    std::vector<float> hints(column_count, 0.0f);
+ColumnWidthHints collect_column_hints(const std::vector<RenderTableRow*>& rows, size_t column_count) {
+    ColumnWidthHints hints{std::vector<float>(column_count, 0.0f), std::vector<float>(column_count, 0.0f)};
     for (auto* row : rows) {
         size_t col = 0;
         for (const auto& child : row->get_children()) {
@@ -213,9 +194,12 @@ std::vector<float> collect_column_absolute_hints(const std::vector<RenderTableRo
             if (span == 0) {
                 span = 1;
             }
-            if (span == 1 && col < hints.size()) {
+            if (span == 1 && col < hints.percent.size()) {
+                if (auto hint = cell_width_percent_hint(*cell)) {
+                    hints.percent[col] = std::max(hints.percent[col], *hint);
+                }
                 if (auto hint = cell_width_absolute_hint(*cell)) {
-                    hints[col] = std::max(hints[col], *hint);
+                    hints.absolute[col] = std::max(hints.absolute[col], *hint);
                 }
             }
             col += span;
@@ -595,14 +579,13 @@ void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
     auto rows = collect_table_rows(*this);
     size_t column_count = compute_column_count(rows);
     auto column_widths = compute_column_widths(context, rows, column_count);
-    auto column_percent_hints = collect_column_percent_hints(rows, column_count);
-    auto column_absolute_hints = collect_column_absolute_hints(rows, column_count);
+    auto column_hints = collect_column_hints(rows, column_count);
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     float target_width = resolve_table_target_width(*element, style, available_width);
-    apply_column_absolute_min_widths(column_widths, column_absolute_hints);
-    apply_column_percent_min_widths(column_widths, column_percent_hints, target_width);
+    apply_column_absolute_min_widths(column_widths, column_hints.absolute);
+    apply_column_percent_min_widths(column_widths, column_hints.percent, target_width);
     float content_width = sum_widths(column_widths);
-    content_width = apply_target_width(column_widths, column_percent_hints, content_width, target_width);
+    content_width = apply_target_width(column_widths, column_hints.percent, content_width, target_width);
 
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
