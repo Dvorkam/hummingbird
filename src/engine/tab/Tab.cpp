@@ -71,20 +71,16 @@ void Tab::navigate(std::string_view url) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     std::string normalized = Core::normalize_input_url(url);
-    requested_url_ = std::move(normalized);
-    pending_navigation_commit_url_.reset();
-    security_state_ = security_state_for_url(requested_url_);
+    navigation_state_.begin_navigation(std::move(normalized), security_state_for_url(navigation_state_.requested_url()));
     reset_document_state();
-    resource_loader_.navigate(requested_url_);
+    resource_loader_.navigate(navigation_state_.requested_url());
 }
 
 void Tab::navigate(const FormSubmission& submission) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     std::string normalized = Core::normalize_input_url(submission.url);
-    requested_url_ = std::move(normalized);
-    pending_navigation_commit_url_.reset();
-    security_state_ = security_state_for_url(requested_url_);
+    navigation_state_.begin_navigation(std::move(normalized), security_state_for_url(navigation_state_.requested_url()));
     reset_document_state();
 
     ResourceLoader::DocumentRequest request{};
@@ -93,7 +89,7 @@ void Tab::navigate(const FormSubmission& submission) {
         request.body = submission.body;
         request.content_type = submission.content_type;
     }
-    resource_loader_.navigate(requested_url_, request);
+    resource_loader_.navigate(navigation_state_.requested_url(), request);
 }
 
 bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -103,8 +99,9 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
 
     if (extension_css_dirty_ && document_pipeline_.has_dom_tree()) {
         document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
-        bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
-        resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
+        bool has_render_tree =
+            document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
+        resource_loader_.request_images(document_pipeline_.background_image_links(), navigation_state_.requested_url());
         if (has_render_tree) {
             update_layout_state(viewport, "tick:extension_css");
         }
@@ -151,7 +148,7 @@ bool Tab::advance_animation_tick() {
     bool updated = false;
     if (resource_loader_.store().tick_animations(animation_tick_accumulator_ms_) &&
         document_pipeline_.has_render_tree()) {
-        updated = document_pipeline_.update_image_resources(requested_url_);
+        updated = document_pipeline_.update_image_resources(navigation_state_.requested_url());
     }
     animation_tick_accumulator_ms_ = 0;
     return updated;
@@ -174,16 +171,17 @@ void Tab::paint_controls(IGraphicsContext& graphics, const Layout::Rect& viewpor
 }
 
 std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const {
-    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
+    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(), layout_state_.scroll_y};
     return document_pipeline_.hit_test_link(context);
 }
 
 Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
                                      IGraphicsContext& graphics) {
-    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
+    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
+                                             layout_state_.scroll_y};
     auto result = document_pipeline_.dispatch_click(context);
     if (result.mutated) {
-        if (document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_)) {
+        if (document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url())) {
             update_layout_state(viewport, "dispatch_click:script_mutation");
         }
         dirty_ = true;
@@ -192,12 +190,14 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
 }
 
 std::optional<FormSubmission> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
-    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
+    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
+                                             layout_state_.scroll_y};
     return document_pipeline_.submit_form_at(context);
 }
 
 bool Tab::focus_input_at(const Layout::Point& point, const Layout::Rect& viewport) {
-    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
+    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
+                                             layout_state_.scroll_y};
     return document_pipeline_.focus_input_at(context);
 }
 
@@ -206,7 +206,8 @@ bool Tab::clear_input_focus() {
 }
 
 bool Tab::set_control_interaction_at(const Layout::Point& point, const Layout::Rect& viewport) {
-    DocumentPipeline::HitTestContext context{point, viewport, requested_url_, layout_state_.scroll_y};
+    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
+                                             layout_state_.scroll_y};
     return document_pipeline_.set_control_interaction_at(context);
 }
 
@@ -218,7 +219,8 @@ bool Tab::refresh_styles_for_interaction(IGraphicsContext& graphics, const Layou
     if (!document_pipeline_.has_dom_tree()) {
         return false;
     }
-    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
+    bool has_render_tree =
+        document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
     if (has_render_tree) {
         update_layout_state(viewport, "refresh_styles_for_interaction");
     }
@@ -235,7 +237,7 @@ bool Tab::handle_text_input(std::string_view text) {
 }
 
 Tab::KeyResult Tab::handle_key_down(const InputEvent& event) {
-    auto result = document_pipeline_.handle_key_down(event, requested_url_);
+    auto result = document_pipeline_.handle_key_down(event, navigation_state_.requested_url());
     return {result.handled, result.needs_repaint, std::move(result.submitted_form)};
 }
 
@@ -244,12 +246,7 @@ std::optional<std::string> Tab::focused_input_value() const {
 }
 
 std::optional<std::string> Tab::consume_navigation_commit_url() {
-    if (!pending_navigation_commit_url_) {
-        return std::nullopt;
-    }
-    auto url = std::move(pending_navigation_commit_url_);
-    pending_navigation_commit_url_.reset();
-    return url;
+    return navigation_state_.consume_pending_commit_url();
 }
 
 bool Tab::insert_extension_css(std::string_view css_text) {
@@ -303,14 +300,14 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
 void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
                                 const Layout::Rect& viewport) {
     if (!result.effective_url.empty()) {
-        requested_url_ = result.effective_url;
+        navigation_state_.update_requested_url(result.effective_url);
     }
     if (result.document_error == NetworkError::TlsVerificationFailed) {
-        security_state_ = SecurityState::InsecureTls;
-    } else if (resource_loader_.is_insecure_allowed_for_url(requested_url_)) {
-        security_state_ = SecurityState::InsecureTls;
+        navigation_state_.set_security_state(SecurityState::InsecureTls);
+    } else if (resource_loader_.is_insecure_allowed_for_url(navigation_state_.requested_url())) {
+        navigation_state_.set_security_state(SecurityState::InsecureTls);
     } else {
-        security_state_ = security_state_for_url(requested_url_);
+        navigation_state_.set_security_state(security_state_for_url(navigation_state_.requested_url()));
     }
     const auto* entry = resource_loader_.find(result.document_url, ResourceType::Document);
     if (!entry) {
@@ -322,7 +319,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     if (!document_pipeline_.parse_html(entry->body)) {
         return;
     }
-    pending_navigation_commit_url_ = requested_url_;
+    navigation_state_.set_pending_commit_url(std::string(navigation_state_.requested_url()));
     document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
     extension_css_dirty_ = false;
     document_pipeline_.run_scripts();
@@ -333,13 +330,14 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
         HB_LOG_INFO("[pipeline] discovered image sources: " << document_pipeline_.image_links().size());
     }
 
-    resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), requested_url_);
-    resource_loader_.request_images(document_pipeline_.image_links(), requested_url_);
-    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
+    resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), navigation_state_.requested_url());
+    resource_loader_.request_images(document_pipeline_.image_links(), navigation_state_.requested_url());
+    bool has_render_tree =
+        document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
     if (!document_pipeline_.background_image_links().empty()) {
         HB_LOG_INFO("[pipeline] discovered background images: " << document_pipeline_.background_image_links().size());
     }
-    resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
+    resource_loader_.request_images(document_pipeline_.background_image_links(), navigation_state_.requested_url());
     if (has_render_tree) {
         update_layout_state(viewport, "handle_document_ready:initial_build");
         if (document_pipeline_.focus_autofocus_input()) {
@@ -348,7 +346,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     }
     auto load_result = document_pipeline_.dispatch_load();
     if (load_result.mutated) {
-        if (document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_)) {
+        if (document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url())) {
             update_layout_state(viewport, "handle_document_ready:load_mutation");
             if (document_pipeline_.focus_autofocus_input()) {
                 dirty_ = true;
@@ -365,8 +363,9 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto style_update_start = Core::Clock::now();
-    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
-    resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
+    bool has_render_tree =
+        document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
+    resource_loader_.request_images(document_pipeline_.background_image_links(), navigation_state_.requested_url());
     if (has_render_tree) {
         update_layout_state(viewport, "handle_stylesheet_ready");
     }
@@ -378,7 +377,7 @@ void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect
 
 void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto image_update_start = Core::Clock::now();
-    bool updated = document_pipeline_.update_image_resources(requested_url_);
+    bool updated = document_pipeline_.update_image_resources(navigation_state_.requested_url());
     if (updated) {
         document_pipeline_.relayout(graphics, viewport);
         update_layout_state(viewport, "handle_image_ready:relayout");
@@ -394,7 +393,7 @@ void Tab::reset_document_state() {
     document_pipeline_.reset();
     resource_loader_.reset();
     layout_state_.reset();
-    pending_navigation_commit_url_.reset();
+    navigation_state_.clear_pending_commit_url();
     has_animation_tick_ = false;
     animation_tick_accumulator_ms_ = 0;
     dirty_ = true;
@@ -415,12 +414,12 @@ void Tab::update_layout_state(const Layout::Rect& viewport, std::string_view rea
 }
 
 bool Tab::allow_insecure_for_current_host() {
-    auto parsed = Core::parse_absolute_url(requested_url_);
+    auto parsed = Core::parse_absolute_url(navigation_state_.requested_url());
     if (!parsed || parsed->host.empty()) {
         return false;
     }
     resource_loader_.allow_insecure_host(parsed->host);
-    security_state_ = SecurityState::InsecureTls;
+    navigation_state_.set_security_state(SecurityState::InsecureTls);
     return true;
 }
 

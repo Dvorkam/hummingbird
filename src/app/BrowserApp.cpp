@@ -9,6 +9,7 @@
 #include <string_view>
 #include <utility>
 
+#include "app/ExtensionBootstrap.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/ImageDecoderFactory.h"
@@ -16,7 +17,6 @@
 #include "core/platform_api/NetworkFactory.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
-#include "app/ExtensionBootstrap.h"
 #include "core/utils/Log.h"
 
 namespace Hummingbird::App {

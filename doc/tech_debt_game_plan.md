@@ -21,6 +21,7 @@
   - [ ] Propose thin façade interfaces to reduce include fan-out.
   - [x] Extracted animation tick logic into `Tab::advance_animation_tick`. (2026-02-11)
   - [x] Extracted `TabLayoutState` helper to isolate scroll/viewport state. (2026-02-11)
+  - [x] Extracted `TabNavigationState` helper for URL/security/commit state. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Tab currently owns navigation normalization, security state, resource loader lifecycle, extension CSS state, layout state, and input dispatch plumbing.
     - [ ] `tick()` mixes resource consumption, extension CSS rebuilds, viewport relayout, and animation tick gating; this is multiple lifecycles in one loop.

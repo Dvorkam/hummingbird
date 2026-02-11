@@ -19,6 +19,7 @@
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
 #include "engine/tab/TabLayoutState.h"
+#include "engine/tab/TabNavigationState.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -81,8 +82,8 @@ public:
 
     float scroll_y() const { return layout_state_.scroll_y; }
     float content_height() const { return layout_state_.content_height; }
-    std::string_view requested_url() const { return requested_url_; }
-    SecurityState security_state() const { return security_state_; }
+    std::string_view requested_url() const { return navigation_state_.requested_url(); }
+    SecurityState security_state() const { return navigation_state_.security_state(); }
     std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
 
     bool allow_insecure_for_current_host();
@@ -105,10 +106,7 @@ private:
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;
     bool extension_css_dirty_ = false;
-    std::optional<std::string> pending_navigation_commit_url_;
-
-    std::string requested_url_;
-    SecurityState security_state_ = SecurityState::Unknown;
+    TabNavigationState navigation_state_{};
     TabLayoutState layout_state_{};
 
     bool dirty_ = true;
