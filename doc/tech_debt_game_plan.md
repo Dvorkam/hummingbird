@@ -102,6 +102,7 @@
   - [x] Reduced `BrowserApp.h` include fan-out via forward declarations. (2026-02-11)
   - [x] Routed input events through `BrowserEventRouter`. (2026-02-11)
   - [x] Moved render/cache invalidation into `RenderCoordinator`. (2026-02-11)
+  - [x] Moved security icon asset loading from `BrowserApp` into `BrowserChrome`. (2026-02-11)
 - [ ] `src/layout/flow/TextBox.cpp` (~608)
   - [ ] Separate text shaping/metrics vs line breaking logic.
   - [ ] Isolate text-overflow/ellipsis handling.

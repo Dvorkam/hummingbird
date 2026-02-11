@@ -52,25 +52,6 @@ Hummingbird::Engine::TabFactory make_tab_factory(NetworkBackend primary_backend)
     factory.create_script_engine = []() { return create_script_engine(); };
     return factory;
 }
-
-std::optional<ImageBitmap> load_icon(IResourceProvider* provider, IImageDecoder* decoder, std::string_view path) {
-    if (!provider || !decoder) return std::nullopt;
-    auto bytes = provider->load_bytes(path);
-    if (!bytes) return std::nullopt;
-    auto decoded = decoder->decode(*bytes);
-    if (!decoded) {
-        HB_LOG_WARN("[ui] failed to decode icon: " << path);
-    }
-    return decoded;
-}
-
-UrlBar::SecurityIcons load_security_icons(IResourceProvider* provider, IImageDecoder* decoder) {
-    UrlBar::SecurityIcons icons;
-    icons.secure = load_icon(provider, decoder, "assets/icons/page_security/secure.png");
-    icons.insecure = load_icon(provider, decoder, "assets/icons/page_security/insecure.png");
-    icons.asecure = load_icon(provider, decoder, "assets/icons/page_security/asecure.png");
-    return icons;
-}
 }  // namespace
 
 BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
@@ -84,7 +65,7 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
     if (provider && decoder) {
-        browser_chrome_.url_bar().set_security_icons(load_security_icons(provider.get(), decoder.get()));
+        browser_chrome_.load_security_icons(provider.get(), decoder.get());
     }
 
     auto bootstrap = Hummingbird::App::load_extension_bootstrap();

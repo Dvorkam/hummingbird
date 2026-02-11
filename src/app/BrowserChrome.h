@@ -7,6 +7,11 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "engine/tab/TabManager.h"
 
+namespace Hummingbird {
+class IResourceProvider;
+class IImageDecoder;
+}
+
 namespace Hummingbird::App {
 
 class BrowserChrome {
@@ -26,6 +31,8 @@ public:
 
     TabStripClickResult handle_tab_strip_mouse_down(int x, int y, int win_w, int top_y,
                                                     const Engine::TabManager& tabs) const;
+
+    void load_security_icons(IResourceProvider* provider, IImageDecoder* decoder);
 
 private:
     UrlBar url_bar_;

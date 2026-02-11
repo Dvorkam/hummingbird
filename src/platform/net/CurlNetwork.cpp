@@ -251,16 +251,13 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
         if (res != CURLE_OK) {
             response.error =
                 is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
-            HB_LOG_WARN("[network] curl failed: url=" << url << " code=" << res << " err=" << curl_easy_strerror(res)
-                                                      << " status=" << meta.status
-                                                      << " ssl_verify=" << meta.ssl_verify_result
-                                                      << " effective=" << meta.effective_url
-                                                      << " content_type=" << meta.content_type
-                                                      << " bytes=" << body.size());
+            HB_LOG_WARN("[network] curl failed: url="
+                        << url << " code=" << res << " err=" << curl_easy_strerror(res) << " status=" << meta.status
+                        << " ssl_verify=" << meta.ssl_verify_result << " effective=" << meta.effective_url
+                        << " content_type=" << meta.content_type << " bytes=" << body.size());
         } else if (meta.status >= 400) {
-            HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status
-                                                     << " effective=" << meta.effective_url
-                                                     << " content_type=" << meta.content_type
+            HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
+                                                     << meta.effective_url << " content_type=" << meta.content_type
                                                      << " bytes=" << body.size());
         }
 
@@ -318,15 +315,13 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
         if (res != CURLE_OK) {
             response.error =
                 is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
-            HB_LOG_WARN("[network] curl failed: url=" << url << " code=" << res << " err=" << curl_easy_strerror(res)
-                                                      << " status=" << meta.status
-                                                      << " ssl_verify=" << meta.ssl_verify_result
-                                                      << " effective=" << meta.effective_url << " content_type="
-                                                      << meta.content_type << " bytes=" << response_body.size());
+            HB_LOG_WARN("[network] curl failed: url="
+                        << url << " code=" << res << " err=" << curl_easy_strerror(res) << " status=" << meta.status
+                        << " ssl_verify=" << meta.ssl_verify_result << " effective=" << meta.effective_url
+                        << " content_type=" << meta.content_type << " bytes=" << response_body.size());
         } else if (meta.status >= 400) {
-            HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status
-                                                     << " effective=" << meta.effective_url << " content_type="
-                                                     << meta.content_type
+            HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
+                                                     << meta.effective_url << " content_type=" << meta.content_type
                                                      << " bytes=" << response_body.size());
         }
 
