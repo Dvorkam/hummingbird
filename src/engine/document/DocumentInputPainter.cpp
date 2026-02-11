@@ -9,9 +9,9 @@
 #include "core/utils/Log.h"
 #include "core/utils/TextEditBuffer.h"
 #include "engine/document/DocumentInputUtils.h"
+#include "layout/RenderObject.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
-#include "layout/RenderObject.h"
 
 namespace Hummingbird::Engine {
 
@@ -129,16 +129,15 @@ void paint_input_control(const DOM::Element& element, const Layout::RenderObject
 
     if (focused) {
         paint_input_focus_ring(absolute, graphics);
-        HB_LOG_DEBUG("[input] draw focused value='"
-                     << paint_data->value << "' text_pos=" << paint_data->text_x << "," << paint_data->text_y
-                     << " text_h=" << paint_data->text_height << " color=("
-                     << static_cast<int>(paint_data->text_style.color.r) << ","
-                     << static_cast<int>(paint_data->text_style.color.g) << ","
-                     << static_cast<int>(paint_data->text_style.color.b) << ","
-                     << static_cast<int>(paint_data->text_style.color.a) << ") font_size="
-                     << paint_data->text_style.font_size << " content=" << paint_data->content.x << ","
-                     << paint_data->content.y << " " << paint_data->content.width << "x"
-                     << paint_data->content.height);
+        HB_LOG_DEBUG("[input] draw focused value='" << paint_data->value << "' text_pos=" << paint_data->text_x << ","
+                                                    << paint_data->text_y << " text_h=" << paint_data->text_height
+                                                    << " color=(" << static_cast<int>(paint_data->text_style.color.r)
+                                                    << "," << static_cast<int>(paint_data->text_style.color.g) << ","
+                                                    << static_cast<int>(paint_data->text_style.color.b) << ","
+                                                    << static_cast<int>(paint_data->text_style.color.a)
+                                                    << ") font_size=" << paint_data->text_style.font_size << " content="
+                                                    << paint_data->content.x << "," << paint_data->content.y << " "
+                                                    << paint_data->content.width << "x" << paint_data->content.height);
         paint_input_caret(*paint_data, graphics, caret, scroll_y, repaint_background);
     }
 }

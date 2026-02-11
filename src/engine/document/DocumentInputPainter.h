@@ -2,8 +2,8 @@
 
 #include <cstddef>
 
-#include "layout/geometry/Geometry.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::DOM {
 class Element;

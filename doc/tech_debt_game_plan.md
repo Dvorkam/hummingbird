@@ -85,6 +85,7 @@
   - [ ] Identify parsing hot paths vs property-specific parsing.
   - [ ] Extract property-specific parsing helpers (e.g., font shorthand, background, borders) only if it reduces branching in `parse_value`.
   - [ ] Check for duplicated tokenization/parse patterns.
+  - [x] Extracted shared CSS value text/var-expression helpers into `CssValueUtils`. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Parser already isolates selector parsing vs declaration parsing; most complexity sits in value parsing and shorthand expansion.
     - [ ] `parse_value` is a dispatcher with per-type parsing; splitting into many files may not buy architectural clarity unless shorthand handling grows.

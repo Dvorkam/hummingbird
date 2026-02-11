@@ -36,6 +36,7 @@ find_package(lunasvg CONFIG REQUIRED)
 add_library(Style STATIC
     src/style/parser/CssTokenizer.cpp
     src/style/parser/CssParser.cpp
+    src/style/parser/CssValueUtils.cpp
     src/style/registry/CssPropertyRegistry.cpp
     src/style/selector/SelectorMatcher.cpp
     src/style/compute/StyleDefaults.cpp
