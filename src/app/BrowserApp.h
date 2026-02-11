@@ -5,11 +5,7 @@
 
 #include "app/BrowserChrome.h"
 #include "app/TabController.h"
-#include "core/platform_api/IGraphicsContext.h"
-#include "core/platform_api/IWindow.h"
-#include "core/platform_api/InputEvent.h"
 #include "engine/extensions/ExtensionHost.h"
-#include "engine/extensions/ExtensionLoader.h"
 #include "engine/tab/Tab.h"
 #include "layout/geometry/Geometry.h"
 

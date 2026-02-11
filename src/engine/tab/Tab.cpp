@@ -71,7 +71,8 @@ void Tab::navigate(std::string_view url) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     std::string normalized = Core::normalize_input_url(url);
-    navigation_state_.begin_navigation(std::move(normalized), security_state_for_url(navigation_state_.requested_url()));
+    navigation_state_.begin_navigation(std::move(normalized),
+                                       security_state_for_url(navigation_state_.requested_url()));
     reset_document_state();
     resource_loader_.navigate(navigation_state_.requested_url());
 }
@@ -80,7 +81,8 @@ void Tab::navigate(const FormSubmission& submission) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     std::string normalized = Core::normalize_input_url(submission.url);
-    navigation_state_.begin_navigation(std::move(normalized), security_state_for_url(navigation_state_.requested_url()));
+    navigation_state_.begin_navigation(std::move(normalized),
+                                       security_state_for_url(navigation_state_.requested_url()));
     reset_document_state();
 
     ResourceLoader::DocumentRequest request{};
@@ -171,7 +173,8 @@ void Tab::paint_controls(IGraphicsContext& graphics, const Layout::Rect& viewpor
 }
 
 std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const {
-    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(), layout_state_.scroll_y};
+    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
+                                             layout_state_.scroll_y};
     return document_pipeline_.hit_test_link(context);
 }
 
@@ -219,8 +222,7 @@ bool Tab::refresh_styles_for_interaction(IGraphicsContext& graphics, const Layou
     if (!document_pipeline_.has_dom_tree()) {
         return false;
     }
-    bool has_render_tree =
-        document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
+    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
     if (has_render_tree) {
         update_layout_state(viewport, "refresh_styles_for_interaction");
     }
@@ -332,8 +334,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 
     resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), navigation_state_.requested_url());
     resource_loader_.request_images(document_pipeline_.image_links(), navigation_state_.requested_url());
-    bool has_render_tree =
-        document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
+    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
     if (!document_pipeline_.background_image_links().empty()) {
         HB_LOG_INFO("[pipeline] discovered background images: " << document_pipeline_.background_image_links().size());
     }
@@ -363,8 +364,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto style_update_start = Core::Clock::now();
-    bool has_render_tree =
-        document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
+    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
     resource_loader_.request_images(document_pipeline_.background_image_links(), navigation_state_.requested_url());
     if (has_render_tree) {
         update_layout_state(viewport, "handle_stylesheet_ready");
