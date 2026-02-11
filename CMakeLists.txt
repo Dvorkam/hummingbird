@@ -132,6 +132,7 @@ add_library(Layout STATIC
     src/layout/replaced/RenderSvg.cpp
     src/layout/replaced/ReplacedSizingUtils.cpp
     src/layout/table/RenderTable.cpp
+    src/layout/table/TableDebug.cpp
 )
 target_include_directories(Layout
     PUBLIC
