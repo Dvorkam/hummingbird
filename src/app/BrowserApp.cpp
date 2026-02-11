@@ -22,9 +22,6 @@
 namespace Hummingbird::App {
 
 namespace {
-// You can keep constants here to avoid re-allocating per frame
-constexpr Color kClearColor{255, 255, 255, 255};
-
 bool env_truthy(const char* name) {
     const char* value = std::getenv(name);
     if (!value || !value[0]) return false;
@@ -39,10 +36,6 @@ bool env_truthy(const char* name) {
         return true;
     };
     return equals("1") || equals("true") || equals("yes") || equals("on");
-}
-
-bool render_loop_debug_enabled() {
-    return env_truthy("HB_DEBUG_RENDER_LOOP");
 }
 
 NetworkBackend primary_backend_for_env() {
@@ -85,7 +78,8 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
       tab_controller_(make_tab_factory(primary_backend_for_env())),
       extension_host_([]() { return create_script_engine(); }),
-      event_router_(*this) {
+      event_router_(*this),
+      render_coordinator_(*this) {
     const auto first_tab_id = tab_controller_.create_tab();
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
@@ -159,7 +153,7 @@ bool BrowserApp::tick() {
         auto [win_w, win_h] = window_->get_size();
         const auto viewport = compute_content_viewport(win_w, win_h);
         if (active_tab().tick(*graphics_, viewport)) {
-            document_dirty_ = true;
+            render_coordinator_.set_document_dirty();
         }
         if (auto id = tab_controller_.active_tab_id()) {
             if (auto committed = active_tab().consume_navigation_commit_url()) {
@@ -167,11 +161,11 @@ bool BrowserApp::tick() {
             }
         }
         if (browser_chrome_.url_bar().set_security_state(active_tab().security_state())) {
-            chrome_dirty_ = true;
+            render_coordinator_.set_chrome_dirty();
         }
         sync_tab_text_input_mode();
     }
-    render_if_needed();
+    render_coordinator_.render_if_needed();
 
     return window_->is_open();
 }
@@ -195,11 +189,11 @@ void BrowserApp::handle_quit_event() {
 
 void BrowserApp::handle_text_input_event(const InputEvent& event) {
     if (browser_chrome_.url_bar().handle_text_input(event.text.text)) {
-        chrome_dirty_ = true;
+        render_coordinator_.set_chrome_dirty();
         return;
     }
     if (active_tab().handle_text_input(event.text.text)) {
-        controls_dirty_ = true;
+        render_coordinator_.set_controls_dirty();
     }
 }
 
@@ -207,36 +201,36 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (!event.key.repeat) {
         if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::T) {
             if (new_tab()) {
-                chrome_dirty_ = true;
-                document_dirty_ = true;
-                controls_dirty_ = true;
+                render_coordinator_.set_chrome_dirty();
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
             }
             return;
         }
 
         if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::W) {
             if (close_active_tab()) {
-                chrome_dirty_ = true;
-                document_dirty_ = true;
-                controls_dirty_ = true;
+                render_coordinator_.set_chrome_dirty();
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
             }
             return;
         }
 
         if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Right) {
             if (activate_next_tab()) {
-                chrome_dirty_ = true;
-                document_dirty_ = true;
-                controls_dirty_ = true;
+                render_coordinator_.set_chrome_dirty();
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
             }
             return;
         }
 
         if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Left) {
             if (activate_prev_tab()) {
-                chrome_dirty_ = true;
-                document_dirty_ = true;
-                controls_dirty_ = true;
+                render_coordinator_.set_chrome_dirty();
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
             }
             return;
         }
@@ -244,7 +238,7 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
 
     if (event.key.key == Key::L && event.mods.ctrl && event.mods.shift) {
         HB_LOG_INFO("[ui] Forcing document repaint");
-        document_dirty_ = true;
+        render_coordinator_.set_document_dirty();
         return;
     }
 
@@ -252,9 +246,9 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         browser_chrome_.url_bar().set_active(true, window_.get(), "[ui] URL bar focused");
         browser_chrome_.url_bar().move_caret_to_end();
         if (active_tab().clear_input_focus()) {
-            controls_dirty_ = true;
+            render_coordinator_.set_controls_dirty();
         }
-        chrome_dirty_ = true;
+        render_coordinator_.set_chrome_dirty();
         return;
     }
 
@@ -262,11 +256,11 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (result.handled) {
         if (result.submitted_url) {
             navigate_active_tab(*result.submitted_url);
-            document_dirty_ = true;
-            chrome_dirty_ = true;
+            render_coordinator_.set_document_dirty();
+            render_coordinator_.set_chrome_dirty();
         }
         if (result.needs_repaint) {
-            chrome_dirty_ = true;
+            render_coordinator_.set_chrome_dirty();
         }
         return;
     }
@@ -276,11 +270,11 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         if (tab_result.submitted_form) {
             browser_chrome_.url_bar().set_text(tab_result.submitted_form->url);
             navigate_active_tab(*tab_result.submitted_form);
-            document_dirty_ = true;
-            chrome_dirty_ = true;
+            render_coordinator_.set_document_dirty();
+            render_coordinator_.set_chrome_dirty();
         }
         if (tab_result.needs_repaint) {
-            controls_dirty_ = true;
+            render_coordinator_.set_controls_dirty();
         }
         return;
     }
@@ -288,7 +282,7 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (event.key.key == Key::F1) {
         debug_outlines_ = !debug_outlines_;
         HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines_ ? "ON" : "OFF"));
-        document_dirty_ = true;
+        render_coordinator_.set_document_dirty();
         return;
     }
 }
@@ -306,9 +300,9 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
                 if (result.activated_tab && tab_controller_.set_active(*result.activated_tab)) {
                     on_active_tab_changed();
                 }
-                chrome_dirty_ = true;
-                document_dirty_ = true;
-                controls_dirty_ = true;
+                render_coordinator_.set_chrome_dirty();
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
                 return;
             }
         }
@@ -324,29 +318,29 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
             auto [w, h] = window_->get_size();
             const auto viewport = compute_content_viewport(w, h);
             if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
-                document_dirty_ = true;
-                controls_dirty_ = true;
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
             }
         } else if (interaction_state_changed) {
-            document_dirty_ = true;
-            controls_dirty_ = true;
+            render_coordinator_.set_document_dirty();
+            render_coordinator_.set_controls_dirty();
         }
         if (url_result.security_override_requested) {
             if (active_tab().allow_insecure_for_current_host()) {
                 navigate_active_tab(active_tab().requested_url());
-                document_dirty_ = true;
-                chrome_dirty_ = true;
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_chrome_dirty();
             }
         }
         tab_text_input_active_ = false;
         if (url_result.needs_repaint) {
-            chrome_dirty_ = true;
+            render_coordinator_.set_chrome_dirty();
         }
         return;
     }
 
     browser_chrome_.url_bar().set_active(false, window_.get(), nullptr);
-    chrome_dirty_ = true;
+    render_coordinator_.set_chrome_dirty();
 
     if (!graphics_ || !window_) {
         return;
@@ -360,7 +354,7 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
                                             << viewport.y << "," << viewport.width << "," << viewport.height << ")");
     auto click_result = active_tab().dispatch_click(point, viewport, *graphics_);
     if (click_result.mutated) {
-        document_dirty_ = true;
+        render_coordinator_.set_document_dirty();
     }
     bool interaction_changed = active_tab().set_control_interaction_at(point, viewport);
     bool was_focused = active_tab().has_focused_input();
@@ -377,12 +371,12 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
     }
     if (tab_text_input_active_ != now_focused || was_focused != now_focused) {
         tab_text_input_active_ = now_focused;
-        controls_dirty_ = true;
+        render_coordinator_.set_controls_dirty();
     }
     if (interaction_changed || was_focused || now_focused) {
         if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
-            document_dirty_ = true;
-            controls_dirty_ = true;
+            render_coordinator_.set_document_dirty();
+            render_coordinator_.set_controls_dirty();
         }
     }
     if (now_focused) {
@@ -395,16 +389,16 @@ void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
                      << " url=" << submit->url);
         browser_chrome_.url_bar().set_text(submit->url);
         navigate_active_tab(*submit);
-        document_dirty_ = true;
-        chrome_dirty_ = true;
+        render_coordinator_.set_document_dirty();
+        render_coordinator_.set_chrome_dirty();
         return;
     }
     auto link = active_tab().hit_test_link(point, viewport);
     if (link) {
         browser_chrome_.url_bar().set_text(*link);
         navigate_active_tab(*link);
-        document_dirty_ = true;
-        chrome_dirty_ = true;
+        render_coordinator_.set_document_dirty();
+        render_coordinator_.set_chrome_dirty();
     }
 }
 
@@ -416,84 +410,17 @@ void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
         std::max(0, win_h - browser_chrome_.url_bar().height() - browser_chrome_.tab_strip_height()));
     active_tab().scroll_by(delta, viewport_h);
 
-    document_dirty_ = true;
+    render_coordinator_.set_document_dirty();
 }
 
 void BrowserApp::handle_resize_event(const InputEvent& event) {
-    document_cache_valid_ = false;
-    document_dirty_ = true;
+    render_coordinator_.invalidate_document_cache();
 }
 
 Hummingbird::Layout::Rect BrowserApp::compute_content_viewport(int win_w, int win_h) const {
     const int content_y = browser_chrome_.url_bar().height() + browser_chrome_.tab_strip_height();
     const int content_h = std::max(0, win_h - content_y);
     return {0.0f, static_cast<float>(content_y), static_cast<float>(win_w), static_cast<float>(content_h)};
-}
-
-void BrowserApp::render_if_needed() {
-    if (!graphics_ || (!document_dirty_ && !chrome_dirty_ && !controls_dirty_)) return;
-
-    if (render_loop_debug_enabled()) {
-        static int render_log_count = 0;
-        ++render_log_count;
-        if (render_log_count <= 30 || (render_log_count % 120) == 0) {
-            HB_LOG_WARN("[render-debug] frame count=" << render_log_count << " document_dirty=" << document_dirty_
-                                                      << " chrome_dirty=" << chrome_dirty_ << " controls_dirty="
-                                                      << controls_dirty_ << " cache_valid=" << document_cache_valid_);
-        }
-    }
-
-    auto [win_w, win_h] = window_->get_size();
-
-    Hummingbird::Layout::Rect full{0, 0, static_cast<float>(win_w), static_cast<float>(win_h)};
-    graphics_->set_viewport(full);
-    const auto viewport = compute_content_viewport(win_w, win_h);
-    if (!document_cache_valid_) {
-        document_dirty_ = true;
-    }
-    if (document_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=document chrome=1 controls=1 scroll_y=" << active_tab().scroll_y());
-        document_cache_valid_ = false;
-        if (graphics_->begin_document_cache(full)) {
-            active_tab().paint(*graphics_, viewport, debug_outlines_);
-            graphics_->end_document_cache();
-            document_cache_valid_ = true;
-        } else {
-            graphics_->clear(kClearColor);
-            graphics_->set_text_cache_owner(0);
-            browser_chrome_.url_bar().draw(*graphics_, win_w);
-            browser_chrome_.draw_tab_strip(*graphics_, win_w, browser_chrome_.url_bar().height(),
-                                           tab_controller_.manager());
-            active_tab().paint(*graphics_, viewport, debug_outlines_);
-            graphics_->present();
-            document_dirty_ = false;
-            chrome_dirty_ = false;
-            controls_dirty_ = false;
-            return;
-        }
-    } else if (chrome_dirty_ && controls_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=chrome+controls scroll_y=" << active_tab().scroll_y());
-    } else if (chrome_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=chrome scroll_y=" << active_tab().scroll_y());
-    } else if (controls_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=controls scroll_y=" << active_tab().scroll_y());
-    }
-    graphics_->clear(kClearColor);
-    if (document_cache_valid_) {
-        graphics_->draw_document_cache();
-    }
-    graphics_->set_viewport(full);
-    graphics_->set_text_cache_owner(0);
-    browser_chrome_.url_bar().draw(*graphics_, win_w);
-    browser_chrome_.draw_tab_strip(*graphics_, win_w, browser_chrome_.url_bar().height(), tab_controller_.manager());
-    if (!document_dirty_ && controls_dirty_) {
-        active_tab().paint_controls(*graphics_, viewport);
-    }
-
-    graphics_->present();
-    document_dirty_ = false;
-    chrome_dirty_ = false;
-    controls_dirty_ = false;
 }
 
 Hummingbird::Engine::Tab& BrowserApp::active_tab() {
@@ -515,11 +442,9 @@ void BrowserApp::on_active_tab_changed() {
 
     browser_chrome_.url_bar().set_text(tab->requested_url());
     browser_chrome_.url_bar().set_security_state(tab->security_state());
-
-    document_cache_valid_ = false;
-    document_dirty_ = true;
-    chrome_dirty_ = true;
-    controls_dirty_ = true;
+    render_coordinator_.invalidate_document_cache();
+    render_coordinator_.set_chrome_dirty();
+    render_coordinator_.set_controls_dirty();
 
     window_->stop_text_input();
     tab_text_input_active_ = false;
@@ -562,8 +487,8 @@ bool BrowserApp::insert_extension_css(Hummingbird::Engine::TabId tab_id, std::st
     if (!tab->insert_extension_css(css_text)) {
         return false;
     }
-    document_dirty_ = true;
-    controls_dirty_ = true;
+    render_coordinator_.set_document_dirty();
+    render_coordinator_.set_controls_dirty();
     return true;
 }
 

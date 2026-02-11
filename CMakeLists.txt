@@ -189,6 +189,8 @@ add_library(App
     src/app/BrowserEventRouter.h
     src/app/ExtensionBootstrap.cpp
     src/app/ExtensionBootstrap.h
+    src/app/RenderCoordinator.cpp
+    src/app/RenderCoordinator.h
     src/app/TabController.cpp
     src/app/TabController.h
     src/app/TabStrip.cpp

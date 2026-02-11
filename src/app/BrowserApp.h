@@ -5,6 +5,7 @@
 
 #include "app/BrowserChrome.h"
 #include "app/BrowserEventRouter.h"
+#include "app/RenderCoordinator.h"
 #include "app/TabController.h"
 #include "engine/extensions/ExtensionHost.h"
 #include "engine/tab/Tab.h"
@@ -36,11 +37,11 @@ public:
 private:
     // --- main tick phases ---
     void pump_events();
-    void render_if_needed();
     Hummingbird::Layout::Rect compute_content_viewport(int win_w, int win_h) const;
 
     // --- event handling (routed by BrowserEventRouter) ---
     friend class BrowserEventRouter;
+    friend class RenderCoordinator;
     void handle_quit_event();
     void handle_text_input_event(const InputEvent& e);
     void handle_key_down_event(const InputEvent& e);
@@ -73,11 +74,8 @@ private:
     // UI state
     BrowserChrome browser_chrome_;
     bool debug_outlines_ = false;
-    bool document_dirty_ = true;
-    bool chrome_dirty_ = true;
-    bool controls_dirty_ = false;
-    bool document_cache_valid_ = false;
     bool tab_text_input_active_ = false;
+    RenderCoordinator render_coordinator_;
 
     // Event draining controls
     int max_events_per_tick_ = 200;
