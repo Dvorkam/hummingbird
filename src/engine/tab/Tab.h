@@ -107,6 +107,7 @@ private:
     bool prepare_document_from_response(std::string_view html);
     void log_discovered_resource_links() const;
     void request_discovered_resource_links();
+    void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void reset_document_state();
     void update_layout_state(const Layout::Rect& viewport, std::string_view reason);
     bool advance_animation_tick();

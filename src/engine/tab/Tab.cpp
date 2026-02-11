@@ -326,15 +326,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
             dirty_ = true;
         }
     }
-    auto load_result = document_pipeline_.dispatch_load();
-    if (load_result.mutated) {
-        if (rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:load_mutation", true)) {
-            if (document_pipeline_.focus_autofocus_input()) {
-                dirty_ = true;
-            }
-        }
-        dirty_ = true;
-    }
+    apply_load_mutations_after_document_ready(graphics, viewport);
     HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_.render_tree_children());
     dirty_ = true;
     maybe_log_tab_dirty("document_ready", dirty_);
@@ -401,6 +393,20 @@ void Tab::log_discovered_resource_links() const {
 void Tab::request_discovered_resource_links() {
     resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), navigation_state_.requested_url());
     resource_loader_.request_images(document_pipeline_.image_links(), navigation_state_.requested_url());
+}
+
+void Tab::apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    auto load_result = document_pipeline_.dispatch_load();
+    if (!load_result.mutated) {
+        return;
+    }
+
+    if (rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:load_mutation", true)) {
+        if (document_pipeline_.focus_autofocus_input()) {
+            dirty_ = true;
+        }
+    }
+    dirty_ = true;
 }
 
 bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
