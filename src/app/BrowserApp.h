@@ -4,6 +4,7 @@
 #include <optional>
 
 #include "app/BrowserChrome.h"
+#include "app/BrowserEventRouter.h"
 #include "app/TabController.h"
 #include "engine/extensions/ExtensionHost.h"
 #include "engine/tab/Tab.h"
@@ -38,8 +39,8 @@ private:
     void render_if_needed();
     Hummingbird::Layout::Rect compute_content_viewport(int win_w, int win_h) const;
 
-    // --- event handling ---
-    void handle_event(const InputEvent& e);
+    // --- event handling (routed by BrowserEventRouter) ---
+    friend class BrowserEventRouter;
     void handle_quit_event();
     void handle_text_input_event(const InputEvent& e);
     void handle_key_down_event(const InputEvent& e);
@@ -67,6 +68,7 @@ private:
     std::unique_ptr<IGraphicsContext> graphics_;
     TabController tab_controller_;
     Hummingbird::Engine::ExtensionHost extension_host_;
+    BrowserEventRouter event_router_;
 
     // UI state
     BrowserChrome browser_chrome_;

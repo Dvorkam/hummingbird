@@ -185,6 +185,8 @@ add_library(App
     src/app/BrowserApp.h
     src/app/BrowserChrome.cpp
     src/app/BrowserChrome.h
+    src/app/BrowserEventRouter.cpp
+    src/app/BrowserEventRouter.h
     src/app/ExtensionBootstrap.cpp
     src/app/ExtensionBootstrap.h
     src/app/TabController.cpp

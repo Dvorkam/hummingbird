@@ -84,7 +84,8 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     : window_(std::move(window)),
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
       tab_controller_(make_tab_factory(primary_backend_for_env())),
-      extension_host_([]() { return create_script_engine(); }) {
+      extension_host_([]() { return create_script_engine(); }),
+      event_router_(*this) {
     const auto first_tab_id = tab_controller_.create_tab();
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
@@ -178,38 +179,13 @@ bool BrowserApp::tick() {
 void BrowserApp::pump_events() {
     InputEvent e;
     if (window_->wait_event(e, wait_timeout_ms_)) {
-        handle_event(e);
+        event_router_.handle_event(e);
     }
 
     int processed = 0;
     while (processed++ < max_events_per_tick_ && window_->poll_event(e)) {
-        handle_event(e);
+        event_router_.handle_event(e);
         if (!window_->is_open()) break;
-    }
-}
-
-void BrowserApp::handle_event(const InputEvent& event) {
-    switch (event.type) {
-        case EventType::Quit:
-            handle_quit_event();
-            return;
-        case EventType::TextInput:
-            handle_text_input_event(event);
-            return;
-        case EventType::KeyDown:
-            handle_key_down_event(event);
-            return;
-        case EventType::MouseDown:
-            handle_mouse_down_event(event);
-            return;
-        case EventType::MouseWheel:
-            handle_mouse_wheel_event(event);
-            return;
-        case EventType::Resize:
-            handle_resize_event(event);
-            return;
-        default:
-            return;
     }
 }
 

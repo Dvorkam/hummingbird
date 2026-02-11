@@ -87,6 +87,7 @@
     - [ ] Suggested direction: extract `AppBootstrap` (creates tab factory, loads icons, merges extension settings), and `RenderCoordinator` (dirty flags + cache).
   - [x] Extracted extension bootstrap into `ExtensionBootstrap`. (2026-02-11)
   - [x] Reduced `BrowserApp.h` include fan-out via forward declarations. (2026-02-11)
+  - [x] Routed input events through `BrowserEventRouter`. (2026-02-11)
 - [ ] `src/layout/flow/TextBox.cpp` (~608)
   - [ ] Separate text shaping/metrics vs line breaking logic.
   - [ ] Isolate text-overflow/ellipsis handling.
