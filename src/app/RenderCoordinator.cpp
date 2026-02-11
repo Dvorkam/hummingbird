@@ -65,7 +65,7 @@ void RenderCoordinator::render_if_needed() {
             app_.graphics_->set_text_cache_owner(0);
             app_.browser_chrome_.url_bar().draw(*app_.graphics_, win_w);
             app_.browser_chrome_.draw_tab_strip(*app_.graphics_, win_w, app_.browser_chrome_.url_bar().height(),
-                                               app_.tab_controller_.manager());
+                                                app_.tab_controller_.manager());
             app_.active_tab().paint(*app_.graphics_, viewport, app_.debug_outlines_);
             app_.graphics_->present();
             document_dirty_ = false;
@@ -83,7 +83,7 @@ void RenderCoordinator::render_if_needed() {
     app_.graphics_->set_text_cache_owner(0);
     app_.browser_chrome_.url_bar().draw(*app_.graphics_, win_w);
     app_.browser_chrome_.draw_tab_strip(*app_.graphics_, win_w, app_.browser_chrome_.url_bar().height(),
-                                       app_.tab_controller_.manager());
+                                        app_.tab_controller_.manager());
     if (!document_dirty_ && controls_dirty_) {
         app_.active_tab().paint_controls(*app_.graphics_, viewport);
     }

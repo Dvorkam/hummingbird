@@ -6,7 +6,7 @@ namespace Hummingbird::Layout {
 namespace {
 constexpr float kUnderlineOffsetPx = 2.0f;
 constexpr float kUnderlineThicknessPx = 1.0f;
-}
+}  // namespace
 
 UnderlineMetrics resolve_underline_metrics(const TextMetrics& metrics, const Css::ComputedStyle* style) {
     UnderlineMetrics underline;

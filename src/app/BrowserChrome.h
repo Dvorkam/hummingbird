@@ -10,7 +10,7 @@
 namespace Hummingbird {
 class IResourceProvider;
 class IImageDecoder;
-}
+}  // namespace Hummingbird
 
 namespace Hummingbird::App {
 

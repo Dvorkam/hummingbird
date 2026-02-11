@@ -15,7 +15,10 @@ public:
     void set_chrome_dirty() { chrome_dirty_ = true; }
     void set_controls_dirty() { controls_dirty_ = true; }
 
-    void invalidate_document_cache() { document_cache_valid_ = false; document_dirty_ = true; }
+    void invalidate_document_cache() {
+        document_cache_valid_ = false;
+        document_dirty_ = true;
+    }
 
     bool document_dirty() const { return document_dirty_; }
     bool chrome_dirty() const { return chrome_dirty_; }
