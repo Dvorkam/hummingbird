@@ -16,6 +16,7 @@
 #include "core/platform_api/IResourceProvider.h"
 #include "core/platform_api/IScriptEngine.h"
 #include "engine/document/DocumentPipeline.h"
+#include "engine/tab/TabLayoutState.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
 #include "layout/geometry/Geometry.h"
@@ -97,19 +98,6 @@ private:
     bool advance_animation_tick();
 
 private:
-    struct LayoutState {
-        float scroll_y = 0.0f;
-        float content_height = 0.0f;
-        Layout::Rect last_viewport{0, 0, 0, 0};
-        bool has_viewport = false;
-
-        bool viewport_changed(const Layout::Rect& viewport) const;
-        void reset();
-        void update(const Layout::Rect& viewport, float new_content_height);
-        void clamp_scroll(float viewport_height);
-        void scroll_by(float delta_px, float viewport_height);
-    };
-
     std::atomic<bool> shutting_down_{false};
 
     ResourceLoader resource_loader_;
@@ -121,7 +109,7 @@ private:
 
     std::string requested_url_;
     SecurityState security_state_ = SecurityState::Unknown;
-    LayoutState layout_state_{};
+    TabLayoutState layout_state_{};
 
     bool dirty_ = true;
     std::chrono::steady_clock::time_point last_animation_tick_{};
