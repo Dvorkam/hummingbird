@@ -31,6 +31,7 @@
   - [x] Consolidated shared navigation-start logic into `begin_navigation_session` for URL and form submissions. (2026-02-11)
   - [x] Extracted post-load mutation handling from `handle_document_ready` into `apply_load_mutations_after_document_ready`. (2026-02-11)
   - [x] Centralized dirty-state signaling and autofocus-after-rebuild handling (`mark_dirty`, `apply_autofocus_after_rebuild`). (2026-02-11)
+  - [x] Deduplicated hit-test context construction with `make_hit_test_context`. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Tab currently owns navigation normalization, security state, resource loader lifecycle, extension CSS state, layout state, and input dispatch plumbing.
     - [ ] `tick()` mixes resource consumption, extension CSS rebuilds, viewport relayout, and animation tick gating; this is multiple lifecycles in one loop.

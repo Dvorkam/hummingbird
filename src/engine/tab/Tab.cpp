@@ -169,16 +169,12 @@ void Tab::paint_controls(IGraphicsContext& graphics, const Layout::Rect& viewpor
 }
 
 std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const {
-    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
-                                             layout_state_.scroll_y};
-    return document_pipeline_.hit_test_link(context);
+    return document_pipeline_.hit_test_link(make_hit_test_context(point, viewport));
 }
 
 Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
                                      IGraphicsContext& graphics) {
-    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
-                                             layout_state_.scroll_y};
-    auto result = document_pipeline_.dispatch_click(context);
+    auto result = document_pipeline_.dispatch_click(make_hit_test_context(point, viewport));
     if (result.mutated) {
         (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation", false);
         mark_dirty();
@@ -187,15 +183,11 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
 }
 
 std::optional<FormSubmission> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
-    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
-                                             layout_state_.scroll_y};
-    return document_pipeline_.submit_form_at(context);
+    return document_pipeline_.submit_form_at(make_hit_test_context(point, viewport));
 }
 
 bool Tab::focus_input_at(const Layout::Point& point, const Layout::Rect& viewport) {
-    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
-                                             layout_state_.scroll_y};
-    return document_pipeline_.focus_input_at(context);
+    return document_pipeline_.focus_input_at(make_hit_test_context(point, viewport));
 }
 
 bool Tab::clear_input_focus() {
@@ -203,9 +195,7 @@ bool Tab::clear_input_focus() {
 }
 
 bool Tab::set_control_interaction_at(const Layout::Point& point, const Layout::Rect& viewport) {
-    DocumentPipeline::HitTestContext context{point, viewport, navigation_state_.requested_url(),
-                                             layout_state_.scroll_y};
-    return document_pipeline_.set_control_interaction_at(context);
+    return document_pipeline_.set_control_interaction_at(make_hit_test_context(point, viewport));
 }
 
 bool Tab::clear_control_interaction() {
@@ -423,6 +413,11 @@ bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Lay
         update_layout_state(viewport, reason);
     }
     return has_render_tree;
+}
+
+DocumentPipeline::HitTestContext Tab::make_hit_test_context(const Layout::Point& point,
+                                                            const Layout::Rect& viewport) const {
+    return {point, viewport, navigation_state_.requested_url(), layout_state_.scroll_y};
 }
 
 void Tab::begin_navigation_session(std::string_view url) {
