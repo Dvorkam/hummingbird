@@ -11,6 +11,7 @@
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "core/utils/Url.h"
+#include "engine/tab/TabDocumentReadyPolicy.h"
 
 namespace Hummingbird {
 class IGraphicsContext;
@@ -294,7 +295,8 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     if (!result.effective_url.empty()) {
         navigation_state_.update_requested_url(result.effective_url);
     }
-    update_security_state_after_document_ready(result);
+    navigation_state_.set_security_state(TabDocumentReadyPolicy::decide_security_state(
+        resource_loader_, navigation_state_.requested_url(), result.document_error));
     const auto* entry = resource_loader_.find(result.document_url, ResourceType::Document);
     if (!entry) {
         return;
@@ -305,8 +307,9 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     if (!prepare_document_from_response(entry->body)) {
         return;
     }
-    log_discovered_resource_links();
-    request_discovered_resource_links();
+    TabDocumentReadyPolicy::log_discovered_resources(document_pipeline_);
+    TabDocumentReadyPolicy::request_discovered_resources(resource_loader_, document_pipeline_,
+                                                         navigation_state_.requested_url());
     bool has_render_tree =
         rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build", true);
     if (has_render_tree) {
@@ -340,16 +343,6 @@ void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& vie
     mark_dirty(updated ? "image_ready_updated" : "image_ready_noop");
 }
 
-void Tab::update_security_state_after_document_ready(const ResourceLoader::BatchResult& result) {
-    if (result.document_error == NetworkError::TlsVerificationFailed) {
-        navigation_state_.set_security_state(SecurityState::InsecureTls);
-    } else if (resource_loader_.is_insecure_allowed_for_url(navigation_state_.requested_url())) {
-        navigation_state_.set_security_state(SecurityState::InsecureTls);
-    } else {
-        navigation_state_.set_security_state(security_state_for_url(navigation_state_.requested_url()));
-    }
-}
-
 bool Tab::prepare_document_from_response(std::string_view html) {
     if (!document_pipeline_.parse_html(html)) {
         return false;
@@ -359,23 +352,6 @@ bool Tab::prepare_document_from_response(std::string_view html) {
     extension_css_dirty_ = false;
     document_pipeline_.run_scripts();
     return true;
-}
-
-void Tab::log_discovered_resource_links() const {
-    if (!document_pipeline_.stylesheet_links().empty()) {
-        HB_LOG_INFO("[pipeline] discovered stylesheet links: " << document_pipeline_.stylesheet_links().size());
-    }
-    if (!document_pipeline_.image_links().empty()) {
-        HB_LOG_INFO("[pipeline] discovered image sources: " << document_pipeline_.image_links().size());
-    }
-    if (!document_pipeline_.background_image_links().empty()) {
-        HB_LOG_INFO("[pipeline] discovered background images: " << document_pipeline_.background_image_links().size());
-    }
-}
-
-void Tab::request_discovered_resource_links() {
-    resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), navigation_state_.requested_url());
-    resource_loader_.request_images(document_pipeline_.image_links(), navigation_state_.requested_url());
 }
 
 void Tab::apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {

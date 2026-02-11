@@ -173,6 +173,7 @@ add_library(Engine STATIC
     src/engine/resources/ResourceRequestPlanner.cpp
     src/engine/resources/ResourceSecurityPolicy.cpp
     src/engine/tab/Tab.cpp
+    src/engine/tab/TabDocumentReadyPolicy.cpp
     src/engine/tab/TabManager.cpp
     src/engine/resources/ResourceStore.cpp
     src/engine/resources/ResourceUpdateProcessor.cpp
