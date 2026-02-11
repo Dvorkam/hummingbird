@@ -16,8 +16,8 @@
 #include "core/platform_api/NetworkFactory.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
+#include "app/ExtensionBootstrap.h"
 #include "core/utils/Log.h"
-#include "engine/extensions/ExtensionSettings.h"
 
 namespace Hummingbird::App {
 
@@ -92,20 +92,15 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
         browser_chrome_.url_bar().set_security_icons(load_security_icons(provider.get(), decoder.get()));
     }
 
-    std::vector<Hummingbird::Engine::ExtensionLoadError> errors;
-    auto loaded =
-        Hummingbird::Engine::load_extensions_from_root(Hummingbird::Engine::default_extensions_root(), &errors);
-    for (const auto& e : errors) {
+    auto bootstrap = Hummingbird::App::load_extension_bootstrap();
+    for (const auto& e : bootstrap.errors) {
         HB_LOG_WARN("[ext] " << e.message << ": " << e.path.string());
     }
-    auto ini_settings = Hummingbird::Engine::extension_settings_from_ini_file(
-        Hummingbird::Engine::default_extension_settings_ini_path());
-    auto env_settings = Hummingbird::Engine::extension_settings_from_env();
-    extension_host_.set_settings(Hummingbird::Engine::merge_extension_settings(std::move(ini_settings), env_settings));
+    extension_host_.set_settings(std::move(bootstrap.settings));
     extension_host_.set_insert_css_handler([this](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
         return insert_extension_css(tab_id, css_text);
     });
-    extension_host_.set_extensions(std::move(loaded));
+    extension_host_.set_extensions(std::move(bootstrap.extensions));
     if (extension_host_.extension_count() > 0) {
         HB_LOG_INFO("[ext] loaded extensions: " << extension_host_.extension_count());
     }
