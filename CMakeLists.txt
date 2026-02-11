@@ -121,6 +121,7 @@ add_library(Layout STATIC
     src/layout/block/FloatLayoutUtils.cpp
     src/layout/flow/InlineBox.cpp
     src/layout/flow/TextBox.cpp
+    src/layout/flow/TextDecorationUtils.cpp
     src/layout/flow/InlineLineBuilder.cpp
     src/layout/flow/FlowLayoutUtils.cpp
     src/layout/flow/inline/InlineLayoutUtils.cpp

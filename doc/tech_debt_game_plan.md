@@ -93,6 +93,7 @@
   - [ ] Separate text shaping/metrics vs line breaking logic.
   - [ ] Isolate text-overflow/ellipsis handling.
   - [ ] Identify shared layout helpers that can move to `TextStyleUtils` or a new helper.
+  - [x] Extracted underline metrics helpers into `TextDecorationUtils`. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] File contains measurement, ellipsis, wrapping, and underline metrics in one unit; multiple standalone helpers already exist (`TextLayoutUtils`, `TextStyleUtils`).
     - [ ] There is repeated measurement logic (`measure_spaced_text`, per-glyph width loop) that is used by wrapping and ellipsis paths.

@@ -9,6 +9,7 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/Utf8Utils.h"
+#include "layout/flow/TextDecorationUtils.h"
 #include "layout/flow/TextLayoutUtils.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/flow/inline/InlineVerticalAlignUtils.h"
@@ -23,47 +24,8 @@ TextBox::TextBox(const DOM::Text* dom_node) : RenderObject(dom_node) {}
 namespace {
 constexpr float kInlineMeasurementWidth = 100000.0f;
 constexpr float kDefaultFontSizePx = 16.0f;
-constexpr float kUnderlineOffsetPx = 2.0f;
-constexpr float kUnderlineThicknessPx = 1.0f;
 
 using Metrics::Insets;
-
-struct UnderlineMetrics {
-    float position = 0.0f;
-    float thickness = kUnderlineThicknessPx;
-};
-
-UnderlineMetrics resolve_underline_metrics(const TextMetrics& metrics, const Css::ComputedStyle* style) {
-    UnderlineMetrics underline;
-    float position = -metrics.underline_position;
-    float fallback = metrics.descent > 0.0f ? std::max(1.0f, metrics.descent * 0.25f) : kUnderlineOffsetPx;
-    if (position <= 0.0f) {
-        position = fallback;
-    }
-    if (metrics.descent > 0.0f) {
-        position = std::min(position, metrics.descent);
-    }
-    if (style && style->underline_offset.has_value()) {
-        position = std::max(0.0f, *style->underline_offset);
-    }
-    underline.position = position;
-    underline.thickness = metrics.underline_thickness > 0.0f ? metrics.underline_thickness : kUnderlineThicknessPx;
-    if (style && style->underline_thickness.has_value()) {
-        underline.thickness = std::max(kUnderlineThicknessPx, *style->underline_thickness);
-    }
-    if (underline.thickness < kUnderlineThicknessPx) {
-        underline.thickness = kUnderlineThicknessPx;
-    }
-    return underline;
-}
-
-float compute_underline_y(float line_top, float line_height, const TextMetrics& metrics,
-                          const UnderlineMetrics& underline) {
-    if (metrics.ascent > 0.0f) {
-        return line_top + metrics.ascent + underline.position;
-    }
-    return line_top + line_height - kUnderlineOffsetPx;
-}
 
 void append_line(std::vector<std::string>& lines, std::vector<float>& line_widths, float& content_width,
                  std::string line_text, float measured_width) {
