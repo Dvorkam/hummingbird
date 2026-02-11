@@ -94,6 +94,9 @@ private:
                                const Layout::Rect& viewport);
     void handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void process_animation_updates();
     void reset_document_state();
     void update_layout_state(const Layout::Rect& viewport, std::string_view reason);
     bool advance_animation_tick();

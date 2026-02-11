@@ -98,7 +98,16 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (shutting_down_.load(std::memory_order_relaxed)) return false;
 
     consume_pending_resources(graphics, viewport);
+    apply_extension_css_if_needed(graphics, viewport);
+    relayout_if_viewport_changed(graphics, viewport);
+    process_animation_updates();
 
+    bool dirty = dirty_;
+    dirty_ = false;
+    return dirty;
+}
+
+void Tab::apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (extension_css_dirty_ && document_pipeline_.has_dom_tree()) {
         document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
         bool has_render_tree =
@@ -111,7 +120,9 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
         dirty_ = true;
         maybe_log_tab_dirty("extension_css", dirty_);
     }
+}
 
+void Tab::relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (document_pipeline_.has_render_tree()) {
         if (layout_state_.viewport_changed(viewport)) {
             document_pipeline_.relayout(graphics, viewport);
@@ -119,15 +130,13 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
             maybe_log_tab_dirty("viewport_changed", dirty_);
         }
     }
+}
 
+void Tab::process_animation_updates() {
     if (advance_animation_tick()) {
         dirty_ = true;
         maybe_log_tab_dirty("animation_frame_advanced", dirty_);
     }
-
-    bool dirty = dirty_;
-    dirty_ = false;
-    return dirty;
 }
 
 bool Tab::advance_animation_tick() {
