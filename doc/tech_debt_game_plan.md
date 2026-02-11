@@ -10,6 +10,7 @@
   - [x] Extracted `DocumentInteraction` to hold input + navigation responsibilities. (2026-02-11)
   - [x] Extracted `DocumentRenderer` for layout/paint + content height tracking. (2026-02-11)
   - [x] Extracted `DocumentStyleCoordinator` for CSS/resource orchestration. (2026-02-11)
+  - [x] Decoupled `DocumentPipeline.h` from `DocumentScriptController` include via private pointer + local dispatch result type. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Pipeline currently owns model, resources, navigation, painter, script controller, and input controller.
     - [ ] Public API mixes orchestration (`apply_styles_and_layout`, `relayout`, `paint`) with interaction (`focus_input_at`, `handle_key_down`) and navigation/hit-test.
