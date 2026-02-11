@@ -52,6 +52,9 @@ private:
 private:
     void on_active_tab_changed();
     void sync_tab_text_input_mode();
+    void tick_active_tab(const Hummingbird::Layout::Rect& viewport);
+    void emit_navigation_commit_events();
+    void sync_active_tab_security_state();
     void navigate_active_tab(std::string_view url);
     void navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission);
     bool insert_extension_css(Hummingbird::Engine::TabId tab_id, std::string_view css_text);

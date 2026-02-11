@@ -103,6 +103,7 @@
   - [x] Routed input events through `BrowserEventRouter`. (2026-02-11)
   - [x] Moved render/cache invalidation into `RenderCoordinator`. (2026-02-11)
   - [x] Moved security icon asset loading from `BrowserApp` into `BrowserChrome`. (2026-02-11)
+  - [x] Split `BrowserApp::tick` tab/chrome sync into focused helpers (`tick_active_tab`, navigation commit emission, security-state sync). (2026-02-11)
 - [ ] `src/layout/flow/TextBox.cpp` (~608)
   - [ ] Separate text shaping/metrics vs line breaking logic.
   - [ ] Isolate text-overflow/ellipsis handling.

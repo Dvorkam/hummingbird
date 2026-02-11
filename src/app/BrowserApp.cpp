@@ -133,22 +133,34 @@ bool BrowserApp::tick() {
     if (graphics_) {
         auto [win_w, win_h] = window_->get_size();
         const auto viewport = compute_content_viewport(win_w, win_h);
-        if (active_tab().tick(*graphics_, viewport)) {
-            render_coordinator_.set_document_dirty();
-        }
-        if (auto id = tab_controller_.active_tab_id()) {
-            if (auto committed = active_tab().consume_navigation_commit_url()) {
-                extension_host_.notify_tab_navigated(*id, *committed);
-            }
-        }
-        if (browser_chrome_.url_bar().set_security_state(active_tab().security_state())) {
-            render_coordinator_.set_chrome_dirty();
-        }
+        tick_active_tab(viewport);
+        emit_navigation_commit_events();
+        sync_active_tab_security_state();
         sync_tab_text_input_mode();
     }
     render_coordinator_.render_if_needed();
 
     return window_->is_open();
+}
+
+void BrowserApp::tick_active_tab(const Hummingbird::Layout::Rect& viewport) {
+    if (active_tab().tick(*graphics_, viewport)) {
+        render_coordinator_.set_document_dirty();
+    }
+}
+
+void BrowserApp::emit_navigation_commit_events() {
+    if (auto id = tab_controller_.active_tab_id()) {
+        if (auto committed = active_tab().consume_navigation_commit_url()) {
+            extension_host_.notify_tab_navigated(*id, *committed);
+        }
+    }
+}
+
+void BrowserApp::sync_active_tab_security_state() {
+    if (browser_chrome_.url_bar().set_security_state(active_tab().security_state())) {
+        render_coordinator_.set_chrome_dirty();
+    }
 }
 
 void BrowserApp::pump_events() {
