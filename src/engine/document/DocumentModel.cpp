@@ -1,16 +1,13 @@
 #include "engine/document/DocumentModel.h"
 
 #include <ostream>
-#include <unordered_set>
 
-#include "core/dom/Element.h"
 #include "core/dom/Node.h"
-#include "core/dom/Text.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
+#include "engine/document/DocumentLinkDiscovery.h"
 #include "engine/document/FormSubmissionBuilder.h"
 #include "html/HtmlParser.h"
-#include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
 #include "style/compute/Stylesheet.h"
 #include "style/parser/CssParser.h"
@@ -25,50 +22,6 @@ size_t count_nodes_recursive(const DOM::Node* node) {
         total += count_nodes_recursive(child.get());
     }
     return total;
-}
-
-void collect_script_text(const DOM::Node* node, std::string& out) {
-    if (!node) return;
-    if (auto* text_node = dynamic_cast<const DOM::Text*>(node)) {
-        out.append(text_node->get_text());
-        return;
-    }
-    for (const auto& child : node->get_children()) {
-        collect_script_text(child.get(), out);
-    }
-}
-
-void collect_script_blocks(const DOM::Node* node, std::vector<std::string>& scripts) {
-    if (!node) return;
-    if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
-        if (element->get_tag_name() == Hummingbird::Html::TagNames::Script) {
-            std::string text;
-            for (const auto& child : element->get_children()) {
-                collect_script_text(child.get(), text);
-            }
-            if (!text.empty()) {
-                scripts.push_back(std::move(text));
-            }
-            return;
-        }
-    }
-    for (const auto& child : node->get_children()) {
-        collect_script_blocks(child.get(), scripts);
-    }
-}
-
-void collect_background_image_links(const DOM::Node* node, std::vector<std::string>& links,
-                                    std::unordered_set<std::string>& seen) {
-    if (!node) return;
-    auto style = node->get_computed_style();
-    if (style && style->background_image && !style->background_image->empty()) {
-        if (seen.insert(*style->background_image).second) {
-            links.push_back(*style->background_image);
-        }
-    }
-    for (const auto& child : node->get_children()) {
-        collect_background_image_links(child.get(), links, seen);
-    }
 }
 }  // namespace
 
@@ -94,10 +47,7 @@ DocumentModel::ParseResult DocumentModel::parse_html(std::string_view html) {
     style_blocks_ = std::move(parse_result.style_blocks);
     stylesheet_links_ = std::move(parse_result.stylesheet_links);
     image_links_ = std::move(parse_result.image_links);
-    script_blocks_.clear();
-    if (dom_tree_) {
-        collect_script_blocks(dom_tree_.get(), script_blocks_);
-    }
+    script_blocks_ = collect_script_blocks_from_dom(dom_tree_.get());
 
     if (!dom_tree_) {
         const bool arena_failed = dom_arena_.failed();
@@ -129,9 +79,7 @@ void DocumentModel::apply_styles(const std::string& css) {
     HB_LOG_INFO("[pipeline] applied stylesheet rules: " << stylesheet.rules.size());
     HB_LOG_INFO("[perf] style apply ms=" << Core::duration_ms(style_start, style_end));
 
-    background_image_links_.clear();
-    std::unordered_set<std::string> seen;
-    collect_background_image_links(dom_tree_.get(), background_image_links_, seen);
+    background_image_links_ = collect_background_image_links_from_dom(dom_tree_.get());
 }
 
 bool DocumentModel::build_render_tree() {

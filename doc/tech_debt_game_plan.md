@@ -155,6 +155,7 @@
   - [ ] Check if DOM parse/build vs resource link discovery should be separated.
   - [ ] Verify DOM lifecycle responsibilities are not duplicated with pipeline.
   - [x] Extracted form submission assembly and serialization into `FormSubmissionBuilder`. (2026-02-11)
+  - [x] Extracted script/background link discovery into `DocumentLinkDiscovery`. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Model owns HTML parse, stylesheet apply, render tree build, and form submission construction, plus link discovery for scripts/images.
     - [ ] Link discovery and form submission logic are policy-like and could be isolated into helpers without changing model API.
