@@ -15,6 +15,10 @@ class "optional<std::string>" as C_0010842192065616564749
 class C_0010842192065616564749 {
 __
 }
+class "optional<Hummingbird::Engine::FormSubmission>" as C_0017470359003105763629
+class C_0017470359003105763629 {
+__
+}
 class "vector<std::string>" as C_0001347152004389415025
 class C_0001347152004389415025 {
 __
@@ -29,6 +33,10 @@ __
 }
 class "unique_ptr<Hummingbird::Layout::RenderObject>" as C_0012283964610349922400
 class C_0012283964610349922400 {
+__
+}
+class "InputEvent" as C_0001835274497883874734
+class C_0001835274497883874734 {
 __
 }
 class "IResourceProvider" as C_0002947512765916896257
@@ -73,6 +81,40 @@ __
 +text_x : float
 +text_y : float
 }
+class "DocumentModel" as C_0013363768045330480152
+class C_0013363768045330480152 {
++apply_styles() : void
++background_image_links() const : const std::vector<std::string> &
++build_form_submission() const : std::optional<FormSubmission>
++build_render_tree() : bool
++dom_arena() : Core::ArenaAllocator *
++dom_root() const : DOM::Node *
++has_dom_tree() const : bool
++has_render_tree() const : bool
++image_links() const : const std::vector<std::string> &
++parse_html() : ParseResult
++render_tree() const : Layout::RenderObject *
++render_tree_children() const : size_t
++reset() : void
++script_blocks() const : const std::vector<std::string> &
++style_blocks() const : const std::vector<std::string> &
++stylesheet_links() const : const std::vector<std::string> &
+__
+}
+class "DocumentModel::ParseResult" as C_0015099295437783447376
+class C_0015099295437783447376 {
+__
++arena_failed : bool
++ok : bool
+}
+class "DocumentNavigation" as C_0003346638043309829899
+class C_0003346638043309829899 {
++DocumentNavigation() : void
+..
++hit_test_link() const : std::optional<std::string>
++submit_form_at() const : std::optional<FormSubmission>
+__
+}
 class "DocumentResources" as C_0015726460308066555584
 class C_0015726460308066555584 {
 +DocumentResources() : void
@@ -94,10 +136,12 @@ class C_0009111102276330779205 {
 ..
 +apply_styles_and_layout() : void
 +background_image_links() const : const std::vector<std::string> &
++clear_control_interaction() : bool
 +clear_input_focus() : bool
 +content_height() const : float
 +dispatch_click() : ScriptDispatchResult
 +dispatch_load() : ScriptDispatchResult
++focus_autofocus_input() : bool
 +focus_input_at() : bool
 +focused_input_value() const : std::optional<std::string>
 +handle_key_down() : InputEditResult
@@ -115,8 +159,10 @@ class C_0009111102276330779205 {
 +render_tree_children() const : size_t
 +reset() : void
 +run_scripts() : bool
++set_control_interaction_at() : bool
++set_extension_style_blocks() : void
 +stylesheet_links() const : const std::vector<std::string> &
-+submit_form_at() const : std::optional<std::string>
++submit_form_at() const : std::optional<FormSubmission>
 +update_image_resources() : bool
 __
 }
@@ -140,35 +186,11 @@ __
 +handled : bool
 +needs_repaint : bool
 }
-class "DocumentModel" as C_0013363768045330480152
-class C_0013363768045330480152 {
-+apply_styles() : void
-+background_image_links() const : const std::vector<std::string> &
-+build_form_submission_url() const : std::optional<std::string>
-+build_render_tree() : bool
-+dom_arena() : Core::ArenaAllocator *
-+dom_root() const : DOM::Node *
-+has_dom_tree() const : bool
-+has_render_tree() const : bool
-+image_links() const : const std::vector<std::string> &
-+parse_html() : ParseResult
-+render_tree() const : Layout::RenderObject *
-+render_tree_children() const : size_t
-+reset() : void
-+script_blocks() const : const std::vector<std::string> &
-+style_blocks() const : const std::vector<std::string> &
-+stylesheet_links() const : const std::vector<std::string> &
-__
-}
-class "DocumentModel::ParseResult" as C_0015099295437783447376
-class C_0015099295437783447376 {
-__
-+arena_failed : bool
-+ok : bool
-}
 class "DocumentInputController" as C_0011815525377283540631
 class C_0011815525377283540631 {
++clear_control_interaction() : bool
 +clear_focus() : bool
++focus_autofocus_input() : bool
 +focus_input_at() : bool
 +focused_element() const : const DOM::Element *
 +focused_value() const : std::optional<std::string>
@@ -177,6 +199,7 @@ class C_0011815525377283540631 {
 +has_focus() const : bool
 +paint_controls() const : void
 +reset() : void
++set_control_interaction_at() : bool
 __
 }
 class "DocumentInputController::EditResult" as C_0004044451748708109257
@@ -202,6 +225,17 @@ class "ArenaAllocator" as C_0008454433749241584386
 class C_0008454433749241584386 {
 __
 }
+class "DocumentScriptHost" as C_0013066522977069845003
+class C_0013066522977069845003 {
++clear() : void
++consume_mutations() : bool
++get_element_by_id() : DOM::Element *
++get_text_content() : std::string
++reset() : void
++set_attribute() : void
++set_text_content() : void
+__
+}
 class "DocumentScriptController" as C_0000510956278017004377
 class C_0000510956278017004377 {
 +DocumentScriptController() : void
@@ -218,166 +252,102 @@ __
 +handled : bool
 +mutated : bool
 }
-class "DocumentScriptHost" as C_0013066522977069845003
-class C_0013066522977069845003 {
-+clear() : void
-+consume_mutations() : bool
-+get_element_by_id() : DOM::Element *
-+get_text_content() : std::string
-+reset() : void
-+set_attribute() : void
-+set_text_content() : void
-__
 }
-}
-package [resources] as C_0015622089966246612019 {
-class "unique_ptr<Hummingbird::ImageBitmap>" as C_0015263516019548667449
-class C_0015263516019548667449 {
-__
-}
-class "optional<Hummingbird::Engine::ResourceView>" as C_0007973393778680676673
-class C_0007973393778680676673 {
-__
-}
-class "unordered_map<Hummingbird::Engine::ResourceStore::ResourceKey,Hummingbird::Engine::ResourceEntry,Hummingbird::Engine::ResourceStore::ResourceKeyHash,Hummingbird::Engine::ResourceStore::ResourceKeyEqual>" as C_0009520369477691483131
-class C_0009520369477691483131 {
-__
-}
+package [tab] as C_0015546965529425083661 {
 class "unique_ptr<Hummingbird::INetwork>" as C_0003261687656591391434
 class C_0003261687656591391434 {
+__
+}
+class "function<std::unique_ptr<Hummingbird::INetwork>()>" as C_0011068926328162953659
+class C_0011068926328162953659 {
 __
 }
 class "unique_ptr<Hummingbird::IResourceProvider>" as C_0008289251468801325580
 class C_0008289251468801325580 {
 __
 }
+class "function<std::unique_ptr<Hummingbird::IResourceProvider>()>" as C_0010830496478000316660
+class C_0010830496478000316660 {
+__
+}
 class "unique_ptr<Hummingbird::IImageDecoder>" as C_0012322741629708004467
 class C_0012322741629708004467 {
 __
 }
-class "vector<Hummingbird::Engine::ResourceLoader::PendingResourceUpdate>" as C_0015103602759014610771
-class C_0015103602759014610771 {
+class "function<std::unique_ptr<Hummingbird::IImageDecoder>()>" as C_0007979934701405186563
+class C_0007979934701405186563 {
 __
 }
-class "atomic<uint64_t>" as C_0003756792376209326944
-class C_0003756792376209326944 {
+class "function<std::unique_ptr<Hummingbird::IScriptEngine>()>" as C_0015738931376957317799
+class C_0015738931376957317799 {
 __
 }
-class "unordered_set<std::string>" as C_0000534642579833992524
-class C_0000534642579833992524 {
+class "vector<Hummingbird::Engine::TabId>" as C_0008424896993992144758
+class C_0008424896993992144758 {
 __
 }
-enum "ResourceType" as C_0002141648119651690103
-enum C_0002141648119651690103 {
-Document
-Stylesheet
-Image
-}
-enum "ResourceState" as C_0011420685013195759221
-enum C_0011420685013195759221 {
-Requested
-Loading
-Ready
-Failed
-}
-class "ResourceEntry" as C_0005757625331143441886
-class C_0005757625331143441886 {
+class "optional<Hummingbird::Engine::TabId>" as C_0017359530368249858831
+class C_0017359530368249858831 {
 __
 }
-class "ResourceView" as C_0001647285577937204076
-class C_0001647285577937204076 {
-__
-+image : const ImageBitmap *
-}
-class "ResourceStore" as C_0016933289312672214868
-class C_0016933289312672214868 {
-+begin_request() : bool
-+clear() : void
-+find() const : const ResourceEntry *
-+mark_failed() : bool
-+mark_ready() : bool
-+set_image() : bool
-+size() const : size_t
-+view() const : std::optional<ResourceView>
+class "vector<Hummingbird::Engine::TabManager::Entry>" as C_0003144649824607985943
+class C_0003144649824607985943 {
 __
 }
-class "ResourceStore::ResourceKey" as C_0014728205660617932748
-class C_0014728205660617932748 {
-+operator==() const : bool
+class "unique_ptr<Hummingbird::Engine::Tab>" as C_0016318100291768646343
+class C_0016318100291768646343 {
 __
 }
-class "ResourceStore::ResourceKeyView" as C_0003141655969905592812
-class C_0003141655969905592812 {
-__
-}
-class "ResourceStore::ResourceKeyHash" as C_0017780636133286285801
-class C_0017780636133286285801 {
-+operator()() const : size_t
-+operator()() const : size_t
-__
-}
-class "ResourceStore::ResourceKeyEqual" as C_0008979603651201788313
-class C_0008979603651201788313 {
-+operator()() const : bool
-+operator()() const : bool
-+operator()() const : bool
-+operator()() const : bool
-__
-}
-class "ResourceLoader" as C_0011883914678074329964
-class C_0011883914678074329964 {
-+ResourceLoader() : void
-+ResourceLoader() = deleted : void
-+ResourceLoader() = deleted : void
-..
-+operator=() = deleted : ResourceLoader &
-+operator=() = deleted : ResourceLoader &
-..
-+allow_insecure_host() : void
-+consume_pending_updates() : BatchResult
-+find() const : const ResourceEntry *
-+image_decoder() const : IImageDecoder *
-+is_insecure_allowed_for_url() const : bool
-+navigate() : void
-+request_images() : void
-+request_stylesheets() : void
-+reset() : void
-+resource_provider() const : IResourceProvider *
-+shutdown() : void
-+store() : ResourceStore &
-+store() const : const ResourceStore &
-+view() const : std::optional<ResourceView>
-__
-}
-class "ResourceLoader::PendingResourceUpdate" as C_0003211425949229071024
-class C_0003211425949229071024 {
-__
-+error : NetworkError
-+success : bool
-}
-class "ResourceLoader::BatchResult" as C_0003600540981304813688
-class C_0003600540981304813688 {
-__
-+document_error : NetworkError
-+document_ready : bool
-+image_ready : bool
-+pending_count : size_t
-+stylesheet_ready : bool
-}
-class "ResourceLoader::ResourceRequestOptions" as C_0000282450855459593473
-class C_0000282450855459593473 {
-__
-+allow_fallback_network : bool
-+log_asset_load : bool
-+log_duplicates : bool
-+mark_ready_on_asset : bool
-+use_binary : bool
-}
-}
-package [tab] as C_0015546965529425083661 {
 class "atomic<bool>" as C_0004308501729698541420
 class C_0004308501729698541420 {
 __
+}
+class "ratio<1,1000000000>" as C_0012415743977570969849
+class C_0012415743977570969849 {
+__
+}
+class "duration<int64_t,std::ratio<1,1000000000>>" as C_0017614144533568309161
+class C_0017614144533568309161 {
+__
+}
+class "time_point<std::chrono::steady_clock,std::chrono::duration<int64_t,std::ratio<1,1000000000>>>" as C_0016577378426764904006
+class C_0016577378426764904006 {
+__
+}
+class "TabFactory" as C_0008348389113841433043
+class C_0008348389113841433043 {
+__
+}
+class "TabManager" as C_0006854318465359965717
+class C_0006854318465359965717 {
++TabManager() : void
++TabManager() = deleted : void
++TabManager() = deleted : void
++~TabManager() : void
+..
++operator=() = deleted : TabManager &
++operator=() = deleted : TabManager &
+..
++activate_next() : bool
++activate_prev() : bool
++active_tab() : Tab *
++active_tab() const : const Tab *
++active_tab_id() const : std::optional<TabId>
++close_active() : bool
++close_tab() : bool
++create_tab() : TabId
++set_active() : bool
++shutdown() : void
++tab_by_id() : Tab *
++tab_by_id() const : const Tab *
++tab_count() const : size_t
++tab_ids() const : std::vector<TabId>
+__
+}
+class "TabManager::Entry" as C_0009167139575656022143
+class C_0009167139575656022143 {
+__
++id : TabId
 }
 class "Tab" as C_0015749720651774587498
 class C_0015749720651774587498 {
@@ -390,7 +360,9 @@ class C_0015749720651774587498 {
 +operator=() = deleted : Tab &
 ..
 +allow_insecure_for_current_host() : bool
++clear_control_interaction() : bool
 +clear_input_focus() : bool
++consume_navigation_commit_url() : std::optional<std::string>
 +content_height() const : float
 +dispatch_click() : ClickResult
 +focus_input_at() : bool
@@ -399,16 +371,20 @@ class C_0015749720651774587498 {
 +handle_text_input() : bool
 +has_focused_input() const : bool
 +hit_test_link() const : std::optional<std::string>
++insert_extension_css() : bool
++navigate() : void
 +navigate() : void
 +paint() : void
 +paint_controls() : void
++refresh_styles_for_interaction() : bool
 +requested_url() const : std::string_view
 +resource_view() const : std::optional<ResourceView>
 +scroll_by() : void
 +scroll_y() const : float
 +security_state() const : SecurityState
++set_control_interaction_at() : bool
 +shutdown() : void
-+submit_form_at() const : std::optional<std::string>
++submit_form_at() const : std::optional<FormSubmission>
 +tick() : bool
 __
 }
@@ -438,6 +414,185 @@ __
 +scroll_y : float
 }
 }
+package [resources] as C_0015622089966246612019 {
+class "unordered_set<std::string>" as C_0000534642579833992524
+class C_0000534642579833992524 {
+__
+}
+class "unique_ptr<Hummingbird::ImageBitmap>" as C_0015263516019548667449
+class C_0015263516019548667449 {
+__
+}
+class "unique_ptr<Hummingbird::Engine::ResourceEntry::AnimationState>" as C_0006432729335382423860
+class C_0006432729335382423860 {
+__
+}
+class "optional<Hummingbird::Engine::ResourceView>" as C_0007973393778680676673
+class C_0007973393778680676673 {
+__
+}
+class "unordered_map<Hummingbird::Engine::ResourceStore::ResourceKey,Hummingbird::Engine::ResourceEntry,Hummingbird::Engine::ResourceStore::ResourceKeyHash,Hummingbird::Engine::ResourceStore::ResourceKeyEqual>" as C_0009520369477691483131
+class C_0009520369477691483131 {
+__
+}
+class "vector<Hummingbird::Engine::ResourceLoader::PendingResourceUpdate>" as C_0015103602759014610771
+class C_0015103602759014610771 {
+__
+}
+class "atomic<uint64_t>" as C_0003756792376209326944
+class C_0003756792376209326944 {
+__
+}
+class "ProcessingStats" as C_0013997559673419012232
+class C_0013997559673419012232 {
+__
++document_ready : bool
++image_decode_count : size_t
++image_decode_ms : double
++image_ready : bool
++stylesheet_ready : bool
+}
+class "ResourceSecurityPolicy" as C_0017823789619787717262
+class C_0017823789619787717262 {
++allow_insecure_host() : void
+{static} +build_tls_error_body() : std::string
++is_insecure_allowed_for_url() const : bool
+__
+}
+class "ResourceLoader" as C_0011883914678074329964
+class C_0011883914678074329964 {
++ResourceLoader() : void
++ResourceLoader() = deleted : void
++ResourceLoader() = deleted : void
+..
++operator=() = deleted : ResourceLoader &
++operator=() = deleted : ResourceLoader &
+..
++allow_insecure_host() : void
++consume_pending_updates() : BatchResult
++find() const : const ResourceEntry *
++image_decoder() const : IImageDecoder *
++is_insecure_allowed_for_url() const : bool
++navigate() : void
++navigate() : void
++request_images() : void
++request_stylesheets() : void
++reset() : void
++resource_provider() const : IResourceProvider *
++shutdown() : void
++store() : ResourceStore &
++store() const : const ResourceStore &
++view() const : std::optional<ResourceView>
+__
+}
+class "ResourceLoader::DocumentRequest" as C_0008864033764362407840
+class C_0008864033764362407840 {
+__
+}
+enum "ResourceLoader::DocumentRequest::Method" as C_0001135500199343459742
+enum C_0001135500199343459742 {
+Get
+Post
+}
+class "ResourceLoader::PendingResourceUpdate" as C_0003211425949229071024
+class C_0003211425949229071024 {
+__
++error : NetworkError
++success : bool
+}
+class "ResourceLoader::BatchResult" as C_0003600540981304813688
+class C_0003600540981304813688 {
+__
++document_error : NetworkError
++document_ready : bool
++image_ready : bool
++pending_count : size_t
++stylesheet_ready : bool
+}
+enum "ResourceType" as C_0002141648119651690103
+enum C_0002141648119651690103 {
+Document
+Stylesheet
+Image
+}
+enum "ResourceState" as C_0011420685013195759221
+enum C_0011420685013195759221 {
+Requested
+Loading
+Ready
+Failed
+}
+class "ResourceEntry" as C_0005757625331143441886
+class C_0005757625331143441886 {
+__
+}
+class "ResourceEntry::AnimationState" as C_0018146449155767117092
+class C_0018146449155767117092 {
+__
++elapsed_ms : int
++frame_index : size_t
++image : AnimatedImage
+}
+class "ResourceView" as C_0001647285577937204076
+class C_0001647285577937204076 {
+__
++image : const ImageBitmap *
+}
+class "ResourceStore" as C_0016933289312672214868
+class C_0016933289312672214868 {
++begin_request() : bool
++clear() : void
++find() const : const ResourceEntry *
++mark_failed() : bool
++mark_ready() : bool
++set_animation() : bool
++set_image() : bool
++size() const : size_t
++tick_animations() : bool
++view() const : std::optional<ResourceView>
+__
+}
+class "ResourceStore::ResourceKey" as C_0014728205660617932748
+class C_0014728205660617932748 {
++operator==() const : bool
+__
+}
+class "ResourceStore::ResourceKeyView" as C_0003141655969905592812
+class C_0003141655969905592812 {
+__
+}
+class "ResourceStore::ResourceKeyHash" as C_0017780636133286285801
+class C_0017780636133286285801 {
++operator()() const : size_t
++operator()() const : size_t
+__
+}
+class "ResourceStore::ResourceKeyEqual" as C_0008979603651201788313
+class C_0008979603651201788313 {
++operator()() const : bool
++operator()() const : bool
++operator()() const : bool
++operator()() const : bool
+__
+}
+class "ResourceRequestOptions" as C_0016695045374516101927
+class C_0016695045374516101927 {
+__
++allow_fallback_network : bool
++log_asset_load : bool
++log_duplicates : bool
++mark_ready_on_asset : bool
++use_binary : bool
+}
+class "ResolvedRequestUrl" as C_0001799219873111225492
+class C_0001799219873111225492 {
+__
+}
+class "ResolvedUrl" as C_0008065683203715820346
+class C_0008065683203715820346 {
+__
+}
+}
 }
 }
 C_0010842192065616564749 ..> C_0001275076681856179721
@@ -449,6 +604,22 @@ C_0012283964610349922400 ..> C_0013119750648387073869
 C_0012401375111226989944 o-- C_0013247086971467822611 : +name
 C_0012401375111226989944 o-- C_0013247086971467822611 : +value
 C_0013600133425880346086 o-- C_0001275076681856179721 : +value
+C_0013363768045330480152 ..> C_0013247086971467822611
+C_0013363768045330480152 ..> C_0015099295437783447376
+C_0013363768045330480152 ..> C_0001275076681856179721
+C_0013363768045330480152 ..> C_0017470359003105763629
+C_0013363768045330480152 o-- C_0015421847511030725389 : -dom_tree_
+C_0013363768045330480152 o-- C_0012283964610349922400 : -render_tree_
+C_0013363768045330480152 o-- C_0001347152004389415025 : -style_blocks_
+C_0013363768045330480152 o-- C_0001347152004389415025 : -script_blocks_
+C_0013363768045330480152 o-- C_0001347152004389415025 : -stylesheet_links_
+C_0013363768045330480152 o-- C_0001347152004389415025 : -image_links_
+C_0013363768045330480152 o-- C_0001347152004389415025 : -background_image_links_
+C_0015099295437783447376 --+ C_0013363768045330480152
+C_0003346638043309829899 ..> C_0013247086971467822611
+C_0003346638043309829899 ..> C_0010842192065616564749
+C_0003346638043309829899 ..> C_0017470359003105763629
+C_0003346638043309829899 --> C_0013363768045330480152 : -model_
 C_0015726460308066555584 ..> C_0013247086971467822611
 C_0015726460308066555584 ..> C_0001347152004389415025
 C_0015726460308066555584 ..> C_0001275076681856179721
@@ -464,54 +635,126 @@ C_0009111102276330779205 ..> C_0000402076155514783740
 C_0009111102276330779205 ..> C_0014478661507587252795
 C_0009111102276330779205 ..> C_0007902949996702865134
 C_0009111102276330779205 ..> C_0010842192065616564749
+C_0009111102276330779205 ..> C_0017470359003105763629
 C_0009111102276330779205 ..> C_0013421526244778779619
-C_0009111102276330779205 ..> C_0001347152004389415025
 C_0009111102276330779205 o-- C_0011815525377283540631 : -input_controller_
 C_0009111102276330779205 o-- C_0015726460308066555584 : -resources_
 C_0009111102276330779205 o-- C_0013363768045330480152 : -model_
+C_0009111102276330779205 o-- C_0003346638043309829899 : -navigation_
 C_0009111102276330779205 o-- C_0002146874861439931359 : -painter_
 C_0009111102276330779205 o-- C_0000510956278017004377 : -script_controller_
+C_0009111102276330779205 o-- C_0001347152004389415025 : -extension_style_blocks_
 C_0007902949996702865134 --+ C_0009111102276330779205
 C_0000402076155514783740 --+ C_0009111102276330779205
 C_0000402076155514783740 o-- C_0013247086971467822611 : +base_url
 C_0013421526244778779619 --+ C_0009111102276330779205
-C_0013421526244778779619 o-- C_0010842192065616564749 : +submitted_url
-C_0013363768045330480152 ..> C_0013247086971467822611
-C_0013363768045330480152 ..> C_0015099295437783447376
-C_0013363768045330480152 ..> C_0001275076681856179721
-C_0013363768045330480152 ..> C_0010842192065616564749
-C_0013363768045330480152 o-- C_0015421847511030725389 : -dom_tree_
-C_0013363768045330480152 o-- C_0012283964610349922400 : -render_tree_
-C_0013363768045330480152 o-- C_0001347152004389415025 : -style_blocks_
-C_0013363768045330480152 o-- C_0001347152004389415025 : -script_blocks_
-C_0013363768045330480152 o-- C_0001347152004389415025 : -stylesheet_links_
-C_0013363768045330480152 o-- C_0001347152004389415025 : -image_links_
-C_0013363768045330480152 o-- C_0001347152004389415025 : -background_image_links_
-C_0015099295437783447376 --+ C_0013363768045330480152
+C_0013421526244778779619 o-- C_0017470359003105763629 : +submitted_form
 C_0011815525377283540631 ..> C_0013247086971467822611
 C_0011815525377283540631 ..> C_0004044451748708109257
 C_0011815525377283540631 ..> C_0010842192065616564749
 C_0004044451748708109257 --+ C_0011815525377283540631
 C_0002146874861439931359 ..> C_0011815525377283540631
-C_0000510956278017004377 ..> C_0013363768045330480152
+C_0013066522977069845003 ..> C_0013247086971467822611
+C_0013066522977069845003 ..> C_0001275076681856179721
+C_0000510956278017004377 ..> C_0001347152004389415025
 C_0000510956278017004377 ..> C_0014478661507587252795
 C_0000510956278017004377 ..> C_0013247086971467822611
 C_0000510956278017004377 o-- C_0016350205034601266101 : -script_engine_
 C_0000510956278017004377 o-- C_0013066522977069845003 : -script_host_
 C_0014478661507587252795 --+ C_0000510956278017004377
-C_0013066522977069845003 ..> C_0013247086971467822611
-C_0013066522977069845003 ..> C_0001275076681856179721
+C_0011068926328162953659 ..> C_0003261687656591391434
+C_0008289251468801325580 ..> C_0002947512765916896257
+C_0010830496478000316660 ..> C_0008289251468801325580
+C_0012322741629708004467 ..> C_0005127814986476644910
+C_0007979934701405186563 ..> C_0012322741629708004467
+C_0015738931376957317799 ..> C_0016350205034601266101
+C_0016318100291768646343 ..> C_0015749720651774587498
+C_0017614144533568309161 ..> C_0012415743977570969849
+C_0016577378426764904006 ..> C_0017614144533568309161
+C_0008348389113841433043 o-- C_0011068926328162953659 : +create_network
+C_0008348389113841433043 o-- C_0011068926328162953659 : +create_fallback_network
+C_0008348389113841433043 o-- C_0010830496478000316660 : +create_resource_provider
+C_0008348389113841433043 o-- C_0007979934701405186563 : +create_image_decoder
+C_0008348389113841433043 o-- C_0015738931376957317799 : +create_script_engine
+C_0006854318465359965717 ..> C_0008424896993992144758
+C_0006854318465359965717 ..> C_0015749720651774587498
+C_0006854318465359965717 o-- C_0008348389113841433043 : -factory_
+C_0006854318465359965717 o-- C_0003144649824607985943 : -tabs_
+C_0006854318465359965717 o-- C_0017359530368249858831 : -active_id_
+C_0009167139575656022143 --+ C_0006854318465359965717
+C_0009167139575656022143 o-- C_0016318100291768646343 : +tab
+C_0015749720651774587498 ..> C_0003261687656591391434
+C_0015749720651774587498 ..> C_0008289251468801325580
+C_0015749720651774587498 ..> C_0012322741629708004467
+C_0015749720651774587498 ..> C_0016350205034601266101
+C_0015749720651774587498 ..> C_0013247086971467822611
+C_0015749720651774587498 ..> C_0004915835772149211628
+C_0015749720651774587498 ..> C_0017470359003105763629
+C_0015749720651774587498 ..> C_0002150716488963558843
+C_0015749720651774587498 ..> C_0002141648119651690103
+C_0015749720651774587498 ..> C_0007973393778680676673
+C_0015749720651774587498 ..> C_0001647285577937204076
+C_0015749720651774587498 ..> C_0003600540981304813688
+C_0015749720651774587498 o-- C_0004308501729698541420 : -shutting_down_
+C_0015749720651774587498 o-- C_0011883914678074329964 : -resource_loader_
+C_0015749720651774587498 o-- C_0009111102276330779205 : -document_pipeline_
+C_0015749720651774587498 o-- C_0001347152004389415025 : -extension_style_blocks_
+C_0015749720651774587498 o-- C_0000534642579833992524 : -extension_style_block_keys_
+C_0015749720651774587498 o-- C_0010842192065616564749 : -pending_navigation_commit_url_
+C_0015749720651774587498 o-- C_0001275076681856179721 : -requested_url_
+C_0015749720651774587498 o-- C_0012088413428727963152 : -layout_state_
+C_0015749720651774587498 o-- C_0016577378426764904006 : -last_animation_tick_
+C_0002150716488963558843 --+ C_0015749720651774587498
+C_0002150716488963558843 o-- C_0017470359003105763629 : +submitted_form
+C_0004915835772149211628 --+ C_0015749720651774587498
+C_0012088413428727963152 --+ C_0015749720651774587498
+C_0000534642579833992524 ..> C_0001275076681856179721
 C_0015263516019548667449 ..> C_0007482802471481031717
 C_0007973393778680676673 ..> C_0001647285577937204076
 C_0009520369477691483131 ..> C_0005757625331143441886
-C_0008289251468801325580 ..> C_0002947512765916896257
-C_0012322741629708004467 ..> C_0005127814986476644910
-C_0000534642579833992524 ..> C_0001275076681856179721
+C_0017823789619787717262 ..> C_0013247086971467822611
+C_0017823789619787717262 ..> C_0001275076681856179721
+C_0017823789619787717262 o-- C_0000534642579833992524 : -insecure_hosts_
+C_0011883914678074329964 ..> C_0013247086971467822611
+C_0011883914678074329964 ..> C_0008864033764362407840
+C_0011883914678074329964 ..> C_0001347152004389415025
+C_0011883914678074329964 ..> C_0003600540981304813688
+C_0011883914678074329964 ..> C_0002141648119651690103
+C_0011883914678074329964 ..> C_0007973393778680676673
+C_0011883914678074329964 ..> C_0001647285577937204076
+C_0011883914678074329964 ..> C_0005757625331143441886
+C_0011883914678074329964 ..> C_0016695045374516101927
+C_0011883914678074329964 ..> C_0001275076681856179721
+C_0011883914678074329964 ..> C_0003211425949229071024
+C_0011883914678074329964 o-- C_0003756792376209326944 : -nav_counter_
+C_0011883914678074329964 o-- C_0003756792376209326944 : -active_nav_
+C_0011883914678074329964 o-- C_0015103602759014610771 : -pending_resources_
+C_0011883914678074329964 o-- C_0003261687656591391434 : -network_
+C_0011883914678074329964 o-- C_0003261687656591391434 : -fallback_network_
+C_0011883914678074329964 o-- C_0008289251468801325580 : -resource_provider_
+C_0011883914678074329964 o-- C_0012322741629708004467 : -image_decoder_
+C_0011883914678074329964 o-- C_0016933289312672214868 : -resource_store_
+C_0011883914678074329964 o-- C_0017823789619787717262 : -security_policy_
+C_0008864033764362407840 --+ C_0011883914678074329964
+C_0008864033764362407840 o-- C_0001135500199343459742 : +method
+C_0008864033764362407840 o-- C_0001275076681856179721 : +body
+C_0008864033764362407840 o-- C_0001275076681856179721 : +content_type
+C_0001135500199343459742 --+ C_0008864033764362407840
+C_0003211425949229071024 --+ C_0011883914678074329964
+C_0003211425949229071024 o-- C_0002141648119651690103 : +type
+C_0003211425949229071024 o-- C_0001275076681856179721 : +url
+C_0003211425949229071024 o-- C_0001275076681856179721 : +effective_url
+C_0003211425949229071024 o-- C_0001275076681856179721 : +body
+C_0003600540981304813688 --+ C_0011883914678074329964
+C_0003600540981304813688 o-- C_0001275076681856179721 : +document_url
+C_0003600540981304813688 o-- C_0001275076681856179721 : +effective_url
 C_0005757625331143441886 o-- C_0002141648119651690103 : +type
 C_0005757625331143441886 o-- C_0001275076681856179721 : +url
 C_0005757625331143441886 o-- C_0011420685013195759221 : +state
 C_0005757625331143441886 o-- C_0001275076681856179721 : +body
 C_0005757625331143441886 o-- C_0015263516019548667449 : +image
+C_0005757625331143441886 o-- C_0006432729335382423860 : +animation
+C_0018146449155767117092 --+ C_0005757625331143441886
 C_0001647285577937204076 o-- C_0002141648119651690103 : +type
 C_0001647285577937204076 o-- C_0011420685013195759221 : +state
 C_0001647285577937204076 o-- C_0013247086971467822611 : +url
@@ -535,58 +778,13 @@ C_0017780636133286285801 ..> C_0003141655969905592812
 C_0008979603651201788313 --+ C_0016933289312672214868
 C_0008979603651201788313 ..> C_0014728205660617932748
 C_0008979603651201788313 ..> C_0003141655969905592812
-C_0011883914678074329964 ..> C_0013247086971467822611
-C_0011883914678074329964 ..> C_0001347152004389415025
-C_0011883914678074329964 ..> C_0003600540981304813688
-C_0011883914678074329964 ..> C_0002141648119651690103
-C_0011883914678074329964 ..> C_0007973393778680676673
-C_0011883914678074329964 ..> C_0001647285577937204076
-C_0011883914678074329964 ..> C_0005757625331143441886
-C_0011883914678074329964 ..> C_0000282450855459593473
-C_0011883914678074329964 ..> C_0001275076681856179721
-C_0011883914678074329964 ..> C_0003211425949229071024
-C_0011883914678074329964 o-- C_0003756792376209326944 : -nav_counter_
-C_0011883914678074329964 o-- C_0003756792376209326944 : -active_nav_
-C_0011883914678074329964 o-- C_0015103602759014610771 : -pending_resources_
-C_0011883914678074329964 o-- C_0003261687656591391434 : -network_
-C_0011883914678074329964 o-- C_0003261687656591391434 : -fallback_network_
-C_0011883914678074329964 o-- C_0008289251468801325580 : -resource_provider_
-C_0011883914678074329964 o-- C_0012322741629708004467 : -image_decoder_
-C_0011883914678074329964 o-- C_0016933289312672214868 : -resource_store_
-C_0011883914678074329964 o-- C_0000534642579833992524 : -insecure_hosts_
-C_0003211425949229071024 --+ C_0011883914678074329964
-C_0003211425949229071024 o-- C_0002141648119651690103 : +type
-C_0003211425949229071024 o-- C_0001275076681856179721 : +url
-C_0003211425949229071024 o-- C_0001275076681856179721 : +effective_url
-C_0003211425949229071024 o-- C_0001275076681856179721 : +body
-C_0003600540981304813688 --+ C_0011883914678074329964
-C_0003600540981304813688 o-- C_0001275076681856179721 : +document_url
-C_0003600540981304813688 o-- C_0001275076681856179721 : +effective_url
-C_0000282450855459593473 --+ C_0011883914678074329964
-C_0000282450855459593473 o-- C_0002141648119651690103 : +type
-C_0000282450855459593473 o-- C_0013247086971467822611 : +type_label
-C_0000282450855459593473 o-- C_0013247086971467822611 : +attr_label
-C_0015749720651774587498 ..> C_0003261687656591391434
-C_0015749720651774587498 ..> C_0008289251468801325580
-C_0015749720651774587498 ..> C_0012322741629708004467
-C_0015749720651774587498 ..> C_0016350205034601266101
-C_0015749720651774587498 ..> C_0013247086971467822611
-C_0015749720651774587498 ..> C_0010842192065616564749
-C_0015749720651774587498 ..> C_0004915835772149211628
-C_0015749720651774587498 ..> C_0002150716488963558843
-C_0015749720651774587498 ..> C_0002141648119651690103
-C_0015749720651774587498 ..> C_0007973393778680676673
-C_0015749720651774587498 ..> C_0001647285577937204076
-C_0015749720651774587498 ..> C_0003600540981304813688
-C_0015749720651774587498 o-- C_0004308501729698541420 : -shutting_down_
-C_0015749720651774587498 o-- C_0011883914678074329964 : -resource_loader_
-C_0015749720651774587498 o-- C_0009111102276330779205 : -document_pipeline_
-C_0015749720651774587498 o-- C_0001275076681856179721 : -requested_url_
-C_0015749720651774587498 o-- C_0012088413428727963152 : -layout_state_
-C_0002150716488963558843 --+ C_0015749720651774587498
-C_0002150716488963558843 o-- C_0010842192065616564749 : +submitted_url
-C_0004915835772149211628 --+ C_0015749720651774587498
-C_0012088413428727963152 --+ C_0015749720651774587498
+C_0016695045374516101927 o-- C_0002141648119651690103 : +type
+C_0016695045374516101927 o-- C_0013247086971467822611 : +type_label
+C_0016695045374516101927 o-- C_0013247086971467822611 : +attr_label
+C_0001799219873111225492 o-- C_0001275076681856179721 : +key
+C_0001799219873111225492 o-- C_0001275076681856179721 : +resolved
+C_0008065683203715820346 o-- C_0001275076681856179721 : +resolved
+C_0008065683203715820346 o-- C_0001275076681856179721 : +key
 
 'Generated with clang-uml, version 0.6.2
 'LLVM version clang version 20.1.8 (Fedora 20.1.8-2.fc43)

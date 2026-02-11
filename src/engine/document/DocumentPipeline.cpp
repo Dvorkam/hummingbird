@@ -51,7 +51,7 @@ DocumentPipeline::~DocumentPipeline() = default;
 void DocumentPipeline::reset() {
     model_.reset();
     content_height_ = 0.0f;
-    input_controller_.reset();
+    interaction_.reset();
     script_controller_.clear();
     painter_.invalidate_display_list();
 }
@@ -133,7 +133,7 @@ void DocumentPipeline::paint(IGraphicsContext& graphics, const PaintContext& con
 
     const auto paint_start = Core::Clock::now();
     painter_.paint(model_.render_tree(), graphics, context.viewport, context.debug_outlines, context.scroll_y,
-                   input_controller_);
+                   interaction_.input_controller());
     const auto paint_end = Core::Clock::now();
     static int paint_log_counter = 0;
     if (++paint_log_counter % 5 == 0) {
@@ -148,63 +148,50 @@ void DocumentPipeline::paint_controls(IGraphicsContext& graphics, const PaintCon
     if (!render_tree) return;
 
     graphics.set_viewport(context.viewport);
-    input_controller_.paint_controls(render_tree, graphics, context.viewport, context.scroll_y, repaint_background);
+    interaction_.paint_controls(render_tree, graphics, context.viewport, context.scroll_y, repaint_background);
 }
 
 std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext& context) const {
-    return navigation_.hit_test_link(model_.render_tree(), context.point, context.viewport, context.scroll_y,
-                                     context.base_url);
+    return interaction_.hit_test_link({context.point, context.viewport, context.base_url, context.scroll_y});
 }
 
 std::optional<FormSubmission> DocumentPipeline::submit_form_at(const HitTestContext& context) const {
-    return navigation_.submit_form_at(model_.render_tree(), context.point, context.viewport, context.scroll_y,
-                                      context.base_url);
+    return interaction_.submit_form_at({context.point, context.viewport, context.base_url, context.scroll_y});
 }
 
 bool DocumentPipeline::focus_input_at(const HitTestContext& context) {
-    return input_controller_.focus_input_at(model_.render_tree(), context.point, context.viewport, context.scroll_y);
+    return interaction_.focus_input_at(model_.render_tree(),
+                                       {context.point, context.viewport, context.base_url, context.scroll_y});
 }
 
 bool DocumentPipeline::focus_autofocus_input() {
-    return input_controller_.focus_autofocus_input(model_.render_tree());
+    return interaction_.focus_autofocus_input(model_.render_tree());
 }
 
 bool DocumentPipeline::clear_input_focus() {
-    return input_controller_.clear_focus();
+    return interaction_.clear_input_focus();
 }
 
 bool DocumentPipeline::set_control_interaction_at(const HitTestContext& context) {
-    return input_controller_.set_control_interaction_at(model_.render_tree(), context.point, context.viewport,
-                                                        context.scroll_y);
+    return interaction_.set_control_interaction_at(
+        model_.render_tree(), {context.point, context.viewport, context.base_url, context.scroll_y});
 }
 
 bool DocumentPipeline::clear_control_interaction() {
-    return input_controller_.clear_control_interaction();
+    return interaction_.clear_control_interaction();
 }
 
 DocumentPipeline::InputEditResult DocumentPipeline::handle_text_input(std::string_view text) {
-    auto result = input_controller_.handle_text_input(text);
-    return {result.handled, result.needs_repaint, std::nullopt};
+    return interaction_.handle_text_input(text);
 }
 
 DocumentPipeline::InputEditResult DocumentPipeline::handle_key_down(const InputEvent& event,
                                                                     std::string_view base_url) {
-    auto result = input_controller_.handle_key_down(event);
-    InputEditResult output{result.handled, result.needs_repaint, std::nullopt};
-
-    if (event.key.key == Key::Enter && input_controller_.has_focus()) {
-        const auto* focused = input_controller_.focused_element();
-        if (focused) {
-            output.submitted_form = model_.build_form_submission(*focused, base_url);
-        }
-        output.handled = true;
-    }
-
-    return output;
+    return interaction_.handle_key_down(event, base_url);
 }
 
 std::optional<std::string> DocumentPipeline::focused_input_value() const {
-    return input_controller_.focused_value();
+    return interaction_.focused_input_value();
 }
 
 size_t DocumentPipeline::render_tree_children() const {

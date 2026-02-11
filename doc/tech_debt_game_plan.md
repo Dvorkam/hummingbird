@@ -1,0 +1,171 @@
+# Tech Debt Game Plan (Temp)
+
+## Chokepoints From Diagrams
+- [ ] **Engine::DocumentPipeline**: central coordinator touching input, resources, script, paint, layout.
+  - [ ] Map responsibilities by public method to identify tight couplings (layout vs input vs navigation vs resource updates).
+  - [ ] Inspect call graph for `DocumentPipeline::apply_styles_and_layout`, `relayout`, `paint`, `paint_controls`.
+  - [ ] Identify candidate service splits (resources, scripting, navigation/hit-test, input).
+  - [ ] Check for duplicated state between `DocumentPipeline` and `Tab`.
+  - [ ] Suggest extraction points + minimal interface boundaries.
+  - [x] Extracted `DocumentInteraction` to hold input + navigation responsibilities. (2026-02-11)
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] Pipeline currently owns model, resources, navigation, painter, script controller, and input controller.
+    - [ ] Public API mixes orchestration (`apply_styles_and_layout`, `relayout`, `paint`) with interaction (`focus_input_at`, `handle_key_down`) and navigation/hit-test.
+    - [ ] `Tab` still calls into pipeline for layout, paint, input, and extension CSS; many entry points are exposed.
+    - [ ] Candidate split: extract `DocumentInteraction` (hit-test + form submit + focus/edit), `DocumentRender` (layout/paint), and `DocumentResources` (css/image updates) into smaller facades.
+    - [ ] Candidate split: move `dispatch_*` script hooks into `DocumentScriptController` wrapper owned by `Tab` to reduce pipeline surface.
+- [ ] **Engine::Tab**: heavy cross-cutting dependency surface (document pipeline + resource loader + extensions).
+  - [ ] Inventory owned state (resources, extension CSS, navigation commits, input state).
+  - [ ] Identify which responsibilities can move to `TabController` or `DocumentPipeline`.
+  - [ ] Review invalidation paths for duplication or per-frame polling.
+  - [ ] Propose thin façade interfaces to reduce include fan-out.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] Tab currently owns navigation normalization, security state, resource loader lifecycle, extension CSS state, layout state, and input dispatch plumbing.
+    - [ ] `tick()` mixes resource consumption, extension CSS rebuilds, viewport relayout, and animation tick gating; this is multiple lifecycles in one loop.
+    - [ ] Resource readiness handlers (`handle_document_ready`, `handle_stylesheet_ready`, `handle_image_ready`) each rebuild/layout and then mutate scroll/layout state; layout invalidation and resource policy are intertwined.
+    - [ ] Input and control interaction APIs simply forward to `DocumentPipeline`, which suggests a thinner interaction façade could live inside the pipeline (or a `DocumentInteraction` service) to reduce Tab surface.
+    - [ ] Candidate split: extract a `TabLayoutState` helper (already nested) into its own unit and move animation tick handling into a `TabAnimationTicker` to reduce tick complexity.
+    - [ ] Candidate split: separate `NavigationLifecycle` (normalize URL, commit URL, security state, `allow_insecure_for_current_host`) from `Tab` core to reduce coupling with `ResourceLoader`.
+- [ ] **App::BrowserApp**: wide include fan-out in `app_includes_src_only.puml`.
+  - [ ] Identify remaining responsibilities that are not UI orchestration.
+  - [ ] Check where `BrowserChrome` / `TabController` could absorb logic.
+  - [ ] Evaluate include fan-out cleanup (forward declares, move heavy includes to `.cpp`).
+  - [ ] Suggest small refactor steps to narrow public API surface.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] `BrowserApp` currently owns tab lifecycle, extension bootstrapping, UI chrome input routing, render loop invalidation, and security icon loading.
+    - [ ] `tick()` mixes event pump, tab ticks, extension notifications, chrome sync, and text input mode; this is multiple subsystems in a single loop.
+    - [ ] Input handling (`handle_*`) contains both UI chrome logic and document interaction routing, which could be split into `ChromeEventRouter` and `DocumentEventRouter`.
+    - [ ] Render loop owns cache invalidation (`document_cache_valid_`, dirty flags) and also paints chrome; these could move to a `RenderCoordinator`.
+    - [ ] Extension load/host setup (INI+env merge, background scripts, handlers) is non-UI bootstrapping; candidate extraction to `ExtensionBootstrapper`.
+    - [ ] Candidate split: move security icon loading + resource provider access into `BrowserChrome` (or a `UiAssets` helper) to reduce platform API fan-out in `BrowserApp.h`.
+- [ ] **Layout::RenderTable**: largest layout file; policy + layout + paint behavior coupled.
+  - [ ] Isolate width-hint logic vs layout vs debug rendering.
+  - [ ] Check for repeated computations and potential helper extraction.
+  - [ ] Identify test coverage gaps around real-page tables.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] File mixes width-hint parsing, column distribution, layout traversal, and debug/legacy border paint logic in one translation unit.
+    - [ ] Fallback grid drawing and seam debug logic are intertwined with paint; this is policy and diagnostics mixed into render code.
+    - [ ] `RenderTable::layout` performs all column hint collection + distribution; there is no separate helper or testable unit for width allocation.
+    - [ ] Multiple passes over rows/cells (collect rows, count columns, percent hints, absolute hints, intrinsic widths) could be consolidated via a `TableMetrics` struct.
+    - [ ] Candidate split: move width hint collection + distribution into `TableColumnLayout` helper; move legacy border + grid fallback policy into `TableBorderPolicy`.
+    - [ ] Candidate split: isolate seam debug logging into a debug-only helper or compile-time gated block to keep paint path minimal.
+- [ ] **Platform API surface**: include graph shows a large dependency fan-in.
+  - [ ] Identify which headers are over-included (especially InputEvent / factories).
+  - [ ] Suggest splitting `InputEvent` variants into smaller headers or PODs.
+  - [ ] Check for circular include pressure or unnecessary transitive includes.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] `BrowserApp.h` pulls multiple platform API headers (`IWindow`, `IGraphicsContext`, `InputEvent`) and extension headers; some could move to `.cpp` with forward declarations to reduce fan-out.
+    - [ ] `InputEvent` is a monolithic struct used across app and document input; its nested structs show up as separate anonymous classes in diagrams, suggesting high coupling for any include of `InputEvent.h`.
+    - [ ] Platform factory headers (`*Factory.h`) are included in `BrowserApp.cpp`; consider keeping factories out of headers entirely to avoid propagating platform dependencies.
+    - [ ] `Tab.h` includes several platform API interfaces (network, resource provider, script engine, image decoder); this encourages `Tab` consumers to inherit platform dependency surface.
+    - [ ] Candidate split: introduce lightweight forward declarations in app/engine headers and move concrete factory usage into `.cpp` to shrink platform API fan-in.
+
+## Large File Candidates (Line Count)
+- [ ] `src/layout/table/RenderTable.cpp` (~804)
+  - [ ] Split width-hint distribution vs layout/paint vs debug logging.
+  - [ ] Consolidate repeated column width calculations into helpers.
+  - [ ] Verify table compatibility work stays localized and testable.
+- [ ] `src/style/parser/CssParser.cpp` (~736)
+  - [ ] Identify parsing hot paths vs property-specific parsing.
+  - [ ] Extract property-specific parsing helpers (e.g., font shorthand, background, borders) only if it reduces branching in `parse_value`.
+  - [ ] Check for duplicated tokenization/parse patterns.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] Parser already isolates selector parsing vs declaration parsing; most complexity sits in value parsing and shorthand expansion.
+    - [ ] `parse_value` is a dispatcher with per-type parsing; splitting into many files may not buy architectural clarity unless shorthand handling grows.
+    - [ ] The file contains utility functions (`join_value_list`, `build_var_expression`) that could move to a `CssValueUtils` helper if reused elsewhere.
+    - [ ] Architectural value from splitting is moderate; a better goal may be to isolate shorthand parsing (`font`, `background`, `border`) into dedicated helpers to reduce branching and improve testability.
+- [ ] `src/app/BrowserApp.cpp` (~638)
+  - [ ] Separate window/input event routing from tab lifecycle orchestration.
+  - [ ] Move extension bootstrapping into a dedicated helper/service.
+  - [ ] Reduce include fan-out using forward declarations in `BrowserApp.h`.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] File handles app bootstrap, extension init, UI chrome input routing, render caching, and tab lifecycle; this is a true integration hub.
+    - [ ] Architectural value from splitting is high: it would reduce `BrowserApp` coupling to platform factories and extension host details.
+    - [ ] Suggested direction: extract `AppBootstrap` (creates tab factory, loads icons, merges extension settings), and `RenderCoordinator` (dirty flags + cache).
+- [ ] `src/layout/flow/TextBox.cpp` (~608)
+  - [ ] Separate text shaping/metrics vs line breaking logic.
+  - [ ] Isolate text-overflow/ellipsis handling.
+  - [ ] Identify shared layout helpers that can move to `TextStyleUtils` or a new helper.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] File contains measurement, ellipsis, wrapping, and underline metrics in one unit; multiple standalone helpers already exist (`TextLayoutUtils`, `TextStyleUtils`).
+    - [ ] There is repeated measurement logic (`measure_spaced_text`, per-glyph width loop) that is used by wrapping and ellipsis paths.
+    - [ ] Architectural value from splitting is moderate; higher value would be consolidating text measurement into a reusable `TextMeasurer` helper that can be shared by wrap and ellipsis.
+    - [ ] `TextBox` does both layout and paint-specific underline calculation; underline metrics could move to a `TextDecorationUtils` helper to keep layout code smaller.
+- [ ] `src/platform/graphics/SDLGraphicsContext.cpp` (~557)
+  - [ ] Split rendering primitives (rects/text/images) vs setup/teardown.
+  - [ ] Isolate font cache or image decode paths if intertwined.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] File owns SDL render state, Blend2D text rendering, caching logic, and document cache support; multiple responsibilities are tightly packed.
+    - [ ] Text rendering path mixes font cache, BLImage rasterization, and SDL texture creation; a `TextRenderer` helper could own this without changing public API.
+    - [ ] Image caching and eviction logic is internal and reusable; moving to `ImageCache` helper would simplify the main render path.
+    - [ ] Architectural value is moderate to high because this file is a platform boundary used everywhere; reducing its surface would help portability and testing.
+- [ ] `src/style/compute/apply/ApplyLayout.cpp` (~473)
+  - [ ] Split property application by domain (layout, borders, spacing).
+  - [ ] Centralize repeated length handling (percent/auto) helpers.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] File mixes parsing helpers, property application, and shorthand expansion; most functions are small but numerous.
+    - [ ] Architectural value from splitting is moderate; the main benefit is isolating transform/outline parsing and reducing duplicated length logic.
+    - [ ] A `LengthApplyUtils` helper would reduce repeated parsing of lengths/percent/auto across margin/padding/position.
+- [ ] `src/engine/tab/Tab.cpp` (~447)
+  - [ ] Separate navigation lifecycle, extension CSS injection, and input handling.
+  - [ ] Reduce shared mutable state across tick/update paths.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] Tab combines resource consumption, extension CSS, animation ticking, and layout invalidation in `tick`.
+    - [ ] Architectural value from splitting is moderate; the bigger win is reducing tick complexity and isolating animation scheduling.
+    - [ ] Suggested direction: extract `TabAnimationTicker` and `TabNavigationState` helpers.
+- [ ] `src/engine/document/DocumentInputController.cpp` (~421)
+  - [ ] Identify overlap between input painting and layout metrics.
+  - [ ] Extract focus/interaction state machine if tangled.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] Controller handles hit testing, focus state, caret editing, and painting in one unit; this is both model and view.
+    - [ ] Paint path contains contrast adjustments and caret geometry; suggests a `InputPaintHelper` or `FormControlPainter`.
+    - [ ] Editing (TextEditBuffer) and focus state are coherent and could remain, but hit-testing could move to `DocumentInteraction`.
+    - [ ] Architectural value is moderate; splitting paint from state would improve testability and reduce dependencies on graphics in controller logic.
+- [ ] `src/platform/net/CurlNetwork.cpp` (~355)
+  - [ ] Isolate TLS config detection vs request lifecycle.
+  - [ ] Extract common request setup for GET/POST.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] `get` and `post` duplicate curl setup, TLS policy, and response handling.
+    - [ ] Architectural value from splitting is moderate; a shared request builder would reduce duplication and ensure consistent TLS config and timeouts.
+    - [ ] Suggested direction: extract `CurlRequest` helper for setup + execution and reuse in `get`/`post`.
+- [ ] `src/engine/document/DocumentModel.cpp` (~341)
+  - [ ] Check if DOM parse/build vs resource link discovery should be separated.
+  - [ ] Verify DOM lifecycle responsibilities are not duplicated with pipeline.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] Model owns HTML parse, stylesheet apply, render tree build, and form submission construction, plus link discovery for scripts/images.
+    - [ ] Link discovery and form submission logic are policy-like and could be isolated into helpers without changing model API.
+    - [ ] Architectural value from splitting is moderate; it would improve testability for form serialization and link harvesting.
+- [ ] `src/engine/extensions/ExtensionManifest.cpp` (~332)
+  - [ ] Split parsing, validation, and error reporting.
+  - [ ] Extract small helpers for JSON scanning and reporting.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] Parser is a bespoke JSON reader with manual cursor and error handling.
+    - [ ] Architectural value from splitting is low to moderate; main improvement is testability of JSON tokenization/skip logic.
+    - [ ] Suggested direction: isolate cursor/skip helpers into a small `JsonMiniParser` module to reduce extension-specific code.
+- [ ] `src/engine/resources/ResourceLoader.cpp` (~300)
+  - [ ] Separate request planning vs response integration vs policy.
+  - [ ] Check for duplication with `DocumentResources`.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] Loader already relies on `ResourceRequestPlanner` and `ResourceUpdateProcessor`, which is good separation.
+    - [ ] Remaining coupling is navigation lifecycle vs resource fetching; request handling for documents is embedded in `navigate`.
+    - [ ] Architectural value from splitting is moderate; a `DocumentFetchPolicy` helper could reduce branching in `navigate`.
+- [ ] `src/engine/document/DocumentPipeline.cpp` (~214)
+  - [ ] Ensure this stays an orchestrator; avoid business logic growth.
+  - [ ] **Findings (2026-02-11)**:
+    - [ ] Pipeline is mostly orchestration: model parse/apply/build, resource updates, layout, paint, and input/nav forwarding.
+    - [ ] Architectural value from splitting is low to moderate; better to keep it as a façade while pushing logic into `DocumentModel`, `DocumentResources`, `DocumentInputController`.
+    - [ ] The main risk is logic creep (e.g., inline policies or layout heuristics); keep it thin and add helpers rather than expanding.
+
+## Folder Review Checklist (Dead Code/Redundancy/Anti-patterns)
+- [ ] **app/**: verify Chrome vs BrowserApp responsibilities; look for UI event routing duplication.
+- [ ] **engine/**: document pipeline, tab, resources, extensions. Check for parallel state machines or duplicated lifecycles.
+- [ ] **layout/**: table/flow/inline/controls. Look for debug-only code paths or duplicated metrics helpers.
+- [ ] **style/**: parser/apply. Validate no duplicate parsing logic or unused property hooks.
+- [ ] **platform/**: net/graphics/script/decoders. Look for stub-only logic that should be asset-driven.
+- [ ] **core/**: utils and platform_api. Look for obsolete helpers or duplicate string/parse utilities.
+- [ ] **html/**: tokenizer/parser. Look for legacy/unused branches and repeated error-handling.
+- [ ] **renderer/**: display list + painter. Look for duplicate invalidation logic.
+
+## Notes / Observations
+- No `TODO`/`FIXME` markers currently detected in `src/`.
+- If we agree, I will expand each checklist entry with concrete candidates as we review each folder.

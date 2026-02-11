@@ -9,9 +9,8 @@
 #include <vector>
 
 #include "core/platform_api/IScriptEngine.h"
-#include "engine/document/DocumentInputController.h"
+#include "engine/document/DocumentInteraction.h"
 #include "engine/document/DocumentModel.h"
-#include "engine/document/DocumentNavigation.h"
 #include "engine/document/DocumentPainter.h"
 #include "engine/document/DocumentResources.h"
 #include "engine/forms/FormSubmission.h"
@@ -44,11 +43,7 @@ public:
         float scroll_y = 0.0f;
     };
 
-    struct InputEditResult {
-        bool handled = false;
-        bool needs_repaint = false;
-        std::optional<FormSubmission> submitted_form;
-    };
+    using InputEditResult = DocumentInteraction::InputEditResult;
 
     using ScriptDispatchResult = DocumentScriptController::ScriptDispatchResult;
 
@@ -81,7 +76,7 @@ public:
     bool clear_input_focus();
     bool set_control_interaction_at(const HitTestContext& context);
     bool clear_control_interaction();
-    bool has_focused_input() const { return input_controller_.has_focus(); }
+    bool has_focused_input() const { return interaction_.has_focused_input(); }
     InputEditResult handle_text_input(std::string_view text);
     InputEditResult handle_key_down(const InputEvent& event, std::string_view base_url);
     std::optional<std::string> focused_input_value() const;
@@ -96,10 +91,9 @@ public:
 
 private:
     float content_height_ = 0.0f;
-    DocumentInputController input_controller_;
     DocumentResources resources_;
     DocumentModel model_;
-    DocumentNavigation navigation_{model_};
+    DocumentInteraction interaction_{model_};
     DocumentPainter painter_;
     DocumentScriptController script_controller_;
     std::vector<std::string> extension_style_blocks_;
