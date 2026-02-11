@@ -17,7 +17,8 @@ SecurityState security_state_for_url(std::string_view url) {
 }
 }  // namespace
 
-SecurityState TabDocumentReadyPolicy::decide_security_state(const ResourceLoader& loader, std::string_view requested_url,
+SecurityState TabDocumentReadyPolicy::decide_security_state(const ResourceLoader& loader,
+                                                            std::string_view requested_url,
                                                             NetworkError document_error) {
     if (document_error == NetworkError::TlsVerificationFailed) {
         return SecurityState::InsecureTls;

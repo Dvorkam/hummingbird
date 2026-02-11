@@ -128,28 +128,16 @@ void Tab::process_animation_updates() {
 }
 
 bool Tab::advance_animation_tick() {
-    const auto now = Core::Clock::now();
-    if (!has_animation_tick_) {
-        last_animation_tick_ = now;
-        has_animation_tick_ = true;
-        return false;
-    }
-
-    int delta_ms = static_cast<int>(Core::duration_ms(last_animation_tick_, now));
-    last_animation_tick_ = now;
-    if (delta_ms > 0) {
-        animation_tick_accumulator_ms_ += delta_ms;
-    }
-    if (animation_tick_accumulator_ms_ < kAnimationTickMinIntervalMs) {
+    auto ready_delta_ms = animation_ticker_.consume_ready_delta_ms(kAnimationTickMinIntervalMs);
+    if (!ready_delta_ms.has_value()) {
         return false;
     }
 
     bool updated = false;
-    if (resource_loader_.store().tick_animations(animation_tick_accumulator_ms_) &&
+    if (resource_loader_.store().tick_animations(*ready_delta_ms) &&
         document_pipeline_.has_render_tree()) {
         updated = document_pipeline_.update_image_resources(navigation_state_.requested_url());
     }
-    animation_tick_accumulator_ms_ = 0;
     return updated;
 }
 
@@ -408,8 +396,7 @@ void Tab::reset_document_state() {
     resource_loader_.reset();
     layout_state_.reset();
     navigation_state_.clear_pending_commit_url();
-    has_animation_tick_ = false;
-    animation_tick_accumulator_ms_ = 0;
+    animation_ticker_.reset();
     mark_dirty();
 }
 

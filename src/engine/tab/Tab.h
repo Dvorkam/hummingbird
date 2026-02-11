@@ -1,7 +1,6 @@
 #pragma once
 
 #include <atomic>
-#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -18,6 +17,7 @@
 #include "engine/document/DocumentPipeline.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
+#include "engine/tab/TabAnimationTicker.h"
 #include "engine/tab/TabLayoutState.h"
 #include "engine/tab/TabNavigationState.h"
 #include "layout/geometry/Geometry.h"
@@ -123,11 +123,9 @@ private:
     bool extension_css_dirty_ = false;
     TabNavigationState navigation_state_{};
     TabLayoutState layout_state_{};
+    TabAnimationTicker animation_ticker_{};
 
     bool dirty_ = true;
-    std::chrono::steady_clock::time_point last_animation_tick_{};
-    bool has_animation_tick_ = false;
-    int animation_tick_accumulator_ms_ = 0;
 };
 
 }  // namespace Hummingbird::Engine
