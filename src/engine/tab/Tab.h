@@ -97,6 +97,8 @@ private:
     void apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_animation_updates();
+    bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
+                                          std::string_view reason, bool request_background_images);
     void reset_document_state();
     void update_layout_state(const Layout::Rect& viewport, std::string_view reason);
     bool advance_animation_tick();

@@ -110,12 +110,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
 void Tab::apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (extension_css_dirty_ && document_pipeline_.has_dom_tree()) {
         document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
-        bool has_render_tree =
-            document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
-        resource_loader_.request_images(document_pipeline_.background_image_links(), navigation_state_.requested_url());
-        if (has_render_tree) {
-            update_layout_state(viewport, "tick:extension_css");
-        }
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:extension_css", true);
         extension_css_dirty_ = false;
         dirty_ = true;
         maybe_log_tab_dirty("extension_css", dirty_);
@@ -193,9 +188,7 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
                                              layout_state_.scroll_y};
     auto result = document_pipeline_.dispatch_click(context);
     if (result.mutated) {
-        if (document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url())) {
-            update_layout_state(viewport, "dispatch_click:script_mutation");
-        }
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation", false);
         dirty_ = true;
     }
     return {result.handled, result.mutated};
@@ -231,11 +224,7 @@ bool Tab::refresh_styles_for_interaction(IGraphicsContext& graphics, const Layou
     if (!document_pipeline_.has_dom_tree()) {
         return false;
     }
-    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
-    if (has_render_tree) {
-        update_layout_state(viewport, "refresh_styles_for_interaction");
-    }
-    return has_render_tree;
+    return rebuild_document_and_sync_layout(graphics, viewport, "refresh_styles_for_interaction", false);
 }
 
 bool Tab::has_focused_input() const {
@@ -343,21 +332,19 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 
     resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), navigation_state_.requested_url());
     resource_loader_.request_images(document_pipeline_.image_links(), navigation_state_.requested_url());
-    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
+    bool has_render_tree = rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build",
+                                                            true);
     if (!document_pipeline_.background_image_links().empty()) {
         HB_LOG_INFO("[pipeline] discovered background images: " << document_pipeline_.background_image_links().size());
     }
-    resource_loader_.request_images(document_pipeline_.background_image_links(), navigation_state_.requested_url());
     if (has_render_tree) {
-        update_layout_state(viewport, "handle_document_ready:initial_build");
         if (document_pipeline_.focus_autofocus_input()) {
             dirty_ = true;
         }
     }
     auto load_result = document_pipeline_.dispatch_load();
     if (load_result.mutated) {
-        if (document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url())) {
-            update_layout_state(viewport, "handle_document_ready:load_mutation");
+        if (rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:load_mutation", true)) {
             if (document_pipeline_.focus_autofocus_input()) {
                 dirty_ = true;
             }
@@ -373,11 +360,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto style_update_start = Core::Clock::now();
-    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
-    resource_loader_.request_images(document_pipeline_.background_image_links(), navigation_state_.requested_url());
-    if (has_render_tree) {
-        update_layout_state(viewport, "handle_stylesheet_ready");
-    }
+    bool has_render_tree = rebuild_document_and_sync_layout(graphics, viewport, "handle_stylesheet_ready", true);
     const auto style_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] stylesheet update ms=" << Core::duration_ms(style_update_start, style_update_end));
     dirty_ = true;
@@ -396,6 +379,18 @@ void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& vie
                                           << " updated=" << updated);
     dirty_ = true;
     maybe_log_tab_dirty(updated ? "image_ready_updated" : "image_ready_noop", dirty_);
+}
+
+bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
+                                           std::string_view reason, bool request_background_images) {
+    bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
+    if (request_background_images) {
+        resource_loader_.request_images(document_pipeline_.background_image_links(), navigation_state_.requested_url());
+    }
+    if (has_render_tree) {
+        update_layout_state(viewport, reason);
+    }
+    return has_render_tree;
 }
 
 void Tab::reset_document_state() {
