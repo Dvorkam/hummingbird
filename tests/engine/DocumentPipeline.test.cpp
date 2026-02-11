@@ -248,3 +248,32 @@ TEST(DocumentPipelineTest, PaintsFocusedInputTextWhenContentBoxCollapses) {
     }
     EXPECT_TRUE(saw_typed_text);
 }
+
+TEST(DocumentPipelineTest, ContentHeightIncludesDescendantsBeyondRootHeightClamp) {
+    std::string rows;
+    rows.reserve(2048);
+    for (int i = 0; i < 80; ++i) {
+        rows += "<div>row</div>";
+    }
+
+    const std::string html = "<!doctype html><html><head><style>"
+                             "body{margin:0;padding:0;max-height:50%;}"
+                             "div{margin:0;padding:0;}"
+                             "</style></head><body>" +
+                             rows + "</body></html>";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    TestGraphicsContext graphics;
+    Rect viewport{0, 0, 800, 600};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+
+    EXPECT_GT(pipeline.content_height(), 300.0f);
+}

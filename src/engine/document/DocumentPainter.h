@@ -31,6 +31,7 @@ private:
     float display_list_scroll_y_ = 0.0f;
     bool display_list_debug_outlines_ = false;
     size_t display_list_generation_ = 0;
+    size_t reuse_log_counter_ = 0;
 };
 
 }  // namespace Hummingbird::Engine

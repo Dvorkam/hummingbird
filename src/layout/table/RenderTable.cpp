@@ -384,6 +384,11 @@ bool table_seam_verbose_enabled() {
     return enabled;
 }
 
+bool table_grid_debug_enabled() {
+    static const bool enabled = std::getenv("HB_DEBUG_TABLE_GRID") != nullptr;
+    return enabled;
+}
+
 std::string table_class_for_cell(const RenderTableCell& cell) {
     const RenderObject* node = &cell;
     while (node) {
@@ -397,6 +402,135 @@ std::string table_class_for_cell(const RenderTableCell& cell) {
         node = node->get_parent();
     }
     return {};
+}
+
+struct LegacyBorderInfo {
+    bool found = false;
+    std::string raw;
+    std::optional<float> parsed;
+    bool allows_fallback_grid = false;
+    std::string fallback_reason;
+    bool table_has_th = false;
+    std::string table_border;
+    std::string table_cellspacing;
+    std::string table_cellpadding;
+};
+
+const DOM::Element* ancestor_table_element(const DOM::Node* node) {
+    const auto* current = node;
+    while (current) {
+        const auto* element = dynamic_cast<const DOM::Element*>(current);
+        if (element && element->get_tag_name() == Hummingbird::Html::TagNames::Table) {
+            return element;
+        }
+        current = current->get_parent();
+    }
+    return nullptr;
+}
+
+bool element_subtree_contains_tag(const DOM::Node* node, std::string_view tag) {
+    if (!node) {
+        return false;
+    }
+    if (const auto* element = dynamic_cast<const DOM::Element*>(node)) {
+        if (element->get_tag_name() == tag) {
+            return true;
+        }
+        for (const auto& child : element->get_children()) {
+            if (element_subtree_contains_tag(child.get(), tag)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+LegacyBorderInfo inspect_legacy_border_info(const DOM::Node* node) {
+    LegacyBorderInfo info;
+
+    const auto* table = ancestor_table_element(node);
+    if (!table) {
+        info.allows_fallback_grid = true;
+        info.fallback_reason = "allow_no_table_ancestor";
+        return info;
+    }
+
+    if (auto border = DOM::find_attribute_value(*table, Hummingbird::Html::AttributeNames::Border)) {
+        info.found = true;
+        info.raw = std::string(*border);
+        info.table_border = info.raw;
+        info.parsed = Core::Utils::parse_float(*border, Core::Utils::NumberParseMode::AllowTrailing);
+    }
+    if (auto spacing = DOM::find_attribute_value(*table, Hummingbird::Html::AttributeNames::CellSpacing)) {
+        info.table_cellspacing = std::string(*spacing);
+    }
+    if (auto padding = DOM::find_attribute_value(*table, Hummingbird::Html::AttributeNames::CellPadding)) {
+        info.table_cellpadding = std::string(*padding);
+    }
+
+    info.table_has_th = element_subtree_contains_tag(table, Hummingbird::Html::TagNames::Th);
+    if (info.found) {
+        if (info.parsed && *info.parsed <= 0.0f) {
+            info.allows_fallback_grid = false;
+            info.fallback_reason = "skip_legacy_border_zero";
+        } else {
+            info.allows_fallback_grid = true;
+            info.fallback_reason = "allow_legacy_border_positive_or_unparsed";
+        }
+        return info;
+    }
+
+    if (info.table_has_th) {
+        info.allows_fallback_grid = true;
+        info.fallback_reason = "allow_header_table";
+    } else {
+        info.allows_fallback_grid = false;
+        info.fallback_reason = "skip_likely_layout_table";
+    }
+    return info;
+}
+
+void log_table_grid_decision(const RenderTableCell& cell, const Css::ComputedStyle* style,
+                             const LegacyBorderInfo& legacy, std::string_view decision) {
+    if (!table_grid_debug_enabled()) {
+        return;
+    }
+    const auto* element = dynamic_cast<const DOM::Element*>(cell.get_dom_node());
+    const std::string table_class = table_class_for_cell(cell);
+    std::string cell_class;
+    if (element) {
+        if (auto cls = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::Class)) {
+            cell_class = std::string(*cls);
+        }
+    }
+
+    float bw_top = style ? style->border_width.top : 0.0f;
+    float bw_right = style ? style->border_width.right : 0.0f;
+    float bw_bottom = style ? style->border_width.bottom : 0.0f;
+    float bw_left = style ? style->border_width.left : 0.0f;
+    auto border_style = style ? static_cast<int>(style->border_style) : -1;
+
+    static Core::Utils::WarnOnce warn_once;
+    std::string key = std::string(decision) + "|" + table_class + "|" + cell_class + "|" + legacy.raw + "|" +
+                      legacy.table_border + "|" + legacy.table_cellspacing + "|" + legacy.table_cellpadding + "|" +
+                      std::to_string(border_style) + "|" + std::to_string(static_cast<int>(bw_top)) + "|" +
+                      std::to_string(static_cast<int>(bw_right)) + "|" + std::to_string(static_cast<int>(bw_bottom)) +
+                      "|" + std::to_string(static_cast<int>(bw_left));
+    if (!warn_once.should_log(key)) {
+        return;
+    }
+
+    HB_LOG_WARN("[table-grid-debug] decision=" << decision << " table_class='" << table_class << "' cell_class='"
+                                               << cell_class << "' legacy_border_found=" << legacy.found
+                                               << " legacy_border_raw='" << legacy.raw << "' legacy_border_parsed="
+                                               << (legacy.parsed ? std::to_string(*legacy.parsed) : "n/a")
+                                               << " fallback_reason='" << legacy.fallback_reason << "' table_has_th="
+                                               << legacy.table_has_th
+                                               << " table_border='" << legacy.table_border << "' table_cellspacing='"
+                                               << legacy.table_cellspacing << "' table_cellpadding='"
+                                               << legacy.table_cellpadding << "' border_style=" << border_style
+                                               << " border_widths=(" << bw_top << "," << bw_right << "," << bw_bottom
+                                               << "," << bw_left << ")");
 }
 
 bool should_log_table_seam(const RenderTableCell& cell) {
@@ -611,7 +745,14 @@ void RenderTableCell::paint_self(IGraphicsContext& context, const Point& offset)
     BlockBox::paint_self(context, offset);
     log_table_seam_anomaly(*this);
 
+    const LegacyBorderInfo legacy = inspect_legacy_border_info(get_dom_node());
     const auto* style = get_computed_style();
+
+    if (!legacy.allows_fallback_grid) {
+        log_table_grid_decision(*this, style, legacy, legacy.fallback_reason);
+        return;
+    }
+
     const bool seam_debug = should_log_table_seam(*this);
     const bool seam_verbose = seam_debug && table_seam_verbose_enabled();
     const auto* element = dynamic_cast<const DOM::Element*>(get_dom_node());
@@ -625,6 +766,7 @@ void RenderTableCell::paint_self(IGraphicsContext& context, const Point& offset)
     if (style && style->border_style != Css::ComputedStyle::BorderStyle::None) {
         const auto& bw = style->border_width;
         if (bw.top > 0.0f || bw.right > 0.0f || bw.bottom > 0.0f || bw.left > 0.0f) {
+            log_table_grid_decision(*this, style, legacy, "skip_css_border");
             if (seam_verbose) {
                 HB_LOG_WARN("[table-debug] skip fallback grid due css border table_class='"
                             << table_class << "' class='" << class_name << "' rect=(" << m_rect.x << "," << m_rect.y
@@ -647,6 +789,7 @@ void RenderTableCell::paint_self(IGraphicsContext& context, const Point& offset)
     float bottom = std::floor(abs.y + abs.height + 0.001f);
     float snapped_width = std::max(kTableGridStroke, right - left);
     float snapped_height = std::max(kTableGridStroke, bottom - top);
+    log_table_grid_decision(*this, style, legacy, "draw_fallback_grid");
 
     if (seam_verbose) {
         HB_LOG_WARN("[table-debug] draw fallback grid table_class='"

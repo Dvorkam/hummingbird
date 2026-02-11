@@ -41,6 +41,10 @@ bool env_truthy(const char* name) {
     return equals("1") || equals("true") || equals("yes") || equals("on");
 }
 
+bool render_loop_debug_enabled() {
+    return env_truthy("HB_DEBUG_RENDER_LOOP");
+}
+
 NetworkBackend primary_backend_for_env() {
     // Headless smoke should avoid libcurl lifecycle/teardown variance on CI.
     return env_truthy("HB_HEADLESS") ? NetworkBackend::Stub : NetworkBackend::Curl;
@@ -94,7 +98,10 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     for (const auto& e : errors) {
         HB_LOG_WARN("[ext] " << e.message << ": " << e.path.string());
     }
-    extension_host_.set_settings(Hummingbird::Engine::extension_settings_from_env());
+    auto ini_settings = Hummingbird::Engine::extension_settings_from_ini_file(
+        Hummingbird::Engine::default_extension_settings_ini_path());
+    auto env_settings = Hummingbird::Engine::extension_settings_from_env();
+    extension_host_.set_settings(Hummingbird::Engine::merge_extension_settings(std::move(ini_settings), env_settings));
     extension_host_.set_insert_css_handler([this](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
         return insert_extension_css(tab_id, css_text);
     });
@@ -454,6 +461,17 @@ Hummingbird::Layout::Rect BrowserApp::compute_content_viewport(int win_w, int wi
 
 void BrowserApp::render_if_needed() {
     if (!graphics_ || (!document_dirty_ && !chrome_dirty_ && !controls_dirty_)) return;
+
+    if (render_loop_debug_enabled()) {
+        static int render_log_count = 0;
+        ++render_log_count;
+        if (render_log_count <= 30 || (render_log_count % 120) == 0) {
+            HB_LOG_WARN("[render-debug] frame count=" << render_log_count << " document_dirty=" << document_dirty_
+                                                      << " chrome_dirty=" << chrome_dirty_
+                                                      << " controls_dirty=" << controls_dirty_
+                                                      << " cache_valid=" << document_cache_valid_);
+        }
+    }
 
     auto [win_w, win_h] = window_->get_size();
 

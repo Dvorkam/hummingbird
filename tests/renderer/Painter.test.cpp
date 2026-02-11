@@ -780,7 +780,7 @@ TEST(PainterTest, PaintsHorizontalRuleWithCulling) {
 }
 
 TEST(PainterTest, PaintsTableCellGridLinesWithoutAuthorCss) {
-    std::string_view html = "<html><body><table><tr><td>A</td><td>B</td></tr></table></body></html>";
+    std::string_view html = "<html><body><table border='1'><tr><td>A</td><td>B</td></tr></table></body></html>";
     Hummingbird::Core::ArenaAllocator arena(2048);
     Hummingbird::Html::Parser parser(arena, html);
     auto result = parser.parse();
@@ -804,4 +804,30 @@ TEST(PainterTest, PaintsTableCellGridLinesWithoutAuthorCss) {
 
     // Two cells * 4 grid edges each.
     EXPECT_GE(context.fill_calls.size(), 8u);
+}
+
+TEST(PainterTest, SkipsFallbackGridForLikelyLayoutTableWithoutBorderHints) {
+    std::string_view html = "<html><body><table><tr><td>A</td><td>B</td></tr></table></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    Hummingbird::Css::Stylesheet sheet;
+    Hummingbird::Css::StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 240, 180};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    opts.viewport = viewport;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_EQ(context.fill_calls.size(), 0u);
 }

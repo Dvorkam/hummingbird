@@ -93,7 +93,7 @@ private:
     void handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void reset_document_state();
-    void update_layout_state(const Layout::Rect& viewport);
+    void update_layout_state(const Layout::Rect& viewport, std::string_view reason);
 
 private:
     struct LayoutState {
@@ -125,6 +125,7 @@ private:
     bool dirty_ = true;
     std::chrono::steady_clock::time_point last_animation_tick_{};
     bool has_animation_tick_ = false;
+    int animation_tick_accumulator_ms_ = 0;
 };
 
 }  // namespace Hummingbird::Engine

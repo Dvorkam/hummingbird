@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cstdlib>
 #include <ostream>
 #include <utility>
 #include <vector>
@@ -24,6 +25,29 @@ SecurityState security_state_for_url(std::string_view url) {
     if (parsed->scheme == "https") return SecurityState::Secure;
     if (parsed->scheme == "http") return SecurityState::InsecureHttp;
     return SecurityState::Unknown;
+}
+
+constexpr int kAnimationTickMinIntervalMs = 80;
+
+bool tab_dirty_debug_enabled() {
+    static const bool enabled = std::getenv("HB_DEBUG_TAB_DIRTY") != nullptr;
+    return enabled;
+}
+
+bool layout_state_debug_enabled() {
+    static const bool enabled = std::getenv("HB_DEBUG_LAYOUT_STATE") != nullptr;
+    return enabled;
+}
+
+void maybe_log_tab_dirty(std::string_view reason, bool dirty) {
+    if (!dirty || !tab_dirty_debug_enabled()) {
+        return;
+    }
+    static int log_count = 0;
+    ++log_count;
+    if (log_count <= 20 || (log_count % 120) == 0) {
+        HB_LOG_WARN("[tab-debug] dirty reason=" << reason << " count=" << log_count);
+    }
 }
 }  // namespace
 
@@ -82,16 +106,18 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
         bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
         resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
         if (has_render_tree) {
-            update_layout_state(viewport);
+            update_layout_state(viewport, "tick:extension_css");
         }
         extension_css_dirty_ = false;
         dirty_ = true;
+        maybe_log_tab_dirty("extension_css", dirty_);
     }
 
     if (document_pipeline_.has_render_tree()) {
         if (layout_state_.viewport_changed(viewport)) {
             document_pipeline_.relayout(graphics, viewport);
-            update_layout_state(viewport);
+            update_layout_state(viewport, "tick:viewport_changed");
+            maybe_log_tab_dirty("viewport_changed", dirty_);
         }
     }
 
@@ -102,10 +128,18 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     } else {
         int delta_ms = static_cast<int>(Core::duration_ms(last_animation_tick_, now));
         last_animation_tick_ = now;
-        if (resource_loader_.store().tick_animations(delta_ms) && document_pipeline_.has_render_tree()) {
-            if (document_pipeline_.update_image_resources(requested_url_)) {
-                dirty_ = true;
+        if (delta_ms > 0) {
+            animation_tick_accumulator_ms_ += delta_ms;
+        }
+        if (animation_tick_accumulator_ms_ >= kAnimationTickMinIntervalMs) {
+            if (resource_loader_.store().tick_animations(animation_tick_accumulator_ms_) &&
+                document_pipeline_.has_render_tree()) {
+                if (document_pipeline_.update_image_resources(requested_url_)) {
+                    dirty_ = true;
+                    maybe_log_tab_dirty("animation_frame_advanced", dirty_);
+                }
             }
+            animation_tick_accumulator_ms_ = 0;
         }
     }
 
@@ -141,7 +175,7 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
     auto result = document_pipeline_.dispatch_click(context);
     if (result.mutated) {
         if (document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_)) {
-            update_layout_state(viewport);
+            update_layout_state(viewport, "dispatch_click:script_mutation");
         }
         dirty_ = true;
     }
@@ -177,7 +211,7 @@ bool Tab::refresh_styles_for_interaction(IGraphicsContext& graphics, const Layou
     }
     bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
     if (has_render_tree) {
-        update_layout_state(viewport);
+        update_layout_state(viewport, "refresh_styles_for_interaction");
     }
     return has_render_tree;
 }
@@ -230,6 +264,11 @@ std::optional<ResourceView> Tab::resource_view(std::string_view url, ResourceTyp
 void Tab::scroll_by(float delta_px, float viewport_height) {
     layout_state_.scroll_by(delta_px, viewport_height);
     dirty_ = true;
+    if (tab_dirty_debug_enabled()) {
+        HB_LOG_WARN("[tab-debug] scroll_by delta_px=" << delta_px << " viewport_h=" << viewport_height
+                                                      << " new_scroll_y=" << layout_state_.scroll_y
+                                                      << " content_h=" << layout_state_.content_height);
+    }
 }
 
 void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -293,7 +332,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     }
     resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
     if (has_render_tree) {
-        update_layout_state(viewport);
+        update_layout_state(viewport, "handle_document_ready:initial_build");
         if (document_pipeline_.focus_autofocus_input()) {
             dirty_ = true;
         }
@@ -301,7 +340,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     auto load_result = document_pipeline_.dispatch_load();
     if (load_result.mutated) {
         if (document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_)) {
-            update_layout_state(viewport);
+            update_layout_state(viewport, "handle_document_ready:load_mutation");
             if (document_pipeline_.focus_autofocus_input()) {
                 dirty_ = true;
             }
@@ -310,6 +349,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     }
     HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_.render_tree_children());
     dirty_ = true;
+    maybe_log_tab_dirty("document_ready", dirty_);
     const auto rebuild_end = Core::Clock::now();
     HB_LOG_INFO("[perf] document rebuild ms=" << Core::duration_ms(rebuild_start, rebuild_end));
 }
@@ -319,11 +359,12 @@ void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect
     bool has_render_tree = document_pipeline_.rebuild_and_layout(graphics, viewport, requested_url_);
     resource_loader_.request_images(document_pipeline_.background_image_links(), requested_url_);
     if (has_render_tree) {
-        update_layout_state(viewport);
+        update_layout_state(viewport, "handle_stylesheet_ready");
     }
     const auto style_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] stylesheet update ms=" << Core::duration_ms(style_update_start, style_update_end));
     dirty_ = true;
+    maybe_log_tab_dirty("stylesheet_ready", dirty_);
 }
 
 void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -331,12 +372,13 @@ void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& vie
     bool updated = document_pipeline_.update_image_resources(requested_url_);
     if (updated) {
         document_pipeline_.relayout(graphics, viewport);
-        update_layout_state(viewport);
+        update_layout_state(viewport, "handle_image_ready:relayout");
     }
     const auto image_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] image update ms=" << Core::duration_ms(image_update_start, image_update_end)
                                           << " updated=" << updated);
     dirty_ = true;
+    maybe_log_tab_dirty(updated ? "image_ready_updated" : "image_ready_noop", dirty_);
 }
 
 void Tab::reset_document_state() {
@@ -345,12 +387,23 @@ void Tab::reset_document_state() {
     layout_state_.reset();
     pending_navigation_commit_url_.reset();
     has_animation_tick_ = false;
+    animation_tick_accumulator_ms_ = 0;
     dirty_ = true;
 }
 
-void Tab::update_layout_state(const Layout::Rect& viewport) {
+void Tab::update_layout_state(const Layout::Rect& viewport, std::string_view reason) {
+    float old_content_height = layout_state_.content_height;
+    float old_scroll_y = layout_state_.scroll_y;
     layout_state_.update(viewport, document_pipeline_.content_height());
     dirty_ = true;
+    if (layout_state_debug_enabled()) {
+        const float max_scroll = std::max(0.0f, layout_state_.content_height - viewport.height);
+        HB_LOG_WARN("[layout-debug] reason=" << reason << " viewport_h=" << viewport.height
+                                             << " content_h_old=" << old_content_height
+                                             << " content_h_new=" << layout_state_.content_height
+                                             << " scroll_old=" << old_scroll_y << " scroll_new="
+                                             << layout_state_.scroll_y << " max_scroll=" << max_scroll);
+    }
 }
 
 bool Tab::allow_insecure_for_current_host() {

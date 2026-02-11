@@ -21,6 +21,7 @@ void DocumentPainter::paint(const Layout::RenderObject* render_tree, IGraphicsCo
     const bool can_reuse = can_reuse_display_list(render_tree, viewport, debug_outlines, scroll_y);
     if (!can_reuse) {
         display_list_.clear();
+        reuse_log_counter_ = 0;
 
         Renderer::PaintOptions opts;
         opts.debug_outlines = debug_outlines;
@@ -37,9 +38,13 @@ void DocumentPainter::paint(const Layout::RenderObject* render_tree, IGraphicsCo
         display_list_scroll_y_ = scroll_y;
         display_list_debug_outlines_ = debug_outlines;
     } else {
-        static int reuse_log_counter = 0;
-        ++reuse_log_counter;
-        HB_LOG_DEBUG("[perf] display list reused commands=" << display_list_.size() << " count=" << reuse_log_counter);
+        ++reuse_log_counter_;
+        // Reuse can happen every frame (for example animated images); throttle logs
+        // so debug sessions stay readable and do not look like a stuck load.
+        if (reuse_log_counter_ <= 3 || (reuse_log_counter_ % 120) == 0) {
+            HB_LOG_DEBUG("[perf] display list reused commands=" << display_list_.size()
+                                                                << " count=" << reuse_log_counter_);
+        }
     }
 
     display_list_.replay(graphics);
@@ -49,6 +54,7 @@ void DocumentPainter::paint(const Layout::RenderObject* render_tree, IGraphicsCo
 void DocumentPainter::invalidate_display_list() {
     display_list_valid_ = false;
     display_list_owner_ = nullptr;
+    reuse_log_counter_ = 0;
 }
 
 bool DocumentPainter::can_reuse_display_list(const Layout::RenderObject* render_tree, const Layout::Rect& viewport,

@@ -226,9 +226,23 @@ Example `manifest.json`:
 
 ### Configuration
 
+Startup now reads `assets/config/browser.ini` (or `HB_SETTINGS_INI` when set), so extension states can be changed without recompiling.
+
+Example:
+
+```ini
+[extensions]
+dark-mode = disabled
+```
+
+Accepted values: `enabled|disabled`, `true|false`, `on|off`, `yes|no`, `1|0`.
+
+Environment variables still work and take precedence over INI:
+
 - `HB_EXTENSIONS_DIR`: overrides the extensions root directory (defaults to `assets/extensions`).
 - `HB_EXTENSIONS_DISABLE`: comma-separated list of extension IDs to disable.
 - `HB_EXTENSIONS_ENABLE`: comma-separated allow-list of extension IDs to enable (when set, only these load).
+- `HB_SETTINGS_INI`: overrides the settings file path (defaults to `assets/config/browser.ini`).
 
 Examples:
 

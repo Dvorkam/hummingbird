@@ -1,5 +1,7 @@
 #include "engine/document/DocumentPipeline.h"
 
+#include <algorithm>
+#include <cstdlib>
 #include <ostream>
 #include <utility>
 
@@ -16,6 +18,29 @@ struct ImageBitmap;
 }  // namespace Hummingbird
 
 namespace Hummingbird::Engine {
+
+namespace {
+bool relayout_debug_enabled() {
+    static const bool enabled = std::getenv("HB_DEBUG_LAYOUT_STATE") != nullptr;
+    return enabled;
+}
+
+float compute_max_subtree_bottom(const Layout::RenderObject& node, float parent_abs_y) {
+    const auto& rect = node.get_rect();
+    float abs_y = parent_abs_y + rect.y;
+    float max_bottom = abs_y + rect.height;
+    for (const auto& child : node.get_children()) {
+        max_bottom = std::max(max_bottom, compute_max_subtree_bottom(*child, abs_y));
+    }
+    return max_bottom;
+}
+
+float compute_content_height(const Layout::RenderObject& root) {
+    const auto& root_rect = root.get_rect();
+    float max_bottom = compute_max_subtree_bottom(root, 0.0f);
+    return std::max(0.0f, max_bottom - root_rect.y);
+}
+}  // namespace
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
                                    IImageDecoder* image_decoder, ScriptEnginePtr script_engine)
@@ -93,9 +118,14 @@ void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& 
     render_tree->layout(graphics, viewport);
     Layout::Positioning::apply_positioning(*render_tree, graphics, viewport);
     const auto layout_end = Core::Clock::now();
-    content_height_ = render_tree->get_rect().height;
+    content_height_ = compute_content_height(*render_tree);
     HB_LOG_INFO("[perf] layout ms=" << Core::duration_ms(layout_start, layout_end) << " viewport=" << viewport.width
                                     << "x" << viewport.height);
+    if (relayout_debug_enabled()) {
+        const auto& root = render_tree->get_rect();
+        HB_LOG_WARN("[layout-debug] relayout root_rect=(" << root.x << "," << root.y << "," << root.width << ","
+                                                          << root.height << ") content_h=" << content_height_);
+    }
 }
 
 void DocumentPipeline::paint(IGraphicsContext& graphics, const PaintContext& context) {

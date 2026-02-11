@@ -307,3 +307,67 @@ TEST(LayoutStyleIntegrationTest, InputKeepsMinimumContentBoxUnderBorderBoxConstr
     EXPECT_FLOAT_EQ(rect.width, 24.0f);
     EXPECT_FLOAT_EQ(rect.height, 24.0f);
 }
+
+TEST(LayoutStyleIntegrationTest, ResolvesPercentMaxHeightAgainstDefiniteContainingHeight) {
+    Hummingbird::Core::ArenaAllocator arena(32768);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    for (int i = 0; i < 40; ++i) {
+        auto row = DomFactory::create_element(arena, "div");
+        row->append_child(DomFactory::create_text(arena, "row"));
+        dom_root->append_child(std::move(row));
+    }
+
+    std::string css = R"(
+        body { margin: 0; padding: 0; max-height: 50%; }
+        div { margin: 0; padding: 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    EXPECT_FLOAT_EQ(render_root->get_rect().height, 300.0f);
+}
+
+TEST(LayoutStyleIntegrationTest, IgnoresPercentMaxHeightWithoutDefiniteContainingHeight) {
+    Hummingbird::Core::ArenaAllocator arena(32768);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto parent = DomFactory::create_element(arena, "div");
+    parent->set_attribute("class", "parent");
+    for (int i = 0; i < 20; ++i) {
+        auto row = DomFactory::create_element(arena, "div");
+        row->append_child(DomFactory::create_text(arena, "row"));
+        parent->append_child(std::move(row));
+    }
+    dom_root->append_child(std::move(parent));
+
+    std::string css = R"(
+        body { margin: 0; padding: 0; }
+        .parent { max-height: 50%; margin: 0; padding: 0; }
+        .parent div { margin: 0; padding: 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+    ASSERT_EQ(render_root->get_children().size(), 1u);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& parent_rect = render_root->get_children()[0]->get_rect();
+    EXPECT_GT(parent_rect.height, 200.0f);
+}
