@@ -256,11 +256,12 @@ TEST(DocumentPipelineTest, ContentHeightIncludesDescendantsBeyondRootHeightClamp
         rows += "<div>row</div>";
     }
 
-    const std::string html = "<!doctype html><html><head><style>"
-                             "body{margin:0;padding:0;max-height:50%;}"
-                             "div{margin:0;padding:0;}"
-                             "</style></head><body>" +
-                             rows + "</body></html>";
+    const std::string html =
+        "<!doctype html><html><head><style>"
+        "body{margin:0;padding:0;max-height:50%;}"
+        "div{margin:0;padding:0;}"
+        "</style></head><body>" +
+        rows + "</body></html>";
 
     ResourceStore store;
     auto provider = Hummingbird::create_resource_provider();

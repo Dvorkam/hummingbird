@@ -398,11 +398,10 @@ void Tab::update_layout_state(const Layout::Rect& viewport, std::string_view rea
     dirty_ = true;
     if (layout_state_debug_enabled()) {
         const float max_scroll = std::max(0.0f, layout_state_.content_height - viewport.height);
-        HB_LOG_WARN("[layout-debug] reason=" << reason << " viewport_h=" << viewport.height
-                                             << " content_h_old=" << old_content_height
-                                             << " content_h_new=" << layout_state_.content_height
-                                             << " scroll_old=" << old_scroll_y << " scroll_new="
-                                             << layout_state_.scroll_y << " max_scroll=" << max_scroll);
+        HB_LOG_WARN("[layout-debug] reason="
+                    << reason << " viewport_h=" << viewport.height << " content_h_old=" << old_content_height
+                    << " content_h_new=" << layout_state_.content_height << " scroll_old=" << old_scroll_y
+                    << " scroll_new=" << layout_state_.scroll_y << " max_scroll=" << max_scroll);
     }
 }
 

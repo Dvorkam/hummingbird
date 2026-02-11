@@ -467,9 +467,8 @@ void BrowserApp::render_if_needed() {
         ++render_log_count;
         if (render_log_count <= 30 || (render_log_count % 120) == 0) {
             HB_LOG_WARN("[render-debug] frame count=" << render_log_count << " document_dirty=" << document_dirty_
-                                                      << " chrome_dirty=" << chrome_dirty_
-                                                      << " controls_dirty=" << controls_dirty_
-                                                      << " cache_valid=" << document_cache_valid_);
+                                                      << " chrome_dirty=" << chrome_dirty_ << " controls_dirty="
+                                                      << controls_dirty_ << " cache_valid=" << document_cache_valid_);
         }
     }
 

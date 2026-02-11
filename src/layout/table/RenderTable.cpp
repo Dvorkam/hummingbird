@@ -520,17 +520,14 @@ void log_table_grid_decision(const RenderTableCell& cell, const Css::ComputedSty
         return;
     }
 
-    HB_LOG_WARN("[table-grid-debug] decision=" << decision << " table_class='" << table_class << "' cell_class='"
-                                               << cell_class << "' legacy_border_found=" << legacy.found
-                                               << " legacy_border_raw='" << legacy.raw << "' legacy_border_parsed="
-                                               << (legacy.parsed ? std::to_string(*legacy.parsed) : "n/a")
-                                               << " fallback_reason='" << legacy.fallback_reason << "' table_has_th="
-                                               << legacy.table_has_th
-                                               << " table_border='" << legacy.table_border << "' table_cellspacing='"
-                                               << legacy.table_cellspacing << "' table_cellpadding='"
-                                               << legacy.table_cellpadding << "' border_style=" << border_style
-                                               << " border_widths=(" << bw_top << "," << bw_right << "," << bw_bottom
-                                               << "," << bw_left << ")");
+    HB_LOG_WARN("[table-grid-debug] decision="
+                << decision << " table_class='" << table_class << "' cell_class='" << cell_class
+                << "' legacy_border_found=" << legacy.found << " legacy_border_raw='" << legacy.raw
+                << "' legacy_border_parsed=" << (legacy.parsed ? std::to_string(*legacy.parsed) : "n/a")
+                << " fallback_reason='" << legacy.fallback_reason << "' table_has_th=" << legacy.table_has_th
+                << " table_border='" << legacy.table_border << "' table_cellspacing='" << legacy.table_cellspacing
+                << "' table_cellpadding='" << legacy.table_cellpadding << "' border_style=" << border_style
+                << " border_widths=(" << bw_top << "," << bw_right << "," << bw_bottom << "," << bw_left << ")");
 }
 
 bool should_log_table_seam(const RenderTableCell& cell) {
