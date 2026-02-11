@@ -70,20 +70,14 @@ void Tab::shutdown() {
 void Tab::navigate(std::string_view url) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
-    std::string normalized = Core::normalize_input_url(url);
-    navigation_state_.begin_navigation(std::move(normalized),
-                                       security_state_for_url(navigation_state_.requested_url()));
-    reset_document_state();
+    begin_navigation_session(url);
     resource_loader_.navigate(navigation_state_.requested_url());
 }
 
 void Tab::navigate(const FormSubmission& submission) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
-    std::string normalized = Core::normalize_input_url(submission.url);
-    navigation_state_.begin_navigation(std::move(normalized),
-                                       security_state_for_url(navigation_state_.requested_url()));
-    reset_document_state();
+    begin_navigation_session(submission.url);
 
     ResourceLoader::DocumentRequest request{};
     if (submission.method == FormSubmitMethod::Post) {
@@ -419,6 +413,13 @@ bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Lay
         update_layout_state(viewport, reason);
     }
     return has_render_tree;
+}
+
+void Tab::begin_navigation_session(std::string_view url) {
+    std::string normalized = Core::normalize_input_url(url);
+    navigation_state_.begin_navigation(std::move(normalized),
+                                       security_state_for_url(navigation_state_.requested_url()));
+    reset_document_state();
 }
 
 void Tab::reset_document_state() {
