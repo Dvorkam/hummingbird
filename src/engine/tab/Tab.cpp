@@ -106,8 +106,7 @@ void Tab::apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout
         document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
         (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:extension_css", true);
         extension_css_dirty_ = false;
-        dirty_ = true;
-        maybe_log_tab_dirty("extension_css", dirty_);
+        mark_dirty("extension_css");
     }
 }
 
@@ -116,15 +115,14 @@ void Tab::relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout:
         if (layout_state_.viewport_changed(viewport)) {
             document_pipeline_.relayout(graphics, viewport);
             update_layout_state(viewport, "tick:viewport_changed");
-            maybe_log_tab_dirty("viewport_changed", dirty_);
+            mark_dirty("viewport_changed");
         }
     }
 }
 
 void Tab::process_animation_updates() {
     if (advance_animation_tick()) {
-        dirty_ = true;
-        maybe_log_tab_dirty("animation_frame_advanced", dirty_);
+        mark_dirty("animation_frame_advanced");
     }
 }
 
@@ -183,7 +181,7 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
     auto result = document_pipeline_.dispatch_click(context);
     if (result.mutated) {
         (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation", false);
-        dirty_ = true;
+        mark_dirty();
     }
     return {result.handled, result.mutated};
 }
@@ -253,7 +251,7 @@ bool Tab::insert_extension_css(std::string_view css_text) {
     }
     extension_style_blocks_.push_back(*it);
     extension_css_dirty_ = true;
-    dirty_ = true;
+    mark_dirty();
     return true;
 }
 
@@ -263,7 +261,7 @@ std::optional<ResourceView> Tab::resource_view(std::string_view url, ResourceTyp
 
 void Tab::scroll_by(float delta_px, float viewport_height) {
     layout_state_.scroll_by(delta_px, viewport_height);
-    dirty_ = true;
+    mark_dirty();
     if (tab_dirty_debug_enabled()) {
         HB_LOG_WARN("[tab-debug] scroll_by delta_px=" << delta_px << " viewport_h=" << viewport_height
                                                       << " new_scroll_y=" << layout_state_.scroll_y
@@ -322,14 +320,11 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     bool has_render_tree =
         rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build", true);
     if (has_render_tree) {
-        if (document_pipeline_.focus_autofocus_input()) {
-            dirty_ = true;
-        }
+        apply_autofocus_after_rebuild();
     }
     apply_load_mutations_after_document_ready(graphics, viewport);
     HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_.render_tree_children());
-    dirty_ = true;
-    maybe_log_tab_dirty("document_ready", dirty_);
+    mark_dirty("document_ready");
     const auto rebuild_end = Core::Clock::now();
     HB_LOG_INFO("[perf] document rebuild ms=" << Core::duration_ms(rebuild_start, rebuild_end));
 }
@@ -339,8 +334,7 @@ void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect
     bool has_render_tree = rebuild_document_and_sync_layout(graphics, viewport, "handle_stylesheet_ready", true);
     const auto style_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] stylesheet update ms=" << Core::duration_ms(style_update_start, style_update_end));
-    dirty_ = true;
-    maybe_log_tab_dirty("stylesheet_ready", dirty_);
+    mark_dirty("stylesheet_ready");
 }
 
 void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -353,8 +347,7 @@ void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& vie
     const auto image_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] image update ms=" << Core::duration_ms(image_update_start, image_update_end)
                                           << " updated=" << updated);
-    dirty_ = true;
-    maybe_log_tab_dirty(updated ? "image_ready_updated" : "image_ready_noop", dirty_);
+    mark_dirty(updated ? "image_ready_updated" : "image_ready_noop");
 }
 
 void Tab::update_security_state_after_document_ready(const ResourceLoader::BatchResult& result) {
@@ -402,11 +395,22 @@ void Tab::apply_load_mutations_after_document_ready(IGraphicsContext& graphics, 
     }
 
     if (rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:load_mutation", true)) {
-        if (document_pipeline_.focus_autofocus_input()) {
-            dirty_ = true;
-        }
+        apply_autofocus_after_rebuild();
     }
+    mark_dirty();
+}
+
+void Tab::apply_autofocus_after_rebuild() {
+    if (document_pipeline_.focus_autofocus_input()) {
+        mark_dirty();
+    }
+}
+
+void Tab::mark_dirty(std::string_view reason) {
     dirty_ = true;
+    if (!reason.empty()) {
+        maybe_log_tab_dirty(reason, dirty_);
+    }
 }
 
 bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
@@ -435,14 +439,14 @@ void Tab::reset_document_state() {
     navigation_state_.clear_pending_commit_url();
     has_animation_tick_ = false;
     animation_tick_accumulator_ms_ = 0;
-    dirty_ = true;
+    mark_dirty();
 }
 
 void Tab::update_layout_state(const Layout::Rect& viewport, std::string_view reason) {
     float old_content_height = layout_state_.content_height;
     float old_scroll_y = layout_state_.scroll_y;
     layout_state_.update(viewport, document_pipeline_.content_height());
-    dirty_ = true;
+    mark_dirty();
     if (layout_state_debug_enabled()) {
         const float max_scroll = std::max(0.0f, layout_state_.content_height - viewport.height);
         HB_LOG_WARN("[layout-debug] reason="

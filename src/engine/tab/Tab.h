@@ -108,6 +108,8 @@ private:
     void log_discovered_resource_links() const;
     void request_discovered_resource_links();
     void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void apply_autofocus_after_rebuild();
+    void mark_dirty(std::string_view reason = {});
     void reset_document_state();
     void update_layout_state(const Layout::Rect& viewport, std::string_view reason);
     bool advance_animation_tick();
