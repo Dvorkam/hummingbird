@@ -27,6 +27,13 @@ struct TlsConfig {
     std::string ca_path;
 };
 
+struct CurlResponseMeta {
+    long status = 0;
+    long ssl_verify_result = 0;
+    std::string effective_url;
+    std::string content_type;
+};
+
 size_t write_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
     auto* out = static_cast<std::string*>(userdata);
     out->append(ptr, size * nmemb);
@@ -128,6 +135,55 @@ bool is_tls_verification_error(CURLcode code) {
     if (code == CURLE_SSL_ISSUER_ERROR) return true;
     return false;
 }
+
+void apply_common_curl_options(CURL* curl, const std::string& url, std::string& body_buffer) {
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body_buffer);
+    curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, CurlNetwork::accept_encoding());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Hummingbird/0.2");
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
+}
+
+void apply_tls_options(CURL* curl, bool allow_insecure) {
+    const TlsConfig& tls = tls_config();
+    const bool allow_insecure_request = tls.insecure || allow_insecure;
+    if (allow_insecure_request) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
+        return;
+    }
+
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    if (!tls.ca_bundle.empty()) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, tls.ca_bundle.c_str());
+    }
+    if (!tls.ca_path.empty()) {
+        curl_easy_setopt(curl, CURLOPT_CAPATH, tls.ca_path.c_str());
+    }
+}
+
+CurlResponseMeta collect_response_meta(CURL* curl) {
+    CurlResponseMeta meta{};
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &meta.status);
+    curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT, &meta.ssl_verify_result);
+
+    char* content_type_ptr = nullptr;
+    curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type_ptr);
+    if (content_type_ptr) {
+        meta.content_type = content_type_ptr;
+    }
+
+    char* effective = nullptr;
+    curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective);
+    if (effective) {
+        meta.effective_url = effective;
+    }
+    return meta;
+}
 }  // namespace
 
 CurlNetwork::CurlNetwork() {
@@ -185,67 +241,33 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
             return;
         }
 
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body);
-        curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, accept_encoding());
-        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Hummingbird/0.2");
-
-        const TlsConfig& tls = tls_config();
-        const bool allow_insecure_request = tls.insecure || allow_insecure;
-        if (allow_insecure_request) {
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-        } else {
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-            if (!tls.ca_bundle.empty()) {
-                curl_easy_setopt(curl, CURLOPT_CAINFO, tls.ca_bundle.c_str());
-            }
-            if (!tls.ca_path.empty()) {
-                curl_easy_setopt(curl, CURLOPT_CAPATH, tls.ca_path.c_str());
-            }
-        }
-
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
+        apply_common_curl_options(curl, url, body);
+        apply_tls_options(curl, allow_insecure);
 
         CURLcode res = curl_easy_perform(curl);
-        long status = 0;
-        long ssl_verify_result = 0;
-        std::string effective_url;
-        std::string content_type;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-        curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT, &ssl_verify_result);
-        char* content_type_ptr = nullptr;
-        curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type_ptr);
-        if (content_type_ptr) {
-            content_type = content_type_ptr;
-        }
-        char* effective = nullptr;
-        curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective);
-        if (effective) {
-            effective_url = effective;
-        }
+        CurlResponseMeta meta = collect_response_meta(curl);
         curl_easy_cleanup(curl);
 
         if (res != CURLE_OK) {
             response.error =
                 is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
             HB_LOG_WARN("[network] curl failed: url=" << url << " code=" << res << " err=" << curl_easy_strerror(res)
-                                                      << " status=" << status << " ssl_verify=" << ssl_verify_result
-                                                      << " effective=" << effective_url
-                                                      << " content_type=" << content_type << " bytes=" << body.size());
-        } else if (status >= 400) {
-            HB_LOG_WARN("[network] http error: url=" << url << " status=" << status << " effective=" << effective_url
-                                                     << " content_type=" << content_type << " bytes=" << body.size());
+                                                      << " status=" << meta.status
+                                                      << " ssl_verify=" << meta.ssl_verify_result
+                                                      << " effective=" << meta.effective_url
+                                                      << " content_type=" << meta.content_type
+                                                      << " bytes=" << body.size());
+        } else if (meta.status >= 400) {
+            HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status
+                                                     << " effective=" << meta.effective_url
+                                                     << " content_type=" << meta.content_type
+                                                     << " bytes=" << body.size());
         }
 
         if (res == CURLE_OK || !body.empty()) {
             response.body = std::move(body);
-            response.status = status;
-            response.effective_url = std::move(effective_url);
+            response.status = meta.status;
+            response.effective_url = std::move(meta.effective_url);
         }
         if (cb) cb(std::move(response));
     });
@@ -276,12 +298,7 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
             return;
         }
 
-        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
-        curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, accept_encoding());
-        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Hummingbird/0.2");
+        apply_common_curl_options(curl, url, response_body);
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_copy.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body_copy.size()));
@@ -291,42 +308,10 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
         headers = curl_slist_append(headers, content_type_header.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
-        const TlsConfig& tls = tls_config();
-        const bool allow_insecure_request = tls.insecure || allow_insecure;
-        if (allow_insecure_request) {
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 0L);
-        } else {
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
-            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
-            if (!tls.ca_bundle.empty()) {
-                curl_easy_setopt(curl, CURLOPT_CAINFO, tls.ca_bundle.c_str());
-            }
-            if (!tls.ca_path.empty()) {
-                curl_easy_setopt(curl, CURLOPT_CAPATH, tls.ca_path.c_str());
-            }
-        }
-
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
+        apply_tls_options(curl, allow_insecure);
 
         CURLcode res = curl_easy_perform(curl);
-        long status = 0;
-        long ssl_verify_result = 0;
-        std::string effective_url;
-        std::string response_content_type;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
-        curl_easy_getinfo(curl, CURLINFO_SSL_VERIFYRESULT, &ssl_verify_result);
-        char* content_type_ptr = nullptr;
-        curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &content_type_ptr);
-        if (content_type_ptr) {
-            response_content_type = content_type_ptr;
-        }
-        char* effective = nullptr;
-        curl_easy_getinfo(curl, CURLINFO_EFFECTIVE_URL, &effective);
-        if (effective) {
-            effective_url = effective;
-        }
+        CurlResponseMeta meta = collect_response_meta(curl);
         curl_slist_free_all(headers);
         curl_easy_cleanup(curl);
 
@@ -334,19 +319,21 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
             response.error =
                 is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
             HB_LOG_WARN("[network] curl failed: url=" << url << " code=" << res << " err=" << curl_easy_strerror(res)
-                                                      << " status=" << status << " ssl_verify=" << ssl_verify_result
-                                                      << " effective=" << effective_url << " content_type="
-                                                      << response_content_type << " bytes=" << response_body.size());
-        } else if (status >= 400) {
-            HB_LOG_WARN("[network] http error: url=" << url << " status=" << status << " effective=" << effective_url
-                                                     << " content_type=" << response_content_type
+                                                      << " status=" << meta.status
+                                                      << " ssl_verify=" << meta.ssl_verify_result
+                                                      << " effective=" << meta.effective_url << " content_type="
+                                                      << meta.content_type << " bytes=" << response_body.size());
+        } else if (meta.status >= 400) {
+            HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status
+                                                     << " effective=" << meta.effective_url << " content_type="
+                                                     << meta.content_type
                                                      << " bytes=" << response_body.size());
         }
 
         if (res == CURLE_OK || !response_body.empty()) {
             response.body = std::move(response_body);
-            response.status = status;
-            response.effective_url = std::move(effective_url);
+            response.status = meta.status;
+            response.effective_url = std::move(meta.effective_url);
         }
         if (cb) cb(std::move(response));
     });

@@ -144,7 +144,7 @@
     - [ ] Architectural value is moderate; splitting paint from state would improve testability and reduce dependencies on graphics in controller logic.
 - [ ] `src/platform/net/CurlNetwork.cpp` (~355)
   - [ ] Isolate TLS config detection vs request lifecycle.
-  - [ ] Extract common request setup for GET/POST.
+  - [x] Extracted shared GET/POST curl setup helpers (`apply_common_curl_options`, `apply_tls_options`, metadata collection). (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] `get` and `post` duplicate curl setup, TLS policy, and response handling.
     - [ ] Architectural value from splitting is moderate; a shared request builder would reduce duplication and ensure consistent TLS config and timeouts.

@@ -134,8 +134,7 @@ bool Tab::advance_animation_tick() {
     }
 
     bool updated = false;
-    if (resource_loader_.store().tick_animations(*ready_delta_ms) &&
-        document_pipeline_.has_render_tree()) {
+    if (resource_loader_.store().tick_animations(*ready_delta_ms) && document_pipeline_.has_render_tree()) {
         updated = document_pipeline_.update_image_resources(navigation_state_.requested_url());
     }
     return updated;
