@@ -302,13 +302,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
     if (!result.effective_url.empty()) {
         navigation_state_.update_requested_url(result.effective_url);
     }
-    if (result.document_error == NetworkError::TlsVerificationFailed) {
-        navigation_state_.set_security_state(SecurityState::InsecureTls);
-    } else if (resource_loader_.is_insecure_allowed_for_url(navigation_state_.requested_url())) {
-        navigation_state_.set_security_state(SecurityState::InsecureTls);
-    } else {
-        navigation_state_.set_security_state(security_state_for_url(navigation_state_.requested_url()));
-    }
+    update_security_state_after_document_ready(result);
     const auto* entry = resource_loader_.find(result.document_url, ResourceType::Document);
     if (!entry) {
         return;
@@ -316,27 +310,13 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 
     const auto rebuild_start = Core::Clock::now();
     HB_LOG_INFO("[pipeline] html size: " << entry->body.size());
-    if (!document_pipeline_.parse_html(entry->body)) {
+    if (!prepare_document_from_response(entry->body)) {
         return;
     }
-    navigation_state_.set_pending_commit_url(std::string(navigation_state_.requested_url()));
-    document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
-    extension_css_dirty_ = false;
-    document_pipeline_.run_scripts();
-    if (!document_pipeline_.stylesheet_links().empty()) {
-        HB_LOG_INFO("[pipeline] discovered stylesheet links: " << document_pipeline_.stylesheet_links().size());
-    }
-    if (!document_pipeline_.image_links().empty()) {
-        HB_LOG_INFO("[pipeline] discovered image sources: " << document_pipeline_.image_links().size());
-    }
-
-    resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), navigation_state_.requested_url());
-    resource_loader_.request_images(document_pipeline_.image_links(), navigation_state_.requested_url());
-    bool has_render_tree = rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build",
-                                                            true);
-    if (!document_pipeline_.background_image_links().empty()) {
-        HB_LOG_INFO("[pipeline] discovered background images: " << document_pipeline_.background_image_links().size());
-    }
+    log_discovered_resource_links();
+    request_discovered_resource_links();
+    bool has_render_tree =
+        rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build", true);
     if (has_render_tree) {
         if (document_pipeline_.focus_autofocus_input()) {
             dirty_ = true;
@@ -379,6 +359,44 @@ void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& vie
                                           << " updated=" << updated);
     dirty_ = true;
     maybe_log_tab_dirty(updated ? "image_ready_updated" : "image_ready_noop", dirty_);
+}
+
+void Tab::update_security_state_after_document_ready(const ResourceLoader::BatchResult& result) {
+    if (result.document_error == NetworkError::TlsVerificationFailed) {
+        navigation_state_.set_security_state(SecurityState::InsecureTls);
+    } else if (resource_loader_.is_insecure_allowed_for_url(navigation_state_.requested_url())) {
+        navigation_state_.set_security_state(SecurityState::InsecureTls);
+    } else {
+        navigation_state_.set_security_state(security_state_for_url(navigation_state_.requested_url()));
+    }
+}
+
+bool Tab::prepare_document_from_response(std::string_view html) {
+    if (!document_pipeline_.parse_html(html)) {
+        return false;
+    }
+    navigation_state_.set_pending_commit_url(std::string(navigation_state_.requested_url()));
+    document_pipeline_.set_extension_style_blocks(extension_style_blocks_);
+    extension_css_dirty_ = false;
+    document_pipeline_.run_scripts();
+    return true;
+}
+
+void Tab::log_discovered_resource_links() const {
+    if (!document_pipeline_.stylesheet_links().empty()) {
+        HB_LOG_INFO("[pipeline] discovered stylesheet links: " << document_pipeline_.stylesheet_links().size());
+    }
+    if (!document_pipeline_.image_links().empty()) {
+        HB_LOG_INFO("[pipeline] discovered image sources: " << document_pipeline_.image_links().size());
+    }
+    if (!document_pipeline_.background_image_links().empty()) {
+        HB_LOG_INFO("[pipeline] discovered background images: " << document_pipeline_.background_image_links().size());
+    }
+}
+
+void Tab::request_discovered_resource_links() {
+    resource_loader_.request_stylesheets(document_pipeline_.stylesheet_links(), navigation_state_.requested_url());
+    resource_loader_.request_images(document_pipeline_.image_links(), navigation_state_.requested_url());
 }
 
 bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,

@@ -99,6 +99,10 @@ private:
     void process_animation_updates();
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view reason, bool request_background_images);
+    void update_security_state_after_document_ready(const ResourceLoader::BatchResult& result);
+    bool prepare_document_from_response(std::string_view html);
+    void log_discovered_resource_links() const;
+    void request_discovered_resource_links();
     void reset_document_state();
     void update_layout_state(const Layout::Rect& viewport, std::string_view reason);
     bool advance_animation_tick();
