@@ -45,7 +45,7 @@ void collect_script_blocks_recursive(const DOM::Node* node, std::vector<std::str
 }
 
 void collect_background_links_recursive(const DOM::Node* node, std::vector<std::string>& links,
-                                       std::unordered_set<std::string>& seen) {
+                                        std::unordered_set<std::string>& seen) {
     if (!node) return;
     auto style = node->get_computed_style();
     if (style && style->background_image && !style->background_image->empty()) {

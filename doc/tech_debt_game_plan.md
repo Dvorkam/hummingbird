@@ -139,6 +139,7 @@
 - [ ] `src/engine/document/DocumentInputController.cpp` (~421)
   - [ ] Identify overlap between input painting and layout metrics.
   - [ ] Extract focus/interaction state machine if tangled.
+  - [x] Extracted input paint path into `DocumentInputPainter` and shared control classification/value helpers into `DocumentInputUtils`. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Controller handles hit testing, focus state, caret editing, and painting in one unit; this is both model and view.
     - [ ] Paint path contains contrast adjustments and caret geometry; suggests a `InputPaintHelper` or `FormControlPainter`.
