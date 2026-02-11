@@ -94,6 +94,7 @@ private:
     void handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void reset_document_state();
     void update_layout_state(const Layout::Rect& viewport, std::string_view reason);
+    bool advance_animation_tick();
 
 private:
     struct LayoutState {

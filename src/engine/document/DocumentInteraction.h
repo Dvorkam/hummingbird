@@ -12,7 +12,7 @@
 namespace Hummingbird {
 class IGraphicsContext;
 struct InputEvent;
-}
+}  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
 class RenderObject;

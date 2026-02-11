@@ -19,6 +19,7 @@
   - [ ] Identify which responsibilities can move to `TabController` or `DocumentPipeline`.
   - [ ] Review invalidation paths for duplication or per-frame polling.
   - [ ] Propose thin façade interfaces to reduce include fan-out.
+  - [x] Extracted animation tick logic into `Tab::advance_animation_tick`. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Tab currently owns navigation normalization, security state, resource loader lifecycle, extension CSS state, layout state, and input dispatch plumbing.
     - [ ] `tick()` mixes resource consumption, extension CSS rebuilds, viewport relayout, and animation tick gating; this is multiple lifecycles in one loop.

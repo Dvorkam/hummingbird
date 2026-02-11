@@ -63,8 +63,7 @@ DocumentInteraction::InputEditResult DocumentInteraction::handle_key_down(const 
 }
 
 void DocumentInteraction::paint_controls(const Layout::RenderObject* render_tree, IGraphicsContext& graphics,
-                                         const Layout::Rect& viewport, float scroll_y,
-                                         bool repaint_background) const {
+                                         const Layout::Rect& viewport, float scroll_y, bool repaint_background) const {
     input_controller_.paint_controls(render_tree, graphics, viewport, scroll_y, repaint_background);
 }
 

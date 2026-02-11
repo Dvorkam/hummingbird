@@ -121,31 +121,40 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
         }
     }
 
-    const auto now = Core::Clock::now();
-    if (!has_animation_tick_) {
-        last_animation_tick_ = now;
-        has_animation_tick_ = true;
-    } else {
-        int delta_ms = static_cast<int>(Core::duration_ms(last_animation_tick_, now));
-        last_animation_tick_ = now;
-        if (delta_ms > 0) {
-            animation_tick_accumulator_ms_ += delta_ms;
-        }
-        if (animation_tick_accumulator_ms_ >= kAnimationTickMinIntervalMs) {
-            if (resource_loader_.store().tick_animations(animation_tick_accumulator_ms_) &&
-                document_pipeline_.has_render_tree()) {
-                if (document_pipeline_.update_image_resources(requested_url_)) {
-                    dirty_ = true;
-                    maybe_log_tab_dirty("animation_frame_advanced", dirty_);
-                }
-            }
-            animation_tick_accumulator_ms_ = 0;
-        }
+    if (advance_animation_tick()) {
+        dirty_ = true;
+        maybe_log_tab_dirty("animation_frame_advanced", dirty_);
     }
 
     bool dirty = dirty_;
     dirty_ = false;
     return dirty;
+}
+
+bool Tab::advance_animation_tick() {
+    const auto now = Core::Clock::now();
+    if (!has_animation_tick_) {
+        last_animation_tick_ = now;
+        has_animation_tick_ = true;
+        return false;
+    }
+
+    int delta_ms = static_cast<int>(Core::duration_ms(last_animation_tick_, now));
+    last_animation_tick_ = now;
+    if (delta_ms > 0) {
+        animation_tick_accumulator_ms_ += delta_ms;
+    }
+    if (animation_tick_accumulator_ms_ < kAnimationTickMinIntervalMs) {
+        return false;
+    }
+
+    bool updated = false;
+    if (resource_loader_.store().tick_animations(animation_tick_accumulator_ms_) &&
+        document_pipeline_.has_render_tree()) {
+        updated = document_pipeline_.update_image_resources(requested_url_);
+    }
+    animation_tick_accumulator_ms_ = 0;
+    return updated;
 }
 
 void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool debug_outlines) {
