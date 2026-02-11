@@ -13,6 +13,7 @@
 #include "engine/document/DocumentModel.h"
 #include "engine/document/DocumentRenderer.h"
 #include "engine/document/DocumentResources.h"
+#include "engine/document/DocumentStyleCoordinator.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/script/DocumentScriptController.h"
 #include "layout/geometry/Geometry.h"
@@ -88,8 +89,8 @@ private:
     DocumentModel model_;
     DocumentInteraction interaction_{model_};
     DocumentRenderer renderer_{model_, interaction_};
+    DocumentStyleCoordinator style_coordinator_{model_, resources_};
     DocumentScriptController script_controller_;
-    std::vector<std::string> extension_style_blocks_;
 };
 
 }  // namespace Hummingbird::Engine

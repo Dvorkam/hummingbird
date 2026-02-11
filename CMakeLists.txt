@@ -158,6 +158,7 @@ add_library(Engine STATIC
     src/engine/document/DocumentInputController.cpp
     src/engine/document/DocumentInteraction.cpp
     src/engine/document/DocumentRenderer.cpp
+    src/engine/document/DocumentStyleCoordinator.cpp
     src/engine/document/DocumentModel.cpp
     src/engine/document/DocumentNavigation.cpp
     src/engine/document/DocumentResources.cpp

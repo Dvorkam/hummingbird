@@ -43,7 +43,7 @@ bool DocumentPipeline::run_scripts() {
 }
 
 void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>& style_blocks) {
-    extension_style_blocks_ = style_blocks;
+    style_coordinator_.set_extension_style_blocks(style_blocks);
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_click(const HitTestContext& context) {
@@ -57,12 +57,7 @@ DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
-    std::vector<std::string> style_blocks = model_.style_blocks();
-    std::string css =
-        resources_.build_css_source(base_url, style_blocks, model_.stylesheet_links(), extension_style_blocks_);
-    model_.apply_styles(css);
-
-    if (!model_.build_render_tree()) {
+    if (!style_coordinator_.apply_styles_and_build(base_url)) {
         return;
     }
 
@@ -77,9 +72,7 @@ bool DocumentPipeline::rebuild_and_layout(IGraphicsContext& graphics, const Layo
 }
 
 bool DocumentPipeline::update_image_resources(std::string_view base_url) {
-    bool updated = resources_.update_image_resources(model_.render_tree(), base_url);
-    updated = resources_.update_svg_resources(model_.render_tree()) || updated;
-    return updated;
+    return style_coordinator_.update_image_resources(base_url);
 }
 
 void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {
