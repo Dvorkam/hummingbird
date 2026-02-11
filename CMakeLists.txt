@@ -76,6 +76,7 @@ add_library(Platform STATIC
     src/platform/graphics/Blend2DFontCache.cpp
     src/platform/graphics/SDLInputTranslation.cpp
     src/platform/net/CurlNetwork.cpp
+    src/platform/net/CurlTlsConfig.cpp
     src/platform/net/StubNetwork.cpp
     src/platform/net/NetworkFactory.cpp
     src/platform/decoders/SDLImageDecoder.cpp

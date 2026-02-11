@@ -145,7 +145,7 @@
     - [ ] Editing (TextEditBuffer) and focus state are coherent and could remain, but hit-testing could move to `DocumentInteraction`.
     - [ ] Architectural value is moderate; splitting paint from state would improve testability and reduce dependencies on graphics in controller logic.
 - [ ] `src/platform/net/CurlNetwork.cpp` (~355)
-  - [ ] Isolate TLS config detection vs request lifecycle.
+  - [x] Isolated TLS config detection and TLS option policy into `CurlTlsConfig` helper. (2026-02-11)
   - [x] Extracted shared GET/POST curl setup helpers (`apply_common_curl_options`, `apply_tls_options`, metadata collection). (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] `get` and `post` duplicate curl setup, TLS policy, and response handling.
