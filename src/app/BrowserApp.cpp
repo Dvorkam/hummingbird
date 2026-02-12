@@ -18,6 +18,7 @@
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "core/utils/Log.h"
+#include "engine/tab/Tab.h"
 
 namespace Hummingbird::App {
 

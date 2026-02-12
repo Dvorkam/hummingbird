@@ -8,7 +8,6 @@
 #include "app/RenderCoordinator.h"
 #include "app/TabController.h"
 #include "engine/extensions/ExtensionHost.h"
-#include "engine/tab/Tab.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -16,6 +15,11 @@ class IGraphicsContext;
 class IWindow;
 struct InputEvent;
 }  // namespace Hummingbird
+
+namespace Hummingbird::Engine {
+class FormSubmission;
+class Tab;
+}
 
 namespace Hummingbird::App {
 

@@ -6,6 +6,7 @@
 
 #include "app/BrowserApp.h"
 #include "core/utils/Log.h"
+#include "engine/tab/Tab.h"
 
 namespace Hummingbird::App {
 
