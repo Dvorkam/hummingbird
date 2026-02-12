@@ -10,9 +10,8 @@
 #include <vector>
 
 #include "core/SecurityState.h"
-#include "engine/document/DocumentPipeline.h"
 #include "engine/forms/FormSubmission.h"
-#include "engine/resources/ResourceLoader.h"
+#include "engine/resources/ResourceStore.h"
 #include "engine/tab/TabAnimationTicker.h"
 #include "engine/tab/TabLayoutState.h"
 #include "engine/tab/TabNavigationState.h"
@@ -24,10 +23,13 @@ class IImageDecoder;
 class INetwork;
 class IResourceProvider;
 class IScriptEngine;
+enum class NetworkError;
 struct InputEvent;
 }  // namespace Hummingbird
 
 namespace Hummingbird::Engine {
+class DocumentPipeline;
+class ResourceLoader;
 class Tab {
 public:
     struct KeyResult {
@@ -91,11 +93,11 @@ public:
 
 private:
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
-    void process_incremental_resource_updates(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
+    void process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, IGraphicsContext& graphics,
                                               const Layout::Rect& viewport);
     void sync_extension_styles_before_stylesheet_update();
-    void handle_document_ready(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
-                               const Layout::Rect& viewport);
+    void handle_document_ready(std::string_view document_url, std::string_view effective_url, NetworkError document_error,
+                               IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport);
@@ -103,8 +105,6 @@ private:
     void process_animation_updates();
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view reason, bool request_background_images);
-    DocumentPipeline::HitTestContext make_hit_test_context(const Layout::Point& point,
-                                                           const Layout::Rect& viewport) const;
     void begin_navigation_session(std::string_view url);
     bool prepare_document_from_response(std::string_view html);
     void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
@@ -117,8 +117,8 @@ private:
 private:
     std::atomic<bool> shutting_down_{false};
 
-    ResourceLoader resource_loader_;
-    DocumentPipeline document_pipeline_;
+    std::unique_ptr<ResourceLoader> resource_loader_;
+    std::unique_ptr<DocumentPipeline> document_pipeline_;
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;
     bool extension_css_dirty_ = false;

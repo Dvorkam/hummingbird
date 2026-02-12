@@ -316,7 +316,8 @@ size_t table_cell_colspan(const RenderTableCell& cell) {
     return parsed.value_or(1);
 }
 
-TableColumnLayoutResult compute_table_column_layout(RenderTable& table, IGraphicsContext& context, float available_width) {
+TableColumnLayoutResult compute_table_column_layout(RenderTable& table, IGraphicsContext& context,
+                                                    float available_width) {
     const auto* style = table.get_computed_style();
     auto* element = static_cast<const DOM::Element*>(table.get_dom_node());
 

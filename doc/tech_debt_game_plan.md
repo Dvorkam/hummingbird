@@ -79,6 +79,7 @@
   - [x] Reduced `Tab.h` fan-in by replacing direct platform interface includes with forward declarations and `std::unique_ptr` constructor types. (2026-02-11)
   - [x] Removed direct `Tab.h` dependency from `BrowserApp.h` by forward declarations and cpp-local include. (2026-02-11)
   - [x] Removed direct `ExtensionHost.h` dependency from `BrowserApp.h` by forward declaration and cpp-local include. (2026-02-12)
+  - [x] Reduced `Tab.h` coupling by storing `ResourceLoader`/`DocumentPipeline` behind pointers and removing private `BatchResult`/hit-test nested-type leaks from header signatures. (2026-02-12)
   - [ ] **Findings (2026-02-11)**:
     - [ ] `BrowserApp.h` pulls multiple platform API headers (`IWindow`, `IGraphicsContext`, `InputEvent`) and extension headers; some could move to `.cpp` with forward declarations to reduce fan-out.
     - [ ] `InputEvent` is a monolithic struct used across app and document input; its nested structs show up as separate anonymous classes in diagrams, suggesting high coupling for any include of `InputEvent.h`.

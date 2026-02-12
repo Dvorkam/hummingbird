@@ -5,6 +5,9 @@
 #include <string_view>
 #include <utility>
 
+#include "core/platform_api/IImageDecoder.h"
+#include "core/platform_api/INetwork.h"
+#include "core/platform_api/IResourceProvider.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "engine/tab/Tab.h"
 #include "test_utils/TestGraphicsContext.h"
