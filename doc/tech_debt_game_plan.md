@@ -2,23 +2,23 @@
 
 ## Chokepoints From Diagrams
 - [ ] **Engine::DocumentPipeline**: central coordinator touching input, resources, script, paint, layout.
-  - [ ] Map responsibilities by public method to identify tight couplings (layout vs input vs navigation vs resource updates).
-  - [ ] Inspect call graph for `DocumentPipeline::apply_styles_and_layout`, `relayout`, `paint`, `paint_controls`.
-  - [ ] Identify candidate service splits (resources, scripting, navigation/hit-test, input).
-  - [ ] Check for duplicated state between `DocumentPipeline` and `Tab`.
-  - [ ] Suggest extraction points + minimal interface boundaries.
+  - [x] Map responsibilities by public method to identify tight couplings (layout vs input vs navigation vs resource updates). (2026-02-11)
+  - [x] Inspect call graph for `DocumentPipeline::apply_styles_and_layout`, `relayout`, `paint`, `paint_controls`. (2026-02-11)
+  - [x] Identify candidate service splits (resources, scripting, navigation/hit-test, input). (2026-02-11)
+  - [x] Check for duplicated state between `DocumentPipeline` and `Tab`. (2026-02-11)
+  - [x] Suggest extraction points + minimal interface boundaries. (2026-02-11)
   - [x] Extracted `DocumentInteraction` to hold input + navigation responsibilities. (2026-02-11)
   - [x] Extracted `DocumentRenderer` for layout/paint + content height tracking. (2026-02-11)
   - [x] Extracted `DocumentStyleCoordinator` for CSS/resource orchestration. (2026-02-11)
   - [x] Extracted script execution/dispatch flow into `DocumentScripting`. (2026-02-11)
   - [x] Reduced `DocumentPipeline.h` coupling via forward declarations and pointer-owned collaborators. (2026-02-11)
   - [x] Decoupled `DocumentPipeline.h` from `DocumentScriptController` include via private pointer + local dispatch result type. (2026-02-11)
-  - [ ] **Findings (2026-02-11)**:
-    - [ ] Pipeline currently owns model, resources, navigation, painter, script controller, and input controller.
-    - [ ] Public API mixes orchestration (`apply_styles_and_layout`, `relayout`, `paint`) with interaction (`focus_input_at`, `handle_key_down`) and navigation/hit-test.
-    - [ ] `Tab` still calls into pipeline for layout, paint, input, and extension CSS; many entry points are exposed.
-    - [ ] Candidate split: extract `DocumentInteraction` (hit-test + form submit + focus/edit), `DocumentRender` (layout/paint), and `DocumentResources` (css/image updates) into smaller facades.
-    - [ ] Candidate split: move `dispatch_*` script hooks into `DocumentScriptController` wrapper owned by `Tab` to reduce pipeline surface.
+  - [x] **Findings (2026-02-11)**:
+    - [x] Pipeline now coordinates `DocumentModel`, `DocumentResources`, `DocumentInteraction`, `DocumentRenderer`, `DocumentStyleCoordinator`, and `DocumentScripting`.
+    - [x] Public API still intentionally mixes orchestration (`apply_styles_and_layout`, `relayout`, `paint`) with interaction (`focus_input_at`, `handle_key_down`) because `Tab` uses it as integration façade.
+    - [x] `Tab` still calls pipeline for layout, paint, input, and extension CSS, but internal orchestration responsibilities are now delegated to focused collaborators.
+    - [x] Candidate split completed in part: interaction, renderer, style coordinator, and scripting responsibilities were extracted behind dedicated helpers.
+    - [x] Remaining risk is API breadth, not internal logic density; future work can narrow the façade surface if `Tab` responsibilities are split further.
 - [ ] **Engine::Tab**: heavy cross-cutting dependency surface (document pipeline + resource loader + extensions).
   - [ ] Inventory owned state (resources, extension CSS, navigation commits, input state).
   - [ ] Identify which responsibilities can move to `TabController` or `DocumentPipeline`.
