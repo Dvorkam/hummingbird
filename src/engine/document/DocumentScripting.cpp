@@ -20,8 +20,7 @@ bool DocumentScripting::run_inline_scripts(DocumentModel& model) {
     return controller_->run_inline_scripts(model.script_blocks(), model.dom_root(), model.dom_arena());
 }
 
-DocumentScripting::DispatchResult DocumentScripting::dispatch_click(DocumentModel& model,
-                                                                    const Layout::Rect& viewport,
+DocumentScripting::DispatchResult DocumentScripting::dispatch_click(DocumentModel& model, const Layout::Rect& viewport,
                                                                     const Layout::Point& point, float scroll_y) {
     auto result = controller_->dispatch_click(model.dom_root(), model.dom_arena(), model.render_tree(), viewport, point,
                                               scroll_y);

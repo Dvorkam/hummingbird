@@ -19,8 +19,7 @@ bool relayout_debug_enabled() {
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
                                    IImageDecoder* image_decoder, ScriptEnginePtr script_engine)
-    : resources_(resource_store, resource_provider, image_decoder),
-      scripting_(std::move(script_engine)) {}
+    : resources_(resource_store, resource_provider, image_decoder), scripting_(std::move(script_engine)) {}
 
 DocumentPipeline::~DocumentPipeline() = default;
 

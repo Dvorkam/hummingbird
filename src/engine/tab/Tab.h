@@ -10,10 +10,6 @@
 #include <vector>
 
 #include "core/SecurityState.h"
-#include "core/platform_api/IImageDecoder.h"
-#include "core/platform_api/INetwork.h"
-#include "core/platform_api/IResourceProvider.h"
-#include "core/platform_api/IScriptEngine.h"
 #include "engine/document/DocumentPipeline.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
@@ -24,6 +20,10 @@
 
 namespace Hummingbird {
 class IGraphicsContext;
+class IImageDecoder;
+class INetwork;
+class IResourceProvider;
+class IScriptEngine;
 struct InputEvent;
 }  // namespace Hummingbird
 
@@ -39,8 +39,9 @@ public:
         bool handled = false;
         bool mutated = false;
     };
-    Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
-        ImageDecoderPtr image_decoder, ScriptEnginePtr script_engine);
+    Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
+        std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
+        std::unique_ptr<IScriptEngine> script_engine);
     ~Tab();
 
     Tab(const Tab&) = delete;
