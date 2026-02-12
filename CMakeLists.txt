@@ -134,6 +134,7 @@ add_library(Layout STATIC
     src/layout/replaced/RenderSvg.cpp
     src/layout/replaced/ReplacedSizingUtils.cpp
     src/layout/table/RenderTable.cpp
+    src/layout/table/TableColumnLayout.cpp
     src/layout/table/TableBorderPainter.cpp
     src/layout/table/TableDebug.cpp
 )

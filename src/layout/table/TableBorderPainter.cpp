@@ -17,7 +17,7 @@ namespace Hummingbird::Layout {
 namespace {
 constexpr float kTableGridStroke = 1.0f;
 constexpr Color kTableGridColor{150, 150, 150, 255};
-}
+}  // namespace
 
 void paint_table_cell_fallback_border(const RenderTableCell& cell, IGraphicsContext& context, const Point& offset) {
     const LegacyBorderInfo legacy = inspect_legacy_border_info(cell.get_dom_node());
@@ -45,9 +45,9 @@ void paint_table_cell_fallback_border(const RenderTableCell& cell, IGraphicsCont
             if (seam_verbose) {
                 const Rect& rect = cell.get_rect();
                 HB_LOG_WARN("[table-debug] skip fallback grid due css border table_class='"
-                            << table_class << "' class='" << class_name << "' rect=(" << rect.x << "," << rect.y
-                            << "," << rect.width << "," << rect.height << ") border=(" << bw.top << "," << bw.right
-                            << "," << bw.bottom << "," << bw.left << ")");
+                            << table_class << "' class='" << class_name << "' rect=(" << rect.x << "," << rect.y << ","
+                            << rect.width << "," << rect.height << ") border=(" << bw.top << "," << bw.right << ","
+                            << bw.bottom << "," << bw.left << ")");
             }
             return;
         }
