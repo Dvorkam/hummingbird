@@ -40,6 +40,7 @@
   - [x] Extracted animation tick state/time accumulation into `TabAnimationTicker`. (2026-02-11)
   - [x] Made `mark_dirty` edge-triggered for debug logging and removed redundant stylesheet-ready state churn. (2026-02-12)
   - [x] Moved navigation-start normalization and initial security-state policy from `Tab` into `TabNavigationState` (`begin_navigation_from_input`). (2026-02-12)
+  - [x] Further split `handle_document_ready` into explicit phases (`apply_document_ready_navigation_state`, `resolve_document_ready_entry`, `rebuild_after_document_ready`) to reduce cross-cutting control flow in one method. (2026-02-12)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Tab currently owns navigation normalization, security state, resource loader lifecycle, extension CSS state, layout state, and input dispatch plumbing.
     - [ ] `tick()` mixes resource consumption, extension CSS rebuilds, viewport relayout, and animation tick gating; this is multiple lifecycles in one loop.
@@ -47,6 +48,7 @@
     - [ ] Input and control interaction APIs simply forward to `DocumentPipeline`, which suggests a thinner interaction façade could live inside the pipeline (or a `DocumentInteraction` service) to reduce Tab surface.
     - [ ] Candidate split: extract a `TabLayoutState` helper (already nested) into its own unit and move animation tick handling into a `TabAnimationTicker` to reduce tick complexity.
     - [ ] Candidate split: separate `NavigationLifecycle` (normalize URL, commit URL, security state, `allow_insecure_for_current_host`) from `Tab` core to reduce coupling with `ResourceLoader`.
+    - [x] Progress check (2026-02-12): document-ready lifecycle is now phase-oriented and test-backed (`ctest --preset user-ninja-multi-vcpkglt`: 362 passed, 1 skipped), which lowers regression risk when changing resource/nav rebuild sequencing.
 - [ ] **App::BrowserApp**: wide include fan-out in `app_includes_src_only.puml`.
   - [ ] Identify remaining responsibilities that are not UI orchestration.
   - [ ] Check where `BrowserChrome` / `TabController` could absorb logic.

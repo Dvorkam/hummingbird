@@ -287,12 +287,8 @@ void Tab::sync_extension_styles_before_stylesheet_update() {
 
 void Tab::handle_document_ready(std::string_view document_url, std::string_view effective_url,
                                 NetworkError document_error, IGraphicsContext& graphics, const Layout::Rect& viewport) {
-    if (!effective_url.empty()) {
-        navigation_state_.update_requested_url(effective_url);
-    }
-    navigation_state_.set_security_state(TabDocumentReadyPolicy::decide_security_state(
-        *resource_loader_, navigation_state_.requested_url(), document_error));
-    const auto* entry = resource_loader_->find(document_url, ResourceType::Document);
+    apply_document_ready_navigation_state(effective_url, document_error);
+    const auto* entry = resolve_document_ready_entry(document_url);
     if (!entry) {
         return;
     }
@@ -302,6 +298,26 @@ void Tab::handle_document_ready(std::string_view document_url, std::string_view 
     if (!prepare_document_from_response(entry->body)) {
         return;
     }
+    rebuild_after_document_ready(graphics, viewport);
+    HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_->render_tree_children());
+    mark_dirty("document_ready");
+    const auto rebuild_end = Core::Clock::now();
+    HB_LOG_INFO("[perf] document rebuild ms=" << Core::duration_ms(rebuild_start, rebuild_end));
+}
+
+void Tab::apply_document_ready_navigation_state(std::string_view effective_url, NetworkError document_error) {
+    if (!effective_url.empty()) {
+        navigation_state_.update_requested_url(effective_url);
+    }
+    navigation_state_.set_security_state(TabDocumentReadyPolicy::decide_security_state(
+        *resource_loader_, navigation_state_.requested_url(), document_error));
+}
+
+const ResourceEntry* Tab::resolve_document_ready_entry(std::string_view document_url) const {
+    return resource_loader_->find(document_url, ResourceType::Document);
+}
+
+void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     TabDocumentReadyPolicy::log_discovered_resources(*document_pipeline_);
     TabDocumentReadyPolicy::request_discovered_resources(*resource_loader_, *document_pipeline_,
                                                          navigation_state_.requested_url());
@@ -311,10 +327,6 @@ void Tab::handle_document_ready(std::string_view document_url, std::string_view 
         apply_autofocus_after_rebuild();
     }
     apply_load_mutations_after_document_ready(graphics, viewport);
-    HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_->render_tree_children());
-    mark_dirty("document_ready");
-    const auto rebuild_end = Core::Clock::now();
-    HB_LOG_INFO("[perf] document rebuild ms=" << Core::duration_ms(rebuild_start, rebuild_end));
 }
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
