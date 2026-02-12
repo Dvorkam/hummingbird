@@ -122,6 +122,7 @@
   - [x] Centralized extension tab-activation notification in `on_active_tab_changed` so mouse tab-strip activation and keyboard switching follow one path. (2026-02-12)
   - [x] Split `handle_mouse_down_event` into focused chrome/document helpers (`handle_tab_strip_mouse_down`, `handle_url_bar_mouse_down`, `handle_document_mouse_down`). (2026-02-12)
   - [x] Extracted constructor extension setup flow into `initialize_extensions` to isolate non-UI bootstrap logic. (2026-02-12)
+  - [x] Split tab-management key shortcuts from `handle_key_down_event` into `handle_tab_shortcut` to reduce mixed routing logic in one handler. (2026-02-12)
 - [ ] `src/layout/flow/TextBox.cpp` (~608)
   - [ ] Separate text shaping/metrics vs line breaking logic.
   - [ ] Isolate text-overflow/ellipsis handling.

@@ -197,42 +197,8 @@ void BrowserApp::handle_text_input_event(const InputEvent& event) {
 }
 
 void BrowserApp::handle_key_down_event(const InputEvent& event) {
-    if (!event.key.repeat) {
-        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::T) {
-            if (new_tab()) {
-                render_coordinator_.set_chrome_dirty();
-                render_coordinator_.set_document_dirty();
-                render_coordinator_.set_controls_dirty();
-            }
-            return;
-        }
-
-        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::W) {
-            if (close_active_tab()) {
-                render_coordinator_.set_chrome_dirty();
-                render_coordinator_.set_document_dirty();
-                render_coordinator_.set_controls_dirty();
-            }
-            return;
-        }
-
-        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Right) {
-            if (activate_next_tab()) {
-                render_coordinator_.set_chrome_dirty();
-                render_coordinator_.set_document_dirty();
-                render_coordinator_.set_controls_dirty();
-            }
-            return;
-        }
-
-        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Left) {
-            if (activate_prev_tab()) {
-                render_coordinator_.set_chrome_dirty();
-                render_coordinator_.set_document_dirty();
-                render_coordinator_.set_controls_dirty();
-            }
-            return;
-        }
+    if (handle_tab_shortcut(event)) {
+        return;
     }
 
     if (event.key.key == Key::L && event.mods.ctrl && event.mods.shift) {
@@ -284,6 +250,47 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         render_coordinator_.set_document_dirty();
         return;
     }
+}
+
+bool BrowserApp::handle_tab_shortcut(const InputEvent& event) {
+    if (!event.key.repeat) {
+        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::T) {
+            if (new_tab()) {
+                render_coordinator_.set_chrome_dirty();
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
+            }
+            return true;
+        }
+
+        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::W) {
+            if (close_active_tab()) {
+                render_coordinator_.set_chrome_dirty();
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
+            }
+            return true;
+        }
+
+        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Right) {
+            if (activate_next_tab()) {
+                render_coordinator_.set_chrome_dirty();
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
+            }
+            return true;
+        }
+
+        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Left) {
+            if (activate_prev_tab()) {
+                render_coordinator_.set_chrome_dirty();
+                render_coordinator_.set_document_dirty();
+                render_coordinator_.set_controls_dirty();
+            }
+            return true;
+        }
+    }
+    return false;
 }
 
 void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
