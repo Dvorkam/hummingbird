@@ -18,6 +18,7 @@
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "core/utils/Log.h"
+#include "engine/extensions/ExtensionHost.h"
 #include "engine/tab/Tab.h"
 
 namespace Hummingbird::App {
@@ -59,7 +60,7 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     : window_(std::move(window)),
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
       tab_controller_(make_tab_factory(primary_backend_for_env())),
-      extension_host_([]() { return create_script_engine(); }),
+      extension_host_(std::make_unique<Hummingbird::Engine::ExtensionHost>([]() { return create_script_engine(); })),
       event_router_(*this),
       render_coordinator_(*this) {
     const auto first_tab_id = tab_controller_.create_tab();
@@ -73,17 +74,17 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     for (const auto& e : bootstrap.errors) {
         HB_LOG_WARN("[ext] " << e.message << ": " << e.path.string());
     }
-    extension_host_.set_settings(std::move(bootstrap.settings));
-    extension_host_.set_insert_css_handler([this](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
+    extension_host_->set_settings(std::move(bootstrap.settings));
+    extension_host_->set_insert_css_handler([this](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
         return insert_extension_css(tab_id, css_text);
     });
-    extension_host_.set_extensions(std::move(bootstrap.extensions));
-    if (extension_host_.extension_count() > 0) {
-        HB_LOG_INFO("[ext] loaded extensions: " << extension_host_.extension_count());
+    extension_host_->set_extensions(std::move(bootstrap.extensions));
+    if (extension_host_->extension_count() > 0) {
+        HB_LOG_INFO("[ext] loaded extensions: " << extension_host_->extension_count());
     }
-    extension_host_.start_background_scripts();
-    extension_host_.notify_tab_created(first_tab_id, browser_chrome_.url_bar().text());
-    extension_host_.notify_tab_activated(first_tab_id);
+    extension_host_->start_background_scripts();
+    extension_host_->notify_tab_created(first_tab_id, browser_chrome_.url_bar().text());
+    extension_host_->notify_tab_activated(first_tab_id);
 }
 
 BrowserApp::~BrowserApp() {
@@ -106,7 +107,7 @@ void BrowserApp::shutdown() {
     // stop input first (safe even if already stopped)
     if (window_) window_->stop_text_input();
 
-    extension_host_.shutdown();
+    extension_host_->shutdown();
     tab_controller_.shutdown();
 
     // close window last (or earlier if you prefer to hide UI immediately)
@@ -153,7 +154,7 @@ void BrowserApp::tick_active_tab(const Hummingbird::Layout::Rect& viewport) {
 void BrowserApp::emit_navigation_commit_events() {
     if (auto id = tab_controller_.active_tab_id()) {
         if (auto committed = active_tab().consume_navigation_commit_url()) {
-            extension_host_.notify_tab_navigated(*id, *committed);
+            extension_host_->notify_tab_navigated(*id, *committed);
         }
     }
 }
@@ -491,8 +492,8 @@ bool BrowserApp::new_tab() {
     // Keep this simple for MVP: new tabs start on the current URL bar target.
     navigate_active_tab(browser_chrome_.url_bar().text());
     on_active_tab_changed();
-    extension_host_.notify_tab_created(id, browser_chrome_.url_bar().text());
-    extension_host_.notify_tab_activated(id);
+    extension_host_->notify_tab_created(id, browser_chrome_.url_bar().text());
+    extension_host_->notify_tab_activated(id);
     return true;
 }
 
@@ -503,7 +504,7 @@ bool BrowserApp::close_active_tab() {
     }
     on_active_tab_changed();
     if (auto id = tab_controller_.active_tab_id()) {
-        extension_host_.notify_tab_activated(*id);
+        extension_host_->notify_tab_activated(*id);
     }
     return true;
 }
@@ -512,7 +513,7 @@ bool BrowserApp::activate_next_tab() {
     if (!tab_controller_.activate_next()) return false;
     on_active_tab_changed();
     if (auto id = tab_controller_.active_tab_id()) {
-        extension_host_.notify_tab_activated(*id);
+        extension_host_->notify_tab_activated(*id);
     }
     return true;
 }
@@ -521,7 +522,7 @@ bool BrowserApp::activate_prev_tab() {
     if (!tab_controller_.activate_prev()) return false;
     on_active_tab_changed();
     if (auto id = tab_controller_.active_tab_id()) {
-        extension_host_.notify_tab_activated(*id);
+        extension_host_->notify_tab_activated(*id);
     }
     return true;
 }

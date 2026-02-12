@@ -7,7 +7,6 @@
 #include "app/BrowserEventRouter.h"
 #include "app/RenderCoordinator.h"
 #include "app/TabController.h"
-#include "engine/extensions/ExtensionHost.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -17,6 +16,7 @@ struct InputEvent;
 }  // namespace Hummingbird
 
 namespace Hummingbird::Engine {
+class ExtensionHost;
 class FormSubmission;
 class Tab;
 }  // namespace Hummingbird::Engine
@@ -75,7 +75,7 @@ private:
     std::unique_ptr<IWindow> window_;
     std::unique_ptr<IGraphicsContext> graphics_;
     TabController tab_controller_;
-    Hummingbird::Engine::ExtensionHost extension_host_;
+    std::unique_ptr<Hummingbird::Engine::ExtensionHost> extension_host_;
     BrowserEventRouter event_router_;
 
     // UI state
