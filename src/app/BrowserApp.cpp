@@ -70,6 +70,10 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
         browser_chrome_.load_security_icons(provider.get(), decoder.get());
     }
 
+    initialize_extensions(first_tab_id);
+}
+
+void BrowserApp::initialize_extensions(Hummingbird::Engine::TabId first_tab_id) {
     auto bootstrap = Hummingbird::App::load_extension_bootstrap();
     for (const auto& e : bootstrap.errors) {
         HB_LOG_WARN("[ext] " << e.message << ": " << e.path.string());
@@ -318,7 +322,8 @@ bool BrowserApp::handle_tab_strip_mouse_down(const InputEvent& event) {
 }
 
 bool BrowserApp::handle_url_bar_mouse_down(const InputEvent& event) {
-    auto url_result = browser_chrome_.url_bar().handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
+    auto url_result =
+        browser_chrome_.url_bar().handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
     if (!url_result.handled) {
         return false;
     }
