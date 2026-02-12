@@ -10,35 +10,21 @@ namespace Hummingbird::Engine {
 
 class TabNavigationState {
 public:
-    void begin_navigation(std::string normalized_url, SecurityState initial_state) {
-        requested_url_ = std::move(normalized_url);
-        security_state_ = initial_state;
-        pending_commit_url_.reset();
-    }
+    void begin_navigation(std::string normalized_url, SecurityState initial_state);
+    void begin_navigation_from_input(std::string_view url);
 
-    void update_requested_url(std::string_view effective_url) {
-        if (!effective_url.empty()) {
-            requested_url_ = std::string(effective_url);
-        }
-    }
+    void update_requested_url(std::string_view effective_url);
 
     void set_security_state(SecurityState state) { security_state_ = state; }
 
     std::string_view requested_url() const { return requested_url_; }
     SecurityState security_state() const { return security_state_; }
 
-    void set_pending_commit_url(std::string url) { pending_commit_url_ = std::move(url); }
+    void set_pending_commit_url(std::string url);
 
-    std::optional<std::string> consume_pending_commit_url() {
-        if (!pending_commit_url_) {
-            return std::nullopt;
-        }
-        auto url = std::move(pending_commit_url_);
-        pending_commit_url_.reset();
-        return url;
-    }
+    std::optional<std::string> consume_pending_commit_url();
 
-    void clear_pending_commit_url() { pending_commit_url_.reset(); }
+    void clear_pending_commit_url();
 
 private:
     std::string requested_url_;

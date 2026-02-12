@@ -22,14 +22,6 @@ class IGraphicsContext;
 namespace Hummingbird::Engine {
 
 namespace {
-SecurityState security_state_for_url(std::string_view url) {
-    auto parsed = Core::parse_absolute_url(url);
-    if (!parsed) return SecurityState::Unknown;
-    if (parsed->scheme == "https") return SecurityState::Secure;
-    if (parsed->scheme == "http") return SecurityState::InsecureHttp;
-    return SecurityState::Unknown;
-}
-
 constexpr int kAnimationTickMinIntervalMs = 80;
 
 bool tab_dirty_debug_enabled() {
@@ -388,9 +380,7 @@ DocumentPipeline::HitTestContext Tab::make_hit_test_context(const Layout::Point&
 }
 
 void Tab::begin_navigation_session(std::string_view url) {
-    std::string normalized = Core::normalize_input_url(url);
-    navigation_state_.begin_navigation(std::move(normalized),
-                                       security_state_for_url(navigation_state_.requested_url()));
+    navigation_state_.begin_navigation_from_input(url);
     reset_document_state();
 }
 
