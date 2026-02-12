@@ -97,7 +97,8 @@ void DocumentPipeline::paint(IGraphicsContext& graphics, const PaintContext& con
 
 void DocumentPipeline::paint_controls(IGraphicsContext& graphics, const PaintContext& context,
                                       bool repaint_background) {
-    renderer_->paint_controls(graphics, {context.viewport, context.debug_outlines, context.scroll_y}, repaint_background);
+    renderer_->paint_controls(graphics, {context.viewport, context.debug_outlines, context.scroll_y},
+                              repaint_background);
 }
 
 std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext& context) const {
@@ -110,7 +111,7 @@ std::optional<FormSubmission> DocumentPipeline::submit_form_at(const HitTestCont
 
 bool DocumentPipeline::focus_input_at(const HitTestContext& context) {
     return interaction_->focus_input_at(model_->render_tree(),
-                                       {context.point, context.viewport, context.base_url, context.scroll_y});
+                                        {context.point, context.viewport, context.base_url, context.scroll_y});
 }
 
 bool DocumentPipeline::focus_autofocus_input() {
