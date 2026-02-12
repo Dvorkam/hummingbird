@@ -63,6 +63,8 @@ private:
     void navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission);
     void initialize_extensions(Hummingbird::Engine::TabId first_tab_id);
     bool handle_tab_shortcut(const InputEvent& event);
+    bool handle_url_bar_key_down(const InputEvent& event);
+    bool handle_document_key_down(const InputEvent& event);
     bool handle_tab_strip_mouse_down(const InputEvent& event);
     bool handle_url_bar_mouse_down(const InputEvent& event);
     void handle_document_mouse_down(const InputEvent& event);

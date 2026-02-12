@@ -217,30 +217,11 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         return;
     }
 
-    auto result = browser_chrome_.url_bar().handle_key_down(event, window_.get());
-    if (result.handled) {
-        if (result.submitted_url) {
-            navigate_active_tab(*result.submitted_url);
-            render_coordinator_.set_document_dirty();
-            render_coordinator_.set_chrome_dirty();
-        }
-        if (result.needs_repaint) {
-            render_coordinator_.set_chrome_dirty();
-        }
+    if (handle_url_bar_key_down(event)) {
         return;
     }
 
-    auto tab_result = active_tab().handle_key_down(event);
-    if (tab_result.handled) {
-        if (tab_result.submitted_form) {
-            browser_chrome_.url_bar().set_text(tab_result.submitted_form->url);
-            navigate_active_tab(*tab_result.submitted_form);
-            render_coordinator_.set_document_dirty();
-            render_coordinator_.set_chrome_dirty();
-        }
-        if (tab_result.needs_repaint) {
-            render_coordinator_.set_controls_dirty();
-        }
+    if (handle_document_key_down(event)) {
         return;
     }
 
@@ -291,6 +272,39 @@ bool BrowserApp::handle_tab_shortcut(const InputEvent& event) {
         }
     }
     return false;
+}
+
+bool BrowserApp::handle_url_bar_key_down(const InputEvent& event) {
+    auto result = browser_chrome_.url_bar().handle_key_down(event, window_.get());
+    if (!result.handled) {
+        return false;
+    }
+    if (result.submitted_url) {
+        navigate_active_tab(*result.submitted_url);
+        render_coordinator_.set_document_dirty();
+        render_coordinator_.set_chrome_dirty();
+    }
+    if (result.needs_repaint) {
+        render_coordinator_.set_chrome_dirty();
+    }
+    return true;
+}
+
+bool BrowserApp::handle_document_key_down(const InputEvent& event) {
+    auto tab_result = active_tab().handle_key_down(event);
+    if (!tab_result.handled) {
+        return false;
+    }
+    if (tab_result.submitted_form) {
+        browser_chrome_.url_bar().set_text(tab_result.submitted_form->url);
+        navigate_active_tab(*tab_result.submitted_form);
+        render_coordinator_.set_document_dirty();
+        render_coordinator_.set_chrome_dirty();
+    }
+    if (tab_result.needs_repaint) {
+        render_coordinator_.set_controls_dirty();
+    }
+    return true;
 }
 
 void BrowserApp::handle_mouse_down_event(const InputEvent& event) {

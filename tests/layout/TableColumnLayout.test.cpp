@@ -1,3 +1,5 @@
+#include "layout/table/TableColumnLayout.h"
+
 #include <gtest/gtest.h>
 
 #include "core/ArenaAllocator.h"
@@ -8,7 +10,6 @@
 #include "html/HtmlTagNames.h"
 #include "layout/TreeBuilder.h"
 #include "layout/table/RenderTable.h"
-#include "layout/table/TableColumnLayout.h"
 #include "style/compute/StyleEngine.h"
 #include "test_utils/TestGraphicsContext.h"
 
