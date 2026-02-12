@@ -99,7 +99,7 @@ private:
     void handle_document_ready(std::string_view document_url, std::string_view effective_url,
                                NetworkError document_error, IGraphicsContext& graphics, const Layout::Rect& viewport);
     void apply_document_ready_navigation_state(std::string_view effective_url, NetworkError document_error);
-    const ResourceEntry* resolve_document_ready_entry(std::string_view document_url) const;
+    std::optional<std::string_view> resolve_document_ready_body(std::string_view document_url) const;
     void rebuild_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);

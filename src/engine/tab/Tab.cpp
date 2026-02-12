@@ -288,14 +288,14 @@ void Tab::sync_extension_styles_before_stylesheet_update() {
 void Tab::handle_document_ready(std::string_view document_url, std::string_view effective_url,
                                 NetworkError document_error, IGraphicsContext& graphics, const Layout::Rect& viewport) {
     apply_document_ready_navigation_state(effective_url, document_error);
-    const auto* entry = resolve_document_ready_entry(document_url);
-    if (!entry) {
+    auto document_body = resolve_document_ready_body(document_url);
+    if (!document_body.has_value()) {
         return;
     }
 
     const auto rebuild_start = Core::Clock::now();
-    HB_LOG_INFO("[pipeline] html size: " << entry->body.size());
-    if (!prepare_document_from_response(entry->body)) {
+    HB_LOG_INFO("[pipeline] html size: " << document_body->size());
+    if (!prepare_document_from_response(*document_body)) {
         return;
     }
     rebuild_after_document_ready(graphics, viewport);
@@ -313,8 +313,12 @@ void Tab::apply_document_ready_navigation_state(std::string_view effective_url, 
         *resource_loader_, navigation_state_.requested_url(), document_error));
 }
 
-const ResourceEntry* Tab::resolve_document_ready_entry(std::string_view document_url) const {
-    return resource_loader_->find(document_url, ResourceType::Document);
+std::optional<std::string_view> Tab::resolve_document_ready_body(std::string_view document_url) const {
+    const auto* entry = resource_loader_->find(document_url, ResourceType::Document);
+    if (!entry) {
+        return std::nullopt;
+    }
+    return entry->body;
 }
 
 void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
