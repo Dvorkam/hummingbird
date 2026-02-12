@@ -9,12 +9,7 @@
 #include <vector>
 
 #include "core/platform_api/IScriptEngine.h"
-#include "engine/document/DocumentInteraction.h"
-#include "engine/document/DocumentModel.h"
-#include "engine/document/DocumentRenderer.h"
-#include "engine/document/DocumentResources.h"
 #include "engine/document/DocumentScripting.h"
-#include "engine/document/DocumentStyleCoordinator.h"
 #include "engine/forms/FormSubmission.h"
 #include "layout/geometry/Geometry.h"
 
@@ -28,6 +23,11 @@ struct InputEvent;
 namespace Hummingbird::Engine {
 
 class ResourceStore;
+class DocumentInteraction;
+class DocumentModel;
+class DocumentRenderer;
+class DocumentResources;
+class DocumentStyleCoordinator;
 
 class DocumentPipeline {
 public:
@@ -38,8 +38,18 @@ public:
         float scroll_y = 0.0f;
     };
 
-    using PaintContext = DocumentRenderer::PaintContext;
-    using InputEditResult = DocumentInteraction::InputEditResult;
+    struct PaintContext {
+        Layout::Rect viewport;
+        bool debug_outlines = false;
+        float scroll_y = 0.0f;
+    };
+
+    struct InputEditResult {
+        bool handled = false;
+        bool needs_repaint = false;
+        std::optional<FormSubmission> submitted_form;
+    };
+
     using ScriptDispatchResult = DocumentScripting::DispatchResult;
 
     DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider, IImageDecoder* image_decoder,
@@ -71,25 +81,25 @@ public:
     bool clear_input_focus();
     bool set_control_interaction_at(const HitTestContext& context);
     bool clear_control_interaction();
-    bool has_focused_input() const { return interaction_.has_focused_input(); }
+    bool has_focused_input() const;
     InputEditResult handle_text_input(std::string_view text);
     InputEditResult handle_key_down(const InputEvent& event, std::string_view base_url);
     std::optional<std::string> focused_input_value() const;
 
-    bool has_dom_tree() const { return model_.has_dom_tree(); }
-    bool has_render_tree() const { return model_.has_render_tree(); }
-    float content_height() const { return renderer_.content_height(); }
+    bool has_dom_tree() const;
+    bool has_render_tree() const;
+    float content_height() const;
     size_t render_tree_children() const;
-    const std::vector<std::string>& stylesheet_links() const { return model_.stylesheet_links(); }
-    const std::vector<std::string>& image_links() const { return model_.image_links(); }
-    const std::vector<std::string>& background_image_links() const { return model_.background_image_links(); }
+    const std::vector<std::string>& stylesheet_links() const;
+    const std::vector<std::string>& image_links() const;
+    const std::vector<std::string>& background_image_links() const;
 
 private:
-    DocumentResources resources_;
-    DocumentModel model_;
-    DocumentInteraction interaction_{model_};
-    DocumentRenderer renderer_{model_, interaction_};
-    DocumentStyleCoordinator style_coordinator_{model_, resources_};
+    std::unique_ptr<DocumentResources> resources_;
+    std::unique_ptr<DocumentModel> model_;
+    std::unique_ptr<DocumentInteraction> interaction_;
+    std::unique_ptr<DocumentRenderer> renderer_;
+    std::unique_ptr<DocumentStyleCoordinator> style_coordinator_;
     DocumentScripting scripting_;
 };
 
