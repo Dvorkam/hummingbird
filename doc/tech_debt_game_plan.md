@@ -112,6 +112,7 @@
   - [x] Moved security icon asset loading from `BrowserApp` into `BrowserChrome`. (2026-02-11)
   - [x] Split `BrowserApp::tick` tab/chrome sync into focused helpers (`tick_active_tab`, navigation commit emission, security-state sync). (2026-02-11)
   - [x] Removed direct `ExtensionHost` dependency from `BrowserApp.h` (forward declaration + `std::unique_ptr`, cpp-local include). (2026-02-12)
+  - [x] Centralized extension tab-activation notification in `on_active_tab_changed` so mouse tab-strip activation and keyboard switching follow one path. (2026-02-12)
 - [ ] `src/layout/flow/TextBox.cpp` (~608)
   - [ ] Separate text shaping/metrics vs line breaking logic.
   - [ ] Isolate text-overflow/ellipsis handling.
