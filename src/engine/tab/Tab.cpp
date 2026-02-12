@@ -8,8 +8,8 @@
 #include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
-#include "core/platform_api/InputEvent.h"
 #include "core/platform_api/IScriptEngine.h"
+#include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "core/utils/Url.h"
@@ -314,7 +314,7 @@ void Tab::handle_document_ready(const ResourceLoader::BatchResult& result, IGrap
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto style_update_start = Core::Clock::now();
-    bool has_render_tree = rebuild_document_and_sync_layout(graphics, viewport, "handle_stylesheet_ready", true);
+    (void)rebuild_document_and_sync_layout(graphics, viewport, "handle_stylesheet_ready", true);
     const auto style_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] stylesheet update ms=" << Core::duration_ms(style_update_start, style_update_end));
     mark_dirty("stylesheet_ready");
@@ -363,8 +363,9 @@ void Tab::apply_autofocus_after_rebuild() {
 }
 
 void Tab::mark_dirty(std::string_view reason) {
+    const bool was_dirty = dirty_;
     dirty_ = true;
-    if (!reason.empty()) {
+    if (!reason.empty() && !was_dirty) {
         maybe_log_tab_dirty(reason, dirty_);
     }
 }
