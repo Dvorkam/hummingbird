@@ -21,9 +21,9 @@
     - [x] Candidate split completed in part: interaction, renderer, style coordinator, and scripting responsibilities were extracted behind dedicated helpers.
     - [x] Remaining risk is API breadth, not internal logic density; future work can narrow the façade surface if `Tab` responsibilities are split further.
 - [ ] **Engine::Tab**: heavy cross-cutting dependency surface (document pipeline + resource loader + extensions).
-  - [ ] Inventory owned state (resources, extension CSS, navigation commits, input state).
+  - [x] Inventory owned state (resources, extension CSS, navigation commits, input state). (2026-02-12)
   - [ ] Identify which responsibilities can move to `TabController` or `DocumentPipeline`.
-  - [ ] Review invalidation paths for duplication or per-frame polling.
+  - [x] Review invalidation paths for duplication or per-frame polling. (2026-02-12)
   - [ ] Propose thin façade interfaces to reduce include fan-out.
   - [x] Extracted animation tick logic into `Tab::advance_animation_tick`. (2026-02-11)
   - [x] Extracted `TabLayoutState` helper to isolate scroll/viewport state. (2026-02-11)
@@ -49,6 +49,8 @@
     - [ ] Candidate split: extract a `TabLayoutState` helper (already nested) into its own unit and move animation tick handling into a `TabAnimationTicker` to reduce tick complexity.
     - [ ] Candidate split: separate `NavigationLifecycle` (normalize URL, commit URL, security state, `allow_insecure_for_current_host`) from `Tab` core to reduce coupling with `ResourceLoader`.
     - [x] Progress check (2026-02-12): document-ready lifecycle is now phase-oriented and test-backed (`ctest --preset user-ninja-multi-vcpkglt`: 362 passed, 1 skipped), which lowers regression risk when changing resource/nav rebuild sequencing.
+    - [x] State inventory (2026-02-12): `Tab` owns only tab-local orchestration state now (`TabNavigationState`, `TabLayoutState`, `TabAnimationTicker`, extension CSS queues, dirty flag) while document internals remain in `DocumentPipeline`.
+    - [x] Invalidation review (2026-02-12): dirty signaling is edge-triggered and resource update paths are phase-separated (`consume_pending_resources`, stylesheet/image handlers), reducing duplicate invalidation churn from mixed update loops.
 - [ ] **App::BrowserApp**: wide include fan-out in `app_includes_src_only.puml`.
   - [ ] Identify remaining responsibilities that are not UI orchestration.
   - [ ] Check where `BrowserChrome` / `TabController` could absorb logic.
