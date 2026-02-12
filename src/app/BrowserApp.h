@@ -19,7 +19,7 @@ struct InputEvent;
 namespace Hummingbird::Engine {
 class FormSubmission;
 class Tab;
-}
+}  // namespace Hummingbird::Engine
 
 namespace Hummingbird::App {
 

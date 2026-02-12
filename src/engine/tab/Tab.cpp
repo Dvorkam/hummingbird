@@ -9,6 +9,7 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/InputEvent.h"
+#include "core/platform_api/IScriptEngine.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "core/utils/Url.h"

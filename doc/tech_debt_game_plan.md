@@ -12,6 +12,7 @@
   - [x] Extracted `DocumentStyleCoordinator` for CSS/resource orchestration. (2026-02-11)
   - [x] Extracted script execution/dispatch flow into `DocumentScripting`. (2026-02-11)
   - [x] Reduced `DocumentPipeline.h` coupling via forward declarations and pointer-owned collaborators. (2026-02-11)
+  - [x] Removed direct script-engine/scripting includes from `DocumentPipeline.h` (forward declarations + cpp-local includes). (2026-02-11)
   - [x] Decoupled `DocumentPipeline.h` from `DocumentScriptController` include via private pointer + local dispatch result type. (2026-02-11)
   - [x] **Findings (2026-02-11)**:
     - [x] Pipeline now coordinates `DocumentModel`, `DocumentResources`, `DocumentInteraction`, `DocumentRenderer`, `DocumentStyleCoordinator`, and `DocumentScripting`.

@@ -1,6 +1,7 @@
 #include "engine/document/DocumentPipeline.h"
 
 #include <cstdlib>
+#include <memory>
 #include <ostream>
 #include <utility>
 
@@ -11,6 +12,7 @@
 #include "engine/document/DocumentModel.h"
 #include "engine/document/DocumentRenderer.h"
 #include "engine/document/DocumentResources.h"
+#include "engine/document/DocumentScripting.h"
 #include "engine/document/DocumentStyleCoordinator.h"
 
 namespace Hummingbird::Engine {
@@ -23,20 +25,20 @@ bool relayout_debug_enabled() {
 }  // namespace
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
-                                   IImageDecoder* image_decoder, ScriptEnginePtr script_engine)
+                                   IImageDecoder* image_decoder, std::unique_ptr<IScriptEngine> script_engine)
     : resources_(std::make_unique<DocumentResources>(resource_store, resource_provider, image_decoder)),
       model_(std::make_unique<DocumentModel>()),
       interaction_(std::make_unique<DocumentInteraction>(*model_)),
       renderer_(std::make_unique<DocumentRenderer>(*model_, *interaction_)),
       style_coordinator_(std::make_unique<DocumentStyleCoordinator>(*model_, *resources_)),
-      scripting_(std::move(script_engine)) {}
+      scripting_(std::make_unique<DocumentScripting>(std::move(script_engine))) {}
 
 DocumentPipeline::~DocumentPipeline() = default;
 
 void DocumentPipeline::reset() {
     model_->reset();
     interaction_->reset();
-    scripting_.reset();
+    scripting_->reset();
     renderer_->reset();
 }
 
@@ -49,7 +51,7 @@ bool DocumentPipeline::parse_html(std::string_view html) {
 }
 
 bool DocumentPipeline::run_scripts() {
-    return scripting_.run_inline_scripts(*model_);
+    return scripting_->run_inline_scripts(*model_);
 }
 
 void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>& style_blocks) {
@@ -57,11 +59,13 @@ void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_click(const HitTestContext& context) {
-    return scripting_.dispatch_click(*model_, context.viewport, context.point, context.scroll_y);
+    auto result = scripting_->dispatch_click(*model_, context.viewport, context.point, context.scroll_y);
+    return {result.handled, result.mutated};
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
-    return scripting_.dispatch_load(*model_);
+    auto result = scripting_->dispatch_load(*model_);
+    return {result.handled, result.mutated};
 }
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,

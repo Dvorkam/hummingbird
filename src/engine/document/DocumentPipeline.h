@@ -8,8 +8,6 @@
 #include <string_view>
 #include <vector>
 
-#include "core/platform_api/IScriptEngine.h"
-#include "engine/document/DocumentScripting.h"
 #include "engine/forms/FormSubmission.h"
 #include "layout/geometry/Geometry.h"
 
@@ -17,6 +15,7 @@ namespace Hummingbird {
 class IResourceProvider;
 class IGraphicsContext;
 class IImageDecoder;
+class IScriptEngine;
 struct InputEvent;
 }  // namespace Hummingbird
 
@@ -28,6 +27,7 @@ class DocumentModel;
 class DocumentRenderer;
 class DocumentResources;
 class DocumentStyleCoordinator;
+class DocumentScripting;
 
 class DocumentPipeline {
 public:
@@ -50,10 +50,13 @@ public:
         std::optional<FormSubmission> submitted_form;
     };
 
-    using ScriptDispatchResult = DocumentScripting::DispatchResult;
+    struct ScriptDispatchResult {
+        bool handled = false;
+        bool mutated = false;
+    };
 
     DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider, IImageDecoder* image_decoder,
-                     ScriptEnginePtr script_engine);
+                     std::unique_ptr<IScriptEngine> script_engine);
     ~DocumentPipeline();
 
     DocumentPipeline(const DocumentPipeline&) = delete;
@@ -100,7 +103,7 @@ private:
     std::unique_ptr<DocumentInteraction> interaction_;
     std::unique_ptr<DocumentRenderer> renderer_;
     std::unique_ptr<DocumentStyleCoordinator> style_coordinator_;
-    DocumentScripting scripting_;
+    std::unique_ptr<DocumentScripting> scripting_;
 };
 
 }  // namespace Hummingbird::Engine
