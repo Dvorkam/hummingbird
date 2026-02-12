@@ -63,6 +63,7 @@
   - [ ] Isolate width-hint logic vs layout vs debug rendering.
   - [ ] Check for repeated computations and potential helper extraction.
   - [ ] Identify test coverage gaps around real-page tables.
+  - [x] Extracted fallback grid/border paint policy from `RenderTableCell::paint_self` into `TableBorderPainter`. (2026-02-12)
   - [ ] **Findings (2026-02-11)**:
     - [ ] File mixes width-hint parsing, column distribution, layout traversal, and debug/legacy border paint logic in one translation unit.
     - [ ] Fallback grid drawing and seam debug logic are intertwined with paint; this is policy and diagnostics mixed into render code.
@@ -88,6 +89,7 @@
 - [ ] `src/layout/table/RenderTable.cpp` (~804)
   - [x] Split width-hint distribution vs layout/paint vs debug logging. (2026-02-11)
   - [x] Consolidate repeated column width calculations into helpers. (2026-02-11)
+  - [x] Moved fallback border/grid drawing policy into `TableBorderPainter` helper. (2026-02-12)
   - [ ] Verify table compatibility work stays localized and testable.
 - [ ] `src/style/parser/CssParser.cpp` (~736)
   - [ ] Identify parsing hot paths vs property-specific parsing.

@@ -19,6 +19,7 @@
 #include "layout/RenderObject.h"
 #include "layout/geometry/Geometry.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
+#include "layout/table/TableBorderPainter.h"
 #include "layout/table/TableDebug.h"
 #include "style/types/ComputedStyle.h"
 
@@ -30,9 +31,6 @@ namespace Hummingbird::Layout {
 
 namespace {
 constexpr float kTableMeasureWidth = 100000.0f;
-constexpr float kTableGridStroke = 1.0f;
-constexpr Color kTableGridColor{150, 150, 150, 255};
-
 struct ParsedWidth {
     float value;
     bool is_percent;
@@ -510,64 +508,7 @@ void RenderTableCell::layout(IGraphicsContext& context, const Rect& bounds) {
 void RenderTableCell::paint_self(IGraphicsContext& context, const Point& offset) const {
     BlockBox::paint_self(context, offset);
     log_table_seam_anomaly(*this);
-
-    const LegacyBorderInfo legacy = inspect_legacy_border_info(get_dom_node());
-    const auto* style = get_computed_style();
-
-    if (!legacy.allows_fallback_grid) {
-        log_table_grid_decision(*this, style, legacy, legacy.fallback_reason);
-        return;
-    }
-
-    const bool seam_debug = should_log_table_seam(*this);
-    const bool seam_verbose = seam_debug && table_seam_verbose_enabled();
-    const auto* element = dynamic_cast<const DOM::Element*>(get_dom_node());
-    std::string class_name;
-    std::string table_class = table_class_for_cell(*this);
-    if (element) {
-        if (auto cls = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::Class)) {
-            class_name.assign(*cls);
-        }
-    }
-    if (style && style->border_style != Css::ComputedStyle::BorderStyle::None) {
-        const auto& bw = style->border_width;
-        if (bw.top > 0.0f || bw.right > 0.0f || bw.bottom > 0.0f || bw.left > 0.0f) {
-            log_table_grid_decision(*this, style, legacy, "skip_css_border");
-            if (seam_verbose) {
-                HB_LOG_WARN("[table-debug] skip fallback grid due css border table_class='"
-                            << table_class << "' class='" << class_name << "' rect=(" << m_rect.x << "," << m_rect.y
-                            << "," << m_rect.width << "," << m_rect.height << ") border=(" << bw.top << "," << bw.right
-                            << "," << bw.bottom << "," << bw.left << ")");
-            }
-            return;
-        }
-    }
-
-    Rect abs{offset.x + m_rect.x, offset.y + m_rect.y, m_rect.width, m_rect.height};
-    if (abs.width <= 0.0f || abs.height <= 0.0f) {
-        return;
-    }
-
-    // Snap all edges with the same rule to keep adjacent cell seams on one pixel.
-    float left = std::floor(abs.x + 0.001f);
-    float top = std::floor(abs.y + 0.001f);
-    float right = std::floor(abs.x + abs.width + 0.001f);
-    float bottom = std::floor(abs.y + abs.height + 0.001f);
-    float snapped_width = std::max(kTableGridStroke, right - left);
-    float snapped_height = std::max(kTableGridStroke, bottom - top);
-    log_table_grid_decision(*this, style, legacy, "draw_fallback_grid");
-
-    if (seam_verbose) {
-        HB_LOG_WARN("[table-debug] draw fallback grid table_class='"
-                    << table_class << "' class='" << class_name << "' abs=(" << abs.x << "," << abs.y << ","
-                    << abs.width << "," << abs.height << ") snapped=(" << left << "," << top << "," << right << ","
-                    << bottom << ")");
-    }
-
-    context.fill_rect({left, top, snapped_width, kTableGridStroke}, kTableGridColor);
-    context.fill_rect({left, bottom, snapped_width, kTableGridStroke}, kTableGridColor);
-    context.fill_rect({left, top, kTableGridStroke, snapped_height}, kTableGridColor);
-    context.fill_rect({right, top, kTableGridStroke, snapped_height}, kTableGridColor);
+    paint_table_cell_fallback_border(*this, context, offset);
 }
 
 }  // namespace Hummingbird::Layout
