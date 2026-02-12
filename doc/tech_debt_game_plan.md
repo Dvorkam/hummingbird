@@ -113,6 +113,7 @@
   - [x] Split `BrowserApp::tick` tab/chrome sync into focused helpers (`tick_active_tab`, navigation commit emission, security-state sync). (2026-02-11)
   - [x] Removed direct `ExtensionHost` dependency from `BrowserApp.h` (forward declaration + `std::unique_ptr`, cpp-local include). (2026-02-12)
   - [x] Centralized extension tab-activation notification in `on_active_tab_changed` so mouse tab-strip activation and keyboard switching follow one path. (2026-02-12)
+  - [x] Split `handle_mouse_down_event` into focused chrome/document helpers (`handle_tab_strip_mouse_down`, `handle_url_bar_mouse_down`, `handle_document_mouse_down`). (2026-02-12)
 - [ ] `src/layout/flow/TextBox.cpp` (~608)
   - [ ] Separate text shaping/metrics vs line breaking logic.
   - [ ] Isolate text-overflow/ellipsis handling.

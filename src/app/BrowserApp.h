@@ -61,6 +61,9 @@ private:
     void sync_active_tab_security_state();
     void navigate_active_tab(std::string_view url);
     void navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission);
+    bool handle_tab_strip_mouse_down(const InputEvent& event);
+    bool handle_url_bar_mouse_down(const InputEvent& event);
+    void handle_document_mouse_down(const InputEvent& event);
     void notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url);
     bool insert_extension_css(Hummingbird::Engine::TabId tab_id, std::string_view css_text);
     bool new_tab();

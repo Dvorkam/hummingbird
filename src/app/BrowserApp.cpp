@@ -283,57 +283,75 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
 }
 
 void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
-    if (graphics_ && window_) {
-        const int tabs_top_y = browser_chrome_.url_bar().height();
-        const int tabs_bottom_y = browser_chrome_.url_bar().height() + browser_chrome_.tab_strip_height();
-        if (event.mouse_button.y >= tabs_top_y && event.mouse_button.y < tabs_bottom_y) {
-            const auto [win_w, win_h] = window_->get_size();
-            (void)win_h;
-            auto result = browser_chrome_.handle_tab_strip_mouse_down(event.mouse_button.x, event.mouse_button.y, win_w,
-                                                                      tabs_top_y, tab_controller_.manager());
-            if (result.handled) {
-                if (result.activated_tab && tab_controller_.set_active(*result.activated_tab)) {
-                    on_active_tab_changed();
-                }
-                render_coordinator_.set_chrome_dirty();
-                render_coordinator_.set_document_dirty();
-                render_coordinator_.set_controls_dirty();
-                return;
-            }
-        }
+    if (handle_tab_strip_mouse_down(event)) {
+        return;
+    }
+    if (handle_url_bar_mouse_down(event)) {
+        return;
+    }
+    handle_document_mouse_down(event);
+}
+
+bool BrowserApp::handle_tab_strip_mouse_down(const InputEvent& event) {
+    if (!graphics_ || !window_) {
+        return false;
+    }
+    const int tabs_top_y = browser_chrome_.url_bar().height();
+    const int tabs_bottom_y = browser_chrome_.url_bar().height() + browser_chrome_.tab_strip_height();
+    if (event.mouse_button.y < tabs_top_y || event.mouse_button.y >= tabs_bottom_y) {
+        return false;
+    }
+    const auto [win_w, win_h] = window_->get_size();
+    (void)win_h;
+    auto result = browser_chrome_.handle_tab_strip_mouse_down(event.mouse_button.x, event.mouse_button.y, win_w,
+                                                              tabs_top_y, tab_controller_.manager());
+    if (!result.handled) {
+        return false;
+    }
+    if (result.activated_tab && tab_controller_.set_active(*result.activated_tab)) {
+        on_active_tab_changed();
+    }
+    render_coordinator_.set_chrome_dirty();
+    render_coordinator_.set_document_dirty();
+    render_coordinator_.set_controls_dirty();
+    return true;
+}
+
+bool BrowserApp::handle_url_bar_mouse_down(const InputEvent& event) {
+    auto url_result = browser_chrome_.url_bar().handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
+    if (!url_result.handled) {
+        return false;
     }
 
-    auto url_result =
-        browser_chrome_.url_bar().handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
-    if (url_result.handled) {
-        bool interaction_state_changed = false;
-        interaction_state_changed |= active_tab().clear_control_interaction();
-        interaction_state_changed |= active_tab().clear_input_focus();
-        if (interaction_state_changed && graphics_ && window_) {
-            auto [w, h] = window_->get_size();
-            const auto viewport = compute_content_viewport(w, h);
-            if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
-                render_coordinator_.set_document_dirty();
-                render_coordinator_.set_controls_dirty();
-            }
-        } else if (interaction_state_changed) {
+    bool interaction_state_changed = false;
+    interaction_state_changed |= active_tab().clear_control_interaction();
+    interaction_state_changed |= active_tab().clear_input_focus();
+    if (interaction_state_changed && graphics_ && window_) {
+        auto [w, h] = window_->get_size();
+        const auto viewport = compute_content_viewport(w, h);
+        if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
             render_coordinator_.set_document_dirty();
             render_coordinator_.set_controls_dirty();
         }
-        if (url_result.security_override_requested) {
-            if (active_tab().allow_insecure_for_current_host()) {
-                navigate_active_tab(active_tab().requested_url());
-                render_coordinator_.set_document_dirty();
-                render_coordinator_.set_chrome_dirty();
-            }
-        }
-        tab_text_input_active_ = false;
-        if (url_result.needs_repaint) {
+    } else if (interaction_state_changed) {
+        render_coordinator_.set_document_dirty();
+        render_coordinator_.set_controls_dirty();
+    }
+    if (url_result.security_override_requested) {
+        if (active_tab().allow_insecure_for_current_host()) {
+            navigate_active_tab(active_tab().requested_url());
+            render_coordinator_.set_document_dirty();
             render_coordinator_.set_chrome_dirty();
         }
-        return;
     }
+    tab_text_input_active_ = false;
+    if (url_result.needs_repaint) {
+        render_coordinator_.set_chrome_dirty();
+    }
+    return true;
+}
 
+void BrowserApp::handle_document_mouse_down(const InputEvent& event) {
     browser_chrome_.url_bar().set_active(false, window_.get(), nullptr);
     render_coordinator_.set_chrome_dirty();
 
