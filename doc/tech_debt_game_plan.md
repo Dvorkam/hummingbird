@@ -65,6 +65,7 @@
   - [ ] Identify test coverage gaps around real-page tables.
   - [x] Extracted fallback grid/border paint policy from `RenderTableCell::paint_self` into `TableBorderPainter`. (2026-02-12)
   - [x] Extracted column width planning (row scan, hints, normalization, target-width expansion) into `TableColumnLayout`. (2026-02-12)
+  - [x] Added focused `TableColumnLayout` unit tests for overcommitted percent and absolute-width hints to keep policy changes locally verifiable. (2026-02-12)
   - [ ] **Findings (2026-02-11)**:
     - [ ] File mixes width-hint parsing, column distribution, layout traversal, and debug/legacy border paint logic in one translation unit.
     - [ ] Fallback grid drawing and seam debug logic are intertwined with paint; this is policy and diagnostics mixed into render code.
@@ -93,7 +94,7 @@
   - [x] Consolidate repeated column width calculations into helpers. (2026-02-11)
   - [x] Moved fallback border/grid drawing policy into `TableBorderPainter` helper. (2026-02-12)
   - [x] Moved column-width planning into `TableColumnLayout` helper and reduced `RenderTable::layout` orchestration to one call. (2026-02-12)
-  - [ ] Verify table compatibility work stays localized and testable.
+  - [x] Verified compatibility/local testability with dedicated `TableColumnLayout.test.cpp` coverage for key width-hint behaviors. (2026-02-12)
 - [ ] `src/style/parser/CssParser.cpp` (~736)
   - [ ] Identify parsing hot paths vs property-specific parsing.
   - [ ] Extract property-specific parsing helpers (e.g., font shorthand, background, borders) only if it reduces branching in `parse_value`.
