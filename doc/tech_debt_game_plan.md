@@ -10,6 +10,7 @@
   - [x] Extracted `DocumentInteraction` to hold input + navigation responsibilities. (2026-02-11)
   - [x] Extracted `DocumentRenderer` for layout/paint + content height tracking. (2026-02-11)
   - [x] Extracted `DocumentStyleCoordinator` for CSS/resource orchestration. (2026-02-11)
+  - [x] Extracted script execution/dispatch flow into `DocumentScripting`. (2026-02-11)
   - [x] Decoupled `DocumentPipeline.h` from `DocumentScriptController` include via private pointer + local dispatch result type. (2026-02-11)
   - [ ] **Findings (2026-02-11)**:
     - [ ] Pipeline currently owns model, resources, navigation, painter, script controller, and input controller.

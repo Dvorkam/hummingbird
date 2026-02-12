@@ -13,6 +13,7 @@
 #include "engine/document/DocumentModel.h"
 #include "engine/document/DocumentRenderer.h"
 #include "engine/document/DocumentResources.h"
+#include "engine/document/DocumentScripting.h"
 #include "engine/document/DocumentStyleCoordinator.h"
 #include "engine/forms/FormSubmission.h"
 #include "layout/geometry/Geometry.h"
@@ -27,7 +28,6 @@ struct InputEvent;
 namespace Hummingbird::Engine {
 
 class ResourceStore;
-class DocumentScriptController;
 
 class DocumentPipeline {
 public:
@@ -40,10 +40,7 @@ public:
 
     using PaintContext = DocumentRenderer::PaintContext;
     using InputEditResult = DocumentInteraction::InputEditResult;
-    struct ScriptDispatchResult {
-        bool handled = false;
-        bool mutated = false;
-    };
+    using ScriptDispatchResult = DocumentScripting::DispatchResult;
 
     DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider, IImageDecoder* image_decoder,
                      ScriptEnginePtr script_engine);
@@ -93,7 +90,7 @@ private:
     DocumentInteraction interaction_{model_};
     DocumentRenderer renderer_{model_, interaction_};
     DocumentStyleCoordinator style_coordinator_{model_, resources_};
-    std::unique_ptr<DocumentScriptController> script_controller_;
+    DocumentScripting scripting_;
 };
 
 }  // namespace Hummingbird::Engine

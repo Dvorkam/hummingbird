@@ -161,6 +161,7 @@ add_library(Engine STATIC
     src/engine/document/DocumentInteraction.cpp
     src/engine/document/DocumentRenderer.cpp
     src/engine/document/DocumentStyleCoordinator.cpp
+    src/engine/document/DocumentScripting.cpp
     src/engine/document/DocumentModel.cpp
     src/engine/document/DocumentLinkDiscovery.cpp
     src/engine/document/FormSubmissionBuilder.cpp

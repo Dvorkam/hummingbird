@@ -7,7 +7,6 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
-#include "engine/script/DocumentScriptController.h"
 
 namespace Hummingbird::Engine {
 
@@ -21,14 +20,14 @@ bool relayout_debug_enabled() {
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
                                    IImageDecoder* image_decoder, ScriptEnginePtr script_engine)
     : resources_(resource_store, resource_provider, image_decoder),
-      script_controller_(std::make_unique<DocumentScriptController>(std::move(script_engine))) {}
+      scripting_(std::move(script_engine)) {}
 
 DocumentPipeline::~DocumentPipeline() = default;
 
 void DocumentPipeline::reset() {
     model_.reset();
     interaction_.reset();
-    script_controller_->clear();
+    scripting_.reset();
     renderer_.reset();
 }
 
@@ -41,7 +40,7 @@ bool DocumentPipeline::parse_html(std::string_view html) {
 }
 
 bool DocumentPipeline::run_scripts() {
-    return script_controller_->run_inline_scripts(model_.script_blocks(), model_.dom_root(), model_.dom_arena());
+    return scripting_.run_inline_scripts(model_);
 }
 
 void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>& style_blocks) {
@@ -49,14 +48,11 @@ void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_click(const HitTestContext& context) {
-    auto result = script_controller_->dispatch_click(model_.dom_root(), model_.dom_arena(), model_.render_tree(),
-                                                     context.viewport, context.point, context.scroll_y);
-    return {result.handled, result.mutated};
+    return scripting_.dispatch_click(model_, context.viewport, context.point, context.scroll_y);
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
-    auto result = script_controller_->dispatch_load(model_.dom_root(), model_.dom_arena());
-    return {result.handled, result.mutated};
+    return scripting_.dispatch_load(model_);
 }
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
