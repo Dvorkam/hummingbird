@@ -69,7 +69,10 @@ private:
     bool handle_tab_strip_mouse_down(const InputEvent& event);
     bool handle_url_bar_mouse_down(const InputEvent& event);
     void handle_document_mouse_down(const InputEvent& event);
-    bool handle_document_hit_navigation(const Hummingbird::Layout::Point& point, const Hummingbird::Layout::Rect& viewport);
+    bool handle_document_hit_navigation(const Hummingbird::Layout::Point& point,
+                                        const Hummingbird::Layout::Rect& viewport);
+    void navigate_and_reflect_url(std::string_view url);
+    void navigate_and_reflect_submission(const Hummingbird::Engine::FormSubmission& submission);
     void mark_document_and_controls_dirty();
     void mark_all_layers_dirty();
     void notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url);

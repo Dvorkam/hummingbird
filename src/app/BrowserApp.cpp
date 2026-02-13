@@ -275,9 +275,7 @@ bool BrowserApp::handle_url_bar_key_down(const InputEvent& event) {
         return false;
     }
     if (result.submitted_url) {
-        navigate_active_tab(*result.submitted_url);
-        render_coordinator_->set_document_dirty();
-        render_coordinator_->set_chrome_dirty();
+        navigate_and_reflect_url(*result.submitted_url);
     }
     if (result.needs_repaint) {
         render_coordinator_->set_chrome_dirty();
@@ -291,10 +289,7 @@ bool BrowserApp::handle_document_key_down(const InputEvent& event) {
         return false;
     }
     if (tab_result.submitted_form) {
-        browser_chrome_.url_bar().set_text(tab_result.submitted_form->url);
-        navigate_active_tab(*tab_result.submitted_form);
-        render_coordinator_->set_document_dirty();
-        render_coordinator_->set_chrome_dirty();
+        navigate_and_reflect_submission(*tab_result.submitted_form);
     }
     if (tab_result.needs_repaint) {
         render_coordinator_->set_controls_dirty();
@@ -356,9 +351,7 @@ bool BrowserApp::handle_url_bar_mouse_down(const InputEvent& event) {
     }
     if (url_result.security_override_requested) {
         if (active_tab().allow_insecure_for_current_host()) {
-            navigate_active_tab(active_tab().requested_url());
-            render_coordinator_->set_document_dirty();
-            render_coordinator_->set_chrome_dirty();
+            navigate_and_reflect_url(active_tab().requested_url());
         }
     }
     tab_text_input_active_ = false;
@@ -422,9 +415,7 @@ bool BrowserApp::handle_document_hit_navigation(const Hummingbird::Layout::Point
                      << (submit->method == Hummingbird::Engine::FormSubmitMethod::Post ? "POST" : "GET")
                      << " url=" << submit->url);
         browser_chrome_.url_bar().set_text(submit->url);
-        navigate_active_tab(*submit);
-        render_coordinator_->set_document_dirty();
-        render_coordinator_->set_chrome_dirty();
+        navigate_and_reflect_submission(*submit);
         return true;
     }
 
@@ -433,9 +424,7 @@ bool BrowserApp::handle_document_hit_navigation(const Hummingbird::Layout::Point
         return false;
     }
     browser_chrome_.url_bar().set_text(*link);
-    navigate_active_tab(*link);
-    render_coordinator_->set_document_dirty();
-    render_coordinator_->set_chrome_dirty();
+    navigate_and_reflect_url(*link);
     return true;
 }
 
@@ -518,6 +507,20 @@ void BrowserApp::navigate_active_tab(std::string_view url) {
 
 void BrowserApp::navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission) {
     active_tab().navigate(submission);
+}
+
+void BrowserApp::navigate_and_reflect_url(std::string_view url) {
+    browser_chrome_.url_bar().set_text(url);
+    navigate_active_tab(url);
+    render_coordinator_->set_document_dirty();
+    render_coordinator_->set_chrome_dirty();
+}
+
+void BrowserApp::navigate_and_reflect_submission(const Hummingbird::Engine::FormSubmission& submission) {
+    browser_chrome_.url_bar().set_text(submission.url);
+    navigate_active_tab(submission);
+    render_coordinator_->set_document_dirty();
+    render_coordinator_->set_chrome_dirty();
 }
 
 void BrowserApp::notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url) {
