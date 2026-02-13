@@ -52,12 +52,13 @@
     - [x] State inventory (2026-02-12): `Tab` owns only tab-local orchestration state now (`TabNavigationState`, `TabLayoutState`, `TabAnimationTicker`, extension CSS queues, dirty flag) while document internals remain in `DocumentPipeline`.
     - [x] Invalidation review (2026-02-12): dirty signaling is edge-triggered and resource update paths are phase-separated (`consume_pending_resources`, stylesheet/image handlers), reducing duplicate invalidation churn from mixed update loops.
 - [ ] **App::BrowserApp**: wide include fan-out in `app_includes_src_only.puml`.
-  - [ ] Identify remaining responsibilities that are not UI orchestration.
+  - [x] Identify remaining responsibilities that are not UI orchestration. (2026-02-12)
   - [ ] Check where `BrowserChrome` / `TabController` could absorb logic.
   - [x] Evaluate include fan-out cleanup (forward declares, move heavy includes to `.cpp`). (2026-02-12)
   - [ ] Suggest small refactor steps to narrow public API surface.
   - [ ] **Findings (2026-02-11)**:
     - [ ] `BrowserApp` currently owns tab lifecycle, extension bootstrapping, UI chrome input routing, render loop invalidation, and security icon loading.
+    - [x] Non-UI responsibilities still present: extension host orchestration, tab lifecycle policy (new/close/activate), and navigation commit emission. These are candidates for `TabController` or a dedicated `AppNavigationCoordinator`. (2026-02-12)
     - [ ] `tick()` mixes event pump, tab ticks, extension notifications, chrome sync, and text input mode; this is multiple subsystems in a single loop.
     - [ ] Input handling (`handle_*`) contains both UI chrome logic and document interaction routing, which could be split into `ChromeEventRouter` and `DocumentEventRouter`.
     - [ ] Render loop owns cache invalidation (`document_cache_valid_`, dirty flags) and also paints chrome; these could move to a `RenderCoordinator`.
