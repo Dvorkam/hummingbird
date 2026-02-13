@@ -53,7 +53,7 @@
     - [x] Invalidation review (2026-02-12): dirty signaling is edge-triggered and resource update paths are phase-separated (`consume_pending_resources`, stylesheet/image handlers), reducing duplicate invalidation churn from mixed update loops.
 - [ ] **App::BrowserApp**: wide include fan-out in `app_includes_src_only.puml`.
   - [x] Identify remaining responsibilities that are not UI orchestration. (2026-02-12)
-  - [ ] Check where `BrowserChrome` / `TabController` could absorb logic.
+  - [x] Check where `BrowserChrome` / `TabController` could absorb logic. (2026-02-12)
   - [x] Evaluate include fan-out cleanup (forward declares, move heavy includes to `.cpp`). (2026-02-12)
   - [ ] Suggest small refactor steps to narrow public API surface.
   - [ ] **Findings (2026-02-11)**:
@@ -64,6 +64,8 @@
     - [ ] Render loop owns cache invalidation (`document_cache_valid_`, dirty flags) and also paints chrome; these could move to a `RenderCoordinator`.
     - [ ] Extension load/host setup (INI+env merge, background scripts, handlers) is non-UI bootstrapping; candidate extraction to `ExtensionBootstrapper`.
     - [ ] Candidate split: move security icon loading + resource provider access into `BrowserChrome` (or a `UiAssets` helper) to reduce platform API fan-out in `BrowserApp.h`.
+    - [x] `TabController` could absorb tab lifecycle actions (`new_tab`, `close_active_tab`, `activate_next_tab`, `activate_prev_tab`, and active-tab change side effects), returning a small result object for UI updates. (2026-02-12)
+    - [x] `BrowserChrome` could own URL bar focus/blur flows and security-state sync, exposing higher-level methods such as `focus_url_bar(window)` / `sync_security_state(state)` to reduce app-level coupling. (2026-02-12)
     - [x] Progress check (2026-02-12): `BrowserApp.h` no longer includes `BrowserEventRouter.h` / `RenderCoordinator.h`; both moved behind forward declarations + `std::unique_ptr` with cpp-local includes, reducing transitive fan-out.
     - [x] Progress check (2026-02-12): dirty-flag triplets are centralized via `mark_document_and_controls_dirty` / `mark_all_layers_dirty`, reducing repeated invalidation policy code across key/mouse handlers.
     - [x] Progress check (2026-02-12): document click flow now isolates hit-driven navigation in `handle_document_hit_navigation`, separating interaction-state updates from navigation side effects in `handle_document_mouse_down`.
