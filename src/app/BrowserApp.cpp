@@ -215,7 +215,6 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
     if (handle_document_key_down(event)) {
         return;
     }
-
 }
 
 bool BrowserApp::handle_global_key_shortcut(const InputEvent& event) {
