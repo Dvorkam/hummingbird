@@ -65,6 +65,7 @@
     - [ ] Candidate split: move security icon loading + resource provider access into `BrowserChrome` (or a `UiAssets` helper) to reduce platform API fan-out in `BrowserApp.h`.
     - [x] Progress check (2026-02-12): `BrowserApp.h` no longer includes `BrowserEventRouter.h` / `RenderCoordinator.h`; both moved behind forward declarations + `std::unique_ptr` with cpp-local includes, reducing transitive fan-out.
     - [x] Progress check (2026-02-12): dirty-flag triplets are centralized via `mark_document_and_controls_dirty` / `mark_all_layers_dirty`, reducing repeated invalidation policy code across key/mouse handlers.
+    - [x] Progress check (2026-02-12): document click flow now isolates hit-driven navigation in `handle_document_hit_navigation`, separating interaction-state updates from navigation side effects in `handle_document_mouse_down`.
 - [ ] **Layout::RenderTable**: largest layout file; policy + layout + paint behavior coupled.
   - [ ] Isolate width-hint logic vs layout vs debug rendering.
   - [ ] Check for repeated computations and potential helper extraction.

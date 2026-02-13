@@ -411,6 +411,11 @@ void BrowserApp::handle_document_mouse_down(const InputEvent& event) {
     if (now_focused) {
         return;
     }
+    (void)handle_document_hit_navigation(point, viewport);
+}
+
+bool BrowserApp::handle_document_hit_navigation(const Hummingbird::Layout::Point& point,
+                                                const Hummingbird::Layout::Rect& viewport) {
     auto submit = active_tab().submit_form_at(point, viewport);
     if (submit) {
         HB_LOG_DEBUG("[input] submit hit method="
@@ -420,15 +425,18 @@ void BrowserApp::handle_document_mouse_down(const InputEvent& event) {
         navigate_active_tab(*submit);
         render_coordinator_->set_document_dirty();
         render_coordinator_->set_chrome_dirty();
-        return;
+        return true;
     }
+
     auto link = active_tab().hit_test_link(point, viewport);
-    if (link) {
-        browser_chrome_.url_bar().set_text(*link);
-        navigate_active_tab(*link);
-        render_coordinator_->set_document_dirty();
-        render_coordinator_->set_chrome_dirty();
+    if (!link) {
+        return false;
     }
+    browser_chrome_.url_bar().set_text(*link);
+    navigate_active_tab(*link);
+    render_coordinator_->set_document_dirty();
+    render_coordinator_->set_chrome_dirty();
+    return true;
 }
 
 void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
