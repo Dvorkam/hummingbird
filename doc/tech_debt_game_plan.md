@@ -115,7 +115,7 @@
     - [ ] The file contains utility functions (`join_value_list`, `build_var_expression`) that could move to a `CssValueUtils` helper if reused elsewhere.
     - [ ] Architectural value from splitting is moderate; a better goal may be to isolate shorthand parsing (`font`, `background`, `border`) into dedicated helpers to reduce branching and improve testability.
 - [ ] `src/app/BrowserApp.cpp` (~638)
-  - [ ] Separate window/input event routing from tab lifecycle orchestration.
+  - [x] Separate window/input event routing from tab lifecycle orchestration. (2026-02-12)
   - [ ] Move extension bootstrapping into a dedicated helper/service.
   - [ ] Reduce include fan-out using forward declarations in `BrowserApp.h`.
   - [ ] **Findings (2026-02-11)**:
@@ -134,6 +134,7 @@
   - [x] Extracted constructor extension setup flow into `initialize_extensions` to isolate non-UI bootstrap logic. (2026-02-12)
   - [x] Split tab-management key shortcuts from `handle_key_down_event` into `handle_tab_shortcut` to reduce mixed routing logic in one handler. (2026-02-12)
   - [x] Further segmented key routing by extracting `handle_url_bar_key_down` and `handle_document_key_down`. (2026-02-12)
+  - [x] Moved remaining non-document key routing (`Ctrl+Shift+L`, `Ctrl+L`, `F1`) into `handle_global_key_shortcut` to keep `handle_key_down_event` orchestration-only. (2026-02-12)
 - [ ] `src/layout/flow/TextBox.cpp` (~608)
   - [ ] Separate text shaping/metrics vs line breaking logic.
   - [ ] Isolate text-overflow/ellipsis handling.

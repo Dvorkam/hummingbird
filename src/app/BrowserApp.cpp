@@ -204,19 +204,7 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         return;
     }
 
-    if (event.key.key == Key::L && event.mods.ctrl && event.mods.shift) {
-        HB_LOG_INFO("[ui] Forcing document repaint");
-        render_coordinator_->set_document_dirty();
-        return;
-    }
-
-    if (event.key.key == Key::L && event.mods.ctrl) {
-        browser_chrome_.url_bar().set_active(true, window_.get(), "[ui] URL bar focused");
-        browser_chrome_.url_bar().move_caret_to_end();
-        if (active_tab().clear_input_focus()) {
-            render_coordinator_->set_controls_dirty();
-        }
-        render_coordinator_->set_chrome_dirty();
+    if (handle_global_key_shortcut(event)) {
         return;
     }
 
@@ -228,12 +216,32 @@ void BrowserApp::handle_key_down_event(const InputEvent& event) {
         return;
     }
 
+}
+
+bool BrowserApp::handle_global_key_shortcut(const InputEvent& event) {
+    if (event.key.key == Key::L && event.mods.ctrl && event.mods.shift) {
+        HB_LOG_INFO("[ui] Forcing document repaint");
+        render_coordinator_->set_document_dirty();
+        return true;
+    }
+
+    if (event.key.key == Key::L && event.mods.ctrl) {
+        browser_chrome_.url_bar().set_active(true, window_.get(), "[ui] URL bar focused");
+        browser_chrome_.url_bar().move_caret_to_end();
+        if (active_tab().clear_input_focus()) {
+            render_coordinator_->set_controls_dirty();
+        }
+        render_coordinator_->set_chrome_dirty();
+        return true;
+    }
+
     if (event.key.key == Key::F1) {
         debug_outlines_ = !debug_outlines_;
         HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines_ ? "ON" : "OFF"));
         render_coordinator_->set_document_dirty();
-        return;
+        return true;
     }
+    return false;
 }
 
 bool BrowserApp::handle_tab_shortcut(const InputEvent& event) {
