@@ -240,36 +240,28 @@ bool BrowserApp::handle_tab_shortcut(const InputEvent& event) {
     if (!event.key.repeat) {
         if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::T) {
             if (new_tab()) {
-                render_coordinator_->set_chrome_dirty();
-                render_coordinator_->set_document_dirty();
-                render_coordinator_->set_controls_dirty();
+                mark_all_layers_dirty();
             }
             return true;
         }
 
         if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::W) {
             if (close_active_tab()) {
-                render_coordinator_->set_chrome_dirty();
-                render_coordinator_->set_document_dirty();
-                render_coordinator_->set_controls_dirty();
+                mark_all_layers_dirty();
             }
             return true;
         }
 
         if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Right) {
             if (activate_next_tab()) {
-                render_coordinator_->set_chrome_dirty();
-                render_coordinator_->set_document_dirty();
-                render_coordinator_->set_controls_dirty();
+                mark_all_layers_dirty();
             }
             return true;
         }
 
         if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Left) {
             if (activate_prev_tab()) {
-                render_coordinator_->set_chrome_dirty();
-                render_coordinator_->set_document_dirty();
-                render_coordinator_->set_controls_dirty();
+                mark_all_layers_dirty();
             }
             return true;
         }
@@ -339,9 +331,7 @@ bool BrowserApp::handle_tab_strip_mouse_down(const InputEvent& event) {
     if (result.activated_tab && tab_controller_.set_active(*result.activated_tab)) {
         on_active_tab_changed();
     }
-    render_coordinator_->set_chrome_dirty();
-    render_coordinator_->set_document_dirty();
-    render_coordinator_->set_controls_dirty();
+    mark_all_layers_dirty();
     return true;
 }
 
@@ -359,12 +349,10 @@ bool BrowserApp::handle_url_bar_mouse_down(const InputEvent& event) {
         auto [w, h] = window_->get_size();
         const auto viewport = compute_content_viewport(w, h);
         if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
-            render_coordinator_->set_document_dirty();
-            render_coordinator_->set_controls_dirty();
+            mark_document_and_controls_dirty();
         }
     } else if (interaction_state_changed) {
-        render_coordinator_->set_document_dirty();
-        render_coordinator_->set_controls_dirty();
+        mark_document_and_controls_dirty();
     }
     if (url_result.security_override_requested) {
         if (active_tab().allow_insecure_for_current_host()) {
@@ -417,8 +405,7 @@ void BrowserApp::handle_document_mouse_down(const InputEvent& event) {
     }
     if (interaction_changed || was_focused || now_focused) {
         if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
-            render_coordinator_->set_document_dirty();
-            render_coordinator_->set_controls_dirty();
+            mark_document_and_controls_dirty();
         }
     }
     if (now_focused) {
@@ -537,9 +524,18 @@ bool BrowserApp::insert_extension_css(Hummingbird::Engine::TabId tab_id, std::st
     if (!tab->insert_extension_css(css_text)) {
         return false;
     }
+    mark_document_and_controls_dirty();
+    return true;
+}
+
+void BrowserApp::mark_document_and_controls_dirty() {
     render_coordinator_->set_document_dirty();
     render_coordinator_->set_controls_dirty();
-    return true;
+}
+
+void BrowserApp::mark_all_layers_dirty() {
+    render_coordinator_->set_chrome_dirty();
+    mark_document_and_controls_dirty();
 }
 
 bool BrowserApp::new_tab() {

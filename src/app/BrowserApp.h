@@ -69,6 +69,8 @@ private:
     bool handle_tab_strip_mouse_down(const InputEvent& event);
     bool handle_url_bar_mouse_down(const InputEvent& event);
     void handle_document_mouse_down(const InputEvent& event);
+    void mark_document_and_controls_dirty();
+    void mark_all_layers_dirty();
     void notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url);
     bool insert_extension_css(Hummingbird::Engine::TabId tab_id, std::string_view css_text);
     bool new_tab();
