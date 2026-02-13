@@ -4,8 +4,6 @@
 #include <optional>
 
 #include "app/BrowserChrome.h"
-#include "app/BrowserEventRouter.h"
-#include "app/RenderCoordinator.h"
 #include "app/TabController.h"
 #include "layout/geometry/Geometry.h"
 
@@ -22,6 +20,9 @@ class Tab;
 }  // namespace Hummingbird::Engine
 
 namespace Hummingbird::App {
+
+class BrowserEventRouter;
+class RenderCoordinator;
 
 class BrowserApp {
 public:
@@ -84,13 +85,13 @@ private:
     std::unique_ptr<IGraphicsContext> graphics_;
     TabController tab_controller_;
     std::unique_ptr<Hummingbird::Engine::ExtensionHost> extension_host_;
-    BrowserEventRouter event_router_;
+    std::unique_ptr<BrowserEventRouter> event_router_;
 
     // UI state
     BrowserChrome browser_chrome_;
     bool debug_outlines_ = false;
     bool tab_text_input_active_ = false;
-    RenderCoordinator render_coordinator_;
+    std::unique_ptr<RenderCoordinator> render_coordinator_;
 
     // Event draining controls
     int max_events_per_tick_ = 200;

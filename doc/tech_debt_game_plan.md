@@ -54,7 +54,7 @@
 - [ ] **App::BrowserApp**: wide include fan-out in `app_includes_src_only.puml`.
   - [ ] Identify remaining responsibilities that are not UI orchestration.
   - [ ] Check where `BrowserChrome` / `TabController` could absorb logic.
-  - [ ] Evaluate include fan-out cleanup (forward declares, move heavy includes to `.cpp`).
+  - [x] Evaluate include fan-out cleanup (forward declares, move heavy includes to `.cpp`). (2026-02-12)
   - [ ] Suggest small refactor steps to narrow public API surface.
   - [ ] **Findings (2026-02-11)**:
     - [ ] `BrowserApp` currently owns tab lifecycle, extension bootstrapping, UI chrome input routing, render loop invalidation, and security icon loading.
@@ -63,6 +63,7 @@
     - [ ] Render loop owns cache invalidation (`document_cache_valid_`, dirty flags) and also paints chrome; these could move to a `RenderCoordinator`.
     - [ ] Extension load/host setup (INI+env merge, background scripts, handlers) is non-UI bootstrapping; candidate extraction to `ExtensionBootstrapper`.
     - [ ] Candidate split: move security icon loading + resource provider access into `BrowserChrome` (or a `UiAssets` helper) to reduce platform API fan-out in `BrowserApp.h`.
+    - [x] Progress check (2026-02-12): `BrowserApp.h` no longer includes `BrowserEventRouter.h` / `RenderCoordinator.h`; both moved behind forward declarations + `std::unique_ptr` with cpp-local includes, reducing transitive fan-out.
 - [ ] **Layout::RenderTable**: largest layout file; policy + layout + paint behavior coupled.
   - [ ] Isolate width-hint logic vs layout vs debug rendering.
   - [ ] Check for repeated computations and potential helper extraction.
