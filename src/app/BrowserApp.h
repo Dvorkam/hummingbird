@@ -22,6 +22,8 @@ class Tab;
 namespace Hummingbird::App {
 
 class BrowserEventRouter;
+class ChromeEventRouter;
+class DocumentEventRouter;
 class RenderCoordinator;
 
 class BrowserApp {
@@ -46,6 +48,8 @@ private:
 
     // --- event handling (routed by BrowserEventRouter) ---
     friend class BrowserEventRouter;
+    friend class ChromeEventRouter;
+    friend class DocumentEventRouter;
     friend class RenderCoordinator;
     void handle_quit_event();
     void handle_text_input_event(const InputEvent& e);
@@ -63,15 +67,6 @@ private:
     void navigate_active_tab(std::string_view url);
     void navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission);
     void initialize_extensions(Hummingbird::Engine::TabId first_tab_id);
-    bool handle_tab_shortcut(const InputEvent& event);
-    bool handle_global_key_shortcut(const InputEvent& event);
-    bool handle_url_bar_key_down(const InputEvent& event);
-    bool handle_document_key_down(const InputEvent& event);
-    bool handle_tab_strip_mouse_down(const InputEvent& event);
-    bool handle_url_bar_mouse_down(const InputEvent& event);
-    void handle_document_mouse_down(const InputEvent& event);
-    bool handle_document_hit_navigation(const Hummingbird::Layout::Point& point,
-                                        const Hummingbird::Layout::Rect& viewport);
     void navigate_and_reflect_url(std::string_view url);
     void navigate_and_reflect_submission(const Hummingbird::Engine::FormSubmission& submission);
     void mark_document_and_controls_dirty();
@@ -93,6 +88,8 @@ private:
     TabController tab_controller_;
     std::unique_ptr<Hummingbird::Engine::ExtensionHost> extension_host_;
     std::unique_ptr<BrowserEventRouter> event_router_;
+    std::unique_ptr<ChromeEventRouter> chrome_event_router_;
+    std::unique_ptr<DocumentEventRouter> document_event_router_;
 
     // UI state
     BrowserChrome browser_chrome_;

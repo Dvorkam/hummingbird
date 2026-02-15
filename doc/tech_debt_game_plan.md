@@ -4,7 +4,7 @@
 - [x] **Engine::DocumentPipeline**: narrow the public API surface so Tab talks to smaller, purpose-built interfaces (render/layout vs interaction).
 - [x] **Engine::Tab**: extract a `NavigationLifecycle` helper to own URL normalization, commit state, and security decisions (reduce coupling with `ResourceLoader`).
 - [x] **Engine::Tab**: introduce a thin interaction facade so input/control forwarding no longer expands the Tab public surface.
-- [ ] **App::BrowserApp**: split input routing into `ChromeEventRouter` vs `DocumentEventRouter` to separate UI chrome logic from document interaction.
+- [x] **App::BrowserApp**: split input routing into `ChromeEventRouter` vs `DocumentEventRouter` to separate UI chrome logic from document interaction.
 - [ ] **App::BrowserApp**: move tab lifecycle actions (`new_tab`, `close_active_tab`, activate next/prev) and active-tab change side effects into `TabController` with a small result object for UI updates.
 - [ ] **App::BrowserApp**: move URL bar focus/blur and security-state sync into `BrowserChrome` helpers (e.g., `focus_url_bar(window)`, `sync_security_state(state)`).
 - [ ] **Layout::RenderTable**: isolate seam debug logging into a debug-only helper or compile-time gated block.

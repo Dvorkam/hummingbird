@@ -206,6 +206,10 @@ add_library(App
     src/app/BrowserChrome.h
     src/app/BrowserEventRouter.cpp
     src/app/BrowserEventRouter.h
+    src/app/ChromeEventRouter.cpp
+    src/app/ChromeEventRouter.h
+    src/app/DocumentEventRouter.cpp
+    src/app/DocumentEventRouter.h
     src/app/ExtensionBootstrap.cpp
     src/app/ExtensionBootstrap.h
     src/app/RenderCoordinator.cpp

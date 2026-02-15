@@ -10,6 +10,8 @@
 #include <utility>
 
 #include "app/BrowserEventRouter.h"
+#include "app/ChromeEventRouter.h"
+#include "app/DocumentEventRouter.h"
 #include "app/ExtensionBootstrap.h"
 #include "app/RenderCoordinator.h"
 #include "core/platform_api/IGraphicsContext.h"
@@ -64,6 +66,8 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
       tab_controller_(make_tab_factory(primary_backend_for_env())),
       extension_host_(std::make_unique<Hummingbird::Engine::ExtensionHost>([]() { return create_script_engine(); })) {
     event_router_ = std::make_unique<BrowserEventRouter>(*this);
+    chrome_event_router_ = std::make_unique<ChromeEventRouter>(*this);
+    document_event_router_ = std::make_unique<DocumentEventRouter>(*this);
     render_coordinator_ = std::make_unique<RenderCoordinator>(*this);
 
     const auto first_tab_id = tab_controller_.create_tab();
@@ -190,263 +194,28 @@ void BrowserApp::handle_quit_event() {
 }
 
 void BrowserApp::handle_text_input_event(const InputEvent& event) {
-    if (browser_chrome_.url_bar().handle_text_input(event.text.text)) {
-        render_coordinator_->set_chrome_dirty();
+    if (chrome_event_router_->handle_text_input(event)) {
         return;
     }
-    if (active_tab().interaction().handle_text_input(event.text.text)) {
-        render_coordinator_->set_controls_dirty();
-    }
+    (void)document_event_router_->handle_text_input(event);
 }
 
 void BrowserApp::handle_key_down_event(const InputEvent& event) {
-    if (handle_tab_shortcut(event)) {
+    if (chrome_event_router_->handle_key_down(event)) {
         return;
     }
-
-    if (handle_global_key_shortcut(event)) {
-        return;
-    }
-
-    if (handle_url_bar_key_down(event)) {
-        return;
-    }
-
-    if (handle_document_key_down(event)) {
-        return;
-    }
-}
-
-bool BrowserApp::handle_global_key_shortcut(const InputEvent& event) {
-    if (event.key.key == Key::L && event.mods.ctrl && event.mods.shift) {
-        HB_LOG_INFO("[ui] Forcing document repaint");
-        render_coordinator_->set_document_dirty();
-        return true;
-    }
-
-    if (event.key.key == Key::L && event.mods.ctrl) {
-        browser_chrome_.url_bar().set_active(true, window_.get(), "[ui] URL bar focused");
-        browser_chrome_.url_bar().move_caret_to_end();
-        if (active_tab().interaction().clear_input_focus()) {
-            render_coordinator_->set_controls_dirty();
-        }
-        render_coordinator_->set_chrome_dirty();
-        return true;
-    }
-
-    if (event.key.key == Key::F1) {
-        debug_outlines_ = !debug_outlines_;
-        HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines_ ? "ON" : "OFF"));
-        render_coordinator_->set_document_dirty();
-        return true;
-    }
-    return false;
-}
-
-bool BrowserApp::handle_tab_shortcut(const InputEvent& event) {
-    if (!event.key.repeat) {
-        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::T) {
-            if (new_tab()) {
-                mark_all_layers_dirty();
-            }
-            return true;
-        }
-
-        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::W) {
-            if (close_active_tab()) {
-                mark_all_layers_dirty();
-            }
-            return true;
-        }
-
-        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Right) {
-            if (activate_next_tab()) {
-                mark_all_layers_dirty();
-            }
-            return true;
-        }
-
-        if (event.mods.ctrl && !event.mods.shift && event.key.key == Key::Left) {
-            if (activate_prev_tab()) {
-                mark_all_layers_dirty();
-            }
-            return true;
-        }
-    }
-    return false;
-}
-
-bool BrowserApp::handle_url_bar_key_down(const InputEvent& event) {
-    auto result = browser_chrome_.url_bar().handle_key_down(event, window_.get());
-    if (!result.handled) {
-        return false;
-    }
-    if (result.submitted_url) {
-        navigate_and_reflect_url(*result.submitted_url);
-    }
-    if (result.needs_repaint) {
-        render_coordinator_->set_chrome_dirty();
-    }
-    return true;
-}
-
-bool BrowserApp::handle_document_key_down(const InputEvent& event) {
-    auto tab_result = active_tab().interaction().handle_key_down(event);
-    if (!tab_result.handled) {
-        return false;
-    }
-    if (tab_result.submitted_form) {
-        navigate_and_reflect_submission(*tab_result.submitted_form);
-    }
-    if (tab_result.needs_repaint) {
-        render_coordinator_->set_controls_dirty();
-    }
-    return true;
+    (void)document_event_router_->handle_key_down(event);
 }
 
 void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
-    if (handle_tab_strip_mouse_down(event)) {
+    if (chrome_event_router_->handle_mouse_down(event)) {
         return;
     }
-    if (handle_url_bar_mouse_down(event)) {
-        return;
-    }
-    handle_document_mouse_down(event);
-}
-
-bool BrowserApp::handle_tab_strip_mouse_down(const InputEvent& event) {
-    if (!graphics_ || !window_) {
-        return false;
-    }
-    const int tabs_top_y = browser_chrome_.url_bar().height();
-    const int tabs_bottom_y = browser_chrome_.url_bar().height() + browser_chrome_.tab_strip_height();
-    if (event.mouse_button.y < tabs_top_y || event.mouse_button.y >= tabs_bottom_y) {
-        return false;
-    }
-    const auto [win_w, win_h] = window_->get_size();
-    (void)win_h;
-    auto result = browser_chrome_.handle_tab_strip_mouse_down(event.mouse_button.x, event.mouse_button.y, win_w,
-                                                              tabs_top_y, tab_controller_.manager());
-    if (!result.handled) {
-        return false;
-    }
-    if (result.activated_tab && tab_controller_.set_active(*result.activated_tab)) {
-        on_active_tab_changed();
-    }
-    mark_all_layers_dirty();
-    return true;
-}
-
-bool BrowserApp::handle_url_bar_mouse_down(const InputEvent& event) {
-    auto url_result =
-        browser_chrome_.url_bar().handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
-    if (!url_result.handled) {
-        return false;
-    }
-
-    auto interaction = active_tab().interaction();
-    bool interaction_state_changed = false;
-    interaction_state_changed |= interaction.clear_control_interaction();
-    interaction_state_changed |= interaction.clear_input_focus();
-    if (interaction_state_changed && graphics_ && window_) {
-        auto [w, h] = window_->get_size();
-        const auto viewport = compute_content_viewport(w, h);
-        if (interaction.refresh_styles_for_interaction(*graphics_, viewport)) {
-            mark_document_and_controls_dirty();
-        }
-    } else if (interaction_state_changed) {
-        mark_document_and_controls_dirty();
-    }
-    if (url_result.security_override_requested) {
-        if (active_tab().allow_insecure_for_current_host()) {
-            navigate_and_reflect_url(active_tab().requested_url());
-        }
-    }
-    tab_text_input_active_ = false;
-    if (url_result.needs_repaint) {
-        render_coordinator_->set_chrome_dirty();
-    }
-    return true;
-}
-
-void BrowserApp::handle_document_mouse_down(const InputEvent& event) {
-    browser_chrome_.url_bar().set_active(false, window_.get(), nullptr);
-    render_coordinator_->set_chrome_dirty();
-
-    if (!graphics_ || !window_) {
-        return;
-    }
-
-    auto [win_w, win_h] = window_->get_size();
-    const auto viewport = compute_content_viewport(win_w, win_h);
-    Hummingbird::Layout::Point point{static_cast<float>(event.mouse_button.x),
-                                     static_cast<float>(event.mouse_button.y)};
-    HB_LOG_DEBUG("[input] mouse click at (" << point.x << "," << point.y << ") viewport=(" << viewport.x << ","
-                                            << viewport.y << "," << viewport.width << "," << viewport.height << ")");
-    auto interaction = active_tab().interaction();
-    auto click_result = interaction.dispatch_click(point, viewport, *graphics_);
-    if (click_result.mutated) {
-        render_coordinator_->set_document_dirty();
-    }
-    bool interaction_changed = interaction.set_control_interaction_at(point, viewport);
-    bool was_focused = interaction.has_focused_input();
-    bool now_focused = interaction.focus_input_at(point, viewport);
-    HB_LOG_DEBUG("[input] focus probe was=" << was_focused << " now=" << now_focused);
-    // URL bar deactivation stops platform text input. Re-enable it here whenever
-    // a document input is focused, even if focus state did not transition.
-    if (window_) {
-        if (now_focused) {
-            window_->start_text_input();
-        } else {
-            window_->stop_text_input();
-        }
-    }
-    if (tab_text_input_active_ != now_focused || was_focused != now_focused) {
-        tab_text_input_active_ = now_focused;
-        render_coordinator_->set_controls_dirty();
-    }
-    if (interaction_changed || was_focused || now_focused) {
-        if (interaction.refresh_styles_for_interaction(*graphics_, viewport)) {
-            mark_document_and_controls_dirty();
-        }
-    }
-    if (now_focused) {
-        return;
-    }
-    (void)handle_document_hit_navigation(point, viewport);
-}
-
-bool BrowserApp::handle_document_hit_navigation(const Hummingbird::Layout::Point& point,
-                                                const Hummingbird::Layout::Rect& viewport) {
-    auto interaction = active_tab().interaction();
-    auto submit = interaction.submit_form_at(point, viewport);
-    if (submit) {
-        HB_LOG_DEBUG("[input] submit hit method="
-                     << (submit->method == Hummingbird::Engine::FormSubmitMethod::Post ? "POST" : "GET")
-                     << " url=" << submit->url);
-        browser_chrome_.url_bar().set_text(submit->url);
-        navigate_and_reflect_submission(*submit);
-        return true;
-    }
-
-    auto link = interaction.hit_test_link(point, viewport);
-    if (!link) {
-        return false;
-    }
-    browser_chrome_.url_bar().set_text(*link);
-    navigate_and_reflect_url(*link);
-    return true;
+    document_event_router_->handle_mouse_down(event);
 }
 
 void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
-    const float delta = static_cast<float>(event.wheel.dy) * 32.0f;
-
-    auto [win_w, win_h] = window_->get_size();
-    const float viewport_h = static_cast<float>(
-        std::max(0, win_h - browser_chrome_.url_bar().height() - browser_chrome_.tab_strip_height()));
-    active_tab().scroll_by(delta, viewport_h);
-
-    render_coordinator_->set_document_dirty();
+    document_event_router_->handle_mouse_wheel(event);
 }
 
 void BrowserApp::handle_resize_event(const InputEvent& event) {
