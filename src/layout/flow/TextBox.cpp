@@ -9,9 +9,9 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/Utf8Utils.h"
-#include "layout/flow/TextMeasurer.h"
 #include "layout/flow/TextDecorationUtils.h"
 #include "layout/flow/TextLayoutUtils.h"
+#include "layout/flow/TextMeasurer.h"
 #include "layout/flow/TextOverflowUtils.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/flow/inline/InlineVerticalAlignUtils.h"
@@ -62,7 +62,6 @@ void draw_spaced_text(IGraphicsContext& context, std::string_view text, float x,
         index = next;
     }
 }
-
 
 std::string split_token_by_width(IGraphicsContext& context, std::string_view token, const TextStyle& text_style,
                                  float letter_spacing, float max_width, std::string& remainder) {
@@ -256,8 +255,8 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap &&
         style->text_overflow == Css::ComputedStyle::TextOverflow::Ellipsis && available_width > 0.0f &&
         !m_lines.empty()) {
-        std::string elided =
-            TextOverflowUtils::ellipsize_text_to_width(context, m_lines[0], text_style, letter_spacing, available_width);
+        std::string elided = TextOverflowUtils::ellipsize_text_to_width(context, m_lines[0], text_style, letter_spacing,
+                                                                        available_width);
         TextMeasurer measurer(context, text_style, letter_spacing);
         float elided_width = measurer.measure(elided);
         m_lines[0] = std::move(elided);

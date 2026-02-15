@@ -1,7 +1,7 @@
 # Tech Debt Game Plan (Temp)
 
 ## Chokepoint Candidates
-- [ ] **Engine::DocumentPipeline**: narrow the public API surface so Tab talks to smaller, purpose-built interfaces (render/layout vs interaction).
+- [x] **Engine::DocumentPipeline**: narrow the public API surface so Tab talks to smaller, purpose-built interfaces (render/layout vs interaction).
 - [ ] **Engine::Tab**: extract a `NavigationLifecycle` helper to own URL normalization, commit state, and security decisions (reduce coupling with `ResourceLoader`).
 - [ ] **Engine::Tab**: introduce a thin interaction facade so input/control forwarding no longer expands the Tab public surface.
 - [ ] **App::BrowserApp**: split input routing into `ChromeEventRouter` vs `DocumentEventRouter` to separate UI chrome logic from document interaction.

@@ -4,10 +4,10 @@
 
 #include "core/SecurityState.h"
 #include "core/platform_api/INetwork.h"
+#include "engine/document/DocumentPipeline.h"
 
 namespace Hummingbird::Engine {
 
-class DocumentPipeline;
 class ResourceLoader;
 class TabNavigationState;
 
@@ -16,9 +16,9 @@ public:
     static SecurityState decide_security_state(const ResourceLoader& loader, std::string_view requested_url,
                                                NetworkError document_error);
 
-    static void log_discovered_resources(const DocumentPipeline& pipeline);
+    static void log_discovered_resources(DocumentPipeline::LayoutApi layout);
 
-    static void request_discovered_resources(ResourceLoader& loader, const DocumentPipeline& pipeline,
+    static void request_discovered_resources(ResourceLoader& loader, DocumentPipeline::LayoutApi layout,
                                              std::string_view base_url);
 };
 

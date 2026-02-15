@@ -106,8 +106,9 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
 }
 
 void Tab::apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport) {
-    if (extension_css_dirty_ && document_pipeline_->has_dom_tree()) {
-        document_pipeline_->set_extension_style_blocks(extension_style_blocks_);
+    auto layout = document_pipeline_->layout();
+    if (extension_css_dirty_ && layout.has_dom_tree()) {
+        layout.set_extension_style_blocks(extension_style_blocks_);
         (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:extension_css", true);
         extension_css_dirty_ = false;
         mark_dirty("extension_css");
@@ -115,9 +116,10 @@ void Tab::apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout
 }
 
 void Tab::relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport) {
-    if (document_pipeline_->has_render_tree()) {
+    auto layout = document_pipeline_->layout();
+    if (layout.has_render_tree()) {
         if (layout_state_.viewport_changed(viewport)) {
-            document_pipeline_->relayout(graphics, viewport);
+            layout.relayout(graphics, viewport);
             update_layout_state(viewport, "tick:viewport_changed");
             mark_dirty("viewport_changed");
         }
@@ -137,36 +139,41 @@ bool Tab::advance_animation_tick() {
     }
 
     bool updated = false;
-    if (resource_loader_->store().tick_animations(*ready_delta_ms) && document_pipeline_->has_render_tree()) {
-        updated = document_pipeline_->update_image_resources(navigation_state_.requested_url());
+    auto layout = document_pipeline_->layout();
+    if (resource_loader_->store().tick_animations(*ready_delta_ms) && layout.has_render_tree()) {
+        updated = layout.update_image_resources(navigation_state_.requested_url());
     }
     return updated;
 }
 
 void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool debug_outlines) {
-    if (!document_pipeline_->has_render_tree()) return;
+    auto layout = document_pipeline_->layout();
+    if (!layout.has_render_tree()) return;
     graphics.set_text_cache_owner(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(this)));
     DocumentPipeline::PaintContext context{viewport, debug_outlines, layout_state_.scroll_y};
-    document_pipeline_->paint(graphics, context);
+    layout.paint(graphics, context);
     graphics.set_text_cache_owner(0);
 }
 
 void Tab::paint_controls(IGraphicsContext& graphics, const Layout::Rect& viewport) {
-    if (!document_pipeline_->has_render_tree()) return;
+    auto layout = document_pipeline_->layout();
+    if (!layout.has_render_tree()) return;
     graphics.set_text_cache_owner(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(this)));
     DocumentPipeline::PaintContext context{viewport, false, layout_state_.scroll_y};
-    document_pipeline_->paint_controls(graphics, context, true);
+    layout.paint_controls(graphics, context, true);
     graphics.set_text_cache_owner(0);
 }
 
 std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const {
-    return document_pipeline_->hit_test_link(
+    auto interaction = document_pipeline_->interaction();
+    return interaction.hit_test_link(
         make_hit_test_context(point, viewport, navigation_state_.requested_url(), layout_state_.scroll_y));
 }
 
 Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
                                      IGraphicsContext& graphics) {
-    auto result = document_pipeline_->dispatch_click(
+    auto interaction = document_pipeline_->interaction();
+    auto result = interaction.dispatch_click(
         make_hit_test_context(point, viewport, navigation_state_.requested_url(), layout_state_.scroll_y));
     if (result.mutated) {
         (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation", false);
@@ -176,51 +183,55 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
 }
 
 std::optional<FormSubmission> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
-    return document_pipeline_->submit_form_at(
+    auto interaction = document_pipeline_->interaction();
+    return interaction.submit_form_at(
         make_hit_test_context(point, viewport, navigation_state_.requested_url(), layout_state_.scroll_y));
 }
 
 bool Tab::focus_input_at(const Layout::Point& point, const Layout::Rect& viewport) {
-    return document_pipeline_->focus_input_at(
+    auto interaction = document_pipeline_->interaction();
+    return interaction.focus_input_at(
         make_hit_test_context(point, viewport, navigation_state_.requested_url(), layout_state_.scroll_y));
 }
 
 bool Tab::clear_input_focus() {
-    return document_pipeline_->clear_input_focus();
+    return document_pipeline_->interaction().clear_input_focus();
 }
 
 bool Tab::set_control_interaction_at(const Layout::Point& point, const Layout::Rect& viewport) {
-    return document_pipeline_->set_control_interaction_at(
+    auto interaction = document_pipeline_->interaction();
+    return interaction.set_control_interaction_at(
         make_hit_test_context(point, viewport, navigation_state_.requested_url(), layout_state_.scroll_y));
 }
 
 bool Tab::clear_control_interaction() {
-    return document_pipeline_->clear_control_interaction();
+    return document_pipeline_->interaction().clear_control_interaction();
 }
 
 bool Tab::refresh_styles_for_interaction(IGraphicsContext& graphics, const Layout::Rect& viewport) {
-    if (!document_pipeline_->has_dom_tree()) {
+    auto layout = document_pipeline_->layout();
+    if (!layout.has_dom_tree()) {
         return false;
     }
     return rebuild_document_and_sync_layout(graphics, viewport, "refresh_styles_for_interaction", false);
 }
 
 bool Tab::has_focused_input() const {
-    return document_pipeline_->has_focused_input();
+    return document_pipeline_->interaction().has_focused_input();
 }
 
 bool Tab::handle_text_input(std::string_view text) {
-    auto result = document_pipeline_->handle_text_input(text);
+    auto result = document_pipeline_->interaction().handle_text_input(text);
     return result.handled;
 }
 
 Tab::KeyResult Tab::handle_key_down(const InputEvent& event) {
-    auto result = document_pipeline_->handle_key_down(event, navigation_state_.requested_url());
+    auto result = document_pipeline_->interaction().handle_key_down(event, navigation_state_.requested_url());
     return {result.handled, result.needs_repaint, std::move(result.submitted_form)};
 }
 
 std::optional<std::string> Tab::focused_input_value() const {
-    return document_pipeline_->focused_input_value();
+    return document_pipeline_->interaction().focused_input_value();
 }
 
 std::optional<std::string> Tab::consume_navigation_commit_url() {
@@ -268,11 +279,12 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
 
 void Tab::process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, IGraphicsContext& graphics,
                                                const Layout::Rect& viewport) {
-    if (stylesheet_ready && document_pipeline_->has_dom_tree()) {
+    auto layout = document_pipeline_->layout();
+    if (stylesheet_ready && layout.has_dom_tree()) {
         sync_extension_styles_before_stylesheet_update();
         handle_stylesheet_ready(graphics, viewport);
     }
-    if (image_ready && document_pipeline_->has_render_tree()) {
+    if (image_ready && layout.has_render_tree()) {
         handle_image_ready(graphics, viewport);
     }
 }
@@ -281,7 +293,7 @@ void Tab::sync_extension_styles_before_stylesheet_update() {
     if (!extension_css_dirty_) {
         return;
     }
-    document_pipeline_->set_extension_style_blocks(extension_style_blocks_);
+    document_pipeline_->layout().set_extension_style_blocks(extension_style_blocks_);
     extension_css_dirty_ = false;
 }
 
@@ -299,7 +311,7 @@ void Tab::handle_document_ready(std::string_view document_url, std::string_view 
         return;
     }
     rebuild_after_document_ready(graphics, viewport);
-    HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_->render_tree_children());
+    HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_->layout().render_tree_children());
     mark_dirty("document_ready");
     const auto rebuild_end = Core::Clock::now();
     HB_LOG_INFO("[perf] document rebuild ms=" << Core::duration_ms(rebuild_start, rebuild_end));
@@ -322,8 +334,9 @@ std::optional<std::string_view> Tab::resolve_document_ready_body(std::string_vie
 }
 
 void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
-    TabDocumentReadyPolicy::log_discovered_resources(*document_pipeline_);
-    TabDocumentReadyPolicy::request_discovered_resources(*resource_loader_, *document_pipeline_,
+    auto layout = document_pipeline_->layout();
+    TabDocumentReadyPolicy::log_discovered_resources(layout);
+    TabDocumentReadyPolicy::request_discovered_resources(*resource_loader_, layout,
                                                          navigation_state_.requested_url());
     bool has_render_tree =
         rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build", true);
@@ -343,9 +356,10 @@ void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect
 
 void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto image_update_start = Core::Clock::now();
-    bool updated = document_pipeline_->update_image_resources(navigation_state_.requested_url());
+    auto layout = document_pipeline_->layout();
+    bool updated = layout.update_image_resources(navigation_state_.requested_url());
     if (updated) {
-        document_pipeline_->relayout(graphics, viewport);
+        layout.relayout(graphics, viewport);
         update_layout_state(viewport, "handle_image_ready:relayout");
     }
     const auto image_update_end = Core::Clock::now();
@@ -355,18 +369,19 @@ void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& vie
 }
 
 bool Tab::prepare_document_from_response(std::string_view html) {
-    if (!document_pipeline_->parse_html(html)) {
+    auto layout = document_pipeline_->layout();
+    if (!layout.parse_html(html)) {
         return false;
     }
     navigation_state_.set_pending_commit_url(std::string(navigation_state_.requested_url()));
-    document_pipeline_->set_extension_style_blocks(extension_style_blocks_);
+    layout.set_extension_style_blocks(extension_style_blocks_);
     extension_css_dirty_ = false;
-    document_pipeline_->run_scripts();
+    layout.run_scripts();
     return true;
 }
 
 void Tab::apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
-    auto load_result = document_pipeline_->dispatch_load();
+    auto load_result = document_pipeline_->interaction().dispatch_load();
     if (!load_result.mutated) {
         return;
     }
@@ -378,7 +393,7 @@ void Tab::apply_load_mutations_after_document_ready(IGraphicsContext& graphics, 
 }
 
 void Tab::apply_autofocus_after_rebuild() {
-    if (document_pipeline_->focus_autofocus_input()) {
+    if (document_pipeline_->interaction().focus_autofocus_input()) {
         mark_dirty();
     }
 }
@@ -393,11 +408,10 @@ void Tab::mark_dirty(std::string_view reason) {
 
 bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                            std::string_view reason, bool request_background_images) {
-    bool has_render_tree =
-        document_pipeline_->rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
+    auto layout = document_pipeline_->layout();
+    bool has_render_tree = layout.rebuild_and_layout(graphics, viewport, navigation_state_.requested_url());
     if (request_background_images) {
-        resource_loader_->request_images(document_pipeline_->background_image_links(),
-                                         navigation_state_.requested_url());
+        resource_loader_->request_images(layout.background_image_links(), navigation_state_.requested_url());
     }
     if (has_render_tree) {
         update_layout_state(viewport, reason);
@@ -422,7 +436,7 @@ void Tab::reset_document_state() {
 void Tab::update_layout_state(const Layout::Rect& viewport, std::string_view reason) {
     float old_content_height = layout_state_.content_height;
     float old_scroll_y = layout_state_.scroll_y;
-    layout_state_.update(viewport, document_pipeline_->content_height());
+    layout_state_.update(viewport, document_pipeline_->layout().content_height());
     mark_dirty();
     if (layout_state_debug_enabled()) {
         const float max_scroll = std::max(0.0f, layout_state_.content_height - viewport.height);

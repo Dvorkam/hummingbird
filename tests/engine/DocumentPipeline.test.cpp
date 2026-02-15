@@ -78,10 +78,11 @@ TEST(DocumentPipelineTest, DispatchesLoadHandler) {
     TestGraphicsContext graphics;
     Rect viewport{0, 0, 200, 200};
 
-    ASSERT_TRUE(pipeline.parse_html(html));
-    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    auto layout = pipeline.layout();
+    ASSERT_TRUE(layout.parse_html(html));
+    layout.apply_styles_and_layout(graphics, viewport, "https://example.dev");
 
-    auto result = pipeline.dispatch_load();
+    auto result = pipeline.interaction().dispatch_load();
     EXPECT_TRUE(result.handled);
     EXPECT_TRUE(result.mutated);
 }
@@ -115,11 +116,12 @@ TEST(DocumentPipelineTest, DispatchesClickHandler) {
     TestGraphicsContext graphics;
     Rect viewport{0, 0, 200, 200};
 
-    ASSERT_TRUE(pipeline.parse_html(html));
-    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    auto layout = pipeline.layout();
+    ASSERT_TRUE(layout.parse_html(html));
+    layout.apply_styles_and_layout(graphics, viewport, "https://example.dev");
 
     DocumentPipeline::HitTestContext context{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f};
-    auto result = pipeline.dispatch_click(context);
+    auto result = pipeline.interaction().dispatch_click(context);
     EXPECT_TRUE(result.handled);
     EXPECT_TRUE(result.mutated);
 }
@@ -149,10 +151,11 @@ TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {
     TestGraphicsContext graphics;
     Rect viewport{0, 0, 200, 200};
 
-    ASSERT_TRUE(pipeline.parse_html(html));
-    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    auto layout = pipeline.layout();
+    ASSERT_TRUE(layout.parse_html(html));
+    layout.apply_styles_and_layout(graphics, viewport, "https://example.dev");
 
-    const auto& links = pipeline.background_image_links();
+    const auto& links = layout.background_image_links();
     ASSERT_EQ(links.size(), 1u);
     EXPECT_EQ(links[0], "/img/background.png");
 }
@@ -193,11 +196,12 @@ TEST(DocumentPipelineTest, PaintsBackgroundImagesFromResources) {
     RecordingGraphicsContext graphics;
     Rect viewport{0, 0, 200, 200};
 
-    ASSERT_TRUE(pipeline.parse_html(html));
-    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    auto layout = pipeline.layout();
+    ASSERT_TRUE(layout.parse_html(html));
+    layout.apply_styles_and_layout(graphics, viewport, "https://example.dev");
 
     DocumentPipeline::PaintContext context{viewport, false, 0.0f};
-    pipeline.paint(graphics, context);
+    layout.paint(graphics, context);
 
     EXPECT_GT(graphics.image_calls, 0);
 }
@@ -227,17 +231,18 @@ TEST(DocumentPipelineTest, PaintsFocusedInputTextWhenContentBoxCollapses) {
     RecordingGraphicsContext graphics;
     Rect viewport{0, 0, 400, 200};
 
-    ASSERT_TRUE(pipeline.parse_html(html));
-    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    auto layout = pipeline.layout();
+    ASSERT_TRUE(layout.parse_html(html));
+    layout.apply_styles_and_layout(graphics, viewport, "https://example.dev");
 
     DocumentPipeline::HitTestContext hit{Point{12.0f, 12.0f}, viewport, "https://example.dev", 0.0f};
-    ASSERT_TRUE(pipeline.focus_input_at(hit));
+    ASSERT_TRUE(pipeline.interaction().focus_input_at(hit));
 
-    auto edit = pipeline.handle_text_input("hello");
+    auto edit = pipeline.interaction().handle_text_input("hello");
     ASSERT_TRUE(edit.handled);
 
     DocumentPipeline::PaintContext paint{viewport, false, 0.0f};
-    pipeline.paint(graphics, paint);
+    layout.paint(graphics, paint);
 
     bool saw_typed_text = false;
     for (const auto& text : graphics.drawn_texts) {
@@ -273,8 +278,9 @@ TEST(DocumentPipelineTest, ContentHeightIncludesDescendantsBeyondRootHeightClamp
     TestGraphicsContext graphics;
     Rect viewport{0, 0, 800, 600};
 
-    ASSERT_TRUE(pipeline.parse_html(html));
-    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    auto layout = pipeline.layout();
+    ASSERT_TRUE(layout.parse_html(html));
+    layout.apply_styles_and_layout(graphics, viewport, "https://example.dev");
 
-    EXPECT_GT(pipeline.content_height(), 300.0f);
+    EXPECT_GT(layout.content_height(), 300.0f);
 }
