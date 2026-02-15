@@ -187,6 +187,7 @@ add_library(Engine STATIC
     src/engine/tab/Tab.cpp
     src/engine/tab/TabDocumentReadyPolicy.cpp
     src/engine/tab/TabManager.cpp
+    src/engine/tab/NavigationLifecycle.cpp
     src/engine/tab/TabNavigationState.cpp
     src/engine/resources/ResourceStore.cpp
     src/engine/resources/ResourceUpdateProcessor.cpp

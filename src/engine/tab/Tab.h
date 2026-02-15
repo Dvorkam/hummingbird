@@ -14,7 +14,7 @@
 #include "engine/resources/ResourceStore.h"
 #include "engine/tab/TabAnimationTicker.h"
 #include "engine/tab/TabLayoutState.h"
-#include "engine/tab/TabNavigationState.h"
+#include "engine/tab/NavigationLifecycle.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -85,8 +85,8 @@ public:
 
     float scroll_y() const { return layout_state_.scroll_y; }
     float content_height() const { return layout_state_.content_height; }
-    std::string_view requested_url() const { return navigation_state_.requested_url(); }
-    SecurityState security_state() const { return navigation_state_.security_state(); }
+    std::string_view requested_url() const { return navigation_lifecycle_.requested_url(); }
+    SecurityState security_state() const { return navigation_lifecycle_.security_state(); }
     std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
 
     bool allow_insecure_for_current_host();
@@ -98,7 +98,6 @@ private:
     void sync_extension_styles_before_stylesheet_update();
     void handle_document_ready(std::string_view document_url, std::string_view effective_url,
                                NetworkError document_error, IGraphicsContext& graphics, const Layout::Rect& viewport);
-    void apply_document_ready_navigation_state(std::string_view effective_url, NetworkError document_error);
     std::optional<std::string_view> resolve_document_ready_body(std::string_view document_url) const;
     void rebuild_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
@@ -125,7 +124,7 @@ private:
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;
     bool extension_css_dirty_ = false;
-    TabNavigationState navigation_state_{};
+    NavigationLifecycle navigation_lifecycle_{};
     TabLayoutState layout_state_{};
     TabAnimationTicker animation_ticker_{};
 
