@@ -336,8 +336,7 @@ std::optional<std::string_view> Tab::resolve_document_ready_body(std::string_vie
 void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     auto layout = document_pipeline_->layout();
     TabDocumentReadyPolicy::log_discovered_resources(layout);
-    TabDocumentReadyPolicy::request_discovered_resources(*resource_loader_, layout,
-                                                         navigation_state_.requested_url());
+    TabDocumentReadyPolicy::request_discovered_resources(*resource_loader_, layout, navigation_state_.requested_url());
     bool has_render_tree =
         rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build", true);
     if (has_render_tree) {

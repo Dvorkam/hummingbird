@@ -73,9 +73,7 @@ public:
         void relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {
             pipeline_.relayout(graphics, viewport);
         }
-        void paint(IGraphicsContext& graphics, const PaintContext& context) {
-            pipeline_.paint(graphics, context);
-        }
+        void paint(IGraphicsContext& graphics, const PaintContext& context) { pipeline_.paint(graphics, context); }
         void paint_controls(IGraphicsContext& graphics, const PaintContext& context, bool repaint_background) {
             pipeline_.paint_controls(graphics, context, repaint_background);
         }
