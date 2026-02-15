@@ -194,7 +194,7 @@ void BrowserApp::handle_text_input_event(const InputEvent& event) {
         render_coordinator_->set_chrome_dirty();
         return;
     }
-    if (active_tab().handle_text_input(event.text.text)) {
+    if (active_tab().interaction().handle_text_input(event.text.text)) {
         render_coordinator_->set_controls_dirty();
     }
 }
@@ -227,7 +227,7 @@ bool BrowserApp::handle_global_key_shortcut(const InputEvent& event) {
     if (event.key.key == Key::L && event.mods.ctrl) {
         browser_chrome_.url_bar().set_active(true, window_.get(), "[ui] URL bar focused");
         browser_chrome_.url_bar().move_caret_to_end();
-        if (active_tab().clear_input_focus()) {
+        if (active_tab().interaction().clear_input_focus()) {
             render_coordinator_->set_controls_dirty();
         }
         render_coordinator_->set_chrome_dirty();
@@ -291,7 +291,7 @@ bool BrowserApp::handle_url_bar_key_down(const InputEvent& event) {
 }
 
 bool BrowserApp::handle_document_key_down(const InputEvent& event) {
-    auto tab_result = active_tab().handle_key_down(event);
+    auto tab_result = active_tab().interaction().handle_key_down(event);
     if (!tab_result.handled) {
         return false;
     }
@@ -344,13 +344,14 @@ bool BrowserApp::handle_url_bar_mouse_down(const InputEvent& event) {
         return false;
     }
 
+    auto interaction = active_tab().interaction();
     bool interaction_state_changed = false;
-    interaction_state_changed |= active_tab().clear_control_interaction();
-    interaction_state_changed |= active_tab().clear_input_focus();
+    interaction_state_changed |= interaction.clear_control_interaction();
+    interaction_state_changed |= interaction.clear_input_focus();
     if (interaction_state_changed && graphics_ && window_) {
         auto [w, h] = window_->get_size();
         const auto viewport = compute_content_viewport(w, h);
-        if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
+        if (interaction.refresh_styles_for_interaction(*graphics_, viewport)) {
             mark_document_and_controls_dirty();
         }
     } else if (interaction_state_changed) {
@@ -382,13 +383,14 @@ void BrowserApp::handle_document_mouse_down(const InputEvent& event) {
                                      static_cast<float>(event.mouse_button.y)};
     HB_LOG_DEBUG("[input] mouse click at (" << point.x << "," << point.y << ") viewport=(" << viewport.x << ","
                                             << viewport.y << "," << viewport.width << "," << viewport.height << ")");
-    auto click_result = active_tab().dispatch_click(point, viewport, *graphics_);
+    auto interaction = active_tab().interaction();
+    auto click_result = interaction.dispatch_click(point, viewport, *graphics_);
     if (click_result.mutated) {
         render_coordinator_->set_document_dirty();
     }
-    bool interaction_changed = active_tab().set_control_interaction_at(point, viewport);
-    bool was_focused = active_tab().has_focused_input();
-    bool now_focused = active_tab().focus_input_at(point, viewport);
+    bool interaction_changed = interaction.set_control_interaction_at(point, viewport);
+    bool was_focused = interaction.has_focused_input();
+    bool now_focused = interaction.focus_input_at(point, viewport);
     HB_LOG_DEBUG("[input] focus probe was=" << was_focused << " now=" << now_focused);
     // URL bar deactivation stops platform text input. Re-enable it here whenever
     // a document input is focused, even if focus state did not transition.
@@ -404,7 +406,7 @@ void BrowserApp::handle_document_mouse_down(const InputEvent& event) {
         render_coordinator_->set_controls_dirty();
     }
     if (interaction_changed || was_focused || now_focused) {
-        if (active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
+        if (interaction.refresh_styles_for_interaction(*graphics_, viewport)) {
             mark_document_and_controls_dirty();
         }
     }
@@ -416,7 +418,8 @@ void BrowserApp::handle_document_mouse_down(const InputEvent& event) {
 
 bool BrowserApp::handle_document_hit_navigation(const Hummingbird::Layout::Point& point,
                                                 const Hummingbird::Layout::Rect& viewport) {
-    auto submit = active_tab().submit_form_at(point, viewport);
+    auto interaction = active_tab().interaction();
+    auto submit = interaction.submit_form_at(point, viewport);
     if (submit) {
         HB_LOG_DEBUG("[input] submit hit method="
                      << (submit->method == Hummingbird::Engine::FormSubmitMethod::Post ? "POST" : "GET")
@@ -426,7 +429,7 @@ bool BrowserApp::handle_document_hit_navigation(const Hummingbird::Layout::Point
         return true;
     }
 
-    auto link = active_tab().hit_test_link(point, viewport);
+    auto link = interaction.hit_test_link(point, viewport);
     if (!link) {
         return false;
     }
@@ -495,7 +498,7 @@ void BrowserApp::sync_tab_text_input_mode() {
         return;
     }
 
-    const bool should_be_active = active_tab().has_focused_input();
+    const bool should_be_active = active_tab().interaction().has_focused_input();
     if (should_be_active == tab_text_input_active_) {
         return;
     }
