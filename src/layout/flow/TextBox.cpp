@@ -9,8 +9,10 @@
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/Utf8Utils.h"
+#include "layout/flow/TextMeasurer.h"
 #include "layout/flow/TextDecorationUtils.h"
 #include "layout/flow/TextLayoutUtils.h"
+#include "layout/flow/TextOverflowUtils.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/flow/inline/InlineVerticalAlignUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
@@ -32,30 +34,6 @@ void append_line(std::vector<std::string>& lines, std::vector<float>& line_width
     lines.push_back(std::move(line_text));
     line_widths.push_back(measured_width);
     content_width = std::max(content_width, measured_width);
-}
-
-float measure_spaced_text(IGraphicsContext& context, std::string_view text, const TextStyle& text_style,
-                          float letter_spacing) {
-    if (text.empty()) {
-        return 0.0f;
-    }
-    float width = 0.0f;
-    size_t index = 0;
-    size_t codepoint_count = 0;
-    while (index < text.size()) {
-        size_t next = Core::Utils::next_codepoint(text, index);
-        if (next <= index) {
-            break;
-        }
-        std::string glyph(text.substr(index, next - index));
-        width += context.measure_text(glyph, text_style).width;
-        ++codepoint_count;
-        index = next;
-    }
-    if (codepoint_count > 1 && letter_spacing != 0.0f) {
-        width += letter_spacing * static_cast<float>(codepoint_count - 1);
-    }
-    return width;
 }
 
 void draw_spaced_text(IGraphicsContext& context, std::string_view text, float x, float y, const TextStyle& text_style,
@@ -85,41 +63,6 @@ void draw_spaced_text(IGraphicsContext& context, std::string_view text, float x,
     }
 }
 
-std::string ellipsize_text_to_width(IGraphicsContext& context, std::string_view text, const TextStyle& text_style,
-                                    float letter_spacing, float max_width) {
-    if (max_width <= 0.0f) {
-        return "";
-    }
-    constexpr std::string_view kEllipsis = "...";
-    float ellipsis_width = measure_spaced_text(context, kEllipsis, text_style, letter_spacing);
-    if (ellipsis_width >= max_width) {
-        return std::string(kEllipsis);
-    }
-
-    std::string out;
-    float width = 0.0f;
-    size_t index = 0;
-    while (index < text.size()) {
-        size_t next = Core::Utils::next_codepoint(text, index);
-        if (next <= index) {
-            break;
-        }
-        std::string_view glyph_view = text.substr(index, next - index);
-        float glyph_width = measure_spaced_text(context, glyph_view, text_style, 0.0f);
-        float spacing_after = out.empty() ? 0.0f : letter_spacing;
-        if (width + spacing_after + glyph_width + letter_spacing + ellipsis_width > max_width) {
-            break;
-        }
-        if (!out.empty()) {
-            width += letter_spacing;
-        }
-        out.append(glyph_view.begin(), glyph_view.end());
-        width += glyph_width;
-        index = next;
-    }
-    out += std::string(kEllipsis);
-    return out;
-}
 
 std::string split_token_by_width(IGraphicsContext& context, std::string_view token, const TextStyle& text_style,
                                  float letter_spacing, float max_width, std::string& remainder) {
@@ -129,6 +72,7 @@ std::string split_token_by_width(IGraphicsContext& context, std::string_view tok
         return "";
     }
     float width = 0.0f;
+    TextMeasurer glyph_measurer(context, text_style, 0.0f);
     std::string head;
     size_t index = 0;
     while (index < token.size()) {
@@ -137,7 +81,7 @@ std::string split_token_by_width(IGraphicsContext& context, std::string_view tok
             break;
         }
         std::string_view glyph_view = token.substr(index, next - index);
-        float glyph_width = measure_spaced_text(context, glyph_view, text_style, 0.0f);
+        float glyph_width = glyph_measurer.measure(glyph_view);
         float spacing = head.empty() ? 0.0f : letter_spacing;
         if (width + spacing + glyph_width > max_width) {
             remainder = std::string(token.substr(index));
@@ -156,12 +100,13 @@ std::string split_token_by_width(IGraphicsContext& context, std::string_view tok
 void build_preserved_lines(IGraphicsContext& context, const std::string& text, const TextStyle& text_style,
                            std::vector<std::string>& lines, std::vector<float>& line_widths, float& content_width,
                            float letter_spacing) {
+    TextMeasurer measurer(context, text_style, letter_spacing);
     // Preserve newlines; no wrapping.
     size_t start = 0;
     while (start < text.size()) {
         size_t nl = text.find('\n', start);
         std::string line = nl == std::string::npos ? text.substr(start) : text.substr(start, nl - start);
-        float w = measure_spaced_text(context, line, text_style, letter_spacing);
+        float w = measurer.measure(line);
         append_line(lines, line_widths, content_width, std::move(line), w);
         if (nl == std::string::npos) {
             break;
@@ -176,10 +121,10 @@ void build_wrapped_lines(IGraphicsContext& context, const std::string& text, con
     // Greedy wrap by tokens (words and explicit spaces) to preserve spacing around inline elements.
     auto tokens = TextLayoutUtils::tokenize_text(text);
 
-    auto measure_word = [&](const std::string& w) {
-        return measure_spaced_text(context, w, text_style, letter_spacing);
-    };
-    float space_width = measure_spaced_text(context, " ", text_style, 0.0f);
+    TextMeasurer measurer(context, text_style, letter_spacing);
+    TextMeasurer glyph_measurer(context, text_style, 0.0f);
+    auto measure_word = [&](const std::string& w) { return measurer.measure(w); };
+    float space_width = glyph_measurer.measure(" ");
 
     std::string line_text;
     float line_width = 0.0f;
@@ -311,8 +256,10 @@ void TextBox::layout(IGraphicsContext& context, const Rect& bounds) {
     if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap &&
         style->text_overflow == Css::ComputedStyle::TextOverflow::Ellipsis && available_width > 0.0f &&
         !m_lines.empty()) {
-        std::string elided = ellipsize_text_to_width(context, m_lines[0], text_style, letter_spacing, available_width);
-        float elided_width = measure_spaced_text(context, elided, text_style, letter_spacing);
+        std::string elided =
+            TextOverflowUtils::ellipsize_text_to_width(context, m_lines[0], text_style, letter_spacing, available_width);
+        TextMeasurer measurer(context, text_style, letter_spacing);
+        float elided_width = measurer.measure(elided);
         m_lines[0] = std::move(elided);
         m_line_widths[0] = elided_width;
         content_width = elided_width;
@@ -370,6 +317,7 @@ void TextBox::measure_inline(IGraphicsContext& context) {
     float line_height = TextMetricsUtils::resolve_line_height(style, m_last_metrics.height);
     m_line_height = line_height;
     m_fragments.clear();
+    TextMeasurer measurer(context, text_style, letter_spacing);
 
     bool break_words = style && style->word_wrap == Css::ComputedStyle::WordWrap::BreakWord;
     m_inline_runs.reserve(tokens.size());
@@ -403,7 +351,7 @@ void TextBox::measure_inline(IGraphicsContext& context) {
         run.owner = this;
         run.local_index = local_index++;
         run.text = token;
-        run.width = measure_spaced_text(context, token, text_style, letter_spacing);
+        run.width = measurer.measure(token);
         run.height = line_height;
         run.ascent = compute_text_ascent(metrics, line_height);
         run.vertical_align = resolve_inline_vertical_align(style);

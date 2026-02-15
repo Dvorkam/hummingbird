@@ -16,8 +16,8 @@
 - [ ] `src/style/parser/CssParser.cpp`: extract property-specific parsing helpers (font/background/border) to reduce `parse_value` branching.
 - [ ] `src/style/parser/CssParser.cpp`: deduplicate tokenization/parse patterns used across shorthand handlers.
 - [ ] `src/layout/flow/TextBox.cpp`: separate text shaping/metrics from line-breaking logic.
-- [ ] `src/layout/flow/TextBox.cpp`: isolate text-overflow/ellipsis handling into a helper.
-- [ ] `src/layout/flow/TextBox.cpp`: consolidate text measurement into a reusable `TextMeasurer` helper.
+- [x] `src/layout/flow/TextBox.cpp`: isolate text-overflow/ellipsis handling into a helper.
+- [x] `src/layout/flow/TextBox.cpp`: consolidate text measurement into a reusable `TextMeasurer` helper.
 - [ ] `src/platform/graphics/SDLGraphicsContext.cpp`: split rendering primitives (rects/text/images) vs setup/teardown.
 - [ ] `src/platform/graphics/SDLGraphicsContext.cpp`: isolate font cache/text rendering into a helper.
 - [ ] `src/platform/graphics/SDLGraphicsContext.cpp`: extract image caching/eviction into an `ImageCache` helper.
