@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/RenderTypes.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"

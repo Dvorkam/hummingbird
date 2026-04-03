@@ -4,7 +4,7 @@
 #include <string>
 #include <string_view>
 
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/RenderTypes.h"
 #include "core/utils/StringUtils.h"
 
 namespace Hummingbird::Core::Utils {

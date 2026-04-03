@@ -4,7 +4,7 @@
 #include <string>
 #include <unordered_map>
 
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/RenderTypes.h"
 
 namespace Hummingbird::Css {
 

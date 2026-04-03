@@ -87,3 +87,76 @@ diagrams:
         - /usr/include/c++
         - /usr/lib/clang
         - /usr/lib64/clang
+
+  engine_extensions:
+    type: class
+    title: Engine - extension system
+    generate_packages: true
+    package_type: directory
+    include_relations_also_as_members: false
+    glob:
+      - r: ".*src/.*\\.cpp$"
+    include:
+      paths:
+        - src/engine/extensions
+    exclude:
+      access:
+        - private
+
+  html_subsystem:
+    type: class
+    title: HTML - parser and tokenizer
+    generate_packages: true
+    package_type: directory
+    glob:
+      - r: ".*src/.*\\.cpp$"
+    include:
+      paths:
+        - src/html
+    exclude:
+      access:
+        - private
+
+  style_subsystem:
+    type: class
+    title: Style - CSS engine
+    generate_packages: true
+    package_type: directory
+    include_relations_also_as_members: false
+    glob:
+      - r: ".*src/.*\\.cpp$"
+    include:
+      paths:
+        - src/style
+    exclude:
+      access:
+        - private
+
+  layout_subsystem:
+    type: class
+    title: Layout - render tree
+    generate_packages: true
+    package_type: directory
+    include_relations_also_as_members: false
+    glob:
+      - r: ".*src/.*\\.cpp$"
+    include:
+      paths:
+        - src/layout
+    exclude:
+      access:
+        - private
+
+  renderer_subsystem:
+    type: class
+    title: Renderer - display list and painter
+    generate_packages: true
+    package_type: directory
+    glob:
+      - r: ".*src/.*\\.cpp$"
+    include:
+      paths:
+        - src/renderer
+    exclude:
+      access:
+        - private

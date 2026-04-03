@@ -5,7 +5,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/RenderTypes.h"
 
 namespace Hummingbird::Css {
 

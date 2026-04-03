@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "core/dom/Element.h"
+#include "core/platform_api/IGraphicsContext.h"
 #include "core/dom/ElementUtils.h"
 #include "core/dom/Node.h"
 #include "core/utils/Log.h"
