@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
+cmake_policy(SET CMP0168 OLD)
 project(Hummingbird VERSION 0.5.0)
 
 # Set C++ standard to C++20
@@ -25,10 +26,10 @@ else()
 endif()
 add_compile_definitions(HB_LOG_LEVEL=${HB_LOG_LEVEL_NUM})
 
-find_package(SDL2 REQUIRED)
+find_package(SDL2 CONFIG REQUIRED)
 find_package(SDL2_image CONFIG REQUIRED)
 find_package(blend2d REQUIRED)
-find_package(CURL REQUIRED)
+find_package(CURL CONFIG REQUIRED)
 find_package(qjs CONFIG REQUIRED)
 find_package(lunasvg CONFIG REQUIRED)
 
