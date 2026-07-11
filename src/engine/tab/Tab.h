@@ -1,7 +1,6 @@
 #pragma once
 
 #include <atomic>
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -41,40 +40,6 @@ public:
         bool handled = false;
         bool mutated = false;
     };
-    class InteractionApi {
-    public:
-        std::optional<std::string> hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const {
-            return tab_.hit_test_link(point, viewport);
-        }
-        ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
-                                   IGraphicsContext& graphics) {
-            return tab_.dispatch_click(point, viewport, graphics);
-        }
-        std::optional<FormSubmission> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
-            return tab_.submit_form_at(point, viewport);
-        }
-        bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport) {
-            return tab_.focus_input_at(point, viewport);
-        }
-        bool clear_input_focus() { return tab_.clear_input_focus(); }
-        bool set_control_interaction_at(const Layout::Point& point, const Layout::Rect& viewport) {
-            return tab_.set_control_interaction_at(point, viewport);
-        }
-        bool clear_control_interaction() { return tab_.clear_control_interaction(); }
-        bool refresh_styles_for_interaction(IGraphicsContext& graphics, const Layout::Rect& viewport) {
-            return tab_.refresh_styles_for_interaction(graphics, viewport);
-        }
-        bool has_focused_input() const { return tab_.has_focused_input(); }
-        bool handle_text_input(std::string_view text) { return tab_.handle_text_input(text); }
-        KeyResult handle_key_down(const InputEvent& event) { return tab_.handle_key_down(event); }
-        std::optional<std::string> focused_input_value() const { return tab_.focused_input_value(); }
-
-    private:
-        friend class Tab;
-        explicit InteractionApi(Tab& tab) : tab_(tab) {}
-
-        Tab& tab_;
-    };
     Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
         std::unique_ptr<IScriptEngine> script_engine);
@@ -99,21 +64,7 @@ public:
     // Paints just the input controls without re-drawing the full document.
     void paint_controls(IGraphicsContext& graphics, const Layout::Rect& viewport);
 
-    InteractionApi interaction() { return InteractionApi(*this); }
-    std::optional<std::string> consume_navigation_commit_url();
-    bool insert_extension_css(std::string_view css_text);
-
-    void scroll_by(float delta_px, float viewport_height);
-
-    float scroll_y() const { return layout_state_.scroll_y; }
-    float content_height() const { return layout_state_.content_height; }
-    std::string_view requested_url() const { return navigation_lifecycle_.requested_url(); }
-    SecurityState security_state() const { return navigation_lifecycle_.security_state(); }
-    std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
-
-    bool allow_insecure_for_current_host();
-
-private:
+    // --- document interaction ---
     // Returns a resolved link URL for the render node under the window-space point.
     std::optional<std::string> hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const;
     ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics);
@@ -128,6 +79,20 @@ private:
     KeyResult handle_key_down(const InputEvent& event);
     std::optional<std::string> focused_input_value() const;
 
+    std::optional<std::string> consume_navigation_commit_url();
+    bool insert_extension_css(std::string_view css_text);
+
+    void scroll_by(float delta_px, float viewport_height);
+
+    float scroll_y() const { return layout_state_.scroll_y; }
+    float content_height() const { return layout_state_.content_height; }
+    std::string_view requested_url() const { return navigation_lifecycle_.requested_url(); }
+    SecurityState security_state() const { return navigation_lifecycle_.security_state(); }
+    std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
+
+    bool allow_insecure_for_current_host();
+
+private:
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, IGraphicsContext& graphics,
                                               const Layout::Rect& viewport);

@@ -404,7 +404,7 @@ TEST(EngineTabTest, HitTestResolvesLink) {
     EXPECT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{10.0f, 12.0f};
-    auto link = harness.tab().interaction().hit_test_link(point, harness.viewport());
+    auto link = harness.tab().hit_test_link(point, harness.viewport());
     ASSERT_TRUE(link.has_value());
     EXPECT_EQ(*link, "https://example.dev/next");
 }
@@ -429,20 +429,20 @@ TEST(EngineTabTest, FocusesInputAndEditsValue) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    EXPECT_TRUE(harness.tab().interaction().focus_input_at(point, harness.viewport()));
-    EXPECT_TRUE(harness.tab().interaction().has_focused_input());
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().has_focused_input());
 
-    EXPECT_TRUE(harness.tab().interaction().handle_text_input("!"));
-    auto value = harness.tab().interaction().focused_input_value();
+    EXPECT_TRUE(harness.tab().handle_text_input("!"));
+    auto value = harness.tab().focused_input_value();
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(*value, "hi!");
 
     Hummingbird::InputEvent backspace_event;
     backspace_event.type = Hummingbird::EventType::KeyDown;
     backspace_event.key.key = Hummingbird::Key::Backspace;
-    auto backspace_result = harness.tab().interaction().handle_key_down(backspace_event);
+    auto backspace_result = harness.tab().handle_key_down(backspace_event);
     EXPECT_TRUE(backspace_result.handled);
-    value = harness.tab().interaction().focused_input_value();
+    value = harness.tab().focused_input_value();
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(*value, "hi");
 }
@@ -470,10 +470,10 @@ TEST(EngineTabTest, FocusPrefersTextInputOverOverlappingSubmitInput) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    ASSERT_TRUE(harness.tab().interaction().focus_input_at(point, harness.viewport()));
-    ASSERT_TRUE(harness.tab().interaction().handle_text_input("duck"));
+    ASSERT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    ASSERT_TRUE(harness.tab().handle_text_input("duck"));
 
-    auto value = harness.tab().interaction().focused_input_value();
+    auto value = harness.tab().focused_input_value();
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(*value, "duck");
 }
@@ -500,9 +500,9 @@ TEST(EngineTabTest, AutofocusInputIsFocusedAfterDocumentLoad) {
     harness.navigate("https://example.dev");
     ASSERT_TRUE(harness.tick());
 
-    EXPECT_TRUE(harness.tab().interaction().has_focused_input());
-    EXPECT_TRUE(harness.tab().interaction().handle_text_input("hello"));
-    auto value = harness.tab().interaction().focused_input_value();
+    EXPECT_TRUE(harness.tab().has_focused_input());
+    EXPECT_TRUE(harness.tab().handle_text_input("hello"));
+    auto value = harness.tab().focused_input_value();
     ASSERT_TRUE(value.has_value());
     EXPECT_EQ(*value, "hello");
 }
@@ -530,13 +530,13 @@ TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    EXPECT_TRUE(harness.tab().interaction().focus_input_at(point, harness.viewport()));
-    EXPECT_TRUE(harness.tab().interaction().handle_text_input("hello world"));
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("hello world"));
 
     Hummingbird::InputEvent enter_event;
     enter_event.type = Hummingbird::EventType::KeyDown;
     enter_event.key.key = Hummingbird::Key::Enter;
-    auto result = harness.tab().interaction().handle_key_down(enter_event);
+    auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
     ASSERT_TRUE(result.submitted_form.has_value());
     EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=hello+world&lang=en");
@@ -565,12 +565,12 @@ TEST(EngineTabTest, FormWithEmptyMethodSubmitsAsGet) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    EXPECT_TRUE(harness.tab().interaction().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
 
     Hummingbird::InputEvent enter_event;
     enter_event.type = Hummingbird::EventType::KeyDown;
     enter_event.key.key = Hummingbird::Key::Enter;
-    auto result = harness.tab().interaction().handle_key_down(enter_event);
+    auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
     ASSERT_TRUE(result.submitted_form.has_value());
     EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=test");
@@ -600,7 +600,7 @@ TEST(EngineTabTest, SubmitsInputSubmitControlByClick) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    auto submitted = harness.tab().interaction().submit_form_at(point, harness.viewport());
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
     EXPECT_EQ(submitted->url, "https://example.dev/search?q=saturn");
     EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
@@ -629,7 +629,7 @@ TEST(EngineTabTest, SubmitsInputSubmitControlWithFormAttribute) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    auto submitted = harness.tab().interaction().submit_form_at(point, harness.viewport());
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
     EXPECT_EQ(submitted->url, "https://example.dev/search?q=venus");
     EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
@@ -658,13 +658,13 @@ TEST(EngineTabTest, EnterSubmitsFormWithInputSubmitControl) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    EXPECT_TRUE(harness.tab().interaction().focus_input_at(point, harness.viewport()));
-    EXPECT_TRUE(harness.tab().interaction().handle_text_input("pluto"));
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("pluto"));
 
     Hummingbird::InputEvent enter_event;
     enter_event.type = Hummingbird::EventType::KeyDown;
     enter_event.key.key = Hummingbird::Key::Enter;
-    auto result = harness.tab().interaction().handle_key_down(enter_event);
+    auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
     ASSERT_TRUE(result.submitted_form.has_value());
     EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=pluto");
@@ -694,13 +694,13 @@ TEST(EngineTabTest, EnterSubmitsPostFormWithEncodedBody) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    EXPECT_TRUE(harness.tab().interaction().focus_input_at(point, harness.viewport()));
-    EXPECT_TRUE(harness.tab().interaction().handle_text_input("duck duck go"));
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("duck duck go"));
 
     Hummingbird::InputEvent enter_event;
     enter_event.type = Hummingbird::EventType::KeyDown;
     enter_event.key.key = Hummingbird::Key::Enter;
-    auto result = harness.tab().interaction().handle_key_down(enter_event);
+    auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
     ASSERT_TRUE(result.submitted_form.has_value());
     EXPECT_EQ(result.submitted_form->url, "https://example.dev/html/");
@@ -732,7 +732,7 @@ TEST(EngineTabTest, ClickSubmitReturnsPostFormSubmission) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    auto submitted = harness.tab().interaction().submit_form_at(point, harness.viewport());
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
     EXPECT_EQ(submitted->url, "https://example.dev/html/");
     EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Post);
@@ -763,7 +763,7 @@ TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    auto submitted = harness.tab().interaction().submit_form_at(point, harness.viewport());
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
     EXPECT_EQ(submitted->url, "https://example.dev/search?q=moon");
     EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
@@ -792,7 +792,7 @@ TEST(EngineTabTest, ButtonWithEmptyTypeDefaultsToSubmit) {
     ASSERT_TRUE(harness.tick());
 
     Hummingbird::Layout::Point point{12.0f, 12.0f};
-    auto submitted = harness.tab().interaction().submit_form_at(point, harness.viewport());
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
     EXPECT_EQ(submitted->url, "https://example.dev/search?q=mars");
     EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);

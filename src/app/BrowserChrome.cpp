@@ -1,5 +1,6 @@
 #include "app/BrowserChrome.h"
 
+#include <algorithm>
 #include <optional>
 #include <string_view>
 
@@ -21,6 +22,12 @@ std::optional<ImageBitmap> load_icon(IResourceProvider* provider, IImageDecoder*
     return decoded;
 }
 }  // namespace
+
+Layout::Rect BrowserChrome::content_viewport(int win_w, int win_h) const {
+    const int content_y = url_bar_.height() + tab_strip_height();
+    const int content_h = std::max(0, win_h - content_y);
+    return {0.0f, static_cast<float>(content_y), static_cast<float>(win_w), static_cast<float>(content_h)};
+}
 
 void BrowserChrome::draw_tab_strip(IGraphicsContext& graphics, int win_w, int top_y,
                                    const Engine::TabManager& tabs) const {

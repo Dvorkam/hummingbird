@@ -29,22 +29,22 @@ SecurityState TabDocumentReadyPolicy::decide_security_state(const ResourceLoader
     return security_state_for_url(requested_url);
 }
 
-void TabDocumentReadyPolicy::log_discovered_resources(DocumentPipeline::LayoutApi layout) {
-    if (!layout.stylesheet_links().empty()) {
-        HB_LOG_INFO("[pipeline] discovered stylesheet links: " << layout.stylesheet_links().size());
+void TabDocumentReadyPolicy::log_discovered_resources(const DocumentPipeline& pipeline) {
+    if (!pipeline.stylesheet_links().empty()) {
+        HB_LOG_INFO("[pipeline] discovered stylesheet links: " << pipeline.stylesheet_links().size());
     }
-    if (!layout.image_links().empty()) {
-        HB_LOG_INFO("[pipeline] discovered image sources: " << layout.image_links().size());
+    if (!pipeline.image_links().empty()) {
+        HB_LOG_INFO("[pipeline] discovered image sources: " << pipeline.image_links().size());
     }
-    if (!layout.background_image_links().empty()) {
-        HB_LOG_INFO("[pipeline] discovered background images: " << layout.background_image_links().size());
+    if (!pipeline.background_image_links().empty()) {
+        HB_LOG_INFO("[pipeline] discovered background images: " << pipeline.background_image_links().size());
     }
 }
 
-void TabDocumentReadyPolicy::request_discovered_resources(ResourceLoader& loader, DocumentPipeline::LayoutApi layout,
+void TabDocumentReadyPolicy::request_discovered_resources(ResourceLoader& loader, const DocumentPipeline& pipeline,
                                                           std::string_view base_url) {
-    loader.request_stylesheets(layout.stylesheet_links(), base_url);
-    loader.request_images(layout.image_links(), base_url);
+    loader.request_stylesheets(pipeline.stylesheet_links(), base_url);
+    loader.request_images(pipeline.image_links(), base_url);
 }
 
 }  // namespace Hummingbird::Engine

@@ -34,6 +34,15 @@ const Hummingbird::Engine::Tab* TabController::tab_by_id(Hummingbird::Engine::Ta
     return tab_manager_.tab_by_id(id);
 }
 
+Hummingbird::Engine::Tab& TabController::ensure_active_tab() {
+    auto* tab = tab_manager_.active_tab();
+    if (!tab) {
+        tab_manager_.create_tab();
+        tab = tab_manager_.active_tab();
+    }
+    return *tab;
+}
+
 Hummingbird::Engine::TabId TabController::create_tab() {
     return tab_manager_.create_tab();
 }

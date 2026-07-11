@@ -1,10 +1,11 @@
 # Tech Debt Game Plan (Temp)
 
 ## Chokepoint Candidates
-- [x] **Engine::DocumentPipeline**: narrow the public API surface so Tab talks to smaller, purpose-built interfaces (render/layout vs interaction).
+- [x] **Engine::DocumentPipeline**: narrow the public API surface so Tab talks to smaller, purpose-built interfaces (render/layout vs interaction). *(Superseded: the `LayoutApi`/`InteractionApi` facades were pure pass-throughs that tripled each method declaration; flattened back to a single grouped public API.)*
 - [x] **Engine::Tab**: extract a `NavigationLifecycle` helper to own URL normalization, commit state, and security decisions (reduce coupling with `ResourceLoader`).
-- [x] **Engine::Tab**: introduce a thin interaction facade so input/control forwarding no longer expands the Tab public surface.
+- [x] **Engine::Tab**: introduce a thin interaction facade so input/control forwarding no longer expands the Tab public surface. *(Superseded: same pass-through pattern; flattened into public interaction methods on Tab.)*
 - [x] **App::BrowserApp**: split input routing into `ChromeEventRouter` vs `DocumentEventRouter` to separate UI chrome logic from document interaction.
+- [x] **App::BrowserApp**: remove `friend` access for routers/`RenderCoordinator`. Routers now take explicit collaborators (`BrowserChrome`, `TabController`, `RenderCoordinator`, window/graphics); event dispatch glue lives in `BrowserEventRouter`; content-viewport geometry moved to `BrowserChrome::content_viewport`; debug outlines and dirty-flag combos moved to `RenderCoordinator`; ensure-active-tab invariant moved to `TabController::ensure_active_tab`.
 - [ ] **App::BrowserApp**: move tab lifecycle actions (`new_tab`, `close_active_tab`, activate next/prev) and active-tab change side effects into `TabController` with a small result object for UI updates.
 - [ ] **App::BrowserApp**: move URL bar focus/blur and security-state sync into `BrowserChrome` helpers (e.g., `focus_url_bar(window)`, `sync_security_state(state)`).
 - [ ] **Layout::RenderTable**: isolate seam debug logging into a debug-only helper or compile-time gated block.

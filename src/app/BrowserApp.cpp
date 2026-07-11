@@ -1,11 +1,9 @@
 #include "app/BrowserApp.h"
 
-#include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <optional>
 #include <ostream>
-#include <string>
 #include <string_view>
 #include <utility>
 
@@ -65,10 +63,14 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
       tab_controller_(make_tab_factory(primary_backend_for_env())),
       extension_host_(std::make_unique<Hummingbird::Engine::ExtensionHost>([]() { return create_script_engine(); })) {
-    event_router_ = std::make_unique<BrowserEventRouter>(*this);
-    chrome_event_router_ = std::make_unique<ChromeEventRouter>(*this);
-    document_event_router_ = std::make_unique<DocumentEventRouter>(*this);
-    render_coordinator_ = std::make_unique<RenderCoordinator>(*this);
+    render_coordinator_ =
+        std::make_unique<RenderCoordinator>(window_.get(), graphics_.get(), browser_chrome_, tab_controller_);
+    chrome_event_router_ = std::make_unique<ChromeEventRouter>(*this, browser_chrome_, tab_controller_,
+                                                               *render_coordinator_, window_.get(), graphics_.get());
+    document_event_router_ = std::make_unique<DocumentEventRouter>(*this, browser_chrome_, *render_coordinator_,
+                                                                   window_.get(), graphics_.get());
+    event_router_ = std::make_unique<BrowserEventRouter>(*this, *chrome_event_router_, *document_event_router_,
+                                                         *render_coordinator_);
 
     const auto first_tab_id = tab_controller_.create_tab();
     auto provider = create_resource_provider();
@@ -145,7 +147,7 @@ bool BrowserApp::tick() {
 
     if (graphics_) {
         auto [win_w, win_h] = window_->get_size();
-        const auto viewport = compute_content_viewport(win_w, win_h);
+        const auto viewport = browser_chrome_.content_viewport(win_w, win_h);
         tick_active_tab(viewport);
         emit_navigation_commit_events();
         sync_active_tab_security_state();
@@ -189,54 +191,8 @@ void BrowserApp::pump_events() {
     }
 }
 
-void BrowserApp::handle_quit_event() {
-    shutdown();
-}
-
-void BrowserApp::handle_text_input_event(const InputEvent& event) {
-    if (chrome_event_router_->handle_text_input(event)) {
-        return;
-    }
-    (void)document_event_router_->handle_text_input(event);
-}
-
-void BrowserApp::handle_key_down_event(const InputEvent& event) {
-    if (chrome_event_router_->handle_key_down(event)) {
-        return;
-    }
-    (void)document_event_router_->handle_key_down(event);
-}
-
-void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
-    if (chrome_event_router_->handle_mouse_down(event)) {
-        return;
-    }
-    document_event_router_->handle_mouse_down(event);
-}
-
-void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
-    document_event_router_->handle_mouse_wheel(event);
-}
-
-void BrowserApp::handle_resize_event(const InputEvent& event) {
-    render_coordinator_->invalidate_document_cache();
-}
-
-Hummingbird::Layout::Rect BrowserApp::compute_content_viewport(int win_w, int win_h) const {
-    const int content_y = browser_chrome_.url_bar().height() + browser_chrome_.tab_strip_height();
-    const int content_h = std::max(0, win_h - content_y);
-    return {0.0f, static_cast<float>(content_y), static_cast<float>(win_w), static_cast<float>(content_h)};
-}
-
 Hummingbird::Engine::Tab& BrowserApp::active_tab() {
-    auto* tab = tab_controller_.active_tab();
-    // BrowserApp expects an active tab for all operations; TabManager is responsible
-    // for maintaining that invariant for the app.
-    if (!tab) {
-        tab_controller_.create_tab();
-        tab = tab_controller_.active_tab();
-    }
-    return *tab;
+    return tab_controller_.ensure_active_tab();
 }
 
 void BrowserApp::on_active_tab_changed() {
@@ -267,7 +223,7 @@ void BrowserApp::sync_tab_text_input_mode() {
         return;
     }
 
-    const bool should_be_active = active_tab().interaction().has_focused_input();
+    const bool should_be_active = active_tab().has_focused_input();
     if (should_be_active == tab_text_input_active_) {
         return;
     }
@@ -314,18 +270,8 @@ bool BrowserApp::insert_extension_css(Hummingbird::Engine::TabId tab_id, std::st
     if (!tab->insert_extension_css(css_text)) {
         return false;
     }
-    mark_document_and_controls_dirty();
+    render_coordinator_->set_document_and_controls_dirty();
     return true;
-}
-
-void BrowserApp::mark_document_and_controls_dirty() {
-    render_coordinator_->set_document_dirty();
-    render_coordinator_->set_controls_dirty();
-}
-
-void BrowserApp::mark_all_layers_dirty() {
-    render_coordinator_->set_chrome_dirty();
-    mark_document_and_controls_dirty();
 }
 
 bool BrowserApp::new_tab() {
@@ -354,6 +300,12 @@ bool BrowserApp::activate_next_tab() {
 
 bool BrowserApp::activate_prev_tab() {
     if (!tab_controller_.activate_prev()) return false;
+    on_active_tab_changed();
+    return true;
+}
+
+bool BrowserApp::activate_tab(Hummingbird::Engine::TabId id) {
+    if (!tab_controller_.set_active(id)) return false;
     on_active_tab_changed();
     return true;
 }

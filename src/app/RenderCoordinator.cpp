@@ -4,7 +4,9 @@
 #include <cstdlib>
 #include <string_view>
 
-#include "app/BrowserApp.h"
+#include "app/BrowserChrome.h"
+#include "app/TabController.h"
+#include "core/platform_api/IWindow.h"
 #include "core/utils/Log.h"
 #include "engine/tab/Tab.h"
 
@@ -35,7 +37,7 @@ bool render_loop_debug_enabled() {
 }  // namespace
 
 void RenderCoordinator::render_if_needed() {
-    if (!app_.graphics_ || (!document_dirty_ && !chrome_dirty_ && !controls_dirty_)) return;
+    if (!graphics_ || !window_ || (!document_dirty_ && !chrome_dirty_ && !controls_dirty_)) return;
 
     if (render_loop_debug_enabled()) {
         static int render_log_count = 0;
@@ -47,28 +49,28 @@ void RenderCoordinator::render_if_needed() {
         }
     }
 
-    auto [win_w, win_h] = app_.window_->get_size();
+    auto [win_w, win_h] = window_->get_size();
+    auto& active_tab = tabs_.ensure_active_tab();
 
     Hummingbird::Layout::Rect full{0, 0, static_cast<float>(win_w), static_cast<float>(win_h)};
-    app_.graphics_->set_viewport(full);
-    const auto viewport = app_.compute_content_viewport(win_w, win_h);
+    graphics_->set_viewport(full);
+    const auto viewport = chrome_.content_viewport(win_w, win_h);
     if (!document_cache_valid_) {
         document_dirty_ = true;
     }
     if (document_dirty_) {
         document_cache_valid_ = false;
-        if (app_.graphics_->begin_document_cache(full)) {
-            app_.active_tab().paint(*app_.graphics_, viewport, app_.debug_outlines_);
-            app_.graphics_->end_document_cache();
+        if (graphics_->begin_document_cache(full)) {
+            active_tab.paint(*graphics_, viewport, debug_outlines_);
+            graphics_->end_document_cache();
             document_cache_valid_ = true;
         } else {
-            app_.graphics_->clear(kClearColor);
-            app_.graphics_->set_text_cache_owner(0);
-            app_.browser_chrome_.url_bar().draw(*app_.graphics_, win_w);
-            app_.browser_chrome_.draw_tab_strip(*app_.graphics_, win_w, app_.browser_chrome_.url_bar().height(),
-                                                app_.tab_controller_.manager());
-            app_.active_tab().paint(*app_.graphics_, viewport, app_.debug_outlines_);
-            app_.graphics_->present();
+            graphics_->clear(kClearColor);
+            graphics_->set_text_cache_owner(0);
+            chrome_.url_bar().draw(*graphics_, win_w);
+            chrome_.draw_tab_strip(*graphics_, win_w, chrome_.url_bar().height(), tabs_.manager());
+            active_tab.paint(*graphics_, viewport, debug_outlines_);
+            graphics_->present();
             document_dirty_ = false;
             chrome_dirty_ = false;
             controls_dirty_ = false;
@@ -76,20 +78,19 @@ void RenderCoordinator::render_if_needed() {
         }
     }
 
-    app_.graphics_->clear(kClearColor);
+    graphics_->clear(kClearColor);
     if (document_cache_valid_) {
-        app_.graphics_->draw_document_cache();
+        graphics_->draw_document_cache();
     }
-    app_.graphics_->set_viewport(full);
-    app_.graphics_->set_text_cache_owner(0);
-    app_.browser_chrome_.url_bar().draw(*app_.graphics_, win_w);
-    app_.browser_chrome_.draw_tab_strip(*app_.graphics_, win_w, app_.browser_chrome_.url_bar().height(),
-                                        app_.tab_controller_.manager());
+    graphics_->set_viewport(full);
+    graphics_->set_text_cache_owner(0);
+    chrome_.url_bar().draw(*graphics_, win_w);
+    chrome_.draw_tab_strip(*graphics_, win_w, chrome_.url_bar().height(), tabs_.manager());
     if (!document_dirty_ && controls_dirty_) {
-        app_.active_tab().paint_controls(*app_.graphics_, viewport);
+        active_tab.paint_controls(*graphics_, viewport);
     }
 
-    app_.graphics_->present();
+    graphics_->present();
     document_dirty_ = false;
     chrome_dirty_ = false;
     controls_dirty_ = false;

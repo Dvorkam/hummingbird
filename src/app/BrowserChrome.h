@@ -6,6 +6,7 @@
 #include "app/UrlBar.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "engine/tab/TabManager.h"
+#include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
 class IResourceProvider;
@@ -26,6 +27,9 @@ public:
     const UrlBar& url_bar() const { return url_bar_; }
 
     int tab_strip_height() const { return tab_strip_.height(); }
+
+    // Window area left for document content below the URL bar and tab strip.
+    Layout::Rect content_viewport(int win_w, int win_h) const;
 
     void draw_tab_strip(IGraphicsContext& graphics, int win_w, int top_y, const Engine::TabManager& tabs) const;
 

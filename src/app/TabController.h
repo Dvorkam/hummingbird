@@ -17,6 +17,9 @@ public:
 
     Hummingbird::Engine::Tab* active_tab();
     const Hummingbird::Engine::Tab* active_tab() const;
+    // Returns the active tab, creating one first if none exists. The app relies on
+    // an active tab always being available.
+    Hummingbird::Engine::Tab& ensure_active_tab();
     Hummingbird::Engine::Tab* tab_by_id(Hummingbird::Engine::TabId id);
     const Hummingbird::Engine::Tab* tab_by_id(Hummingbird::Engine::TabId id) const;
 

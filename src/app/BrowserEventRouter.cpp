@@ -1,28 +1,37 @@
 #include "app/BrowserEventRouter.h"
 
 #include "app/BrowserApp.h"
+#include "app/ChromeEventRouter.h"
+#include "app/DocumentEventRouter.h"
+#include "app/RenderCoordinator.h"
 
 namespace Hummingbird::App {
 
 void BrowserEventRouter::handle_event(const InputEvent& event) {
     switch (event.type) {
         case EventType::Quit:
-            app_.handle_quit_event();
+            app_.shutdown();
             return;
         case EventType::TextInput:
-            app_.handle_text_input_event(event);
+            if (!chrome_.handle_text_input(event)) {
+                (void)document_.handle_text_input(event);
+            }
             return;
         case EventType::KeyDown:
-            app_.handle_key_down_event(event);
+            if (!chrome_.handle_key_down(event)) {
+                (void)document_.handle_key_down(event);
+            }
             return;
         case EventType::MouseDown:
-            app_.handle_mouse_down_event(event);
+            if (!chrome_.handle_mouse_down(event)) {
+                document_.handle_mouse_down(event);
+            }
             return;
         case EventType::MouseWheel:
-            app_.handle_mouse_wheel_event(event);
+            document_.handle_mouse_wheel(event);
             return;
         case EventType::Resize:
-            app_.handle_resize_event(event);
+            render_.invalidate_document_cache();
             return;
         default:
             return;
