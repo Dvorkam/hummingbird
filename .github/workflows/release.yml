@@ -14,8 +14,7 @@ env:
 
 jobs:
   windows_zip:
-    # See ci.yml: windows-latest (VS2026) breaks the pinned vcpkg baseline.
-    runs-on: windows-2025
+    runs-on: windows-latest
     name: Windows (portable zip)
 
     steps:

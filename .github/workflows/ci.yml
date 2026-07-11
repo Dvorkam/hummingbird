@@ -34,10 +34,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # windows-latest now resolves to a VS2026 image, which the pinned vcpkg
-        # baseline (2025-12) cannot detect; stay on the VS2022 image until the
-        # baseline is updated.
-        os: [ubuntu-latest, windows-2025]
+        # Windows runners ship VS2026; the vcpkg baseline must stay recent
+        # enough to detect that toolset.
+        os: [ubuntu-latest, windows-latest]
 
     # vcpkg binary caching using a local folder + actions/cache
     env:
