@@ -1,22 +1,11 @@
 #include "layout/table/RenderTable.h"
 
-#include <stddef.h>
-
 #include <algorithm>
-#include <numeric>
-#include <optional>
-#include <string_view>
 
-#include "core/dom/Element.h"
-#include "core/dom/ElementUtils.h"
-#include "core/dom/Node.h"
-#include "core/utils/ParseUtils.h"
-#include "core/utils/StringUtils.h"
-#include "html/HtmlAttributeNames.h"
-#include "layout/RenderObject.h"
-#include "layout/geometry/Geometry.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
-#include "style/compute/ComputedStyle.h"
+#include "layout/table/TableBorderPainter.h"
+#include "layout/table/TableColumnLayout.h"
+#include "layout/table/TableDebug.h"
 
 namespace Hummingbird {
 class IGraphicsContext;
@@ -26,171 +15,6 @@ namespace Hummingbird::Layout {
 
 namespace {
 constexpr float kTableMeasureWidth = 100000.0f;
-
-struct ParsedWidth {
-    float value;
-    bool is_percent;
-};
-
-std::optional<size_t> parse_span_value(std::string_view value) {
-    auto parsed = Core::Utils::parse_long(value, Core::Utils::NumberParseMode::AllowTrailing);
-    if (!parsed) {
-        return std::nullopt;
-    }
-    if (*parsed < 1) {
-        return 1U;
-    }
-    return static_cast<size_t>(*parsed);
-}
-
-size_t cell_colspan(const RenderTableCell& cell) {
-    auto* element = dynamic_cast<const DOM::Element*>(cell.get_dom_node());
-    if (!element) {
-        return 1;
-    }
-    auto attr = DOM::find_attribute_value(*element, Hummingbird::Html::AttributeNames::ColSpan);
-    if (!attr) {
-        return 1;
-    }
-    auto parsed = parse_span_value(*attr);
-    return parsed.value_or(1);
-}
-
-std::optional<ParsedWidth> parse_width_value(std::string_view value) {
-    std::string_view trimmed = Core::Utils::trim_ascii_whitespace(value);
-    if (trimmed.empty()) {
-        return std::nullopt;
-    }
-
-    bool is_percent = false;
-    if (trimmed.back() == '%') {
-        is_percent = true;
-        trimmed.remove_suffix(1);
-        trimmed = Core::Utils::trim_ascii_whitespace(trimmed);
-    }
-
-    auto parsed = Core::Utils::parse_float(trimmed, Core::Utils::NumberParseMode::AllowTrailing);
-    if (!parsed) {
-        return std::nullopt;
-    }
-    if (*parsed < 0.0f) {
-        *parsed = 0.0f;
-    }
-    return ParsedWidth{*parsed, is_percent};
-}
-
-float resolve_table_target_width(const DOM::Element& element, const Css::ComputedStyle* style, float available_width) {
-    if (style && style->width.has_value()) {
-        return std::max(0.0f, *style->width);
-    }
-    auto attr = DOM::find_attribute_value(element, Hummingbird::Html::AttributeNames::Width);
-    if (!attr) {
-        return 0.0f;
-    }
-    auto parsed = parse_width_value(*attr);
-    if (!parsed) {
-        return 0.0f;
-    }
-    if (parsed->is_percent) {
-        return std::max(0.0f, available_width * (parsed->value / 100.0f));
-    }
-    return parsed->value;
-}
-
-size_t count_cells(const RenderTableRow& row) {
-    size_t count = 0;
-    for (const auto& child : row.get_children()) {
-        if (auto* cell = dynamic_cast<const RenderTableCell*>(child.get())) {
-            count += cell_colspan(*cell);
-        }
-    }
-    return count;
-}
-
-void collect_rows(const RenderObject& node, std::vector<RenderTableRow*>& rows) {
-    for (const auto& child : node.get_children()) {
-        if (auto* row = dynamic_cast<RenderTableRow*>(child.get())) {
-            rows.push_back(row);
-            continue;
-        }
-        if (auto* section = dynamic_cast<RenderTableSection*>(child.get())) {
-            collect_rows(*section, rows);
-        }
-    }
-}
-
-float sum_widths(const std::vector<float>& widths) {
-    return std::accumulate(widths.begin(), widths.end(), 0.0f);
-}
-
-std::vector<RenderTableRow*> collect_table_rows(RenderTable& table) {
-    std::vector<RenderTableRow*> rows;
-    collect_rows(table, rows);
-    return rows;
-}
-
-size_t compute_column_count(const std::vector<RenderTableRow*>& rows) {
-    size_t column_count = 0;
-    for (const auto* row : rows) {
-        column_count = std::max(column_count, count_cells(*row));
-    }
-    return column_count;
-}
-
-void distribute_cell_width(std::vector<float>& column_widths, size_t col, size_t span, float width) {
-    if (column_widths.empty() || col >= column_widths.size() || span == 0) {
-        return;
-    }
-    size_t limit = std::min(column_widths.size(), col + span);
-    float current_width = 0.0f;
-    for (size_t i = col; i < limit; ++i) {
-        current_width += column_widths[i];
-    }
-    if (width <= current_width) {
-        return;
-    }
-    float extra = width - current_width;
-    float per_column = extra / static_cast<float>(limit - col);
-    for (size_t i = col; i < limit; ++i) {
-        column_widths[i] += per_column;
-    }
-}
-
-std::vector<float> compute_column_widths(IGraphicsContext& context, const std::vector<RenderTableRow*>& rows,
-                                         size_t column_count) {
-    std::vector<float> column_widths(column_count, 0.0f);
-    for (auto* row : rows) {
-        size_t col = 0;
-        for (const auto& child : row->get_children()) {
-            auto* cell = dynamic_cast<RenderTableCell*>(child.get());
-            if (!cell) {
-                continue;
-            }
-            size_t span = cell_colspan(*cell);
-            if (span == 0) {
-                span = 1;
-            }
-            float width = cell->measure_intrinsic_width(context);
-            distribute_cell_width(column_widths, col, span, width);
-            col += span;
-        }
-    }
-    return column_widths;
-}
-
-float apply_target_width(std::vector<float>& column_widths, float content_width, float target_width) {
-    if (target_width <= 0.0f || target_width <= content_width) {
-        return content_width;
-    }
-    if (!column_widths.empty()) {
-        float extra = target_width - content_width;
-        float per_column = extra / static_cast<float>(column_widths.size());
-        for (auto& width : column_widths) {
-            width += per_column;
-        }
-    }
-    return target_width;
-}
 
 float layout_table_children(RenderTable& table, IGraphicsContext& context, const Metrics::Insets& insets,
                             float content_width, const std::vector<float>& column_widths) {
@@ -210,24 +34,19 @@ float layout_table_children(RenderTable& table, IGraphicsContext& context, const
     }
     return cursor_y + insets.bottom;
 }
+
 }  // namespace
 
 void RenderTable::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
     Metrics::Insets insets = Metrics::compute_insets(style);
     float available_width = Metrics::compute_available_width(bounds, insets);
-    auto rows = collect_table_rows(*this);
-    size_t column_count = compute_column_count(rows);
-    auto column_widths = compute_column_widths(context, rows, column_count);
-    float content_width = sum_widths(column_widths);
-    auto* element = static_cast<const DOM::Element*>(get_dom_node());
-    float target_width = resolve_table_target_width(*element, style, available_width);
-    content_width = apply_target_width(column_widths, content_width, target_width);
+    auto plan = compute_table_column_layout(*this, context, available_width);
 
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
-    m_rect.width = insets.left + content_width + insets.right;
-    m_rect.height = layout_table_children(*this, context, insets, content_width, column_widths);
+    m_rect.width = insets.left + plan.content_width + insets.right;
+    m_rect.height = layout_table_children(*this, context, insets, plan.content_width, plan.column_widths);
 }
 
 void RenderTableSection::layout_rows(IGraphicsContext& context, const Rect& bounds,
@@ -264,7 +83,7 @@ void RenderTableRow::layout_row(IGraphicsContext& context, const Rect& bounds,
         if (!cell) {
             continue;
         }
-        size_t span = cell_colspan(*cell);
+        size_t span = table_cell_colspan(*cell);
         if (span == 0) {
             span = 1;
         }
@@ -276,7 +95,7 @@ void RenderTableRow::layout_row(IGraphicsContext& context, const Rect& bounds,
         Rect cell_bounds{cursor_x, 0.0f, cell_width, 0.0f};
         cell->layout(context, cell_bounds);
         row_height = std::max(row_height, cell->get_rect().height);
-        cursor_x += cell_width;
+        cursor_x += cell->get_rect().width;
         col += span;
     }
 
@@ -356,6 +175,12 @@ void RenderTableCell::layout(IGraphicsContext& context, const Rect& bounds) {
         float child_x = margin_box_x + margin_left;
         child->set_rect({child_x, child->get_rect().y, child->get_rect().width, child->get_rect().height});
     }
+}
+
+void RenderTableCell::paint_self(IGraphicsContext& context, const Point& offset) const {
+    BlockBox::paint_self(context, offset);
+    log_table_seam_anomaly(*this);
+    paint_table_cell_fallback_border(*this, context, offset);
 }
 
 }  // namespace Hummingbird::Layout

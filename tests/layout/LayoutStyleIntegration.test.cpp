@@ -228,6 +228,146 @@ TEST(LayoutStyleIntegrationTest, AppliesInputDefaultSizing) {
     const auto& children = render_root->get_children();
     ASSERT_EQ(children.size(), 1u);
     const auto& rect = children[0]->get_rect();
-    EXPECT_FLOAT_EQ(rect.width, 180.0f + 2.0f * (6.0f + 1.0f));
+    EXPECT_FLOAT_EQ(rect.width, 180.0f + 2.0f * (8.0f + 1.0f));
     EXPECT_FLOAT_EQ(rect.height, 24.0f + 2.0f * (4.0f + 1.0f));
+}
+
+TEST(LayoutStyleIntegrationTest, ResolvesPercentWidthsAgainstContainingBlock) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto parent = DomFactory::create_element(arena, "div");
+    parent->set_attribute("class", "parent");
+    auto child = DomFactory::create_element(arena, "div");
+    child->set_attribute("class", "child");
+    parent->append_child(std::move(child));
+    dom_root->append_child(std::move(parent));
+
+    std::string css = R"(
+        body { margin: 0; padding: 0; }
+        .parent { width: 400px; margin: 0; padding: 0; }
+        .child { width: 70%; margin: 0; padding: 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& children = render_root->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    const auto& parent_rect = children[0]->get_rect();
+    ASSERT_EQ(children[0]->get_children().size(), 1u);
+    const auto& child_rect = children[0]->get_children()[0]->get_rect();
+
+    EXPECT_FLOAT_EQ(parent_rect.width, 400.0f);
+    EXPECT_FLOAT_EQ(child_rect.width, 280.0f);
+}
+
+TEST(LayoutStyleIntegrationTest, InputKeepsMinimumContentBoxUnderBorderBoxConstraints) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto input = DomFactory::create_element(arena, "input");
+    input->set_attribute("type", "text");
+    dom_root->append_child(std::move(input));
+
+    std::string css = R"(
+        input {
+            width: 20px;
+            height: 10px;
+            box-sizing: border-box;
+            padding: 5px 7px;
+            border: 1px solid #666;
+        }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& children = render_root->get_children();
+    ASSERT_EQ(children.size(), 1u);
+    const auto& rect = children[0]->get_rect();
+
+    // 8+8 horizontal and 6+6 vertical insets + minimum content box (8x12).
+    EXPECT_FLOAT_EQ(rect.width, 24.0f);
+    EXPECT_FLOAT_EQ(rect.height, 24.0f);
+}
+
+TEST(LayoutStyleIntegrationTest, ResolvesPercentMaxHeightAgainstDefiniteContainingHeight) {
+    Hummingbird::Core::ArenaAllocator arena(32768);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    for (int i = 0; i < 40; ++i) {
+        auto row = DomFactory::create_element(arena, "div");
+        row->append_child(DomFactory::create_text(arena, "row"));
+        dom_root->append_child(std::move(row));
+    }
+
+    std::string css = R"(
+        body { margin: 0; padding: 0; max-height: 50%; }
+        div { margin: 0; padding: 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    EXPECT_FLOAT_EQ(render_root->get_rect().height, 300.0f);
+}
+
+TEST(LayoutStyleIntegrationTest, IgnoresPercentMaxHeightWithoutDefiniteContainingHeight) {
+    Hummingbird::Core::ArenaAllocator arena(32768);
+    auto dom_root = DomFactory::create_element(arena, "body");
+    auto parent = DomFactory::create_element(arena, "div");
+    parent->set_attribute("class", "parent");
+    for (int i = 0; i < 20; ++i) {
+        auto row = DomFactory::create_element(arena, "div");
+        row->append_child(DomFactory::create_text(arena, "row"));
+        parent->append_child(std::move(row));
+    }
+    dom_root->append_child(std::move(parent));
+
+    std::string css = R"(
+        body { margin: 0; padding: 0; }
+        .parent { max-height: 50%; margin: 0; padding: 0; }
+        .parent div { margin: 0; padding: 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, dom_root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(dom_root.get());
+    ASSERT_NE(render_root, nullptr);
+    ASSERT_EQ(render_root->get_children().size(), 1u);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    render_root->layout(context, viewport);
+
+    const auto& parent_rect = render_root->get_children()[0]->get_rect();
+    EXPECT_GT(parent_rect.height, 200.0f);
 }

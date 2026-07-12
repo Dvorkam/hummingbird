@@ -7,8 +7,8 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/IResourceProvider.h"
 #include "core/utils/Log.h"
-#include "engine/ResourceUrl.h"
 #include "engine/resources/ResourceStore.h"
+#include "engine/resources/ResourceUrl.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
@@ -108,7 +108,8 @@ void serialize_svg_node(const DOM::Node* node, std::string& out, bool is_root) {
 }  // namespace
 
 std::string DocumentResources::build_css_source(std::string_view base_url, const std::vector<std::string>& style_blocks,
-                                                const std::vector<std::string>& stylesheet_links) const {
+                                                const std::vector<std::string>& stylesheet_links,
+                                                const std::vector<std::string>& extension_style_blocks) const {
     std::string ua_css;
     if (resource_provider_) {
         if (auto ua = resource_provider_->load_text("assets/ua.css")) {
@@ -120,7 +121,7 @@ std::string DocumentResources::build_css_source(std::string_view base_url, const
     }
 
     if (!resource_store_) {
-        return Css::merge_css_sources(ua_css, {}, style_blocks);
+        return Css::merge_css_sources(ua_css, {}, style_blocks, extension_style_blocks);
     }
 
     std::vector<std::string> link_sources;
@@ -154,7 +155,7 @@ std::string DocumentResources::build_css_source(std::string_view base_url, const
                                                        << " failed=" << failed_count << " missing=" << missing_count);
     }
 
-    return Css::merge_css_sources(ua_css, link_sources, style_blocks);
+    return Css::merge_css_sources(ua_css, link_sources, style_blocks, extension_style_blocks);
 }
 
 bool DocumentResources::update_image_resources(Layout::RenderObject* render_tree, std::string_view base_url) const {

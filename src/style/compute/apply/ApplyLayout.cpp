@@ -1,11 +1,13 @@
 #include "style/compute/apply/ApplyLayout.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include "core/utils/ColorUtils.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "style/compute/StyleValueUtils.h"
@@ -136,15 +138,21 @@ void apply_edge(EdgeSizes& edges, float value) {
     edges.top = edges.right = edges.bottom = edges.left = value;
 }
 
-void apply_optional_length(std::optional<float>& target, const Value& value, float font_size) {
+void apply_optional_length(std::optional<float>& target, bool& is_percent, const Value& value, float font_size) {
     if (value.type == Value::Type::Length) {
         if (value.length.unit == Unit::Px) {
             target = value.length.value;
+            is_percent = false;
         } else if (value.length.unit == Unit::Em) {
             target = value.length.value * font_size;
+            is_percent = false;
+        } else if (value.length.unit == Unit::Percent) {
+            target = value.length.value;
+            is_percent = true;
         }
     } else if (value.type == Value::Type::Number) {
         target = value.number;
+        is_percent = false;
     }
 }
 
@@ -177,6 +185,36 @@ void apply_border_style(ComputedStyle& style, const Value& value) {
     }
 }
 
+std::optional<Color> parse_outline_color_token(std::string_view token) {
+    token = Core::Utils::trim_ascii_whitespace(token);
+    if (token.empty()) {
+        return std::nullopt;
+    }
+    if (token.starts_with("#")) {
+        return Core::Utils::parse_hex_color(token.substr(1));
+    }
+    if (token == ValueNames::Red) return Color{255, 0, 0, 255};
+    if (token == ValueNames::Blue) return Color{0, 0, 255, 255};
+    if (token == ValueNames::Black) return Color{0, 0, 0, 255};
+    if (token == ValueNames::White) return Color{255, 255, 255, 255};
+    return std::nullopt;
+}
+
+void apply_outline_shorthand(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return;
+    }
+    for (auto token : StyleValueUtils::split_tokens(value.ident)) {
+        if (auto length = StyleValueUtils::parse_length_token(token, style.font_size)) {
+            style.outline_width = std::max(0.0f, *length);
+            continue;
+        }
+        if (auto color = parse_outline_color_token(token)) {
+            style.outline_color = *color;
+        }
+    }
+}
+
 void apply_position_value(ComputedStyle& style, const Value& value) {
     if (value.type != Value::Type::Identifier) {
         return;
@@ -191,12 +229,43 @@ void apply_position_value(ComputedStyle& style, const Value& value) {
     }
 }
 
+std::optional<ComputedStyle::Overflow> parse_overflow_value(const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return std::nullopt;
+    }
+    if (value.ident == ValueNames::Visible) {
+        return ComputedStyle::Overflow::Visible;
+    }
+    if (value.ident == ValueNames::Hidden) {
+        return ComputedStyle::Overflow::Hidden;
+    }
+    if (value.ident == ValueNames::Scroll) {
+        return ComputedStyle::Overflow::Scroll;
+    }
+    if (value.ident == ValueNames::Auto) {
+        return ComputedStyle::Overflow::Auto;
+    }
+    return std::nullopt;
+}
+
 void apply_z_index_value(ComputedStyle& style, const Value& value) {
     if (value.type == Value::Type::Number) {
         style.z_index = static_cast<int>(value.number);
     } else if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
         style.z_index.reset();
     }
+}
+
+void apply_opacity_value(ComputedStyle& style, const Value& value) {
+    float opacity = style.opacity;
+    if (value.type == Value::Type::Number) {
+        opacity = value.number;
+    } else if (value.type == Value::Type::Length && value.length.unit == Unit::Percent) {
+        opacity = value.length.value / 100.0f;
+    } else {
+        return;
+    }
+    style.opacity = std::clamp(opacity, 0.0f, 1.0f);
 }
 
 bool apply_display_value(ComputedStyle& style, const Value& value) {
@@ -231,6 +300,17 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             return true;
         case Property::Position:
             apply_position_value(style, value);
+            return true;
+        case Property::Overflow:
+            if (auto overflow = parse_overflow_value(value)) {
+                style.overflow_x = *overflow;
+                style.overflow_y = *overflow;
+            }
+            return true;
+        case Property::OverflowY:
+            if (auto overflow = parse_overflow_value(value)) {
+                style.overflow_y = *overflow;
+            }
             return true;
         case Property::Margin:
             apply_edge(style.margin, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
@@ -288,48 +368,102 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
         case Property::BorderWidth:
             apply_edge(style.border_width, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
             return true;
+        case Property::BorderTopWidth:
+            style.border_width.top = StyleValueUtils::value_to_length(value, style.border_width.top, style.font_size);
+            return true;
+        case Property::BorderRightWidth:
+            style.border_width.right =
+                StyleValueUtils::value_to_length(value, style.border_width.right, style.font_size);
+            return true;
+        case Property::BorderBottomWidth:
+            style.border_width.bottom =
+                StyleValueUtils::value_to_length(value, style.border_width.bottom, style.font_size);
+            return true;
+        case Property::BorderLeftWidth:
+            style.border_width.left = StyleValueUtils::value_to_length(value, style.border_width.left, style.font_size);
+            return true;
+        case Property::BorderRadius:
+            style.border_radius = std::max(0.0f, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            return true;
         case Property::BorderColor:
             if (value.type == Value::Type::Color) {
                 style.border_color = value.color;
             }
             return true;
+        case Property::Outline:
+            apply_outline_shorthand(style, value);
+            return true;
+        case Property::OutlineWidth:
+            style.outline_width =
+                std::max(0.0f, StyleValueUtils::value_to_length(value, style.outline_width, style.font_size));
+            return true;
+        case Property::OutlineColor:
+            if (value.type == Value::Type::Color) {
+                style.outline_color = value.color;
+            }
+            return true;
+        case Property::OutlineOffset:
+            style.outline_offset = StyleValueUtils::value_to_length(value, style.outline_offset, style.font_size);
+            return true;
         case Property::BorderStyle:
             apply_border_style(style, value);
             return true;
         case Property::Width:
-            apply_optional_length(style.width, value, style.font_size);
+            apply_optional_length(style.width, style.width_is_percent, value, style.font_size);
             return true;
         case Property::Height:
-            apply_optional_length(style.height, value, style.font_size);
+            apply_optional_length(style.height, style.height_is_percent, value, style.font_size);
             return true;
         case Property::MinWidth:
-            apply_optional_length(style.min_width, value, style.font_size);
+            apply_optional_length(style.min_width, style.min_width_is_percent, value, style.font_size);
             return true;
         case Property::MinHeight:
-            apply_optional_length(style.min_height, value, style.font_size);
+            apply_optional_length(style.min_height, style.min_height_is_percent, value, style.font_size);
             return true;
         case Property::MaxWidth:
-            apply_optional_length(style.max_width, value, style.font_size);
+            apply_optional_length(style.max_width, style.max_width_is_percent, value, style.font_size);
             return true;
         case Property::MaxHeight:
-            apply_optional_length(style.max_height, value, style.font_size);
+            apply_optional_length(style.max_height, style.max_height_is_percent, value, style.font_size);
             return true;
         case Property::Top:
-            apply_optional_length(style.top, value, style.font_size);
+            apply_optional_length(style.top, style.top_is_percent, value, style.font_size);
             return true;
         case Property::Right:
-            apply_optional_length(style.right, value, style.font_size);
+            apply_optional_length(style.right, style.right_is_percent, value, style.font_size);
             return true;
         case Property::Bottom:
-            apply_optional_length(style.bottom, value, style.font_size);
+            apply_optional_length(style.bottom, style.bottom_is_percent, value, style.font_size);
             return true;
         case Property::Left:
-            apply_optional_length(style.left, value, style.font_size);
+            apply_optional_length(style.left, style.left_is_percent, value, style.font_size);
             return true;
         case Property::ZIndex:
             apply_z_index_value(style, value);
             return true;
+        case Property::Opacity:
+            apply_opacity_value(style, value);
+            return true;
         case Property::Border:
+            return true;
+        case Property::BoxShadow:
+            if (value.type == Value::Type::Identifier && value.ident == ValueNames::None) {
+                style.box_shadow.reset();
+                return true;
+            }
+            if (value.type == Value::Type::Shadow) {
+                auto to_px = [&](const Length& length) {
+                    if (length.unit == Unit::Px) return length.value;
+                    if (length.unit == Unit::Em) return length.value * style.font_size;
+                    return 0.0f;
+                };
+                ComputedStyle::BoxShadow shadow;
+                shadow.offset_x = to_px(value.shadow.offset_x);
+                shadow.offset_y = to_px(value.shadow.offset_y);
+                shadow.blur = std::max(0.0f, to_px(value.shadow.blur));
+                shadow.color = value.shadow.color;
+                style.box_shadow = shadow;
+            }
             return true;
         default:
             return false;

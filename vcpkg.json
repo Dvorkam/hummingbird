@@ -1,7 +1,7 @@
 {
   "name": "hummingbird",
   "version-string": "0.3.0",
-  "builtin-baseline": "00807e89724847a866033a2f042c38fafae3c534",
+  "builtin-baseline": "f87344cac03158cbf1467264565f1fd36b382a24",
   "dependencies": [
     "blend2d",
     {

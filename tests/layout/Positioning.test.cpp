@@ -157,3 +157,33 @@ TEST(PositioningLayoutTest, ZIndexOrdersTraversal) {
     ASSERT_NE(high_it, ids.end());
     EXPECT_LT(low_it, high_it);
 }
+
+TEST(PositioningLayoutTest, ResolvesPercentOffsetsAgainstContainingBlock) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto abs = DomFactory::create_element(arena, "div");
+    abs->set_attribute("id", "abs");
+    body->append_child(std::move(abs));
+
+    std::string css = R"(
+        #abs { position: absolute; top: 25%; left: 10%; width: 20px; height: 10px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 200, 100};
+    render_root->layout(context, viewport);
+    Positioning::apply_positioning(*render_root, context, viewport);
+
+    auto* abs_render = find_by_id(render_root.get(), "abs");
+    ASSERT_NE(abs_render, nullptr);
+    EXPECT_FLOAT_EQ(abs_render->get_rect().x, 20.0f);
+    EXPECT_FLOAT_EQ(abs_render->get_rect().y, 25.0f);
+}

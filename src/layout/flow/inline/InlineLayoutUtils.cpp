@@ -4,6 +4,7 @@
 
 #include "layout/RenderObject.h"
 #include "layout/flow/InlineLineBuilder.h"
+#include "layout/flow/TextStyleUtils.h"
 #include "layout/flow/inline/IInlineParticipant.h"
 #include "layout/flow/inline/InlineRef.h"
 #include "layout/geometry/Geometry.h"
@@ -13,6 +14,92 @@ class IGraphicsContext;
 }  // namespace Hummingbird
 
 namespace Hummingbird::Layout::InlineLayout {
+
+namespace {
+
+float measure_text_width(IGraphicsContext& context, std::string_view text, const TextStyle& style,
+                         float letter_spacing) {
+    if (text.empty()) {
+        return 0.0f;
+    }
+    TextMetrics metrics = context.measure_text(std::string(text), style);
+    if (letter_spacing == 0.0f) {
+        return metrics.width;
+    }
+    size_t chars = text.size();
+    if (chars > 1) {
+        return metrics.width + letter_spacing * static_cast<float>(chars - 1);
+    }
+    return metrics.width;
+}
+
+std::string ellipsize_inline_text(IGraphicsContext& context, std::string_view text, const TextStyle& style,
+                                  float letter_spacing, float max_width) {
+    constexpr std::string_view kEllipsis = "...";
+    if (max_width <= 0.0f) {
+        return "";
+    }
+    float ellipsis_width = measure_text_width(context, kEllipsis, style, letter_spacing);
+    if (ellipsis_width >= max_width) {
+        return std::string(kEllipsis);
+    }
+
+    std::string out;
+    for (size_t i = 0; i < text.size(); ++i) {
+        std::string candidate = out + text[i] + std::string(kEllipsis);
+        if (measure_text_width(context, candidate, style, letter_spacing) > max_width) {
+            break;
+        }
+        out.push_back(text[i]);
+    }
+    out += std::string(kEllipsis);
+    return out;
+}
+
+void apply_ellipsis_to_first_line(IGraphicsContext& context, std::vector<InlineLine>& lines,
+                                  std::vector<InlineRun>& runs, float content_width) {
+    if (lines.empty() || content_width <= 0.0f) {
+        return;
+    }
+    auto& line = lines.front();
+    if (line.fragments.empty()) {
+        return;
+    }
+    float used = 0.0f;
+    std::vector<InlineFragment> kept;
+    kept.reserve(line.fragments.size());
+
+    for (const auto& fragment : line.fragments) {
+        const InlineRun& run = runs[fragment.run_index];
+        if (used + fragment.rect.width <= content_width) {
+            kept.push_back(fragment);
+            used += fragment.rect.width;
+            continue;
+        }
+
+        if (fragment.run_index < runs.size()) {
+            InlineRun& mutable_run = runs[fragment.run_index];
+            const auto* run_style = mutable_run.owner ? mutable_run.owner->get_computed_style() : nullptr;
+            TextStyle text_style = TextStyleUtils::build_text_style(run_style);
+            float letter_spacing = run_style ? run_style->letter_spacing : 0.0f;
+            std::string truncated =
+                ellipsize_inline_text(context, mutable_run.text, text_style, letter_spacing, content_width - used);
+            float truncated_width = measure_text_width(context, truncated, text_style, letter_spacing);
+            if (!truncated.empty() && truncated_width > 0.0f) {
+                mutable_run.text = truncated;
+                mutable_run.width = truncated_width;
+                InlineFragment truncated_fragment = fragment;
+                truncated_fragment.rect.width = truncated_width;
+                kept.push_back(truncated_fragment);
+            }
+        }
+        break;
+    }
+
+    line.fragments = std::move(kept);
+}
+
+}  // namespace
 
 void measure_inline_participants(IGraphicsContext& context, std::vector<std::unique_ptr<RenderObject>>& children,
                                  size_t& i) {
@@ -60,6 +147,10 @@ InlineLayoutResult layout_inline_group(IGraphicsContext& context, std::vector<st
     auto lines = builder.layout(layout.wrap_width, layout.start_x);
     if (lines.empty()) {
         return result;
+    }
+
+    if (layout.no_wrap && layout.text_overflow_ellipsis) {
+        apply_ellipsis_to_first_line(context, lines, runs, layout.content_width);
     }
 
     align_inline_lines(lines, layout.content_width, layout.align);

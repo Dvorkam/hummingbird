@@ -1,5 +1,6 @@
 #include "platform/script/QuickJSScriptEngine.h"
 
+#include <cstdint>
 #include <string>
 #include <utility>
 
@@ -109,6 +110,30 @@ JSValue QuickJSScriptEngine::js_element_set_attribute(JSContext* ctx, JSValueCon
     return JS_UNDEFINED;
 }
 
+JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                  JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->extension_host_) {
+        return JS_NewBool(ctx, 0);
+    }
+    if (argc < 2) {
+        return JS_NewBool(ctx, 0);
+    }
+
+    int32_t tab_id = 0;
+    if (JS_ToInt32(ctx, &tab_id, argv[0]) != 0 || tab_id < 0) {
+        return JS_NewBool(ctx, 0);
+    }
+    const char* css_text = JS_ToCString(ctx, argv[1]);
+    if (!css_text) {
+        return JS_NewBool(ctx, 0);
+    }
+
+    const bool ok = engine->extension_host_->insert_css(static_cast<std::uint32_t>(tab_id), css_text);
+    JS_FreeCString(ctx, css_text);
+    return JS_NewBool(ctx, ok ? 1 : 0);
+}
+
 QuickJSScriptEngine::QuickJSScriptEngine() {
     runtime_ = JS_NewRuntime();
     if (!runtime_) {
@@ -128,6 +153,10 @@ QuickJSScriptEngine::QuickJSScriptEngine() {
     JSClassDef class_def{};
     class_def.class_name = "Element";
     JS_NewClass(runtime_, element_class_id_, &class_def);
+
+    // Install console bindings unconditionally so non-DOM scripts (e.g., extensions)
+    // can log without needing to bind a host.
+    install_console_bindings();
 }
 
 QuickJSScriptEngine::~QuickJSScriptEngine() {
@@ -147,7 +176,20 @@ void QuickJSScriptEngine::bind_host(IScriptHost* host) {
     if (!context_) {
         return;
     }
-    install_bindings();
+    install_console_bindings();
+    if (host) {
+        install_document_bindings();
+    }
+}
+
+void QuickJSScriptEngine::bind_extension_host(IExtensionApiHost* host) {
+    ScriptEngineBase::bind_extension_host(host);
+    if (!context_) {
+        return;
+    }
+    if (host) {
+        install_extension_bindings();
+    }
 }
 
 ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_view filename) {
@@ -171,8 +213,8 @@ ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_
     return ok_result();
 }
 
-void QuickJSScriptEngine::install_bindings() {
-    if (bindings_ready_) {
+void QuickJSScriptEngine::install_console_bindings() {
+    if (console_ready_) {
         return;
     }
     if (!context_) {
@@ -184,17 +226,45 @@ void QuickJSScriptEngine::install_bindings() {
     JS_SetPropertyStr(context_, console, "log", JS_NewCFunction(context_, js_console_log, "log", 1));
     JS_SetPropertyStr(context_, global, "console", console);
 
+    JS_FreeValue(context_, global);
+    console_ready_ = true;
+}
+
+void QuickJSScriptEngine::install_document_bindings() {
+    if (document_ready_) {
+        return;
+    }
+    if (!context_) {
+        return;
+    }
+
+    JSValue global = JS_GetGlobalObject(context_);
     JSValue document = JS_NewObject(context_);
     JS_SetPropertyStr(context_, document, "getElementById",
                       JS_NewCFunction(context_, js_document_get_element_by_id, "getElementById", 1));
     JS_SetPropertyStr(context_, global, "document", document);
-
     JS_FreeValue(context_, global);
-    bindings_ready_ = true;
+    document_ready_ = true;
+}
+
+void QuickJSScriptEngine::install_extension_bindings() {
+    if (extension_ready_) {
+        return;
+    }
+    if (!context_) {
+        return;
+    }
+    JSValue global = JS_GetGlobalObject(context_);
+    JS_SetPropertyStr(context_, global, "__hb_nativeInsertCss",
+                      JS_NewCFunction(context_, js_native_insert_css, "__hb_nativeInsertCss", 2));
+    JS_FreeValue(context_, global);
+    extension_ready_ = true;
 }
 
 void QuickJSScriptEngine::clear_bindings() {
-    bindings_ready_ = false;
+    console_ready_ = false;
+    document_ready_ = false;
+    extension_ready_ = false;
 }
 
 JSValue QuickJSScriptEngine::wrap_element(DOM::Element* element) {

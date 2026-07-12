@@ -125,6 +125,16 @@ TEST(HtmlParserTest, DedupesUnsupportedTagWarnings) {
     EXPECT_TRUE(result.unsupported_tags.count("custom"));
 }
 
+TEST(HtmlParserTest, DoesNotWarnForSvgChildElements) {
+    std::string_view html = "<svg><rect></rect><circle/></svg>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    EXPECT_FALSE(result.unsupported_tags.count("rect"));
+    EXPECT_FALSE(result.unsupported_tags.count("circle"));
+}
+
 TEST(HtmlParserTest, AutoClosesParagraphBeforeBlockTags) {
     std::string_view html = "<p>First<p>Second<dl><dt>Term</dt></dl><p>Third</p>";
     Hummingbird::Core::ArenaAllocator arena(4096);

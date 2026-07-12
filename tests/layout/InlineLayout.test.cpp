@@ -563,3 +563,91 @@ TEST(InlineLayoutTest, AlignsFormControlsOnSharedBaseline) {
 
     EXPECT_FLOAT_EQ(input_box->get_rect().y, button_box->get_rect().y);
 }
+
+TEST(InlineLayoutTest, AlignsInlineBlockOnTextBaseline) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+
+    auto big = DomFactory::create_element(arena, "span");
+    big->set_attribute(Attr::Class, "big");
+    big->append_child(DomFactory::create_text(arena, "Big"));
+    p->append_child(std::move(big));
+    p->append_child(DomFactory::create_text(arena, " "));
+
+    auto ib = DomFactory::create_element(arena, "span");
+    ib->set_attribute(Attr::Class, "ib");
+    ib->append_child(DomFactory::create_text(arena, "ib"));
+    p->append_child(std::move(ib));
+
+    body->append_child(std::move(p));
+
+    std::string css =
+        ".big { font-size: 24px; } .ib { display: inline-block; padding: 2px; border-width: 1px; "
+        "border-style: solid; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 2u);
+    const auto& big_span = para->get_children()[0];
+    const auto& ib_span = para->get_children()[1];
+
+    // Inline-block should share the line baseline with surrounding text, which
+    // means it sits below larger text runs rather than drifting upward.
+    EXPECT_GT(ib_span->get_rect().y, big_span->get_rect().y);
+}
+
+TEST(InlineLayoutTest, VerticalAlignTopLiftsInlineTextRun) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto p = DomFactory::create_element(arena, "p");
+
+    auto top = DomFactory::create_element(arena, "span");
+    top->set_attribute(Attr::Class, "top");
+    top->append_child(DomFactory::create_text(arena, "Top"));
+    p->append_child(std::move(top));
+    p->append_child(DomFactory::create_text(arena, " "));
+
+    auto baseline = DomFactory::create_element(arena, "span");
+    baseline->set_attribute(Attr::Class, "base");
+    baseline->append_child(DomFactory::create_text(arena, "base"));
+    p->append_child(std::move(baseline));
+
+    body->append_child(std::move(p));
+
+    std::string css =
+        ".top { vertical-align: top; line-height: 24px; } "
+        ".base { line-height: 10px; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    const auto& para = render_root->get_children()[0];
+    ASSERT_EQ(para->get_children().size(), 2u);
+    const auto& top_span = para->get_children()[0];
+    const auto& base_span = para->get_children()[1];
+
+    EXPECT_LT(top_span->get_rect().y, base_span->get_rect().y);
+}

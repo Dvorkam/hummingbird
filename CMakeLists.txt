@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Hummingbird)
+project(Hummingbird VERSION 0.5.0)
 
 # Set C++ standard to C++20
 set(CMAKE_CXX_STANDARD 20)
@@ -36,6 +36,7 @@ find_package(lunasvg CONFIG REQUIRED)
 add_library(Style STATIC
     src/style/parser/CssTokenizer.cpp
     src/style/parser/CssParser.cpp
+    src/style/parser/CssValueUtils.cpp
     src/style/registry/CssPropertyRegistry.cpp
     src/style/selector/SelectorMatcher.cpp
     src/style/compute/StyleDefaults.cpp
@@ -76,6 +77,7 @@ add_library(Platform STATIC
     src/platform/graphics/Blend2DFontCache.cpp
     src/platform/graphics/SDLInputTranslation.cpp
     src/platform/net/CurlNetwork.cpp
+    src/platform/net/CurlTlsConfig.cpp
     src/platform/net/StubNetwork.cpp
     src/platform/net/NetworkFactory.cpp
     src/platform/decoders/SDLImageDecoder.cpp
@@ -121,6 +123,9 @@ add_library(Layout STATIC
     src/layout/block/FloatLayoutUtils.cpp
     src/layout/flow/InlineBox.cpp
     src/layout/flow/TextBox.cpp
+    src/layout/flow/TextMeasurer.cpp
+    src/layout/flow/TextOverflowUtils.cpp
+    src/layout/flow/TextDecorationUtils.cpp
     src/layout/flow/InlineLineBuilder.cpp
     src/layout/flow/FlowLayoutUtils.cpp
     src/layout/flow/inline/InlineLayoutUtils.cpp
@@ -131,6 +136,9 @@ add_library(Layout STATIC
     src/layout/replaced/RenderSvg.cpp
     src/layout/replaced/ReplacedSizingUtils.cpp
     src/layout/table/RenderTable.cpp
+    src/layout/table/TableColumnLayout.cpp
+    src/layout/table/TableBorderPainter.cpp
+    src/layout/table/TableDebug.cpp
 )
 target_include_directories(Layout
     PUBLIC
@@ -154,14 +162,35 @@ target_include_directories(Renderer
 add_library(Engine STATIC
     src/engine/document/DocumentPipeline.cpp
     src/engine/document/DocumentInputController.cpp
+    src/engine/document/DocumentInteraction.cpp
+    src/engine/document/DocumentRenderer.cpp
+    src/engine/document/DocumentStyleCoordinator.cpp
+    src/engine/document/DocumentScripting.cpp
     src/engine/document/DocumentModel.cpp
+    src/engine/document/DocumentLinkDiscovery.cpp
+    src/engine/document/FormSubmissionBuilder.cpp
+    src/engine/document/DocumentInputPainter.cpp
+    src/engine/document/DocumentInputUtils.cpp
+    src/engine/document/DocumentNavigation.cpp
     src/engine/document/DocumentResources.cpp
     src/engine/document/DocumentPainter.cpp
+    src/engine/extensions/ExtensionManifest.cpp
+    src/engine/extensions/ExtensionLoader.cpp
+    src/engine/extensions/ExtensionHost.cpp
+    src/engine/extensions/ExtensionSettings.cpp
     src/engine/script/DocumentScriptController.cpp
     src/engine/script/DocumentScriptHost.cpp
     src/engine/resources/ResourceLoader.cpp
+    src/engine/resources/ResourceRequestPlanner.cpp
+    src/engine/resources/ResourceSecurityPolicy.cpp
+    src/engine/tab/TabAnimationTicker.cpp
     src/engine/tab/Tab.cpp
+    src/engine/tab/TabDocumentReadyPolicy.cpp
+    src/engine/tab/TabManager.cpp
+    src/engine/tab/NavigationLifecycle.cpp
+    src/engine/tab/TabNavigationState.cpp
     src/engine/resources/ResourceStore.cpp
+    src/engine/resources/ResourceUpdateProcessor.cpp
 )
 target_include_directories(Engine
     PUBLIC
@@ -173,6 +202,22 @@ target_link_libraries(Engine PUBLIC Core Html Layout Renderer Style)
 add_library(App
     src/app/BrowserApp.cpp
     src/app/BrowserApp.h
+    src/app/BrowserChrome.cpp
+    src/app/BrowserChrome.h
+    src/app/BrowserEventRouter.cpp
+    src/app/BrowserEventRouter.h
+    src/app/ChromeEventRouter.cpp
+    src/app/ChromeEventRouter.h
+    src/app/DocumentEventRouter.cpp
+    src/app/DocumentEventRouter.h
+    src/app/ExtensionBootstrap.cpp
+    src/app/ExtensionBootstrap.h
+    src/app/RenderCoordinator.cpp
+    src/app/RenderCoordinator.h
+    src/app/TabController.cpp
+    src/app/TabController.h
+    src/app/TabStrip.cpp
+    src/app/TabStrip.h
     src/app/UrlBar.cpp
     src/app/UrlBar.h
 )

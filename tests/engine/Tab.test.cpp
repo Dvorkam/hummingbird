@@ -35,6 +35,12 @@ public:
         if (callback) callback(std::move(response));
     }
 
+    void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+              const Hummingbird::NetworkRequestOptions& options = {}) override {
+        (void)body;
+        get(url, std::move(callback), options);
+    }
+
     void shutdown() override {}
 
     bool last_allow_insecure() const { return last_allow_insecure_; }
@@ -196,6 +202,187 @@ TEST(EngineTabTest, RebuildsWhenStylesheetArrives) {
     EXPECT_TRUE(harness.tick());
 }
 
+TEST(EngineTabTest, ExtensionCssInjectionUpdatesStylePipeline) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Styled by extension</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    network->set_response("https://acme.test/ext.png", "PNGDATA");
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider),
+                               std::make_unique<InlineImageDecoder>());
+
+    harness.navigate("https://acme.test");
+    ASSERT_TRUE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("body { background-image: url('/ext.png'); }"));
+    EXPECT_TRUE(harness.tick());
+    EXPECT_TRUE(harness.tick());
+
+    auto view = harness.resource_view("https://acme.test/ext.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+}
+
+TEST(EngineTabTest, ExtensionCssInsertedBeforeNavigateAppliesOnDocumentBuild) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Styled by extension</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    network->set_response("https://acme.test/ext-before-nav.png", "PNGDATA");
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider),
+                               std::make_unique<InlineImageDecoder>());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("body { background-image: url('/ext-before-nav.png'); }"));
+    harness.navigate("https://acme.test");
+    EXPECT_TRUE(harness.tick());
+    EXPECT_TRUE(harness.tick());
+
+    auto view = harness.resource_view("https://acme.test/ext-before-nav.png", Hummingbird::Engine::ResourceType::Image);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+}
+
+TEST(EngineTabTest, ExtensionCssInjectionInvalidatesOnceWithoutResourceFollowups) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Styled by extension</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test");
+    ASSERT_TRUE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("p { color: #111111; }"));
+    EXPECT_TRUE(harness.tick());
+    EXPECT_FALSE(harness.tick());
+}
+
+TEST(EngineTabTest, ExtensionCssInjectedBeforeNavigationDoesNotDoubleRebuildOnCommit) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Commit budget test</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("p { color: #222222; }"));
+    harness.navigate("https://acme.test");
+    EXPECT_TRUE(harness.tick());
+    EXPECT_FALSE(harness.tick());
+}
+
+TEST(EngineTabTest, DuplicateExtensionCssDoesNotTriggerExtraInvalidation) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Duplicate CSS budget test</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test");
+    ASSERT_TRUE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("p { color: #333333; }"));
+    EXPECT_TRUE(harness.tick());
+    EXPECT_FALSE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().insert_extension_css("p { color: #333333; }"));
+    EXPECT_FALSE(harness.tick());
+}
+
+TEST(EngineTabTest, NavigationCommitUrlIsExposedOncePerCommittedDocument) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p>Commit test</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    auto network = std::make_unique<DeferredNetwork>();
+    auto* network_ptr = network.get();
+    network->defer_response("https://acme.test", html);
+    auto fallback = std::make_unique<DeferredNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test");
+    EXPECT_TRUE(harness.tick());
+    EXPECT_FALSE(harness.tab().consume_navigation_commit_url().has_value());
+    EXPECT_FALSE(harness.tick());
+    EXPECT_FALSE(harness.tab().consume_navigation_commit_url().has_value());
+
+    network_ptr->complete("https://acme.test");
+    EXPECT_TRUE(harness.tick());
+
+    auto first = harness.tab().consume_navigation_commit_url();
+    ASSERT_TRUE(first.has_value());
+    EXPECT_EQ(*first, "https://acme.test");
+    EXPECT_FALSE(harness.tab().consume_navigation_commit_url().has_value());
+}
+
 TEST(EngineTabTest, HitTestResolvesLink) {
     const std::string html = R"HTML(
 <!doctype html>
@@ -260,6 +447,66 @@ TEST(EngineTabTest, FocusesInputAndEditsValue) {
     EXPECT_EQ(*value, "hi");
 }
 
+TEST(EngineTabTest, FocusPrefersTextInputOverOverlappingSubmitInput) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form>
+      <input id="search" type="text" value="">
+      <input id="submit" type="submit" value="Search">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    ASSERT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    ASSERT_TRUE(harness.tab().handle_text_input("duck"));
+
+    auto value = harness.tab().focused_input_value();
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, "duck");
+}
+
+TEST(EngineTabTest, AutofocusInputIsFocusedAfterDocumentLoad) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form>
+      <input id="search" name="q" autofocus>
+      <input id="submit" type="submit" value="Search">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    EXPECT_TRUE(harness.tab().has_focused_input());
+    EXPECT_TRUE(harness.tab().handle_text_input("hello"));
+    auto value = harness.tab().focused_input_value();
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, "hello");
+}
+
 TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
     const std::string html = R"HTML(
 <!doctype html>
@@ -291,8 +538,9 @@ TEST(EngineTabTest, SubmitsFocusedFormAsGet) {
     enter_event.key.key = Hummingbird::Key::Enter;
     auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
-    ASSERT_TRUE(result.submitted_url.has_value());
-    EXPECT_EQ(*result.submitted_url, "https://example.dev/search?q=hello%20world&lang=en");
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=hello+world&lang=en");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Get);
 }
 
 TEST(EngineTabTest, FormWithEmptyMethodSubmitsAsGet) {
@@ -324,8 +572,172 @@ TEST(EngineTabTest, FormWithEmptyMethodSubmitsAsGet) {
     enter_event.key.key = Hummingbird::Key::Enter;
     auto result = harness.tab().handle_key_down(enter_event);
     EXPECT_TRUE(result.handled);
-    ASSERT_TRUE(result.submitted_url.has_value());
-    EXPECT_EQ(*result.submitted_url, "https://example.dev/search?q=test");
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=test");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Get);
+}
+
+TEST(EngineTabTest, SubmitsInputSubmitControlByClick) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/search" method="get">
+      <input id="submit" type="submit" value="Search">
+      <input name="q" value="saturn">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=saturn");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
+}
+
+TEST(EngineTabTest, SubmitsInputSubmitControlWithFormAttribute) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <input id="submit" type="submit" form="search-form" value="Search">
+    <form id="search-form" action="/search" method="get">
+      <input name="q" value="venus">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=venus");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
+}
+
+TEST(EngineTabTest, EnterSubmitsFormWithInputSubmitControl) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/search" method="get">
+      <input name="q">
+      <input type="submit" value="Search">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("pluto"));
+
+    Hummingbird::InputEvent enter_event;
+    enter_event.type = Hummingbird::EventType::KeyDown;
+    enter_event.key.key = Hummingbird::Key::Enter;
+    auto result = harness.tab().handle_key_down(enter_event);
+    EXPECT_TRUE(result.handled);
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://example.dev/search?q=pluto");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Get);
+}
+
+TEST(EngineTabTest, EnterSubmitsPostFormWithEncodedBody) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/html/" method="post">
+      <input name="q">
+      <input type="submit" value="Search">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    EXPECT_TRUE(harness.tab().focus_input_at(point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("duck duck go"));
+
+    Hummingbird::InputEvent enter_event;
+    enter_event.type = Hummingbird::EventType::KeyDown;
+    enter_event.key.key = Hummingbird::Key::Enter;
+    auto result = harness.tab().handle_key_down(enter_event);
+    EXPECT_TRUE(result.handled);
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://example.dev/html/");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Post);
+    EXPECT_EQ(result.submitted_form->body, "q=duck+duck+go");
+    EXPECT_EQ(result.submitted_form->content_type, "application/x-www-form-urlencoded");
+}
+
+TEST(EngineTabTest, ClickSubmitReturnsPostFormSubmission) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <form action="/html/" method="post">
+      <input type="submit" value="Search">
+      <input name="q" value="venus">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{12.0f, 12.0f};
+    auto submitted = harness.tab().submit_form_at(point, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->url, "https://example.dev/html/");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Post);
+    EXPECT_EQ(submitted->body, "q=venus");
+    EXPECT_EQ(submitted->content_type, "application/x-www-form-urlencoded");
 }
 
 TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
@@ -353,7 +765,8 @@ TEST(EngineTabTest, SubmitsButtonWithFormAttribute) {
     Hummingbird::Layout::Point point{12.0f, 12.0f};
     auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
-    EXPECT_EQ(*submitted, "https://example.dev/search?q=moon");
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=moon");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
 }
 
 TEST(EngineTabTest, ButtonWithEmptyTypeDefaultsToSubmit) {
@@ -381,7 +794,8 @@ TEST(EngineTabTest, ButtonWithEmptyTypeDefaultsToSubmit) {
     Hummingbird::Layout::Point point{12.0f, 12.0f};
     auto submitted = harness.tab().submit_form_at(point, harness.viewport());
     ASSERT_TRUE(submitted.has_value());
-    EXPECT_EQ(*submitted, "https://example.dev/search?q=mars");
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=mars");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
 }
 
 TEST(EngineTabTest, UpdatesRequestedUrlFromEffectiveUrl) {

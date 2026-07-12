@@ -1,13 +1,10 @@
 #pragma once
 
+#include "core/geometry/Geometry.h"
+
 namespace Hummingbird::Layout {
 
-struct Point {
-    float x = 0, y = 0;
-};
-
-struct Rect {
-    float x = 0, y = 0, width = 0, height = 0;
-};
+using Point = Hummingbird::Geometry::Point;
+using Rect = Hummingbird::Geometry::Rect;
 
 }  // namespace Hummingbird::Layout

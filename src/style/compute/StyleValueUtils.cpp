@@ -38,6 +38,13 @@ std::optional<float> parse_length_token(std::string_view token, float font_size)
         }
         return std::nullopt;
     }
+    if (token.size() > 1 && token.ends_with("%")) {
+        auto value = Core::Utils::parse_float(token.substr(0, token.size() - 1));
+        if (value) {
+            return *value;
+        }
+        return std::nullopt;
+    }
     return std::nullopt;
 }
 
@@ -57,6 +64,9 @@ std::optional<Unit> parse_unit_token(std::string_view token) {
     }
     if (token == ValueNames::Em) {
         return Unit::Em;
+    }
+    if (token == "%") {
+        return Unit::Percent;
     }
     return std::nullopt;
 }

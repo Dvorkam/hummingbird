@@ -26,6 +26,12 @@ public:
         if (callback) callback(std::move(response));
     }
 
+    void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+              const NetworkRequestOptions& options = {}) override {
+        (void)body;
+        get(url, std::move(callback), options);
+    }
+
     void shutdown() override {}
 
 private:
@@ -50,6 +56,12 @@ public:
             response.body = it->second;
         }
         if (callback) callback(std::move(response));
+    }
+
+    void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+              const NetworkRequestOptions& options = {}) override {
+        (void)body;
+        get(url, std::move(callback), options);
     }
 
     void shutdown() override {}
@@ -82,6 +94,12 @@ public:
             response.body = it->second;
         }
         if (callback) callback(std::move(response));
+    }
+
+    void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+              const NetworkRequestOptions& options = {}) override {
+        (void)body;
+        get(url, std::move(callback), options);
     }
 
     void complete(const std::string& url) {

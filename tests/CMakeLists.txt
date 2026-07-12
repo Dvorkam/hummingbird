@@ -14,14 +14,22 @@ add_executable(HummingbirdTests
     test_utils/TestFakes.h
     test_utils/TestGraphicsContext.h
     engine/Tab.test.cpp
+    engine/TabManager.test.cpp
+    engine/ExtensionManifest.test.cpp
+    engine/ExtensionSettings.test.cpp
+    engine/ExtensionLoader.test.cpp
+    engine/ExtensionHost.test.cpp
     engine/ResourceStore.test.cpp
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp
     core/AssetLoader.test.cpp
     core/TextEditBuffer.test.cpp
     core/Url.test.cpp
+    core/UrlEncoding.test.cpp
     core/Timing.test.cpp
     core/WarnOnce.test.cpp
+    core/ElementSemanticRole.test.cpp
+    core/DependencyFirewall.test.cpp
     html/HtmlTokenizer.test.cpp
     html/HtmlParser.test.cpp
     layout/TreeBuilder.test.cpp
@@ -31,6 +39,7 @@ add_executable(HummingbirdTests
     layout/InlineLineBuilder.test.cpp
     layout/ListItemLayout.test.cpp
     layout/TableLayout.test.cpp
+    layout/TableColumnLayout.test.cpp
     layout/Positioning.test.cpp
     layout/TextStyleUtils.test.cpp
     renderer/DisplayList.test.cpp
@@ -72,6 +81,7 @@ target_link_libraries(HummingbirdTests PRIVATE
 # App-only smoke test target.
 add_executable(HummingbirdAppTests
     app/SmokeMain.test.cpp
+    app/BrowserAppTabs.test.cpp
     app/UrlBar.test.cpp
 )
 target_link_libraries(HummingbirdAppTests PRIVATE

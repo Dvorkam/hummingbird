@@ -3,6 +3,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace Hummingbird {
 
@@ -14,6 +15,7 @@ enum class NetworkError {
 
 struct NetworkRequestOptions {
     bool allow_insecure = false;
+    std::string content_type;
 };
 
 struct NetworkResponse {
@@ -33,6 +35,8 @@ public:
     // If redirects occur, implementations should fill effective_url with the final URL.
     virtual void get(const std::string& url, std::function<void(NetworkResponse)> callback,
                      const NetworkRequestOptions& options = {}) = 0;
+    virtual void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+                      const NetworkRequestOptions& options = {}) = 0;
     // Release any background resources (threads, handles, etc).
     // Implementations must ensure no callbacks run after shutdown() returns.
     virtual void shutdown() = 0;

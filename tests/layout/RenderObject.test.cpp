@@ -7,7 +7,7 @@
 #include "core/dom/Text.h"
 #include "layout/block/BlockBox.h"
 #include "layout/flow/TextBox.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace {
 using Hummingbird::Core::ArenaAllocator;

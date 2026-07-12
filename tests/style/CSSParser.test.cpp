@@ -84,9 +84,48 @@ TEST(CSSParserTest, ParsesDescendantSelector) {
     const auto& rule = sheet.rules[0];
     ASSERT_EQ(rule.selectors.size(), 1u);
     ASSERT_EQ(rule.selectors[0].parts.size(), 2u);
+    ASSERT_EQ(rule.selectors[0].combinators.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].combinators[0], Selector::Combinator::Descendant);
     EXPECT_EQ(rule.selectors[0].parts[0].tag, Hummingbird::Html::TagNames::Div);
     ASSERT_EQ(rule.selectors[0].parts[1].classes.size(), 1u);
     EXPECT_EQ(rule.selectors[0].parts[1].classes[0], "note");
+}
+
+TEST(CSSParserTest, ParsesChildSelector) {
+    Parser parser("div > .note { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& rule = sheet.rules[0];
+    ASSERT_EQ(rule.selectors.size(), 1u);
+    ASSERT_EQ(rule.selectors[0].parts.size(), 2u);
+    ASSERT_EQ(rule.selectors[0].combinators.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].combinators[0], Selector::Combinator::Child);
+    EXPECT_EQ(rule.selectors[0].parts[0].tag, Hummingbird::Html::TagNames::Div);
+    ASSERT_EQ(rule.selectors[0].parts[1].classes.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].parts[1].classes[0], "note");
+}
+
+TEST(CSSParserTest, ParsesPseudoClassSelector) {
+    Parser parser("input:focus, button:hover, button:active { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& selectors = sheet.rules[0].selectors;
+    ASSERT_EQ(selectors.size(), 3u);
+
+    ASSERT_EQ(selectors[0].parts.size(), 1u);
+    EXPECT_EQ(selectors[0].parts[0].tag, "input");
+    ASSERT_EQ(selectors[0].parts[0].pseudo_classes.size(), 1u);
+    EXPECT_EQ(selectors[0].parts[0].pseudo_classes[0], SelectorPart::PseudoClass::Focus);
+
+    ASSERT_EQ(selectors[1].parts.size(), 1u);
+    EXPECT_EQ(selectors[1].parts[0].tag, "button");
+    ASSERT_EQ(selectors[1].parts[0].pseudo_classes.size(), 1u);
+    EXPECT_EQ(selectors[1].parts[0].pseudo_classes[0], SelectorPart::PseudoClass::Hover);
+
+    ASSERT_EQ(selectors[2].parts.size(), 1u);
+    EXPECT_EQ(selectors[2].parts[0].tag, "button");
+    ASSERT_EQ(selectors[2].parts[0].pseudo_classes.size(), 1u);
+    EXPECT_EQ(selectors[2].parts[0].pseudo_classes[0], SelectorPart::PseudoClass::Active);
 }
 
 TEST(CSSParserTest, ParsesHexColor) {
@@ -113,6 +152,124 @@ TEST(CSSParserTest, ParsesFullHexColorWithDigits) {
     EXPECT_EQ(rule.declarations[0].value.color.r, 0x99);
     EXPECT_EQ(rule.declarations[0].value.color.g, 0xcc);
     EXPECT_EQ(rule.declarations[0].value.color.b, 0x99);
+}
+
+TEST(CSSParserTest, ParsesPercentLengths) {
+    Parser parser("div { width: 70%; top: 24%; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 2u);
+
+    EXPECT_EQ(decls[0].property, Property::Width);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Length);
+    EXPECT_FLOAT_EQ(decls[0].value.length.value, 70.0f);
+    EXPECT_EQ(decls[0].value.length.unit, Unit::Percent);
+
+    EXPECT_EQ(decls[1].property, Property::Top);
+    ASSERT_EQ(decls[1].value.type, Value::Type::Length);
+    EXPECT_FLOAT_EQ(decls[1].value.length.value, 24.0f);
+    EXPECT_EQ(decls[1].value.length.unit, Unit::Percent);
+}
+
+TEST(CSSParserTest, ParsesOverflowProperties) {
+    Parser parser("div { overflow: hidden; overflow-y: scroll; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 2u);
+
+    EXPECT_EQ(decls[0].property, Property::Overflow);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Identifier);
+    EXPECT_EQ(decls[0].value.ident, "hidden");
+
+    EXPECT_EQ(decls[1].property, Property::OverflowY);
+    ASSERT_EQ(decls[1].value.type, Value::Type::Identifier);
+    EXPECT_EQ(decls[1].value.ident, "scroll");
+}
+
+TEST(CSSParserTest, ParsesCursorProperty) {
+    Parser parser("a { cursor: pointer; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+
+    EXPECT_EQ(decls[0].property, Property::Cursor);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Identifier);
+    EXPECT_EQ(decls[0].value.ident, "pointer");
+}
+
+TEST(CSSParserTest, ParsesVerticalAlignProperty) {
+    Parser parser("span { vertical-align: middle; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+
+    EXPECT_EQ(decls[0].property, Property::VerticalAlign);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Identifier);
+    EXPECT_EQ(decls[0].value.ident, "middle");
+}
+
+TEST(CSSParserTest, ParsesBoxShadowProperty) {
+    Parser parser("div { box-shadow: 2px 4px 6px #000; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+
+    EXPECT_EQ(decls[0].property, Property::BoxShadow);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Shadow);
+    EXPECT_FLOAT_EQ(decls[0].value.shadow.offset_x.value, 2.0f);
+    EXPECT_EQ(decls[0].value.shadow.offset_x.unit, Unit::Px);
+    EXPECT_FLOAT_EQ(decls[0].value.shadow.offset_y.value, 4.0f);
+    EXPECT_EQ(decls[0].value.shadow.offset_y.unit, Unit::Px);
+    EXPECT_FLOAT_EQ(decls[0].value.shadow.blur.value, 6.0f);
+    EXPECT_EQ(decls[0].value.shadow.blur.unit, Unit::Px);
+    EXPECT_EQ(decls[0].value.shadow.color.r, 0);
+    EXPECT_EQ(decls[0].value.shadow.color.g, 0);
+    EXPECT_EQ(decls[0].value.shadow.color.b, 0);
+}
+
+TEST(CSSParserTest, ParsesLeadingDotAndSignedNumbers) {
+    Parser parser("div { padding: .75em; margin-left: -0.35em; right: 2px; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_GE(decls.size(), 6u);
+
+    bool saw_padding_top = false;
+    for (const auto& decl : decls) {
+        if (decl.property != Property::PaddingTop) {
+            continue;
+        }
+        ASSERT_EQ(decl.value.type, Value::Type::Length);
+        EXPECT_FLOAT_EQ(decl.value.length.value, 0.75f);
+        EXPECT_EQ(decl.value.length.unit, Unit::Em);
+        saw_padding_top = true;
+        break;
+    }
+    EXPECT_TRUE(saw_padding_top);
+
+    bool saw_negative_margin = false;
+    bool saw_right_px = false;
+    for (const auto& decl : sheet.rules[0].declarations) {
+        if (decl.property == Property::MarginLeft) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, -0.35f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Em);
+            saw_negative_margin = true;
+        }
+        if (decl.property == Property::Right) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 2.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_right_px = true;
+        }
+    }
+    EXPECT_TRUE(saw_negative_margin);
+    EXPECT_TRUE(saw_right_px);
 }
 
 TEST(CSSParserTest, ParsesBackgroundColorAndShortHex) {
@@ -144,6 +301,134 @@ TEST(CSSParserTest, ParsesBackgroundImageUrl) {
     EXPECT_EQ(decls[0].property, Property::BackgroundImage);
     ASSERT_EQ(decls[0].value.type, Value::Type::Url);
     EXPECT_EQ(decls[0].value.ident, "/img/logo.png");
+}
+
+TEST(CSSParserTest, ParsesBorderSideShorthandIntoSideWidthDeclaration) {
+    Parser parser("div { border-top: 3px solid #123456; border-left: 2px ridge #999; border-bottom: 4px solid #111; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+
+    bool saw_top_width = false;
+    bool saw_left_width = false;
+    bool saw_bottom_width = false;
+    bool saw_style = false;
+    bool saw_color = false;
+    bool saw_global_border_width = false;
+    for (const auto& decl : decls) {
+        if (decl.property == Property::BorderTopWidth) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 3.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_top_width = true;
+        }
+        if (decl.property == Property::BorderLeftWidth) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 2.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_left_width = true;
+        }
+        if (decl.property == Property::BorderBottomWidth) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 4.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_bottom_width = true;
+        }
+        if (decl.property == Property::BorderWidth) {
+            saw_global_border_width = true;
+        }
+        if (decl.property == Property::BorderStyle) {
+            saw_style = true;
+        }
+        if (decl.property == Property::BorderColor) {
+            saw_color = true;
+        }
+    }
+
+    EXPECT_TRUE(saw_top_width);
+    EXPECT_TRUE(saw_left_width);
+    EXPECT_TRUE(saw_bottom_width);
+    EXPECT_TRUE(saw_style);
+    EXPECT_TRUE(saw_color);
+    EXPECT_FALSE(saw_global_border_width);
+}
+
+TEST(CSSParserTest, ParsesBorderSideWidthsWithoutCollapsingToGlobalBorderWidth) {
+    Parser parser("div { border-top: 5px solid #224488; border-right-width: 3px; border-bottom: 2px inset #224488; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+
+    bool saw_top = false;
+    bool saw_right = false;
+    bool saw_bottom = false;
+    bool saw_global = false;
+    for (const auto& decl : decls) {
+        if (decl.property == Property::BorderTopWidth) {
+            saw_top = true;
+        }
+        if (decl.property == Property::BorderRightWidth) {
+            saw_right = true;
+        }
+        if (decl.property == Property::BorderBottomWidth) {
+            saw_bottom = true;
+        }
+        if (decl.property == Property::BorderWidth) {
+            saw_global = true;
+        }
+    }
+    EXPECT_TRUE(saw_top);
+    EXPECT_TRUE(saw_right);
+    EXPECT_TRUE(saw_bottom);
+    EXPECT_FALSE(saw_global);
+}
+
+TEST(CSSParserTest, ParsesFontShorthandIntoComponentDeclarations) {
+    Parser parser("p { font: italic 700 20px/1.5 Roboto Mono, monospace; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+
+    bool saw_style = false;
+    bool saw_weight = false;
+    bool saw_size = false;
+    bool saw_line_height = false;
+    bool saw_family = false;
+    for (const auto& decl : decls) {
+        if (decl.property == Property::FontStyle) {
+            ASSERT_EQ(decl.value.type, Value::Type::Identifier);
+            EXPECT_EQ(decl.value.ident, "italic");
+            saw_style = true;
+        }
+        if (decl.property == Property::FontWeight) {
+            ASSERT_EQ(decl.value.type, Value::Type::Number);
+            EXPECT_FLOAT_EQ(decl.value.number, 700.0f);
+            saw_weight = true;
+        }
+        if (decl.property == Property::FontSize) {
+            ASSERT_EQ(decl.value.type, Value::Type::Length);
+            EXPECT_FLOAT_EQ(decl.value.length.value, 20.0f);
+            EXPECT_EQ(decl.value.length.unit, Unit::Px);
+            saw_size = true;
+        }
+        if (decl.property == Property::LineHeight) {
+            ASSERT_EQ(decl.value.type, Value::Type::Number);
+            EXPECT_FLOAT_EQ(decl.value.number, 1.5f);
+            saw_line_height = true;
+        }
+        if (decl.property == Property::FontFamily) {
+            ASSERT_EQ(decl.value.type, Value::Type::Identifier);
+            EXPECT_EQ(decl.value.ident, "Roboto Mono monospace");
+            saw_family = true;
+        }
+        EXPECT_NE(decl.property, Property::Font);
+    }
+
+    EXPECT_TRUE(saw_style);
+    EXPECT_TRUE(saw_weight);
+    EXPECT_TRUE(saw_size);
+    EXPECT_TRUE(saw_line_height);
+    EXPECT_TRUE(saw_family);
 }
 
 TEST(CSSParserTest, ExpandsBackgroundShorthandForImages) {

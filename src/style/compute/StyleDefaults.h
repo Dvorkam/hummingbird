@@ -1,6 +1,6 @@
 #pragma once
 
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird {
 namespace Css {
@@ -28,10 +28,15 @@ struct StyleOverrides {
     bool font_size = false;
     bool font_face = false;
     bool text_align = false;
+    bool text_transform = false;
+    bool letter_spacing = false;
+    bool text_indent = false;
+    bool word_wrap = false;
     bool background = false;
     bool line_height = false;
     bool list_style_type = false;
     bool list_style_position = false;
+    bool cursor = false;
 };
 
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,

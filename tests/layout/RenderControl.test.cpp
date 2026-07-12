@@ -5,7 +5,7 @@
 #include "core/dom/Element.h"
 #include "layout/controls/RenderBreak.h"
 #include "layout/controls/RenderRule.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;

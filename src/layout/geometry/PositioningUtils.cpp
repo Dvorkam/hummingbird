@@ -12,20 +12,28 @@ struct ContainingBlock {
 
 float resolve_horizontal_offset(const Css::ComputedStyle* style, float container_width, float box_width) {
     if (style && style->left.has_value()) {
+        if (style->left_is_percent) {
+            return container_width * (*style->left / 100.0f);
+        }
         return *style->left;
     }
     if (style && style->right.has_value()) {
-        return container_width - *style->right - box_width;
+        float right = style->right_is_percent ? container_width * (*style->right / 100.0f) : *style->right;
+        return container_width - right - box_width;
     }
     return 0.0f;
 }
 
 float resolve_vertical_offset(const Css::ComputedStyle* style, float container_height, float box_height) {
     if (style && style->top.has_value()) {
+        if (style->top_is_percent) {
+            return container_height * (*style->top / 100.0f);
+        }
         return *style->top;
     }
     if (style && style->bottom.has_value()) {
-        return container_height - *style->bottom - box_height;
+        float bottom = style->bottom_is_percent ? container_height * (*style->bottom / 100.0f) : *style->bottom;
+        return container_height - bottom - box_height;
     }
     return 0.0f;
 }
@@ -53,14 +61,16 @@ bool apply_positioning_recursive(RenderObject& node, IGraphicsContext& context, 
         float dx = 0.0f;
         float dy = 0.0f;
         if (style->left.has_value()) {
-            dx += *style->left;
+            dx += style->left_is_percent ? parent_abs.width * (*style->left / 100.0f) : *style->left;
         } else if (style->right.has_value()) {
-            dx -= *style->right;
+            float right = style->right_is_percent ? parent_abs.width * (*style->right / 100.0f) : *style->right;
+            dx -= right;
         }
         if (style->top.has_value()) {
-            dy += *style->top;
+            dy += style->top_is_percent ? parent_abs.height * (*style->top / 100.0f) : *style->top;
         } else if (style->bottom.has_value()) {
-            dy -= *style->bottom;
+            float bottom = style->bottom_is_percent ? parent_abs.height * (*style->bottom / 100.0f) : *style->bottom;
+            dy -= bottom;
         }
         rect.x += dx;
         rect.y += dy;

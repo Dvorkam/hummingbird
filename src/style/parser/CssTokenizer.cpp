@@ -17,6 +17,12 @@ char Tokenizer::peek() const {
     return m_input[m_pos];
 }
 
+char Tokenizer::peek_next(size_t offset) const {
+    size_t index = m_pos + offset;
+    if (index >= m_input.size()) return '\0';
+    return m_input[index];
+}
+
 char Tokenizer::advance() {
     if (m_pos >= m_input.size()) return '\0';
     return m_input[m_pos++];
@@ -47,6 +53,9 @@ Token Tokenizer::identifier() {
 
 Token Tokenizer::number() {
     size_t start = m_pos;
+    if (peek() == '+' || peek() == '-') {
+        advance();
+    }
     bool seen_dot = false;
     while (!eof()) {
         char c = peek();
@@ -154,6 +163,12 @@ bool Tokenizer::consume_simple_token(std::vector<Token>& tokens) {
         case '#':
             tokens.push_back(emit_single(TokenType::Hash, "#"));
             return true;
+        case '%':
+            tokens.push_back(emit_single(TokenType::Percent, "%"));
+            return true;
+        case '>':
+            tokens.push_back(emit_single(TokenType::Greater, ">"));
+            return true;
         default:
             return false;
     }
@@ -172,12 +187,20 @@ std::vector<Token> Tokenizer::tokenize() {
         if (try_url_token(tokens)) {
             continue;
         }
-        if (consume_simple_token(tokens)) continue;
         char c = peek();
+        char next = peek_next();
+        bool starts_number =
+            std::isdigit(static_cast<unsigned char>(c)) ||
+            (c == '.' && std::isdigit(static_cast<unsigned char>(next))) ||
+            ((c == '+' || c == '-') && (std::isdigit(static_cast<unsigned char>(next)) ||
+                                        (next == '.' && std::isdigit(static_cast<unsigned char>(peek_next(2))))));
+        if (starts_number) {
+            tokens.push_back(number());
+            continue;
+        }
+        if (consume_simple_token(tokens)) continue;
         if (is_identifier_start(c)) {
             tokens.push_back(identifier());
-        } else if (std::isdigit(static_cast<unsigned char>(c))) {
-            tokens.push_back(number());
         } else {
             // Unknown character; skip it.
             advance();

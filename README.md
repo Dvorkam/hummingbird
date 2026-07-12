@@ -18,13 +18,16 @@ This is an early prototype:
 
 ## What works today (high level)
 
+- Multi-tab app flow (create/switch/close) with per-tab isolation.
+- Extension host MVP (manifest + loader + long-lived background scripts + `browser.tabs` events + CSS injection).
 - HTML tokenizer + parser building a DOM tree.
 - CSS parsing for a subset of selectors/properties, including `<style>` blocks and external stylesheets.
 - Resource pipeline for HTML/CSS/images/SVG with incremental restyles as data arrives.
 - URL normalization + relative URL resolution for linked resources.
-- Basic block + inline layout, list markers, table layout, and key positioning/box-model features.
-- Form controls MVP (`<form>`, `<input>`, `<button>`), focus/editing, and GET form submission.
-- Background images, basic transforms, and text-decoration underline variants used by real-world pages.
+- Block + inline layout, list markers, table layout, and key positioning/box-model features (including percent sizing/positioning and table width-hint balancing).
+- Form controls (`<form>`, `<input>`, `<button>`), focus/editing, `autofocus`, GET+POST submit flows, and external submit controls.
+- Real-page CSS polish coverage including border-radius/outline/box-shadow, text effects, overflow handling, cursor, and vertical-align.
+- Background images and basic transforms used by real-world pages.
 - QuickJS integration with `onclick`/`load` dispatch and basic DOM mutation bindings.
 - Painting via Blend2D into an SDL2 window.
 - Image decoding via SDL2_image + SVG decoding via lunasvg.
@@ -36,6 +39,8 @@ Releases are published on GitHub as:
 
 - **Linux AppImage**: `Hummingbird-<version>-linux-x86_64.AppImage`
 - **Windows portable zip**: `Hummingbird-<version>-win64.zip`
+
+Release highlights are tracked in `CHANGELOG.md`.
 
 ### Linux (AppImage)
 
@@ -145,9 +150,109 @@ HB_TLS_INSECURE=1 ./build/Release/Hummingbird
 - `Esc`: unfocus URL bar
 - Mouse wheel: scroll
 - `F1`: toggle debug outlines
+- `Ctrl+T`: new tab
+- `Ctrl+W`: close active tab
+- `Ctrl+Left` / `Ctrl+Right`: switch tabs
 
 Startup defaults to `https://example.dev` (a built-in demo page). Loading arbitrary sites is best-effort and incomplete.
 JS demo page: `https://example.dev/js`.
+
+## Extensions (MVP)
+
+Milestone 5 introduces a minimal extension host. This is not WebExtension-compatible; it is a small, evolving surface.
+
+What works:
+
+- Load extensions from a directory on startup (default: `assets/extensions/`).
+- Parse a minimal `manifest.json`.
+- Run a long-lived background script once at startup (one QuickJS context per extension).
+- `console.log(...)` works inside background scripts.
+- `browser.tabs` subset:
+  - `browser.tabs.active()`
+  - `browser.tabs.onCreated.addListener(fn)`
+  - `browser.tabs.onActivated.addListener(fn)`
+  - `browser.tabs.onNavigated.addListener(fn)` where `fn` receives `{ id, url, active }`
+- `browser.scripting.insertCSS({ tabId, cssText })`.
+- Built-in `dark-mode` extension that injects CSS when tabs are created/activated/navigated.
+- Enable/disable extensions via environment variables.
+
+What is not implemented yet:
+
+- No content scripts and no direct per-tab DOM access from extensions.
+- No `removeCSS` API.
+- No permission enforcement, sandboxing, or security model.
+- No persistence for extension state across restarts.
+
+### Built-in dark mode demo
+
+- Open `https://example.dev` and find `Extension Dark Mode Demo`.
+- The built-in dark-mode extension now applies across ordinary page content (with targeted readability safeguards), not only a demo-only scope class.
+- Disable it with `HB_EXTENSIONS_DISABLE=dark-mode`.
+
+### Directory layout
+
+Extensions live in subdirectories under the extensions root. The extension ID is the directory name.
+
+Example:
+
+```
+assets/extensions/dark-mode/
+  manifest.json
+  background.js
+```
+
+### Manifest format (v0)
+
+Required fields:
+
+- `name`: string
+- `version`: string
+- `background.entry`: string (relative path to the background script)
+
+Optional fields:
+
+- `permissions`: string[]
+
+Example `manifest.json`:
+
+```json
+{
+  "name": "Dark Mode",
+  "version": "0.1.0",
+  "background": { "entry": "background.js" },
+  "permissions": ["tabs", "scripting"]
+}
+```
+
+### Configuration
+
+Startup now reads `assets/config/browser.ini` (or `HB_SETTINGS_INI` when set), so extension states can be changed without recompiling.
+
+Example:
+
+```ini
+[extensions]
+dark-mode = disabled
+```
+
+Accepted values: `enabled|disabled`, `true|false`, `on|off`, `yes|no`, `1|0`.
+
+Environment variables still work and take precedence over INI:
+
+- `HB_EXTENSIONS_DIR`: overrides the extensions root directory (defaults to `assets/extensions`).
+- `HB_EXTENSIONS_DISABLE`: comma-separated list of extension IDs to disable.
+- `HB_EXTENSIONS_ENABLE`: comma-separated allow-list of extension IDs to enable (when set, only these load).
+- `HB_SETTINGS_INI`: overrides the settings file path (defaults to `assets/config/browser.ini`).
+
+Examples:
+
+```bash
+# Disable the built-in dark-mode extension (directory name is the ID).
+HB_EXTENSIONS_DISABLE=dark-mode ./build/Release/Hummingbird
+
+# Enable only two extensions.
+HB_EXTENSIONS_ENABLE=dark-mode,my-ext ./build/Release/Hummingbird
+```
 
 ## License
 

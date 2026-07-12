@@ -23,3 +23,19 @@ TEST(StylesheetSourceTest, MergesSourcesInOrder) {
     EXPECT_LT(pos_link1, pos_link2);
     EXPECT_LT(pos_link2, pos_block);
 }
+
+TEST(StylesheetSourceTest, AppendsExtensionSourcesAfterAuthorStyles) {
+    std::string ua = "p { color: red; }";
+    std::vector<std::string> links = {"p { color: blue; }"};
+    std::vector<std::string> blocks = {"p { color: green; }"};
+    std::vector<std::string> extensions = {"p { color: black; }"};
+
+    auto merged = Hummingbird::Css::merge_css_sources(ua, links, blocks, extensions);
+
+    auto pos_block = merged.find("p { color: green; }");
+    auto pos_extension = merged.find("p { color: black; }");
+
+    ASSERT_NE(pos_block, std::string::npos);
+    ASSERT_NE(pos_extension, std::string::npos);
+    EXPECT_LT(pos_block, pos_extension);
+}

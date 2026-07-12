@@ -18,6 +18,9 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_position:
             (void)apply_layout_property(Property::Position, value, style, overrides, context);
             return;
+        case ApplyHook::apply_overflow:
+            (void)apply_layout_property(property, value, style, overrides, context);
+            return;
         case ApplyHook::apply_font_size:
             (void)apply_text_property(Property::FontSize, value, style, overrides, context);
             return;
@@ -61,13 +64,28 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
             (void)apply_layout_property(Property::Transform, value, style, overrides, context);
             return;
         case ApplyHook::apply_border:
-            (void)apply_layout_property(Property::Border, value, style, overrides, context);
+            (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::apply_border_width:
-            (void)apply_layout_property(Property::BorderWidth, value, style, overrides, context);
+            (void)apply_layout_property(property, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_border_radius:
+            (void)apply_layout_property(Property::BorderRadius, value, style, overrides, context);
             return;
         case ApplyHook::apply_border_color:
             (void)apply_layout_property(Property::BorderColor, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_outline:
+            (void)apply_layout_property(Property::Outline, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_outline_width:
+            (void)apply_layout_property(Property::OutlineWidth, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_outline_color:
+            (void)apply_layout_property(Property::OutlineColor, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_outline_offset:
+            (void)apply_layout_property(Property::OutlineOffset, value, style, overrides, context);
             return;
         case ApplyHook::apply_border_style:
             (void)apply_layout_property(Property::BorderStyle, value, style, overrides, context);
@@ -105,8 +123,32 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_z_index:
             (void)apply_layout_property(Property::ZIndex, value, style, overrides, context);
             return;
+        case ApplyHook::apply_opacity:
+            (void)apply_layout_property(Property::Opacity, value, style, overrides, context);
+            return;
         case ApplyHook::apply_text_align:
             (void)apply_text_property(Property::TextAlign, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_text_transform:
+            (void)apply_text_property(Property::TextTransform, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_cursor:
+            (void)apply_text_property(property, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_vertical_align:
+            (void)apply_text_property(property, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_letter_spacing:
+            (void)apply_text_property(Property::LetterSpacing, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_text_indent:
+            (void)apply_text_property(Property::TextIndent, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_text_overflow:
+            (void)apply_text_property(Property::TextOverflow, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_word_wrap:
+            (void)apply_text_property(Property::WordWrap, value, style, overrides, context);
             return;
         case ApplyHook::apply_text_decoration:
             (void)apply_text_property(Property::TextDecoration, value, style, overrides, context);
@@ -161,6 +203,9 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
             return;
         case ApplyHook::apply_background_size:
             (void)apply_background_property(Property::BackgroundSize, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_box_shadow:
+            (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::Unknown:
             return;

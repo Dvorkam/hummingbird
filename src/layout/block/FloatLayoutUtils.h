@@ -3,7 +3,7 @@
 #include <vector>
 
 #include "layout/geometry/Geometry.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout::FloatLayout {
 

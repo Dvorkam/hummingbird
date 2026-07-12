@@ -30,6 +30,7 @@ public:
     void draw_text(const std::string& text, float x, float y, const TextStyle& style) override;
     void draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
                                 const TextMetrics& metrics) override;
+    void set_global_alpha(float alpha) override;
     void set_text_cache_owner(std::uint64_t owner_id) override;
     bool begin_document_cache(const Hummingbird::Layout::Rect& viewport) override;
     void end_document_cache() override;
@@ -123,6 +124,7 @@ private:
     SDL_Texture* document_cache_ = nullptr;
     int document_cache_width_ = 0;
     int document_cache_height_ = 0;
+    float global_alpha_ = 1.0f;
 };
 
 }  // namespace Hummingbird::Platform

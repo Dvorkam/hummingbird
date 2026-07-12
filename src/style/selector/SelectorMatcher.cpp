@@ -58,7 +58,29 @@ bool matches_simple_selector(const DOM::Node* node, const SelectorPart& selector
     if (!selector.id.empty() && !has_id(*element, selector.id)) {
         return false;
     }
-    return has_all_classes(*element, selector.classes);
+    if (!has_all_classes(*element, selector.classes)) {
+        return false;
+    }
+
+    for (auto pseudo : selector.pseudo_classes) {
+        bool matches = false;
+        switch (pseudo) {
+            case SelectorPart::PseudoClass::Hover:
+                matches = element->has_pseudo_state(DOM::Element::PseudoState::Hover);
+                break;
+            case SelectorPart::PseudoClass::Active:
+                matches = element->has_pseudo_state(DOM::Element::PseudoState::Active);
+                break;
+            case SelectorPart::PseudoClass::Focus:
+                matches = element->has_pseudo_state(DOM::Element::PseudoState::Focus);
+                break;
+        }
+        if (!matches) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool matches_selector(const DOM::Node* node, const Selector& selector) {
@@ -72,9 +94,26 @@ bool matches_selector(const DOM::Node* node, const Selector& selector) {
     if (selector.parts.size() == 1) {
         return true;
     }
+
+    auto combinator_for = [&](size_t parent_index) {
+        if (parent_index < selector.combinators.size()) {
+            return selector.combinators[parent_index];
+        }
+        return Selector::Combinator::Descendant;
+    };
+
     for (size_t i = selector.parts.size() - 1; i-- > 0;) {
         const auto& part = selector.parts[i];
-        const DOM::Node* cursor = current ? current->get_parent() : nullptr;
+        const DOM::Node* parent = current ? current->get_parent() : nullptr;
+        if (combinator_for(i) == Selector::Combinator::Child) {
+            if (!parent || !matches_simple_selector(parent, part)) {
+                return false;
+            }
+            current = parent;
+            continue;
+        }
+
+        const DOM::Node* cursor = parent;
         bool found = false;
         while (cursor) {
             if (matches_simple_selector(cursor, part)) {

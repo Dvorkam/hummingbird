@@ -10,6 +10,7 @@
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "style/compute/StyleValueUtils.h"
+#include "style/parser/CssValueUtils.h"
 #include "style/registry/CssPropertyRegistry.h"
 #include "style/registry/CssValueNames.h"
 
@@ -55,16 +56,35 @@ static bool is_selector_start(TokenType type) {
 Selector Parser::parse_selector() {
     Selector selector;
     skip_whitespace_tokens();
-    while (is_selector_start(peek().type)) {
-        selector.parts.push_back(parse_simple_selector());
+    if (!is_selector_start(peek().type)) {
+        return selector;
+    }
+
+    selector.parts.push_back(parse_simple_selector());
+    while (true) {
         bool saw_whitespace = false;
         while (peek().type == TokenType::Whitespace) {
             saw_whitespace = true;
             advance();
         }
-        if (!saw_whitespace) {
+
+        if (match(TokenType::Greater)) {
+            while (peek().type == TokenType::Whitespace) {
+                advance();
+            }
+            if (!is_selector_start(peek().type)) {
+                break;
+            }
+            selector.combinators.push_back(Selector::Combinator::Child);
+            selector.parts.push_back(parse_simple_selector());
+            continue;
+        }
+
+        if (!saw_whitespace || !is_selector_start(peek().type)) {
             break;
         }
+        selector.combinators.push_back(Selector::Combinator::Descendant);
+        selector.parts.push_back(parse_simple_selector());
     }
     return selector;
 }
@@ -87,6 +107,20 @@ SelectorPart Parser::parse_simple_selector() {
         if (match(TokenType::Hash)) {
             if (peek().type == TokenType::Identifier) {
                 selector.id = advance().lexeme;
+                continue;
+            }
+            break;
+        }
+        if (match(TokenType::Colon)) {
+            if (peek().type == TokenType::Identifier) {
+                auto pseudo = Core::Utils::to_lower(std::string(advance().lexeme));
+                if (pseudo == "hover") {
+                    selector.pseudo_classes.push_back(SelectorPart::PseudoClass::Hover);
+                } else if (pseudo == "active") {
+                    selector.pseudo_classes.push_back(SelectorPart::PseudoClass::Active);
+                } else if (pseudo == "focus") {
+                    selector.pseudo_classes.push_back(SelectorPart::PseudoClass::Focus);
+                }
                 continue;
             }
             break;
@@ -121,66 +155,6 @@ static std::optional<Color> parse_named_color(std::string_view value) {
     if (value == ValueNames::Black) return Color{0, 0, 0, 255};
     if (value == ValueNames::White) return Color{255, 255, 255, 255};
     return std::nullopt;
-}
-
-std::string value_to_text(const Value& value) {
-    if (value.type == Value::Type::Identifier) {
-        return value.ident;
-    }
-    if (value.type == Value::Type::Color) {
-        return Core::Utils::color_to_hex(value.color);
-    }
-    if (value.type == Value::Type::Length) {
-        std::string out = std::to_string(value.length.value);
-        if (value.length.unit == Unit::Px) {
-            out += ValueNames::Px;
-        } else if (value.length.unit == Unit::Em) {
-            out += ValueNames::Em;
-        }
-        return out;
-    }
-    if (value.type == Value::Type::Number) {
-        return std::to_string(value.number);
-    }
-    return "";
-}
-
-std::string join_value_list(const std::vector<Value>& list) {
-    std::string out;
-    for (const auto& value : list) {
-        std::string piece = value_to_text(value);
-        if (piece.empty()) {
-            continue;
-        }
-        if (!out.empty()) {
-            out.push_back(' ');
-        }
-        out += piece;
-    }
-    return out;
-}
-
-std::string build_var_expression(const std::vector<Value>& list) {
-    if (list.empty()) {
-        return "";
-    }
-    if (list[0].type != Value::Type::Identifier || list[0].ident != "var") {
-        return "";
-    }
-    if (list.size() < 2 || list[1].type != Value::Type::Identifier) {
-        return "";
-    }
-    std::string expr = "var(";
-    expr += list[1].ident;
-    if (list.size() >= 3) {
-        std::string fallback = value_to_text(list[2]);
-        if (!fallback.empty()) {
-            expr += ", ";
-            expr += fallback;
-        }
-    }
-    expr += ")";
-    return expr;
 }
 
 Property Parser::parse_property() {
@@ -269,6 +243,9 @@ Value Parser::parse_identifier_value() {
 Value Parser::parse_number_value() {
     std::string number_text = std::string(advance().lexeme);
     float number = Core::Utils::parse_float(number_text).value_or(0.0f);
+    if (match(TokenType::Percent)) {
+        return Value::length_value(number, Unit::Percent);
+    }
     if (peek().type == TokenType::Identifier) {
         std::string unit_text = std::string(advance().lexeme);
         Unit unit = Unit::Unknown;
@@ -417,6 +394,20 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             emit_edges(Property::PaddingTop, Property::PaddingRight, Property::PaddingBottom, Property::PaddingLeft);
             return true;
         case PropertyRegistry::ParserHook::parse_border_shorthand: {
+            auto border_width_property_for = [&](Property target) {
+                switch (target) {
+                    case Property::BorderTop:
+                        return Property::BorderTopWidth;
+                    case Property::BorderRight:
+                        return Property::BorderRightWidth;
+                    case Property::BorderBottom:
+                        return Property::BorderBottomWidth;
+                    case Property::BorderLeft:
+                        return Property::BorderLeftWidth;
+                    default:
+                        return Property::BorderWidth;
+                }
+            };
             std::optional<Value> border_width;
             std::optional<Value> border_style;
             std::optional<Value> border_color;
@@ -436,9 +427,67 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                     border_style = value;
                 }
             }
-            if (border_width) push_decl(Property::BorderWidth, *border_width);
+            if (border_width) {
+                push_decl(border_width_property_for(property), *border_width);
+            }
             if (border_style) push_decl(Property::BorderStyle, *border_style);
             if (border_color) push_decl(Property::BorderColor, *border_color);
+            return true;
+        }
+        case PropertyRegistry::ParserHook::parse_font_shorthand: {
+            std::optional<Value> font_style;
+            std::optional<Value> font_weight;
+            std::optional<Value> font_size;
+            std::optional<Value> line_height;
+            std::vector<Value> font_family_tokens;
+
+            bool after_size = false;
+            for (const auto& value : values) {
+                if (!after_size) {
+                    if (value.type == Value::Type::Identifier &&
+                        (value.ident == ValueNames::Italic || value.ident == ValueNames::Normal)) {
+                        font_style = value;
+                        continue;
+                    }
+                    if ((value.type == Value::Type::Identifier &&
+                         (value.ident == ValueNames::Bold || value.ident == ValueNames::Normal)) ||
+                        value.type == Value::Type::Number) {
+                        font_weight = value;
+                        continue;
+                    }
+                    if (value.type == Value::Type::Length) {
+                        font_size = value;
+                        after_size = true;
+                        continue;
+                    }
+                } else if (!line_height && (value.type == Value::Type::Length || value.type == Value::Type::Number)) {
+                    line_height = value;
+                    continue;
+                }
+
+                if (after_size) {
+                    font_family_tokens.push_back(value);
+                }
+            }
+
+            if (font_style) {
+                push_decl(Property::FontStyle, *font_style);
+            }
+            if (font_weight) {
+                push_decl(Property::FontWeight, *font_weight);
+            }
+            if (font_size) {
+                push_decl(Property::FontSize, *font_size);
+            }
+            if (line_height) {
+                push_decl(Property::LineHeight, *line_height);
+            }
+            if (!font_family_tokens.empty()) {
+                std::string family = join_value_list(font_family_tokens);
+                if (!family.empty()) {
+                    push_decl(Property::FontFamily, Value::identifier(std::move(family)));
+                }
+            }
             return true;
         }
         case PropertyRegistry::ParserHook::parse_background_image:
@@ -462,6 +511,76 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             if (!text.empty()) {
                 push_decl(property, Value::identifier(std::move(text)));
             }
+            return true;
+        }
+        case PropertyRegistry::ParserHook::parse_outline_shorthand: {
+            std::optional<Value> outline_width;
+            std::optional<Value> outline_color;
+            for (const auto& value : values) {
+                if (!outline_width && value.type == Value::Type::Length) {
+                    outline_width = value;
+                    continue;
+                }
+                if (!outline_color && value.type == Value::Type::Color) {
+                    outline_color = value;
+                    continue;
+                }
+            }
+            if (outline_width) {
+                push_decl(Property::OutlineWidth, *outline_width);
+            }
+            if (outline_color) {
+                push_decl(Property::OutlineColor, *outline_color);
+            }
+            if (!outline_width && !outline_color) {
+                std::string text = join_value_list(values);
+                if (!text.empty()) {
+                    push_decl(Property::Outline, Value::identifier(std::move(text)));
+                }
+            }
+            return true;
+        }
+        case PropertyRegistry::ParserHook::parse_box_shadow: {
+            if (values.size() == 1 && values[0].type == Value::Type::Identifier &&
+                values[0].ident == ValueNames::None) {
+                push_decl(property, values[0]);
+                return true;
+            }
+
+            std::vector<Length> lengths;
+            std::optional<Color> color;
+            for (const auto& value : values) {
+                if (value.type == Value::Type::Color && !color) {
+                    color = value.color;
+                    continue;
+                }
+                if (value.type == Value::Type::Length) {
+                    lengths.push_back(value.length);
+                    continue;
+                }
+                if (value.type == Value::Type::Number) {
+                    Length length;
+                    length.value = value.number;
+                    length.unit = Unit::Px;
+                    lengths.push_back(length);
+                }
+            }
+
+            if (lengths.size() < 2) {
+                return true;
+            }
+
+            Value::Shadow shadow;
+            shadow.offset_x = lengths[0];
+            shadow.offset_y = lengths[1];
+            if (lengths.size() >= 3) {
+                shadow.blur = lengths[2];
+            }
+            if (color) {
+                shadow.color = *color;
+            }
+
+            push_decl(property, Value::shadow_value(shadow));
             return true;
         }
         case PropertyRegistry::ParserHook::parse_background_shorthand: {
@@ -522,6 +641,7 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         case PropertyRegistry::ParserHook::parse_font_family:
         case PropertyRegistry::ParserHook::parse_font_weight:
         case PropertyRegistry::ParserHook::parse_color:
+        case PropertyRegistry::ParserHook::parse_opacity:
             break;
     }
 

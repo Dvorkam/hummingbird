@@ -50,6 +50,60 @@ struct InputRenderTree {
         render_root->append_child(std::move(input_box));
     }
 };
+
+struct OverlappingInputRenderTree {
+    ArenaAllocator arena;
+    ArenaPtr<Element> root;
+    Element* text_input = nullptr;
+    Element* submit_input = nullptr;
+    std::unique_ptr<BlockBox> render_root;
+
+    OverlappingInputRenderTree() : arena(2048) {
+        root = Element::create(arena, "div");
+
+        auto text_input_node = Element::create(arena, "input");
+        text_input = text_input_node.get();
+        text_input->set_attribute("type", "text");
+        root->append_child(std::move(text_input_node));
+
+        auto submit_input_node = Element::create(arena, "input");
+        submit_input = submit_input_node.get();
+        submit_input->set_attribute("type", "submit");
+        root->append_child(std::move(submit_input_node));
+
+        render_root = BlockBox::create(root.get());
+
+        auto text_input_box = BlockBox::create(text_input);
+        text_input_box->set_rect(Rect{10.0f, 5.0f, 140.0f, 20.0f});
+        render_root->append_child(std::move(text_input_box));
+
+        auto submit_input_box = BlockBox::create(submit_input);
+        submit_input_box->set_rect(Rect{10.0f, 5.0f, 140.0f, 20.0f});
+        render_root->append_child(std::move(submit_input_box));
+
+        render_root->set_rect(Rect{0.0f, 0.0f, 200.0f, 60.0f});
+    }
+};
+
+struct InputButtonRenderTree {
+    ArenaAllocator arena;
+    ArenaPtr<Element> root;
+    Element* button = nullptr;
+    std::unique_ptr<BlockBox> render_root;
+
+    InputButtonRenderTree() : arena(2048) {
+        root = Element::create(arena, "div");
+        auto button_node = Element::create(arena, "button");
+        button = button_node.get();
+        root->append_child(std::move(button_node));
+
+        render_root = BlockBox::create(root.get());
+        auto button_box = BlockBox::create(button);
+        button_box->set_rect(Rect{20.0f, 8.0f, 80.0f, 22.0f});
+        render_root->set_rect(Rect{0.0f, 0.0f, 200.0f, 60.0f});
+        render_root->append_child(std::move(button_box));
+    }
+};
 }  // namespace
 
 TEST(DocumentInputControllerTest, FocusesAndClearsInput) {
@@ -107,4 +161,68 @@ TEST(DocumentInputControllerTest, DeletesAreNoopsOnEmptyValue) {
 
     ASSERT_TRUE(controller.focused_value().has_value());
     EXPECT_EQ(*controller.focused_value(), "");
+}
+
+TEST(DocumentInputControllerTest, PrefersEditableTextInputOverSubmitInputAtSamePoint) {
+    OverlappingInputRenderTree tree;
+    DocumentInputController controller;
+    Rect viewport{0.0f, 0.0f, 200.0f, 60.0f};
+    Point hit{15.0f, 10.0f};
+
+    ASSERT_TRUE(controller.focus_input_at(tree.render_root.get(), hit, viewport, 0.0f));
+    auto text_result = controller.handle_text_input("abc");
+    EXPECT_TRUE(text_result.handled);
+    ASSERT_TRUE(controller.focused_value().has_value());
+    EXPECT_EQ(*controller.focused_value(), "abc");
+
+    const auto* text_value = tree.text_input->find_attribute("value");
+    ASSERT_NE(text_value, nullptr);
+    EXPECT_EQ(*text_value, "abc");
+    EXPECT_EQ(tree.submit_input->find_attribute("value"), nullptr);
+}
+
+TEST(DocumentInputControllerTest, FocusesAutofocusInputOnLoadPath) {
+    InputRenderTree tree;
+    tree.input->set_attribute("autofocus", "");
+
+    DocumentInputController controller;
+    EXPECT_TRUE(controller.focus_autofocus_input(tree.render_root.get()));
+    EXPECT_TRUE(controller.has_focus());
+
+    auto edit = controller.handle_text_input("ddg");
+    EXPECT_TRUE(edit.handled);
+    ASSERT_TRUE(controller.focused_value().has_value());
+    EXPECT_EQ(*controller.focused_value(), "ddg");
+}
+
+TEST(DocumentInputControllerTest, FocusStateTracksFocusedInputPseudoClass) {
+    InputRenderTree tree;
+    DocumentInputController controller;
+    Rect viewport{0.0f, 0.0f, 200.0f, 50.0f};
+    Point hit{15.0f, 10.0f};
+
+    EXPECT_FALSE(tree.input->has_pseudo_state(Element::PseudoState::Focus));
+    ASSERT_TRUE(controller.focus_input_at(tree.render_root.get(), hit, viewport, 0.0f));
+    EXPECT_TRUE(tree.input->has_pseudo_state(Element::PseudoState::Focus));
+    EXPECT_TRUE(controller.clear_focus());
+    EXPECT_FALSE(tree.input->has_pseudo_state(Element::PseudoState::Focus));
+}
+
+TEST(DocumentInputControllerTest, InteractionStateTracksHoverAndActiveOnButton) {
+    InputButtonRenderTree tree;
+    DocumentInputController controller;
+    Rect viewport{0.0f, 0.0f, 200.0f, 60.0f};
+    Point hit{30.0f, 15.0f};
+    Point miss{180.0f, 50.0f};
+
+    EXPECT_FALSE(tree.button->has_pseudo_state(Element::PseudoState::Hover));
+    EXPECT_FALSE(tree.button->has_pseudo_state(Element::PseudoState::Active));
+
+    EXPECT_TRUE(controller.set_control_interaction_at(tree.render_root.get(), hit, viewport, 0.0f));
+    EXPECT_TRUE(tree.button->has_pseudo_state(Element::PseudoState::Hover));
+    EXPECT_TRUE(tree.button->has_pseudo_state(Element::PseudoState::Active));
+
+    EXPECT_TRUE(controller.set_control_interaction_at(tree.render_root.get(), miss, viewport, 0.0f));
+    EXPECT_FALSE(tree.button->has_pseudo_state(Element::PseudoState::Hover));
+    EXPECT_FALSE(tree.button->has_pseudo_state(Element::PseudoState::Active));
 }

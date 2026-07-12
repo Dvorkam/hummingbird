@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 
+#include "core/platform_api/IExtensionApiHost.h"
 #include "core/platform_api/IScriptHost.h"
 
 namespace Hummingbird {
@@ -18,6 +19,7 @@ public:
     virtual ~IScriptEngine() = default;
 
     virtual void bind_host(IScriptHost* host) = 0;
+    virtual void bind_extension_host(IExtensionApiHost* host) = 0;
     virtual ScriptEvalResult eval(std::string_view source, std::string_view filename = "inline") = 0;
 };
 

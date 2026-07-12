@@ -1,14 +1,17 @@
 #include "app/BrowserApp.h"
 
-#include <algorithm>
 #include <cctype>
 #include <cstdlib>
 #include <optional>
 #include <ostream>
-#include <string>
 #include <string_view>
 #include <utility>
 
+#include "app/BrowserEventRouter.h"
+#include "app/ChromeEventRouter.h"
+#include "app/DocumentEventRouter.h"
+#include "app/ExtensionBootstrap.h"
+#include "app/RenderCoordinator.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/ImageDecoderFactory.h"
@@ -17,13 +20,12 @@
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "core/utils/Log.h"
+#include "engine/extensions/ExtensionHost.h"
+#include "engine/tab/Tab.h"
 
 namespace Hummingbird::App {
 
 namespace {
-// You can keep constants here to avoid re-allocating per frame
-constexpr Color kClearColor{255, 255, 255, 255};
-
 bool env_truthy(const char* name) {
     const char* value = std::getenv(name);
     if (!value || !value[0]) return false;
@@ -45,40 +47,69 @@ NetworkBackend primary_backend_for_env() {
     return env_truthy("HB_HEADLESS") ? NetworkBackend::Stub : NetworkBackend::Curl;
 }
 
-std::optional<ImageBitmap> load_icon(IResourceProvider* provider, IImageDecoder* decoder, std::string_view path) {
-    if (!provider || !decoder) return std::nullopt;
-    auto bytes = provider->load_bytes(path);
-    if (!bytes) return std::nullopt;
-    auto decoded = decoder->decode(*bytes);
-    if (!decoded) {
-        HB_LOG_WARN("[ui] failed to decode icon: " << path);
-    }
-    return decoded;
-}
-
-UrlBar::SecurityIcons load_security_icons(IResourceProvider* provider, IImageDecoder* decoder) {
-    UrlBar::SecurityIcons icons;
-    icons.secure = load_icon(provider, decoder, "assets/icons/page_security/secure.png");
-    icons.insecure = load_icon(provider, decoder, "assets/icons/page_security/insecure.png");
-    icons.asecure = load_icon(provider, decoder, "assets/icons/page_security/asecure.png");
-    return icons;
+Hummingbird::Engine::TabFactory make_tab_factory(NetworkBackend primary_backend) {
+    Hummingbird::Engine::TabFactory factory;
+    factory.create_network = [primary_backend]() { return create_network(primary_backend); };
+    factory.create_fallback_network = []() { return create_network(NetworkBackend::Stub); };
+    factory.create_resource_provider = []() { return create_resource_provider(); };
+    factory.create_image_decoder = []() { return create_image_decoder(); };
+    factory.create_script_engine = []() { return create_script_engine(); };
+    return factory;
 }
 }  // namespace
 
 BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     : window_(std::move(window)),
       graphics_(window_ ? window_->get_graphics_context() : nullptr),
-      tab_(create_network(primary_backend_for_env()), create_network(NetworkBackend::Stub), create_resource_provider(),
-           create_image_decoder(), create_script_engine()) {
+      tab_controller_(make_tab_factory(primary_backend_for_env())),
+      extension_host_(std::make_unique<Hummingbird::Engine::ExtensionHost>([]() { return create_script_engine(); })) {
+    render_coordinator_ =
+        std::make_unique<RenderCoordinator>(window_.get(), graphics_.get(), browser_chrome_, tab_controller_);
+    chrome_event_router_ = std::make_unique<ChromeEventRouter>(*this, browser_chrome_, tab_controller_,
+                                                               *render_coordinator_, window_.get(), graphics_.get());
+    document_event_router_ = std::make_unique<DocumentEventRouter>(*this, browser_chrome_, *render_coordinator_,
+                                                                   window_.get(), graphics_.get());
+    event_router_ = std::make_unique<BrowserEventRouter>(*this, *chrome_event_router_, *document_event_router_,
+                                                         *render_coordinator_);
+
+    const auto first_tab_id = tab_controller_.create_tab();
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
     if (provider && decoder) {
-        url_bar_.set_security_icons(load_security_icons(provider.get(), decoder.get()));
+        browser_chrome_.load_security_icons(provider.get(), decoder.get());
     }
+
+    initialize_extensions(first_tab_id);
+}
+
+void BrowserApp::initialize_extensions(Hummingbird::Engine::TabId first_tab_id) {
+    auto bootstrap = Hummingbird::App::load_extension_bootstrap();
+    for (const auto& e : bootstrap.errors) {
+        HB_LOG_WARN("[ext] " << e.message << ": " << e.path.string());
+    }
+    extension_host_->set_settings(std::move(bootstrap.settings));
+    extension_host_->set_insert_css_handler([this](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
+        return insert_extension_css(tab_id, css_text);
+    });
+    extension_host_->set_extensions(std::move(bootstrap.extensions));
+    if (extension_host_->extension_count() > 0) {
+        HB_LOG_INFO("[ext] loaded extensions: " << extension_host_->extension_count());
+    }
+    extension_host_->start_background_scripts();
+    notify_extension_tab_created(first_tab_id, browser_chrome_.url_bar().text());
+    extension_host_->notify_tab_activated(first_tab_id);
 }
 
 BrowserApp::~BrowserApp() {
     shutdown();
+}
+
+size_t BrowserApp::tab_count() const {
+    return tab_controller_.tab_count();
+}
+
+std::optional<Hummingbird::Engine::TabId> BrowserApp::active_tab_id() const {
+    return tab_controller_.active_tab_id();
 }
 
 void BrowserApp::shutdown() {
@@ -89,7 +120,8 @@ void BrowserApp::shutdown() {
     // stop input first (safe even if already stopped)
     if (window_) window_->stop_text_input();
 
-    tab_.shutdown();
+    extension_host_->shutdown();
+    tab_controller_.shutdown();
 
     // close window last (or earlier if you prefer to hide UI immediately)
     if (window_ && window_->is_open()) window_->close();
@@ -97,10 +129,10 @@ void BrowserApp::shutdown() {
 
 void BrowserApp::start() {
     // initial navigation
-    tab_.navigate(url_bar_.text());
+    navigate_active_tab(browser_chrome_.url_bar().text());
 
     // initial focus
-    url_bar_.set_active(true, window_.get(), "[ui] URL bar focused (default)");
+    browser_chrome_.url_bar().set_active(true, window_.get(), "[ui] URL bar focused (default)");
     HB_LOG_INFO("[ui] Starting app. Press Ctrl+L to focus URL bar.");
 }
 
@@ -115,260 +147,166 @@ bool BrowserApp::tick() {
 
     if (graphics_) {
         auto [win_w, win_h] = window_->get_size();
-        const auto viewport = compute_content_viewport(win_w, win_h);
-        if (tab_.tick(*graphics_, viewport)) {
-            document_dirty_ = true;
-        }
-        if (url_bar_.set_security_state(tab_.security_state())) {
-            chrome_dirty_ = true;
-        }
+        const auto viewport = browser_chrome_.content_viewport(win_w, win_h);
+        tick_active_tab(viewport);
+        emit_navigation_commit_events();
+        sync_active_tab_security_state();
+        sync_tab_text_input_mode();
     }
-    render_if_needed();
+    render_coordinator_->render_if_needed();
 
     return window_->is_open();
+}
+
+void BrowserApp::tick_active_tab(const Hummingbird::Layout::Rect& viewport) {
+    if (active_tab().tick(*graphics_, viewport)) {
+        render_coordinator_->set_document_dirty();
+    }
+}
+
+void BrowserApp::emit_navigation_commit_events() {
+    if (auto id = tab_controller_.active_tab_id()) {
+        if (auto committed = active_tab().consume_navigation_commit_url()) {
+            extension_host_->notify_tab_navigated(*id, *committed);
+        }
+    }
+}
+
+void BrowserApp::sync_active_tab_security_state() {
+    if (browser_chrome_.url_bar().set_security_state(active_tab().security_state())) {
+        render_coordinator_->set_chrome_dirty();
+    }
 }
 
 void BrowserApp::pump_events() {
     InputEvent e;
     if (window_->wait_event(e, wait_timeout_ms_)) {
-        handle_event(e);
+        event_router_->handle_event(e);
     }
 
     int processed = 0;
     while (processed++ < max_events_per_tick_ && window_->poll_event(e)) {
-        handle_event(e);
+        event_router_->handle_event(e);
         if (!window_->is_open()) break;
     }
 }
 
-void BrowserApp::handle_event(const InputEvent& event) {
-    switch (event.type) {
-        case EventType::Quit:
-            handle_quit_event();
-            return;
-        case EventType::TextInput:
-            handle_text_input_event(event);
-            return;
-        case EventType::KeyDown:
-            handle_key_down_event(event);
-            return;
-        case EventType::MouseDown:
-            handle_mouse_down_event(event);
-            return;
-        case EventType::MouseWheel:
-            handle_mouse_wheel_event(event);
-            return;
-        case EventType::Resize:
-            handle_resize_event(event);
-            return;
-        default:
-            return;
+Hummingbird::Engine::Tab& BrowserApp::active_tab() {
+    return tab_controller_.ensure_active_tab();
+}
+
+void BrowserApp::on_active_tab_changed() {
+    if (!window_) return;
+
+    const auto* tab = tab_controller_.active_tab();
+    if (!tab) return;
+
+    browser_chrome_.url_bar().set_text(tab->requested_url());
+    browser_chrome_.url_bar().set_security_state(tab->security_state());
+    render_coordinator_->invalidate_document_cache();
+    render_coordinator_->set_chrome_dirty();
+    render_coordinator_->set_controls_dirty();
+
+    window_->stop_text_input();
+    tab_text_input_active_ = false;
+    sync_tab_text_input_mode();
+
+    if (auto id = tab_controller_.active_tab_id()) {
+        extension_host_->notify_tab_activated(*id);
     }
 }
 
-void BrowserApp::handle_quit_event() {
-    shutdown();
+void BrowserApp::sync_tab_text_input_mode() {
+    if (!window_) return;
+    if (browser_chrome_.url_bar().is_active()) {
+        tab_text_input_active_ = false;
+        return;
+    }
+
+    const bool should_be_active = active_tab().has_focused_input();
+    if (should_be_active == tab_text_input_active_) {
+        return;
+    }
+
+    if (should_be_active) {
+        window_->start_text_input();
+    } else {
+        window_->stop_text_input();
+    }
+    tab_text_input_active_ = should_be_active;
 }
 
-void BrowserApp::handle_text_input_event(const InputEvent& event) {
-    if (url_bar_.handle_text_input(event.text.text)) {
-        chrome_dirty_ = true;
-        return;
-    }
-    if (tab_.handle_text_input(event.text.text)) {
-        controls_dirty_ = true;
-    }
+void BrowserApp::navigate_active_tab(std::string_view url) {
+    active_tab().navigate(url);
 }
 
-void BrowserApp::handle_key_down_event(const InputEvent& event) {
-    if (event.key.key == Key::L && event.mods.ctrl && event.mods.shift) {
-        HB_LOG_INFO("[ui] Forcing document repaint");
-        document_dirty_ = true;
-        return;
-    }
-
-    if (event.key.key == Key::L && event.mods.ctrl) {
-        url_bar_.set_active(true, window_.get(), "[ui] URL bar focused");
-        url_bar_.move_caret_to_end();
-        if (tab_.clear_input_focus()) {
-            controls_dirty_ = true;
-        }
-        chrome_dirty_ = true;
-        return;
-    }
-
-    auto result = url_bar_.handle_key_down(event, window_.get());
-    if (result.handled) {
-        if (result.submitted_url) {
-            tab_.navigate(*result.submitted_url);
-            document_dirty_ = true;
-            chrome_dirty_ = true;
-        }
-        if (result.needs_repaint) {
-            chrome_dirty_ = true;
-        }
-        return;
-    }
-
-    auto tab_result = tab_.handle_key_down(event);
-    if (tab_result.handled) {
-        if (tab_result.submitted_url) {
-            url_bar_.set_text(*tab_result.submitted_url);
-            tab_.navigate(*tab_result.submitted_url);
-            document_dirty_ = true;
-            chrome_dirty_ = true;
-        }
-        if (tab_result.needs_repaint) {
-            controls_dirty_ = true;
-        }
-        return;
-    }
-
-    if (event.key.key == Key::F1) {
-        debug_outlines_ = !debug_outlines_;
-        HB_LOG_INFO("[ui] Debug outlines " << (debug_outlines_ ? "ON" : "OFF"));
-        document_dirty_ = true;
-        return;
-    }
+void BrowserApp::navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission) {
+    active_tab().navigate(submission);
 }
 
-void BrowserApp::handle_mouse_down_event(const InputEvent& event) {
-    auto url_result = url_bar_.handle_mouse_down(event.mouse_button.x, event.mouse_button.y, window_.get());
-    if (url_result.handled) {
-        if (url_result.security_override_requested) {
-            if (tab_.allow_insecure_for_current_host()) {
-                tab_.navigate(tab_.requested_url());
-                document_dirty_ = true;
-                chrome_dirty_ = true;
-            }
-        }
-        if (tab_.clear_input_focus()) {
-            controls_dirty_ = true;
-        }
-        if (url_result.needs_repaint) {
-            chrome_dirty_ = true;
-        }
-        return;
-    }
-
-    url_bar_.set_active(false, window_.get(), nullptr);
-    chrome_dirty_ = true;
-
-    if (!graphics_ || !window_) {
-        return;
-    }
-
-    auto [win_w, win_h] = window_->get_size();
-    const auto viewport = compute_content_viewport(win_w, win_h);
-    Hummingbird::Layout::Point point{static_cast<float>(event.mouse_button.x),
-                                     static_cast<float>(event.mouse_button.y)};
-    auto click_result = tab_.dispatch_click(point, viewport, *graphics_);
-    if (click_result.mutated) {
-        document_dirty_ = true;
-    }
-    bool was_focused = tab_.has_focused_input();
-    bool now_focused = tab_.focus_input_at(point, viewport);
-    if (was_focused != now_focused) {
-        if (window_) {
-            if (now_focused) {
-                window_->start_text_input();
-            } else {
-                window_->stop_text_input();
-            }
-        }
-        controls_dirty_ = true;
-    }
-    if (now_focused) {
-        return;
-    }
-    auto submit = tab_.submit_form_at(point, viewport);
-    if (submit) {
-        url_bar_.set_text(*submit);
-        tab_.navigate(*submit);
-        document_dirty_ = true;
-        chrome_dirty_ = true;
-        return;
-    }
-    auto link = tab_.hit_test_link(point, viewport);
-    if (link) {
-        url_bar_.set_text(*link);
-        tab_.navigate(*link);
-        document_dirty_ = true;
-        chrome_dirty_ = true;
-    }
+void BrowserApp::navigate_and_reflect_url(std::string_view url) {
+    browser_chrome_.url_bar().set_text(url);
+    navigate_active_tab(url);
+    render_coordinator_->set_document_dirty();
+    render_coordinator_->set_chrome_dirty();
 }
 
-void BrowserApp::handle_mouse_wheel_event(const InputEvent& event) {
-    const float delta = static_cast<float>(event.wheel.dy) * 32.0f;
-
-    auto [win_w, win_h] = window_->get_size();
-    const float viewport_h = static_cast<float>(std::max(0, win_h - url_bar_.height()));
-    tab_.scroll_by(delta, viewport_h);
-
-    document_dirty_ = true;
+void BrowserApp::navigate_and_reflect_submission(const Hummingbird::Engine::FormSubmission& submission) {
+    browser_chrome_.url_bar().set_text(submission.url);
+    navigate_active_tab(submission);
+    render_coordinator_->set_document_dirty();
+    render_coordinator_->set_chrome_dirty();
 }
 
-void BrowserApp::handle_resize_event(const InputEvent& event) {
-    document_cache_valid_ = false;
-    document_dirty_ = true;
+void BrowserApp::notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url) {
+    extension_host_->notify_tab_created(tab_id, url);
 }
 
-Hummingbird::Layout::Rect BrowserApp::compute_content_viewport(int win_w, int win_h) const {
-    const int content_h = std::max(0, win_h - url_bar_.height());
-    return {0.0f, static_cast<float>(url_bar_.height()), static_cast<float>(win_w), static_cast<float>(content_h)};
+bool BrowserApp::insert_extension_css(Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
+    auto* tab = tab_controller_.tab_by_id(tab_id);
+    if (!tab) {
+        return false;
+    }
+    if (!tab->insert_extension_css(css_text)) {
+        return false;
+    }
+    render_coordinator_->set_document_and_controls_dirty();
+    return true;
 }
 
-void BrowserApp::render_if_needed() {
-    if (!graphics_ || (!document_dirty_ && !chrome_dirty_ && !controls_dirty_)) return;
-
-    auto [win_w, win_h] = window_->get_size();
-
-    Hummingbird::Layout::Rect full{0, 0, static_cast<float>(win_w), static_cast<float>(win_h)};
-    graphics_->set_viewport(full);
-    const auto viewport = compute_content_viewport(win_w, win_h);
-    if (!document_cache_valid_) {
-        document_dirty_ = true;
-    }
-    if (document_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=document chrome=1 controls=1 scroll_y=" << tab_.scroll_y());
-        document_cache_valid_ = false;
-        if (graphics_->begin_document_cache(full)) {
-            tab_.paint(*graphics_, viewport, debug_outlines_);
-            graphics_->end_document_cache();
-            document_cache_valid_ = true;
-        } else {
-            graphics_->clear(kClearColor);
-            graphics_->set_text_cache_owner(0);
-            url_bar_.draw(*graphics_, win_w);
-            tab_.paint(*graphics_, viewport, debug_outlines_);
-            graphics_->present();
-            document_dirty_ = false;
-            chrome_dirty_ = false;
-            controls_dirty_ = false;
-            return;
-        }
-    } else if (chrome_dirty_ && controls_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=chrome+controls scroll_y=" << tab_.scroll_y());
-    } else if (chrome_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=chrome scroll_y=" << tab_.scroll_y());
-    } else if (controls_dirty_) {
-        // HB_LOG_DEBUG("[perf] render pass=controls scroll_y=" << tab_.scroll_y());
-    }
-    graphics_->clear(kClearColor);
-    if (document_cache_valid_) {
-        graphics_->draw_document_cache();
-    }
-    graphics_->set_viewport(full);
-    graphics_->set_text_cache_owner(0);
-    url_bar_.draw(*graphics_, win_w);
-    if (!document_dirty_ && controls_dirty_) {
-        tab_.paint_controls(*graphics_, viewport);
-    }
-
-    graphics_->present();
-    document_dirty_ = false;
-    chrome_dirty_ = false;
-    controls_dirty_ = false;
+bool BrowserApp::new_tab() {
+    const auto id = tab_controller_.create_tab();
+    // Keep this simple for MVP: new tabs start on the current URL bar target.
+    navigate_active_tab(browser_chrome_.url_bar().text());
+    on_active_tab_changed();
+    notify_extension_tab_created(id, browser_chrome_.url_bar().text());
+    return true;
 }
 
+bool BrowserApp::close_active_tab() {
+    if (!tab_controller_.close_active()) return false;
+    if (!tab_controller_.active_tab()) {
+        tab_controller_.create_tab();
+    }
+    on_active_tab_changed();
+    return true;
+}
+
+bool BrowserApp::activate_next_tab() {
+    if (!tab_controller_.activate_next()) return false;
+    on_active_tab_changed();
+    return true;
+}
+
+bool BrowserApp::activate_prev_tab() {
+    if (!tab_controller_.activate_prev()) return false;
+    on_active_tab_changed();
+    return true;
+}
+
+bool BrowserApp::activate_tab(Hummingbird::Engine::TabId id) {
+    if (!tab_controller_.set_active(id)) return false;
+    on_active_tab_changed();
+    return true;
+}
 }  // namespace Hummingbird::App

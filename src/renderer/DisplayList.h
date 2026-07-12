@@ -18,6 +18,7 @@ struct DisplayCommand {
         DrawImage,
         DrawText,
         DrawTextWithMetrics,
+        SetGlobalAlpha,
     };
 
     Type type;
@@ -29,6 +30,7 @@ struct DisplayCommand {
     float y = 0.0f;
     TextStyle text_style{};
     TextMetrics text_metrics{};
+    float alpha = 1.0f;
 };
 
 class DisplayList {
@@ -41,6 +43,7 @@ public:
     void add_draw_text(const std::string& text, float x, float y, const TextStyle& style);
     void add_draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
                                     const TextMetrics& metrics);
+    void add_set_global_alpha(float alpha);
 
     void replay(IGraphicsContext& context) const;
 
@@ -75,6 +78,7 @@ public:
                                 const TextMetrics& metrics) override {
         list_.add_draw_text_with_metrics(text, x, y, style, metrics);
     }
+    void set_global_alpha(float alpha) override { list_.add_set_global_alpha(alpha); }
 
 private:
     DisplayList& list_;

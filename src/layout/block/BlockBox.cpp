@@ -5,14 +5,17 @@
 #include <utility>
 #include <vector>
 
+#include "core/dom/Element.h"
+#include "html/HtmlTagNames.h"
 #include "layout/block/FloatLayoutUtils.h"
 #include "layout/flow/FlowLayoutUtils.h"
 #include "layout/flow/inline/InlineRef.h"
 #include "layout/flow/inline/InlineTypes.h"
+#include "layout/flow/inline/InlineVerticalAlignUtils.h"
 #include "layout/geometry/PositioningUtils.h"
 #include "layout/geometry/metrics/InlineBaselineUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird {
 class IGraphicsContext;
@@ -21,6 +24,32 @@ class IGraphicsContext;
 namespace Hummingbird::Layout {
 
 constexpr float kInlineAtomicLayoutWidth = 100000.0f;
+constexpr float kMinInputContentWidth = 8.0f;
+constexpr float kMinInputContentHeight = 12.0f;
+
+std::optional<float> resolve_height_constraint(const Css::ComputedStyle* style, float value, bool is_percent,
+                                               float reference_height, const Metrics::Insets& insets) {
+    if (is_percent && reference_height <= 0.0f) {
+        return std::nullopt;
+    }
+    float resolved = Metrics::resolve_axis_length(value, is_percent, reference_height);
+    return Metrics::resolve_border_box_height(style, resolved, insets);
+}
+
+bool is_input_element(const RenderObject& node) {
+    const auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
+    return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
+}
+
+void enforce_min_input_content_box(RenderObject& node, const Metrics::Insets& insets) {
+    if (!is_input_element(node)) {
+        return;
+    }
+    auto rect = node.get_rect();
+    rect.width = std::max(rect.width, insets.left + insets.right + kMinInputContentWidth);
+    rect.height = std::max(rect.height, insets.top + insets.bottom + kMinInputContentHeight);
+    node.set_rect(rect);
+}
 
 void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
@@ -100,9 +129,16 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         }
         float wrap_width =
             (style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap) ? 0.0f : (band.right - band.left);
+        bool no_wrap = style && style->whitespace == Css::ComputedStyle::WhiteSpace::NoWrap;
+        bool text_overflow_ellipsis = style && style->text_overflow == Css::ComputedStyle::TextOverflow::Ellipsis;
+        bool at_block_first_line =
+            cursor.line_height == 0.0f && cursor.y == metrics.insets.top && cursor.x <= (band.left + 0.01f);
+        if (at_block_first_line && style && style->text_indent != 0.0f) {
+            cursor.x = std::clamp(cursor.x + style->text_indent, band.left, band.right);
+        }
         cursor.x = std::max(cursor.x, band.left);
         FlowLayout::layout_inline_group(context, m_children, i, cursor, band.left, band.right - band.left, align,
-                                        wrap_width, false);
+                                        wrap_width, no_wrap, text_overflow_ellipsis, false);
     }
 
     FlowLayout::flush_line(cursor, metrics.insets.left);
@@ -111,15 +147,19 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
     if (style) {
         if (style->min_height.has_value()) {
-            float target = Metrics::resolve_border_box_height(style, *style->min_height, metrics.insets);
-            if (m_rect.height < target) {
-                m_rect.height = target;
+            if (auto target = resolve_height_constraint(style, *style->min_height, style->min_height_is_percent,
+                                                        bounds.height, metrics.insets)) {
+                if (m_rect.height < *target) {
+                    m_rect.height = *target;
+                }
             }
         }
         if (style->max_height.has_value()) {
-            float target = Metrics::resolve_border_box_height(style, *style->max_height, metrics.insets);
-            if (m_rect.height > target) {
-                m_rect.height = target;
+            if (auto target = resolve_height_constraint(style, *style->max_height, style->max_height_is_percent,
+                                                        bounds.height, metrics.insets)) {
+                if (m_rect.height > *target) {
+                    m_rect.height = *target;
+                }
             }
         }
     }
@@ -150,6 +190,7 @@ void InlineBlockBox::collect_inline_runs(IGraphicsContext& context, std::vector<
     run.height = m_inline_measured_height;
     run.ascent =
         InlineBaselineUtils::resolve_atomic_inline_ascent(context, style, insets, run.height, use_text_baseline);
+    run.vertical_align = resolve_inline_vertical_align(style);
     runs.push_back(std::move(run));
 }
 
@@ -175,31 +216,38 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
     if (style && style->height.has_value()) {
         Metrics::Insets insets = Metrics::compute_insets(style);
-        float target_height = Metrics::resolve_border_box_height(style, *style->height, insets);
-        if (m_rect.height < target_height) {
-            m_rect.height = target_height;
+        if (auto target_height =
+                resolve_height_constraint(style, *style->height, style->height_is_percent, bounds.height, insets)) {
+            if (m_rect.height < *target_height) {
+                m_rect.height = *target_height;
+            }
         }
     }
     if (style) {
         Metrics::Insets insets = Metrics::compute_insets(style);
         if (style->min_height.has_value()) {
-            float target_height = Metrics::resolve_border_box_height(style, *style->min_height, insets);
-            if (m_rect.height < target_height) {
-                m_rect.height = target_height;
+            if (auto target_height = resolve_height_constraint(style, *style->min_height, style->min_height_is_percent,
+                                                               bounds.height, insets)) {
+                if (m_rect.height < *target_height) {
+                    m_rect.height = *target_height;
+                }
             }
         }
         if (style->max_height.has_value()) {
-            float target_height = Metrics::resolve_border_box_height(style, *style->max_height, insets);
-            if (m_rect.height > target_height) {
-                m_rect.height = target_height;
+            if (auto target_height = resolve_height_constraint(style, *style->max_height, style->max_height_is_percent,
+                                                               bounds.height, insets)) {
+                if (m_rect.height > *target_height) {
+                    m_rect.height = *target_height;
+                }
             }
         }
     }
+    Metrics::Insets insets = Metrics::compute_insets(style);
     if (style && style->width.has_value()) {
+        enforce_min_input_content_box(*this, insets);
         return;
     }
 
-    Metrics::Insets insets = Metrics::compute_insets(style);
     float inset_left = insets.left;
     float inset_right = insets.right;
 
@@ -217,6 +265,8 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     }
 
     m_rect.width = std::min(m_rect.width, required_width);
+
+    enforce_min_input_content_box(*this, insets);
 }
 
 }  // namespace Hummingbird::Layout

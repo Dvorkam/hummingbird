@@ -102,3 +102,52 @@ TEST(SelectorMatcherTest, MatchesDescendantSelector) {
     mismatch.parts.push_back(make_part("", "", {"note"}));
     EXPECT_FALSE(matches_selector(target, mismatch));
 }
+
+TEST(SelectorMatcherTest, MatchesChildSelector) {
+    Hummingbird::Core::ArenaAllocator arena(3072);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto parent = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Section);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    child->set_attribute(Attr::Class, "note");
+    parent->append_child(std::move(child));
+    root->append_child(std::move(parent));
+
+    const auto* target = dynamic_cast<const Element*>(root->get_children()[0]->get_children()[0].get());
+    ASSERT_NE(target, nullptr);
+
+    Selector child_selector;
+    child_selector.parts.push_back(make_part(Hummingbird::Html::TagNames::Section));
+    child_selector.parts.push_back(make_part("", "", {"note"}));
+    child_selector.combinators.push_back(Selector::Combinator::Child);
+    EXPECT_TRUE(matches_selector(target, child_selector));
+
+    Selector wrong_child_selector;
+    wrong_child_selector.parts.push_back(make_part(Hummingbird::Html::TagNames::Div));
+    wrong_child_selector.parts.push_back(make_part("", "", {"note"}));
+    wrong_child_selector.combinators.push_back(Selector::Combinator::Child);
+    EXPECT_FALSE(matches_selector(target, wrong_child_selector));
+
+    Selector descendant_selector;
+    descendant_selector.parts.push_back(make_part(Hummingbird::Html::TagNames::Div));
+    descendant_selector.parts.push_back(make_part("", "", {"note"}));
+    descendant_selector.combinators.push_back(Selector::Combinator::Descendant);
+    EXPECT_TRUE(matches_selector(target, descendant_selector));
+}
+
+TEST(SelectorMatcherTest, MatchesPseudoClassStates) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto elem = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    elem->set_pseudo_state(Element::PseudoState::Focus, true);
+
+    Selector focus_selector;
+    SelectorPart focus_part = make_part(Hummingbird::Html::TagNames::Input);
+    focus_part.pseudo_classes.push_back(SelectorPart::PseudoClass::Focus);
+    focus_selector.parts.push_back(std::move(focus_part));
+    EXPECT_TRUE(matches_selector(elem.get(), focus_selector));
+
+    Selector hover_selector;
+    SelectorPart hover_part = make_part(Hummingbird::Html::TagNames::Input);
+    hover_part.pseudo_classes.push_back(SelectorPart::PseudoClass::Hover);
+    hover_selector.parts.push_back(std::move(hover_part));
+    EXPECT_FALSE(matches_selector(elem.get(), hover_selector));
+}

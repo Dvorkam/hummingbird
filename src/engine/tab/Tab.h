@@ -1,48 +1,48 @@
 #pragma once
 
 #include <atomic>
-#include <cstdint>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "core/SecurityState.h"
-#include "core/platform_api/IGraphicsContext.h"
-#include "core/platform_api/IImageDecoder.h"
-#include "core/platform_api/INetwork.h"
-#include "core/platform_api/IResourceProvider.h"
-#include "core/platform_api/IScriptEngine.h"
-#include "core/platform_api/InputEvent.h"
-#include "engine/document/DocumentPipeline.h"
-#include "engine/resources/ResourceLoader.h"
+#include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceStore.h"
+#include "engine/tab/NavigationLifecycle.h"
+#include "engine/tab/TabAnimationTicker.h"
+#include "engine/tab/TabLayoutState.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
 class IGraphicsContext;
+class IImageDecoder;
+class INetwork;
+class IResourceProvider;
+class IScriptEngine;
+enum class NetworkError;
+struct InputEvent;
 }  // namespace Hummingbird
 
-namespace Hummingbird::DOM {
-class Node;
-}
-
 namespace Hummingbird::Engine {
+class DocumentPipeline;
+class ResourceLoader;
 class Tab {
 public:
     struct KeyResult {
         bool handled = false;
         bool needs_repaint = false;
-        std::optional<std::string> submitted_url;
+        std::optional<FormSubmission> submitted_form;
     };
     struct ClickResult {
         bool handled = false;
         bool mutated = false;
     };
-    Tab(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
-        ImageDecoderPtr image_decoder, ScriptEnginePtr script_engine);
+    Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
+        std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
+        std::unique_ptr<IScriptEngine> script_engine);
     ~Tab();
 
     Tab(const Tab&) = delete;
@@ -53,6 +53,7 @@ public:
     void shutdown();
 
     void navigate(std::string_view url);
+    void navigate(const FormSubmission& submission);
 
     // Processes pending navigation results and keeps layout in sync with the viewport.
     // Returns true if the document changed in a way that needs repainting.
@@ -63,58 +64,70 @@ public:
     // Paints just the input controls without re-drawing the full document.
     void paint_controls(IGraphicsContext& graphics, const Layout::Rect& viewport);
 
+    // --- document interaction ---
     // Returns a resolved link URL for the render node under the window-space point.
     std::optional<std::string> hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const;
     ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics);
-    std::optional<std::string> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
+    std::optional<FormSubmission> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport);
     bool clear_input_focus();
+    bool set_control_interaction_at(const Layout::Point& point, const Layout::Rect& viewport);
+    bool clear_control_interaction();
+    bool refresh_styles_for_interaction(IGraphicsContext& graphics, const Layout::Rect& viewport);
     bool has_focused_input() const;
     bool handle_text_input(std::string_view text);
     KeyResult handle_key_down(const InputEvent& event);
     std::optional<std::string> focused_input_value() const;
 
+    std::optional<std::string> consume_navigation_commit_url();
+    bool insert_extension_css(std::string_view css_text);
+
     void scroll_by(float delta_px, float viewport_height);
 
     float scroll_y() const { return layout_state_.scroll_y; }
     float content_height() const { return layout_state_.content_height; }
-    std::string_view requested_url() const { return requested_url_; }
-    SecurityState security_state() const { return security_state_; }
+    std::string_view requested_url() const { return navigation_lifecycle_.requested_url(); }
+    SecurityState security_state() const { return navigation_lifecycle_.security_state(); }
     std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
 
     bool allow_insecure_for_current_host();
 
 private:
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
-    void handle_document_ready(const ResourceLoader::BatchResult& result, IGraphicsContext& graphics,
-                               const Layout::Rect& viewport);
+    void process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, IGraphicsContext& graphics,
+                                              const Layout::Rect& viewport);
+    void sync_extension_styles_before_stylesheet_update();
+    void handle_document_ready(std::string_view document_url, std::string_view effective_url,
+                               NetworkError document_error, IGraphicsContext& graphics, const Layout::Rect& viewport);
+    std::optional<std::string_view> resolve_document_ready_body(std::string_view document_url) const;
+    void rebuild_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void process_animation_updates();
+    bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
+                                          std::string_view reason, bool request_background_images);
+    void begin_navigation_session(std::string_view url);
+    bool prepare_document_from_response(std::string_view html);
+    void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void apply_autofocus_after_rebuild();
+    void mark_dirty(std::string_view reason = {});
     void reset_document_state();
-    void update_layout_state(const Layout::Rect& viewport);
+    void update_layout_state(const Layout::Rect& viewport, std::string_view reason);
+    bool advance_animation_tick();
 
 private:
-    struct LayoutState {
-        float scroll_y = 0.0f;
-        float content_height = 0.0f;
-        Layout::Rect last_viewport{0, 0, 0, 0};
-        bool has_viewport = false;
-
-        bool viewport_changed(const Layout::Rect& viewport) const;
-        void reset();
-        void update(const Layout::Rect& viewport, float new_content_height);
-        void clamp_scroll(float viewport_height);
-        void scroll_by(float delta_px, float viewport_height);
-    };
-
     std::atomic<bool> shutting_down_{false};
 
-    ResourceLoader resource_loader_;
-    DocumentPipeline document_pipeline_;
-
-    std::string requested_url_;
-    SecurityState security_state_ = SecurityState::Unknown;
-    LayoutState layout_state_{};
+    std::unique_ptr<ResourceLoader> resource_loader_;
+    std::unique_ptr<DocumentPipeline> document_pipeline_;
+    std::vector<std::string> extension_style_blocks_;
+    std::unordered_set<std::string> extension_style_block_keys_;
+    bool extension_css_dirty_ = false;
+    NavigationLifecycle navigation_lifecycle_{};
+    TabLayoutState layout_state_{};
+    TabAnimationTicker animation_ticker_{};
 
     bool dirty_ = true;
 };

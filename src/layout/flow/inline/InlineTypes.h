@@ -10,6 +10,13 @@ namespace Hummingbird::Layout {
 
 class RenderObject;  // fwd
 
+enum class InlineVerticalAlign {
+    Baseline,
+    Top,
+    Middle,
+    Bottom,
+};
+
 struct InlineRun {
     RenderObject* owner = nullptr;
     size_t local_index = 0;
@@ -17,6 +24,7 @@ struct InlineRun {
     float width = 0.0f;
     float height = 0.0f;
     float ascent = 0.0f;
+    InlineVerticalAlign vertical_align = InlineVerticalAlign::Baseline;
 };
 
 struct InlineFragment {

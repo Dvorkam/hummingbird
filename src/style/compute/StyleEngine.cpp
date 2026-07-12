@@ -10,12 +10,12 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
-#include "style/compute/ComputedStyle.h"
 #include "style/compute/StyleDefaults.h"
 #include "style/compute/Stylesheet.h"
 #include "style/compute/apply/PropertyApplier.h"
 #include "style/registry/CssPropertyRegistry.h"
 #include "style/selector/SelectorMatcher.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Css {
 
@@ -117,12 +117,26 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.min_height = source.min_height;
     target.max_width = source.max_width;
     target.max_height = source.max_height;
+    target.width_is_percent = source.width_is_percent;
+    target.height_is_percent = source.height_is_percent;
+    target.min_width_is_percent = source.min_width_is_percent;
+    target.min_height_is_percent = source.min_height_is_percent;
+    target.max_width_is_percent = source.max_width_is_percent;
+    target.max_height_is_percent = source.max_height_is_percent;
     target.display = source.display;
+    target.overflow_x = source.overflow_x;
+    target.overflow_y = source.overflow_y;
+    target.vertical_align = source.vertical_align;
     target.border_width = source.border_width;
+    target.border_radius = source.border_radius;
     target.border_color = source.border_color;
     target.border_style = source.border_style;
+    target.outline_width = source.outline_width;
+    target.outline_offset = source.outline_offset;
+    target.outline_color = source.outline_color;
     target.background = source.background;
     target.background_image = source.background_image;
+    target.box_shadow = source.box_shadow;
     target.background_repeat = source.background_repeat;
     target.background_position = source.background_position;
     target.background_size = source.background_size;
@@ -131,8 +145,14 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.right = source.right;
     target.bottom = source.bottom;
     target.left = source.left;
+    target.top_is_percent = source.top_is_percent;
+    target.right_is_percent = source.right_is_percent;
+    target.bottom_is_percent = source.bottom_is_percent;
+    target.left_is_percent = source.left_is_percent;
     target.z_index = source.z_index;
+    target.opacity = source.opacity;
     target.float_type = source.float_type;
+    target.text_overflow = source.text_overflow;
 }
 
 void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& source,
@@ -150,6 +170,11 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
     if (overrides.font_size) target.font_size = source.font_size;
     if (overrides.font_face) target.font_face = source.font_face;
     if (overrides.text_align) target.text_align = source.text_align;
+    if (overrides.text_transform) target.text_transform = source.text_transform;
+    if (overrides.cursor) target.cursor = source.cursor;
+    if (overrides.letter_spacing) target.letter_spacing = source.letter_spacing;
+    if (overrides.text_indent) target.text_indent = source.text_indent;
+    if (overrides.word_wrap) target.word_wrap = source.word_wrap;
     if (overrides.background) target.background = source.background;
     if (overrides.line_height) target.line_height = source.line_height;
     if (overrides.list_style_type) target.list_style_type = source.list_style_type;

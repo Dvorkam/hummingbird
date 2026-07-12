@@ -1,6 +1,7 @@
 #pragma once
 
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -12,6 +13,12 @@ namespace Hummingbird::DOM {
 
 class Element : public Node {
 public:
+    enum class PseudoState {
+        Hover,
+        Active,
+        Focus,
+    };
+
     struct AttributeHash {
         using is_transparent = void;
 
@@ -47,7 +54,65 @@ public:
         m_attributes[Core::Utils::to_lower(key)] = std::string(value);
     }
 
+    std::optional<std::string_view> get_accessibility_role() const {
+        if (const auto* explicit_role = find_attribute("role"); explicit_role && !explicit_role->empty()) {
+            return std::string_view(*explicit_role);
+        }
+        return implied_accessibility_role();
+    }
+
+    bool has_pseudo_state(PseudoState state) const {
+        switch (state) {
+            case PseudoState::Hover:
+                return pseudo_hover_;
+            case PseudoState::Active:
+                return pseudo_active_;
+            case PseudoState::Focus:
+                return pseudo_focus_;
+        }
+        return false;
+    }
+
+    bool set_pseudo_state(PseudoState state, bool enabled) {
+        bool* slot = nullptr;
+        switch (state) {
+            case PseudoState::Hover:
+                slot = &pseudo_hover_;
+                break;
+            case PseudoState::Active:
+                slot = &pseudo_active_;
+                break;
+            case PseudoState::Focus:
+                slot = &pseudo_focus_;
+                break;
+        }
+        if (!slot || *slot == enabled) {
+            return false;
+        }
+        *slot = enabled;
+        return true;
+    }
+
 private:
+    bool has_accessible_name() const {
+        const auto is_non_empty = [this](std::string_view name) {
+            const auto* value = find_attribute(name);
+            return value && !Core::Utils::trim_ascii_whitespace(*value).empty();
+        };
+        return is_non_empty("aria-label") || is_non_empty("aria-labelledby") || is_non_empty("title");
+    }
+
+    std::optional<std::string_view> implied_accessibility_role() const {
+        if (m_tag_name == "header") return std::string_view("banner");
+        if (m_tag_name == "nav") return std::string_view("navigation");
+        if (m_tag_name == "main") return std::string_view("main");
+        if (m_tag_name == "section" && has_accessible_name()) return std::string_view("region");
+        if (m_tag_name == "article") return std::string_view("article");
+        if (m_tag_name == "aside") return std::string_view("complementary");
+        if (m_tag_name == "footer") return std::string_view("contentinfo");
+        return std::nullopt;
+    }
+
     template <typename T, typename... Args>
     // Allow arena_new to invoke the private constructor while keeping creation centralized.
     friend T* Core::arena_new(Core::ArenaAllocator&, Args&&...);
@@ -56,6 +121,9 @@ private:
 
     std::string m_tag_name;
     std::unordered_map<std::string, std::string, AttributeHash, AttributeEq> m_attributes;
+    bool pseudo_hover_ = false;
+    bool pseudo_active_ = false;
+    bool pseudo_focus_ = false;
 };
 
 }  // namespace Hummingbird::DOM

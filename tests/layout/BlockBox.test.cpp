@@ -12,7 +12,7 @@
 #include "layout/flow/InlineBox.h"
 #include "layout/flow/TextBox.h"
 #include "layout/replaced/RenderImage.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;

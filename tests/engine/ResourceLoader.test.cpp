@@ -7,7 +7,7 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "engine/ResourceUrl.h"
+#include "engine/resources/ResourceUrl.h"
 #include "platform/decoders/CompositeImageDecoder.h"
 #include "test_utils/TestFakes.h"
 
@@ -42,7 +42,18 @@ class CapturingNetwork final : public Hummingbird::INetwork {
 public:
     void get(const std::string& url, std::function<void(NetworkResponse)> callback,
              const NetworkRequestOptions& options = {}) override {
-        requests.emplace_back(Request{url, options});
+        requests.emplace_back(Request{url, "GET", {}, options});
+        NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        response.body = body;
+        response.error = error;
+        if (callback) callback(std::move(response));
+    }
+
+    void post(const std::string& url, std::string_view body_data, std::function<void(NetworkResponse)> callback,
+              const NetworkRequestOptions& options = {}) override {
+        requests.emplace_back(Request{url, "POST", std::string(body_data), options});
         NetworkResponse response;
         response.url = url;
         response.effective_url = url;
@@ -55,12 +66,38 @@ public:
 
     struct Request {
         std::string url;
+        std::string method;
+        std::string body;
         NetworkRequestOptions options;
     };
 
     std::vector<Request> requests;
     std::string body;
     NetworkError error = NetworkError::None;
+};
+
+class AnimatedImageDecoder final : public Hummingbird::IImageDecoder {
+public:
+    std::optional<Hummingbird::AnimatedImage> decode_animation(std::string_view bytes) override {
+        if (bytes.empty()) {
+            return std::nullopt;
+        }
+        Hummingbird::AnimatedImage animation;
+        Hummingbird::ImageBitmap first{};
+        first.width = 1;
+        first.height = 1;
+        first.stride = 4;
+        first.format = Hummingbird::PixelFormat::BGRA32;
+        first.pixels = {0, 0, 0, 255};
+        Hummingbird::ImageBitmap second = first;
+        second.pixels = {1, 0, 0, 255};
+        animation.frames.push_back(first);
+        animation.frames.push_back(second);
+        animation.delays_ms = {100, 100};
+        return animation;
+    }
+
+    std::optional<Hummingbird::ImageBitmap> decode(std::string_view) override { return std::nullopt; }
 };
 }  // namespace
 
@@ -137,4 +174,53 @@ TEST(ResourceLoaderTest, SvgImagesDecodeThroughCompositeDecoder) {
     ASSERT_NE(view->image, nullptr);
     EXPECT_GT(view->image->width, 0);
     EXPECT_GT(view->image->height, 0);
+}
+
+TEST(ResourceLoaderTest, NavigatePostUsesNetworkPostWithBodyAndContentType) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html><body>posted</body></html>";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "q=duck%20duck%20go";
+    request.content_type = "application/x-www-form-urlencoded";
+
+    loader.navigate("https://example.dev/html/", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].method, "POST");
+    EXPECT_EQ(network_ptr->requests[0].url, "https://example.dev/html/");
+    EXPECT_EQ(network_ptr->requests[0].body, "q=duck%20duck%20go");
+    EXPECT_EQ(network_ptr->requests[0].options.content_type, "application/x-www-form-urlencoded");
+
+    auto batch = loader.consume_pending_updates();
+    EXPECT_TRUE(batch.document_ready);
+    EXPECT_EQ(batch.document_url, "https://example.dev/html/");
+}
+
+TEST(ResourceLoaderTest, StoresAnimatedImagesWhenDecoderProvidesFrames) {
+    auto fallback = std::make_unique<CapturingNetwork>();
+    auto* fallback_ptr = fallback.get();
+    fallback_ptr->body = "ANIMDATA";
+
+    ResourceLoader loader(nullptr, std::move(fallback), nullptr, std::make_unique<AnimatedImageDecoder>());
+    const std::string base_url = "https://example.dev/index.html";
+    loader.request_images({"/img/anim.gif"}, base_url);
+
+    auto batch = loader.consume_pending_updates();
+    EXPECT_TRUE(batch.image_ready);
+
+    auto resolved = resolve_resource_url(base_url, "/img/anim.gif");
+    auto first = loader.view(resolved.key, ResourceType::Image);
+    ASSERT_TRUE(first.has_value());
+    ASSERT_NE(first->image, nullptr);
+    EXPECT_EQ(first->image->pixels[0], 0);
+
+    EXPECT_TRUE(loader.store().tick_animations(110));
+    auto second = loader.view(resolved.key, ResourceType::Image);
+    ASSERT_TRUE(second.has_value());
+    ASSERT_NE(second->image, nullptr);
+    EXPECT_EQ(second->image->pixels[0], 1);
 }

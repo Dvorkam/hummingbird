@@ -12,9 +12,22 @@
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Css::StyleDefaults {
+
+namespace {
+bool input_type_is_text_like(const DOM::Element& element) {
+    const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
+    if (!type || type->empty()) {
+        return true;
+    }
+    return !Core::Utils::equals_ignore_case(*type, "button") && !Core::Utils::equals_ignore_case(*type, "submit") &&
+           !Core::Utils::equals_ignore_case(*type, "reset") && !Core::Utils::equals_ignore_case(*type, "checkbox") &&
+           !Core::Utils::equals_ignore_case(*type, "radio") && !Core::Utils::equals_ignore_case(*type, "file") &&
+           !Core::Utils::equals_ignore_case(*type, "hidden") && !Core::Utils::equals_ignore_case(*type, "image");
+}
+}  // namespace
 
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,
                                bool display_set, const ComputedStyle* parent_style) {
@@ -42,6 +55,13 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
 
     if (tag == Hummingbird::Html::TagNames::Ul || tag == Hummingbird::Html::TagNames::Ol) {
         style.padding.left = 20.0f;
+        if (tag == Hummingbird::Html::TagNames::Ol) {
+            style.list_style_type = ComputedStyle::ListStyleType::Decimal;
+            overrides.list_style_type = true;
+        } else {
+            style.list_style_type = ComputedStyle::ListStyleType::Disc;
+            overrides.list_style_type = true;
+        }
     } else if (tag == Hummingbird::Html::TagNames::Pre) {
         if (style.whitespace == ComputedStyle::WhiteSpace::Normal) {
             style.whitespace = ComputedStyle::WhiteSpace::Preserve;
@@ -77,23 +97,36 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
     } else if (tag == Hummingbird::Html::TagNames::Input) {
         style.border_style = ComputedStyle::BorderStyle::Solid;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
-        style.border_color = {120, 120, 120, 255};
-        style.padding.left = 6.0f;
-        style.padding.right = 6.0f;
+        style.border_color = {125, 125, 125, 255};
+        style.border_radius = 2.0f;
+        style.padding.left = 8.0f;
+        style.padding.right = 8.0f;
         style.padding.top = 4.0f;
         style.padding.bottom = 4.0f;
-        style.width = 180.0f;
-        style.height = 24.0f;
-        style.background = Color{255, 255, 255, 255};
+        if (input_type_is_text_like(element)) {
+            style.width = 180.0f;
+            style.height = 24.0f;
+            style.border_style = ComputedStyle::BorderStyle::Inset;
+            style.background = Color{255, 255, 255, 255};
+        } else {
+            style.width = 80.0f;
+            style.height = 24.0f;
+            style.border_style = ComputedStyle::BorderStyle::Outset;
+            style.background = Color{236, 236, 236, 255};
+        }
     } else if (tag == Hummingbird::Html::TagNames::Button) {
-        style.border_style = ComputedStyle::BorderStyle::Solid;
+        style.border_style = ComputedStyle::BorderStyle::Outset;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
         style.border_color = {80, 80, 80, 255};
+        style.border_radius = 2.0f;
         style.padding.left = 10.0f;
         style.padding.right = 10.0f;
         style.padding.top = 4.0f;
         style.padding.bottom = 4.0f;
         style.background = Color{230, 230, 230, 255};
+    } else if (tag == Hummingbird::Html::TagNames::Td || tag == Hummingbird::Html::TagNames::Th) {
+        style.padding.left = style.padding.right = 2.0f;
+        style.padding.top = style.padding.bottom = 2.0f;
     } else if (tag == Hummingbird::Html::TagNames::Strong) {
         style.weight = ComputedStyle::FontWeight::Bold;
         overrides.weight = true;

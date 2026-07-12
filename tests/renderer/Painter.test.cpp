@@ -45,12 +45,18 @@ public:
     void draw_text(const std::string& text, float, float, const TextStyle&) override {
         ++draw_calls;
         last_text = text;
+        drawn_texts.push_back(text);
+        draw_alphas.push_back(current_alpha);
     }
+    void set_global_alpha(float alpha) override { current_alpha = alpha; }
 
     int draw_calls = 0;
     int image_calls = 0;
     std::string last_text;
+    std::vector<std::string> drawn_texts;
     std::vector<Hummingbird::Layout::Rect> fill_calls;
+    std::vector<float> draw_alphas;
+    float current_alpha = 1.0f;
     Hummingbird::Layout::Rect viewport_{0, 0, 0, 0};
 };
 
@@ -184,6 +190,81 @@ TEST(PainterTest, PaintsOutsetBordersFromComputedStyle) {
     EXPECT_GE(context.fill_calls.size(), 4u);
 }
 
+TEST(PainterTest, PaintsRoundedBordersFromComputedStyle) {
+    std::string_view html = "<html><body><div></div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css =
+        "div { width: 120px; height: 40px; background-color: #dde6ff; border-width: 2px; border-style: solid; "
+        "border-color: #223366; border-radius: 10px; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 240, 180};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    ASSERT_FALSE(context.fill_calls.empty());
+    float max_width = 0.0f;
+    float min_width = 1000000.0f;
+    for (const auto& call : context.fill_calls) {
+        if (call.height <= 1.1f) {
+            max_width = std::max(max_width, call.width);
+            min_width = std::min(min_width, call.width);
+        }
+    }
+    EXPECT_GT(max_width, 0.0f);
+    EXPECT_GT(max_width - min_width, 1.0f);
+}
+
+TEST(PainterTest, PaintsOutlineOutsideBorderBox) {
+    std::string_view html = "<html><body><div></div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css =
+        "div { width: 80px; height: 24px; border-width: 1px; border-style: solid; border-color: #000; outline: 3px "
+        "solid #336699; outline-offset: 2px; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 240, 180};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    bool saw_outline_outside = false;
+    for (const auto& call : context.fill_calls) {
+        if (call.x < 0.0f || call.y < 0.0f) {
+            saw_outline_outside = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(saw_outline_outside);
+}
+
 namespace {
 bool rect_matches(const Hummingbird::Layout::Rect& a, const Hummingbird::Layout::Rect& b) {
     constexpr float kEpsilon = 0.01f;
@@ -266,6 +347,41 @@ TEST(PainterTest, PaintsBackgroundImage) {
     painter.paint(*render_tree, context, opts);
 
     EXPECT_GE(context.image_calls, 1);
+}
+
+TEST(PainterTest, AppliesOpacityToSubtreePaint) {
+    std::string_view html = "<html><body><div id='faded'>A</div><div>B</div></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    std::string css = "#faded { opacity: 0.25; }";
+    Parser css_parser(css);
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 300, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    painter.paint(*render_tree, context, opts);
+
+    ASSERT_GE(context.draw_alphas.size(), 2u);
+    bool saw_faded = false;
+    bool saw_opaque = false;
+    for (float alpha : context.draw_alphas) {
+        saw_faded = saw_faded || std::fabs(alpha - 0.25f) < 0.01f;
+        saw_opaque = saw_opaque || std::fabs(alpha - 1.0f) < 0.01f;
+    }
+    EXPECT_TRUE(saw_faded);
+    EXPECT_TRUE(saw_opaque);
 }
 
 TEST(PainterTest, HonorsUnderlineThicknessAndOffset) {
@@ -608,6 +724,39 @@ TEST(PainterTest, PaintsListMarkersWithCulling) {
     EXPECT_FALSE(context.fill_calls.empty());
 }
 
+TEST(PainterTest, PaintsOrderedListMarkerText) {
+    std::string_view html = "<html><body><ol><li>Item</li></ol></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    Hummingbird::Css::Stylesheet sheet;
+    Hummingbird::Css::StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    opts.viewport = viewport;
+    painter.paint(*render_tree, context, opts);
+
+    bool saw_marker = false;
+    for (const auto& text : context.drawn_texts) {
+        if (text == "1.") {
+            saw_marker = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(saw_marker);
+}
+
 TEST(PainterTest, PaintsHorizontalRuleWithCulling) {
     std::string_view html = "<html><body><hr></body></html>";
     Hummingbird::Core::ArenaAllocator arena(2048);
@@ -628,4 +777,57 @@ TEST(PainterTest, PaintsHorizontalRuleWithCulling) {
     painter.paint(*render_tree, context, opts);
 
     EXPECT_FALSE(context.fill_calls.empty());
+}
+
+TEST(PainterTest, PaintsTableCellGridLinesWithoutAuthorCss) {
+    std::string_view html = "<html><body><table border='1'><tr><td>A</td><td>B</td></tr></table></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    Hummingbird::Css::Stylesheet sheet;
+    Hummingbird::Css::StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 240, 180};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    opts.viewport = viewport;
+    painter.paint(*render_tree, context, opts);
+
+    // Two cells * 4 grid edges each.
+    EXPECT_GE(context.fill_calls.size(), 8u);
+}
+
+TEST(PainterTest, SkipsFallbackGridForLikelyLayoutTableWithoutBorderHints) {
+    std::string_view html = "<html><body><table><tr><td>A</td><td>B</td></tr></table></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    Hummingbird::Html::Parser parser(arena, html);
+    auto result = parser.parse();
+
+    Hummingbird::Css::Stylesheet sheet;
+    Hummingbird::Css::StyleEngine engine;
+    engine.apply(sheet, result.dom.get());
+
+    Hummingbird::Layout::TreeBuilder builder;
+    auto render_tree = builder.build(result.dom.get());
+    ASSERT_NE(render_tree, nullptr);
+
+    RecordingGraphicsContext context;
+    Hummingbird::Layout::Rect viewport{0, 0, 240, 180};
+    render_tree->layout(context, viewport);
+
+    Hummingbird::Renderer::Painter painter;
+    Hummingbird::Renderer::PaintOptions opts;
+    opts.viewport = viewport;
+    painter.paint(*render_tree, context, opts);
+
+    EXPECT_EQ(context.fill_calls.size(), 0u);
 }

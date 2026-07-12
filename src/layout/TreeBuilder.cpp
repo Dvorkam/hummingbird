@@ -9,7 +9,7 @@
 #include "core/dom/Text.h"
 #include "layout/RenderFactory.h"
 #include "layout/TagRenderMap.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 

@@ -10,9 +10,6 @@ class IGraphicsContext;
 namespace DOM {
 class Node;
 }  // namespace DOM
-namespace Layout {
-struct Rect;
-}  // namespace Layout
 }  // namespace Hummingbird
 
 namespace Hummingbird::Layout {
@@ -60,6 +57,7 @@ public:
     }
 
     void layout(IGraphicsContext& context, const Rect& bounds) override;
+    void paint_self(IGraphicsContext& context, const Point& offset) const override;
     float measure_intrinsic_width(IGraphicsContext& context);
 
 private:

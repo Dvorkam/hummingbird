@@ -27,11 +27,18 @@ enum class ResourceState : uint8_t {
 };
 
 struct ResourceEntry {
+    struct AnimationState {
+        AnimatedImage image;
+        size_t frame_index = 0;
+        int elapsed_ms = 0;
+    };
+
     ResourceType type;
     std::string url;
     ResourceState state;
     std::string body;
     std::unique_ptr<ImageBitmap> image;
+    std::unique_ptr<AnimationState> animation;
 };
 
 struct ResourceView {
@@ -48,6 +55,8 @@ public:
     bool mark_failed(std::string_view url, ResourceType type);
     bool begin_request(std::string_view url, ResourceType type);
     bool set_image(std::string_view url, ResourceType type, ImageBitmap image);
+    bool set_animation(std::string_view url, ResourceType type, AnimatedImage image);
+    bool tick_animations(int delta_ms);
 
     const ResourceEntry* find(std::string_view url, ResourceType type) const;
     std::optional<ResourceView> view(std::string_view url, ResourceType type) const;

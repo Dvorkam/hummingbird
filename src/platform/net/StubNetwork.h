@@ -15,6 +15,8 @@ public:
 
     void get(const std::string& url, std::function<void(NetworkResponse)> callback,
              const NetworkRequestOptions& options = {}) override;
+    void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+              const NetworkRequestOptions& options = {}) override;
 
     void shutdown() override;
 

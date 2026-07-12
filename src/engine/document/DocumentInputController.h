@@ -30,7 +30,11 @@ public:
     const DOM::Element* focused_element() const { return focused_input_; }
     bool focus_input_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
                         const Layout::Rect& viewport, float scroll_y);
+    bool focus_autofocus_input(const Layout::RenderObject* render_tree);
     bool clear_focus();
+    bool set_control_interaction_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
+                                    const Layout::Rect& viewport, float scroll_y);
+    bool clear_control_interaction();
 
     EditResult handle_text_input(std::string_view text);
     EditResult handle_key_down(const InputEvent& event);
@@ -40,6 +44,7 @@ public:
                         const Layout::Rect& viewport, float scroll_y, bool repaint_background) const;
 
 private:
+    DOM::Element* hovered_active_control_ = nullptr;
     DOM::Element* focused_input_ = nullptr;
     std::string::size_type caret_ = 0;
 };

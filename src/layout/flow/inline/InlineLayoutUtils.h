@@ -8,7 +8,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/RenderObject.h"
 #include "layout/flow/inline/InlineTypes.h"
-#include "style/compute/ComputedStyle.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird {
 class IGraphicsContext;
@@ -32,6 +32,8 @@ struct GroupLayoutContext {
     float content_width = 0.0f;
     Css::ComputedStyle::TextAlign align = Css::ComputedStyle::TextAlign::Left;
     float wrap_width = 0.0f;
+    bool no_wrap = false;
+    bool text_overflow_ellipsis = false;
     bool capture_fragments = false;
 };
 

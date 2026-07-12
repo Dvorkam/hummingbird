@@ -22,6 +22,7 @@ doc/diagrams/*.svg
 # IDE-specific files
 .vs/
 .vscode/
+.cache/
 *.override.*
 
 # vcpkg

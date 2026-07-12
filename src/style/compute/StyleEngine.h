@@ -1,7 +1,7 @@
 #pragma once
 
-#include "style/compute/ComputedStyle.h"
 #include "style/compute/Stylesheet.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird {
 namespace Css {

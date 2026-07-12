@@ -87,6 +87,7 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     EXPECT_FLOAT_EQ(ul_style->padding.left, 20.0f);
     EXPECT_EQ(pre_style->whitespace, ComputedStyle::WhiteSpace::Preserve);
     EXPECT_TRUE(pre_style->font_monospace);
+    EXPECT_FALSE(pre_style->background.has_value());
 
     EXPECT_EQ(a_style->color.r, 0);
     EXPECT_EQ(a_style->color.g, 0);
@@ -103,6 +104,60 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
 
     EXPECT_GT(h1_style->font_size, 16.0f);
     EXPECT_EQ(h1_style->weight, ComputedStyle::FontWeight::Bold);
+}
+
+TEST(StyleEngineTest, SubmitInputUsesCompactDefaultWidth) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto submit = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    submit->set_attribute(Attr::Type, "submit");
+    auto text = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    text->set_attribute(Attr::Type, "text");
+
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->append_child(std::move(submit));
+    root->append_child(std::move(text));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, root.get());
+
+    auto submit_style = dynamic_cast<Element*>(root->get_children()[0].get())->get_computed_style();
+    auto text_style = dynamic_cast<Element*>(root->get_children()[1].get())->get_computed_style();
+    ASSERT_TRUE(submit_style);
+    ASSERT_TRUE(text_style);
+    EXPECT_TRUE(submit_style->width.has_value());
+    EXPECT_FLOAT_EQ(*submit_style->width, 80.0f);
+    EXPECT_TRUE(text_style->width.has_value());
+    EXPECT_FLOAT_EQ(*text_style->width, 180.0f);
+}
+
+TEST(StyleEngineTest, TableCellsUseDefaultPaddingForReadability) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto td = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
+    auto th = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Th);
+
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Table);
+    root->append_child(std::move(td));
+    root->append_child(std::move(th));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, root.get());
+
+    auto td_style = dynamic_cast<Element*>(root->get_children()[0].get())->get_computed_style();
+    auto th_style = dynamic_cast<Element*>(root->get_children()[1].get())->get_computed_style();
+    ASSERT_TRUE(td_style);
+    ASSERT_TRUE(th_style);
+
+    EXPECT_FLOAT_EQ(td_style->padding.left, 2.0f);
+    EXPECT_FLOAT_EQ(td_style->padding.right, 2.0f);
+    EXPECT_FLOAT_EQ(td_style->padding.top, 2.0f);
+    EXPECT_FLOAT_EQ(td_style->padding.bottom, 2.0f);
+
+    EXPECT_FLOAT_EQ(th_style->padding.left, 2.0f);
+    EXPECT_FLOAT_EQ(th_style->padding.right, 2.0f);
+    EXPECT_FLOAT_EQ(th_style->padding.top, 2.0f);
+    EXPECT_FLOAT_EQ(th_style->padding.bottom, 2.0f);
 }
 
 TEST(StyleEngineTest, StoresAndInheritsCustomProperties) {
@@ -214,6 +269,31 @@ TEST(StyleEngineTest, AppliesBoxSizingProperty) {
     EXPECT_EQ(style->box_sizing, ComputedStyle::BoxSizing::BorderBox);
 }
 
+TEST(StyleEngineTest, PreservesPercentUnitsForLayoutProperties) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "box");
+
+    std::string css = R"(#box { width: 70%; top: 24%; left: 10%; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->width.has_value());
+    EXPECT_FLOAT_EQ(*style->width, 70.0f);
+    EXPECT_TRUE(style->width_is_percent);
+    ASSERT_TRUE(style->top.has_value());
+    EXPECT_FLOAT_EQ(*style->top, 24.0f);
+    EXPECT_TRUE(style->top_is_percent);
+    ASSERT_TRUE(style->left.has_value());
+    EXPECT_FLOAT_EQ(*style->left, 10.0f);
+    EXPECT_TRUE(style->left_is_percent);
+}
+
 TEST(StyleEngineTest, AppliesTransformTranslate) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
@@ -231,6 +311,31 @@ TEST(StyleEngineTest, AppliesTransformTranslate) {
     EXPECT_TRUE(style->transform_has_translate);
     EXPECT_FLOAT_EQ(style->transform_translate_x, 12.0f);
     EXPECT_FLOAT_EQ(style->transform_translate_y, 4.0f);
+}
+
+TEST(StyleEngineTest, AppliesOpacityAndClampsRange) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "faded");
+
+    std::string css = R"(.faded { opacity: 150%; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->opacity, 1.0f);
+
+    std::string css_low = R"(.faded { opacity: 25%; })";
+    Parser parser_low(css_low);
+    auto sheet_low = parser_low.parse();
+    engine.apply(sheet_low, root.get());
+    style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->opacity, 0.25f);
 }
 
 TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
@@ -444,6 +549,45 @@ TEST(StyleEngineTest, InheritsListStyleFromParent) {
     EXPECT_EQ(li_style->list_style_type, ComputedStyle::ListStyleType::None);
 }
 
+TEST(StyleEngineTest, AppliesDecimalListStyleType) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto ol = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ol);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    ol->append_child(std::move(li));
+
+    std::string css = R"(ol { list-style-type: decimal; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, ol.get());
+
+    auto ol_style = ol->get_computed_style();
+    auto li_style = ol->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(ol_style);
+    ASSERT_TRUE(li_style);
+    EXPECT_EQ(ol_style->list_style_type, ComputedStyle::ListStyleType::Decimal);
+    EXPECT_EQ(li_style->list_style_type, ComputedStyle::ListStyleType::Decimal);
+}
+
+TEST(StyleEngineTest, AppliesOrderedListUaDefault) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto ol = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ol);
+    auto li = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Li);
+    ol->append_child(std::move(li));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, ol.get());
+
+    auto ol_style = ol->get_computed_style();
+    auto li_style = ol->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(ol_style);
+    ASSERT_TRUE(li_style);
+    EXPECT_EQ(ol_style->list_style_type, ComputedStyle::ListStyleType::Decimal);
+    EXPECT_EQ(li_style->list_style_type, ComputedStyle::ListStyleType::Decimal);
+}
+
 TEST(StyleEngineTest, IgnoresMaxWidthWithUnknownUnit) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
@@ -582,6 +726,26 @@ TEST(StyleEngineTest, AppliesFontSizeAndLineHeight) {
     EXPECT_FLOAT_EQ(style->line_height, 30.0f);
 }
 
+TEST(StyleEngineTest, AppliesFontShorthandComponents) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = "p { font: italic 700 20px/1.5 Roboto Mono, monospace; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->style, ComputedStyle::FontStyle::Italic);
+    EXPECT_EQ(style->weight, ComputedStyle::FontWeight::Bold);
+    EXPECT_FLOAT_EQ(style->font_size, 20.0f);
+    EXPECT_FLOAT_EQ(style->line_height, 30.0f);
+    EXPECT_EQ(style->font_face, "Roboto Mono monospace");
+}
+
 TEST(StyleEngineTest, LinkSourcesApplyInDocumentOrder) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
@@ -626,6 +790,29 @@ TEST(StyleEngineTest, StyleBlocksOverrideLinksInOrder) {
     EXPECT_EQ(style->color.b, 255);
 }
 
+TEST(StyleEngineTest, ExtensionSourcesOverrideAuthorBlocks) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string ua = "p { color: red; }";
+    std::vector<std::string> links = {"p { color: blue; }"};
+    std::vector<std::string> blocks = {"p { color: green; }"};
+    std::vector<std::string> extensions = {"p { color: black; }"};
+
+    auto merged = Hummingbird::Css::merge_css_sources(ua, links, blocks, extensions);
+    Parser parser(merged);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 0);
+}
+
 TEST(StyleEngineTest, AppliesBorderProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
@@ -646,6 +833,73 @@ TEST(StyleEngineTest, AppliesBorderProperties) {
     EXPECT_EQ(style->border_color.r, 0xcc);
     EXPECT_EQ(style->border_color.g, 0x00);
     EXPECT_EQ(style->border_color.b, 0x00);
+}
+
+TEST(StyleEngineTest, AppliesBorderSideShorthandsToIndividualWidths) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = R"(
+        div {
+            border-top: 5px solid #224488;
+            border-right-width: 3px;
+            border-bottom: 2px inset #224488;
+        }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_width.top, 5.0f);
+    EXPECT_FLOAT_EQ(style->border_width.right, 3.0f);
+    EXPECT_FLOAT_EQ(style->border_width.bottom, 2.0f);
+    EXPECT_FLOAT_EQ(style->border_width.left, 0.0f);
+    EXPECT_EQ(style->border_style, ComputedStyle::BorderStyle::Inset);
+    EXPECT_EQ(style->border_color.r, 0x22);
+    EXPECT_EQ(style->border_color.g, 0x44);
+    EXPECT_EQ(style->border_color.b, 0x88);
+}
+
+TEST(StyleEngineTest, AppliesBorderRadiusProperty) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "rounded");
+
+    std::string css = R"(#rounded { border-radius: 12px; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_radius, 12.0f);
+}
+
+TEST(StyleEngineTest, AppliesOutlineAndOffsetProperties) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "outlined");
+
+    std::string css = R"(#outlined { outline: 3px solid #336699; outline-offset: 2px; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->outline_width, 3.0f);
+    EXPECT_FLOAT_EQ(style->outline_offset, 2.0f);
+    EXPECT_EQ(style->outline_color.r, 0x33);
+    EXPECT_EQ(style->outline_color.g, 0x66);
+    EXPECT_EQ(style->outline_color.b, 0x99);
 }
 
 TEST(StyleEngineTest, AppliesBackgroundColor) {
@@ -687,6 +941,118 @@ TEST(StyleEngineTest, AppliesPositionProperties) {
     EXPECT_FLOAT_EQ(*style->left, 6.0f);
     ASSERT_TRUE(style->z_index.has_value());
     EXPECT_EQ(*style->z_index, 3);
+}
+
+TEST(StyleEngineTest, AppliesOverflowProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { overflow: hidden; overflow-y: scroll; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->overflow_x, ComputedStyle::Overflow::Hidden);
+    EXPECT_EQ(style->overflow_y, ComputedStyle::Overflow::Scroll);
+}
+
+TEST(StyleEngineTest, AppliesCursorProperty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+
+    std::string css = "a { cursor: pointer; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->cursor, ComputedStyle::Cursor::Pointer);
+}
+
+TEST(StyleEngineTest, CursorIsInheritedToChildren) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "wrap");
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
+
+    std::string css = ".wrap { cursor: text; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto parent_style = root->get_computed_style();
+    ASSERT_TRUE(parent_style);
+    EXPECT_EQ(parent_style->cursor, ComputedStyle::Cursor::Text);
+
+    auto child_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child_style);
+    EXPECT_EQ(child_style->cursor, ComputedStyle::Cursor::Text);
+}
+
+TEST(StyleEngineTest, AppliesVerticalAlignProperty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+
+    std::string css = "span { vertical-align: middle; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->vertical_align, ComputedStyle::VerticalAlign::Middle);
+}
+
+TEST(StyleEngineTest, AppliesBoxShadowProperty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { box-shadow: 3px 5px 7px #112233; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->box_shadow.has_value());
+    EXPECT_FLOAT_EQ(style->box_shadow->offset_x, 3.0f);
+    EXPECT_FLOAT_EQ(style->box_shadow->offset_y, 5.0f);
+    EXPECT_FLOAT_EQ(style->box_shadow->blur, 7.0f);
+    EXPECT_EQ(style->box_shadow->color.r, 0x11);
+    EXPECT_EQ(style->box_shadow->color.g, 0x22);
+    EXPECT_EQ(style->box_shadow->color.b, 0x33);
+}
+
+TEST(StyleEngineTest, AppliesPseudoClassFocusForInput) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    root->set_pseudo_state(Hummingbird::DOM::Element::PseudoState::Focus, true);
+
+    std::string css = "input:focus { border-color: #ff0000; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->border_color.r, 255);
+    EXPECT_EQ(style->border_color.g, 0);
+    EXPECT_EQ(style->border_color.b, 0);
 }
 
 TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
@@ -880,4 +1246,55 @@ TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
     EXPECT_FLOAT_EQ(font_style->font_size, 32.0f);
     EXPECT_EQ(font_style->font_face, "sans-serif");
     EXPECT_EQ(font_style->display, ComputedStyle::Display::Inline);
+}
+
+TEST(StyleEngineTest, AppliesTextEffectsProperties) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "text-fx");
+
+    std::string css =
+        R"(.text-fx { text-transform: uppercase; letter-spacing: 2px; text-indent: 12px; text-overflow: ellipsis; word-wrap: break-word; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->text_transform, ComputedStyle::TextTransform::Uppercase);
+    EXPECT_FLOAT_EQ(style->letter_spacing, 2.0f);
+    EXPECT_FLOAT_EQ(style->text_indent, 12.0f);
+    EXPECT_EQ(style->text_overflow, ComputedStyle::TextOverflow::Ellipsis);
+    EXPECT_EQ(style->word_wrap, ComputedStyle::WordWrap::BreakWord);
+}
+
+TEST(StyleEngineTest, AuthorBackgroundOverridesCodeAndPreDefaults) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto code = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Code);
+    auto pre = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Pre);
+    root->append_child(std::move(code));
+    root->append_child(std::move(pre));
+
+    std::string css = "code { background-color: #eeeeee; } pre { background-color: #dddddd; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto code_style = dynamic_cast<Element*>(root->get_children()[0].get())->get_computed_style();
+    auto pre_style = dynamic_cast<Element*>(root->get_children()[1].get())->get_computed_style();
+    ASSERT_TRUE(code_style);
+    ASSERT_TRUE(pre_style);
+    ASSERT_TRUE(code_style->background.has_value());
+    ASSERT_TRUE(pre_style->background.has_value());
+    EXPECT_EQ(code_style->background->r, 238);
+    EXPECT_EQ(code_style->background->g, 238);
+    EXPECT_EQ(code_style->background->b, 238);
+    EXPECT_EQ(pre_style->background->r, 221);
+    EXPECT_EQ(pre_style->background->g, 221);
+    EXPECT_EQ(pre_style->background->b, 221);
 }

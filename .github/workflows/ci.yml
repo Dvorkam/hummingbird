@@ -34,6 +34,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Windows runners ship VS2026; the vcpkg baseline must stay recent
+        # enough to detect that toolset.
         os: [ubuntu-latest, windows-latest]
 
     # vcpkg binary caching using a local folder + actions/cache

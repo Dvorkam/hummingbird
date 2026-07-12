@@ -22,6 +22,7 @@ enum class Property {
 enum class Unit {
     Px,
     Em,
+    Percent,
     Unknown,
 };
 
@@ -37,6 +38,14 @@ struct Value {
         Color,
         Url,
         Number,
+        Shadow,
+    };
+
+    struct Shadow {
+        Length offset_x;
+        Length offset_y;
+        Length blur;
+        Color color{0, 0, 0, 255};
     };
 
     Type type = Type::Identifier;
@@ -44,6 +53,7 @@ struct Value {
     Length length;
     Color color{0, 0, 0, 255};
     float number = 0.0f;
+    Shadow shadow;
 
     static Value identifier(std::string text) {
         Value v;
@@ -79,24 +89,45 @@ struct Value {
         v.number = value;
         return v;
     }
+
+    static Value shadow_value(Shadow shadow) {
+        Value v;
+        v.type = Type::Shadow;
+        v.shadow = shadow;
+        return v;
+    }
 };
 
 struct SelectorPart {
+    enum class PseudoClass {
+        Hover,
+        Active,
+        Focus,
+    };
+
     std::string tag;
     std::string id;
     std::vector<std::string> classes;
+    std::vector<PseudoClass> pseudo_classes;
 
     int specificity() const {
         int spec = 0;
         if (!id.empty()) spec += 100;
         spec += static_cast<int>(classes.size()) * 10;
+        spec += static_cast<int>(pseudo_classes.size()) * 10;
         if (!tag.empty() && tag != "*") spec += 1;
         return spec;
     }
 };
 
 struct Selector {
+    enum class Combinator {
+        Descendant,
+        Child,
+    };
+
     std::vector<SelectorPart> parts;
+    std::vector<Combinator> combinators;
 
     int specificity() const {
         int spec = 0;
