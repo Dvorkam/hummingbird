@@ -420,6 +420,14 @@ void TextBox::paint_self(IGraphicsContext& context, const Point& offset) const {
         context.fill_rect(bg, *style->background);
     }
 
+    // Preserved text is measured as a single atomic run whose text still contains
+    // newlines; paint the computed lines instead of the raw run string so control
+    // characters never reach the glyph renderer.
+    if (style && style->whitespace == Css::ComputedStyle::WhiteSpace::Preserve && !m_lines.empty()) {
+        paint_lines(context, text_style, absolute_x, absolute_y, style, style && style->underline);
+        return;
+    }
+
     if (!m_fragments.empty()) {
         float line_height = m_line_height > 0.0f ? m_line_height : m_last_metrics.height;
         paint_fragments(context, text_style, absolute_x, absolute_y, style, style && style->underline);

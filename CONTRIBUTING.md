@@ -16,6 +16,7 @@ For larger changes (new subsystems, big refactors, new dependencies), please ask
 
 - Formatting: keep code `clang-format`’d (CI checks formatting under `src/`).
 - Build/test locally:
+  - Windows (auto-enters the MSVC dev shell): `scripts\build.ps1` and `scripts\test.ps1`
   - Configure/build: `cmake --preset ninja-multi-vcpkg && cmake --build --preset ninja-multi-vcpkg --config Release`
   - Tests: `ctest --preset ninja-multi-vcpkg -C Release --output-on-failure`
   - Optional smoke test (opens a window): `HB_RUN_SMOKE_TEST=1 ctest --preset ninja-multi-vcpkg -C Release --output-on-failure`

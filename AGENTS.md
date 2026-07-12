@@ -28,11 +28,18 @@ rules; keep this file thin — detailed rules live in the linked docs.
 
 ## Before every commit that changes code
 
-1. Build: `cmake --preset ninja-multi-vcpkg && cmake --build --preset ninja-multi-vcpkg --config Release`
-   (if `CMakeUserPresets.json` provides a local preset, use that one).
-2. Test: `ctest --preset ninja-multi-vcpkg -C Release --output-on-failure`
+1. Build: `scripts/build.ps1` on Windows (it enters the MSVC dev shell
+   automatically and picks the local preset when `CMakeUserPresets.json`
+   exists). On Linux: `cmake --preset ninja-multi-vcpkg && cmake --build
+   --preset ninja-multi-vcpkg --config Release`.
+2. Test: `scripts/test.ps1` on Windows (add `-Filter <regex>` for a subset);
+   `ctest --preset ninja-multi-vcpkg -C Release --output-on-failure` on Linux.
 3. Format: `clang-format -i` over the touched files under `src/` (CI enforces
    formatting for `src/**`).
+
+Note for Windows: raw `cmake --preset` requires an MSVC dev environment
+(`cl` on PATH); the scripts exist precisely so you never need to set that up
+manually.
 
 ## Include audits (when asked, or when includes look bloated)
 

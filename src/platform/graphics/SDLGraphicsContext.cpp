@@ -20,6 +20,7 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <functional>
 #include <ostream>
 #include <span>
@@ -28,12 +29,35 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
+#include "core/utils/WarnOnce.h"
 #include "platform/graphics/Blend2DFontCache.h"
 #include "platform/graphics/CacheUtils.h"
 
 namespace Hummingbird::Platform {
 
 namespace {
+
+// Warns once per codepoint when the shaped text falls back to the missing
+// glyph (tofu), so font-coverage gaps surface in logs instead of only pixels.
+void log_missing_glyphs(const std::vector<uint32_t>& codepoints, const BLGlyphBuffer& buffer,
+                        const std::string& font_path) {
+    if (buffer.size() != codepoints.size()) {
+        return;  // Complex shaping changed cluster count; skip 1:1 mapping.
+    }
+    static Hummingbird::Core::Utils::WarnOnce warned;
+    const uint32_t* glyphs = buffer.content();
+    for (size_t i = 0; i < buffer.size(); ++i) {
+        if (glyphs[i] != 0) {
+            continue;
+        }
+        char key[16];
+        std::snprintf(key, sizeof(key), "U+%04X", codepoints[i]);
+        if (warned.should_log(key)) {
+            HB_LOG_WARN("[text] font '" << font_path << "' has no glyph for " << key
+                                        << "; rendering replacement box (no fallback chain yet)");
+        }
+    }
+}
 std::uint8_t apply_global_alpha(std::uint8_t alpha, float global_alpha) {
     const float clamped = std::clamp(global_alpha, 0.0f, 1.0f);
     return static_cast<std::uint8_t>(std::lround(static_cast<float>(alpha) * clamped));
@@ -473,7 +497,9 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
 
     BLGlyphBuffer glyphBuffer;
     glyphBuffer.setUtf8Text(text.c_str());
+    std::vector<uint32_t> codepoints(glyphBuffer.content(), glyphBuffer.content() + glyphBuffer.size());
     font_setup->font.shape(glyphBuffer);
+    log_missing_glyphs(codepoints, glyphBuffer, resolved_font);
 
     BLTextMetrics tm;
     font_setup->font.getTextMetrics(glyphBuffer, tm);
