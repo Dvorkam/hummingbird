@@ -1,3 +1,9 @@
+# Refactoring Stories (Archived 2026-07)
+
+Early-days audit stories (R.1–R.9). All shipped across Milestones 0–5: the dependency
+firewall is test-enforced, tokenizers are `string_view`-based, arena allocation is
+factory-enforced, and tests run headless in CI. Kept for historical reference.
+
 1. Architecture & Modularity (The "Loose Coupling" Check)
 
     Story R.1: Dependency Injection Audit
