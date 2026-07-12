@@ -284,8 +284,92 @@ bool apply_display_value(ComputedStyle& style, const Value& value) {
         style.display = ComputedStyle::Display::ListItem;
     } else if (ident == ValueNames::Block) {
         style.display = ComputedStyle::Display::Block;
+    } else if (ident == ValueNames::Flex) {
+        style.display = ComputedStyle::Display::Flex;
     }
     return true;
+}
+
+void apply_flex_direction_value(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return;
+    }
+    if (value.ident == ValueNames::Row) {
+        style.flex_direction = ComputedStyle::FlexDirection::Row;
+    } else if (value.ident == ValueNames::RowReverse) {
+        style.flex_direction = ComputedStyle::FlexDirection::RowReverse;
+    } else if (value.ident == ValueNames::Column) {
+        style.flex_direction = ComputedStyle::FlexDirection::Column;
+    } else if (value.ident == ValueNames::ColumnReverse) {
+        style.flex_direction = ComputedStyle::FlexDirection::ColumnReverse;
+    }
+}
+
+void apply_flex_wrap_value(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return;
+    }
+    if (value.ident == ValueNames::NoWrap) {
+        style.flex_wrap = ComputedStyle::FlexWrap::NoWrap;
+    } else if (value.ident == ValueNames::Wrap) {
+        style.flex_wrap = ComputedStyle::FlexWrap::Wrap;
+    } else if (value.ident == ValueNames::WrapReverse) {
+        style.flex_wrap = ComputedStyle::FlexWrap::WrapReverse;
+    }
+}
+
+void apply_justify_content_value(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return;
+    }
+    const auto& ident = value.ident;
+    if (ident == ValueNames::FlexStart || ident == ValueNames::Start || ident == ValueNames::Left) {
+        style.justify_content = ComputedStyle::JustifyContent::FlexStart;
+    } else if (ident == ValueNames::FlexEnd || ident == ValueNames::End || ident == ValueNames::Right) {
+        style.justify_content = ComputedStyle::JustifyContent::FlexEnd;
+    } else if (ident == ValueNames::Center) {
+        style.justify_content = ComputedStyle::JustifyContent::Center;
+    } else if (ident == ValueNames::SpaceBetween) {
+        style.justify_content = ComputedStyle::JustifyContent::SpaceBetween;
+    } else if (ident == ValueNames::SpaceAround) {
+        style.justify_content = ComputedStyle::JustifyContent::SpaceAround;
+    } else if (ident == ValueNames::SpaceEvenly) {
+        style.justify_content = ComputedStyle::JustifyContent::SpaceEvenly;
+    }
+}
+
+void apply_align_items_value(ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return;
+    }
+    const auto& ident = value.ident;
+    if (ident == ValueNames::Stretch || ident == ValueNames::Normal) {
+        style.align_items = ComputedStyle::AlignItems::Stretch;
+    } else if (ident == ValueNames::FlexStart || ident == ValueNames::Start) {
+        style.align_items = ComputedStyle::AlignItems::FlexStart;
+    } else if (ident == ValueNames::FlexEnd || ident == ValueNames::End) {
+        style.align_items = ComputedStyle::AlignItems::FlexEnd;
+    } else if (ident == ValueNames::Center) {
+        style.align_items = ComputedStyle::AlignItems::Center;
+    } else if (ident == ValueNames::Baseline) {
+        style.align_items = ComputedStyle::AlignItems::Baseline;
+    }
+}
+
+void apply_flex_factor_value(float& target, const Value& value, float fallback) {
+    if (value.type == Value::Type::Number) {
+        target = std::max(0.0f, value.number);
+    } else if (value.type == Value::Type::Length && value.length.unit == Unit::Unknown) {
+        target = std::max(0.0f, value.length.value);
+    } else {
+        target = fallback;
+    }
+}
+
+void apply_order_value(ComputedStyle& style, const Value& value) {
+    if (value.type == Value::Type::Number) {
+        style.order = static_cast<int>(value.number);
+    }
 }
 
 }  // namespace
@@ -443,6 +527,38 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             return true;
         case Property::Opacity:
             apply_opacity_value(style, value);
+            return true;
+        case Property::FlexDirection:
+            apply_flex_direction_value(style, value);
+            return true;
+        case Property::FlexWrap:
+            apply_flex_wrap_value(style, value);
+            return true;
+        case Property::JustifyContent:
+            apply_justify_content_value(style, value);
+            return true;
+        case Property::AlignItems:
+            apply_align_items_value(style, value);
+            return true;
+        case Property::FlexGrow:
+            apply_flex_factor_value(style.flex_grow, value, 0.0f);
+            return true;
+        case Property::FlexShrink:
+            apply_flex_factor_value(style.flex_shrink, value, 1.0f);
+            return true;
+        case Property::FlexBasis:
+            if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
+                style.flex_basis.reset();
+                style.flex_basis_is_percent = false;
+                return true;
+            }
+            apply_optional_length(style.flex_basis, style.flex_basis_is_percent, value, style.font_size);
+            return true;
+        case Property::Order:
+            apply_order_value(style, value);
+            return true;
+        case Property::Flex:
+            // Shorthand is expanded at parse time; nothing to apply directly.
             return true;
         case Property::Border:
             return true;

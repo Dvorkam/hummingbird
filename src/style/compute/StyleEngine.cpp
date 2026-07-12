@@ -124,6 +124,15 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.max_width_is_percent = source.max_width_is_percent;
     target.max_height_is_percent = source.max_height_is_percent;
     target.display = source.display;
+    target.flex_direction = source.flex_direction;
+    target.flex_wrap = source.flex_wrap;
+    target.justify_content = source.justify_content;
+    target.align_items = source.align_items;
+    target.flex_grow = source.flex_grow;
+    target.flex_shrink = source.flex_shrink;
+    target.flex_basis = source.flex_basis;
+    target.flex_basis_is_percent = source.flex_basis_is_percent;
+    target.order = source.order;
     target.overflow_x = source.overflow_x;
     target.overflow_y = source.overflow_y;
     target.vertical_align = source.vertical_align;

@@ -16,8 +16,21 @@ struct EdgeSizes {
 };
 
 struct ComputedStyle {
-    enum class Display { Block, Inline, InlineBlock, ListItem, None };
+    enum class Display { Block, Inline, InlineBlock, ListItem, Flex, None };
     Display display = Display::Block;
+    enum class FlexDirection { Row, RowReverse, Column, ColumnReverse };
+    FlexDirection flex_direction = FlexDirection::Row;
+    enum class FlexWrap { NoWrap, Wrap, WrapReverse };
+    FlexWrap flex_wrap = FlexWrap::NoWrap;
+    enum class JustifyContent { FlexStart, FlexEnd, Center, SpaceBetween, SpaceAround, SpaceEvenly };
+    JustifyContent justify_content = JustifyContent::FlexStart;
+    enum class AlignItems { Stretch, FlexStart, FlexEnd, Center, Baseline };
+    AlignItems align_items = AlignItems::Stretch;
+    float flex_grow = 0.0f;
+    float flex_shrink = 1.0f;
+    std::optional<float> flex_basis;
+    bool flex_basis_is_percent = false;
+    int order = 0;
     enum class Float { None, Left, Right };
     Float float_type = Float::None;
     enum class Position { Static, Relative, Absolute };

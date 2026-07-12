@@ -630,6 +630,48 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             }
             return true;
         }
+        case PropertyRegistry::ParserHook::parse_flex_shorthand: {
+            // flex: none | auto | <grow> <shrink>? <basis>?
+            std::optional<Value> grow;
+            std::optional<Value> shrink;
+            std::optional<Value> basis;
+            if (values.size() == 1 && values[0].type == Value::Type::Identifier) {
+                if (values[0].ident == ValueNames::None) {
+                    grow = Value::number_value(0.0f);
+                    shrink = Value::number_value(0.0f);
+                    basis = Value::identifier(std::string(ValueNames::Auto));
+                } else if (values[0].ident == ValueNames::Auto) {
+                    grow = Value::number_value(1.0f);
+                    shrink = Value::number_value(1.0f);
+                    basis = Value::identifier(std::string(ValueNames::Auto));
+                }
+            }
+            if (!grow && !shrink && !basis) {
+                for (const auto& value : values) {
+                    if (value.type == Value::Type::Number) {
+                        if (!grow) {
+                            grow = value;
+                            continue;
+                        }
+                        if (!shrink) {
+                            shrink = value;
+                            continue;
+                        }
+                    } else if (!basis && (value.type == Value::Type::Length ||
+                                          (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto))) {
+                        basis = value;
+                    }
+                }
+                // Unitless single-value form (`flex: 1`) implies basis 0.
+                if (grow && !basis) {
+                    basis = Value::length_value(0.0f, Unit::Px);
+                }
+            }
+            if (grow) push_decl(Property::FlexGrow, *grow);
+            if (shrink) push_decl(Property::FlexShrink, *shrink);
+            if (basis) push_decl(Property::FlexBasis, *basis);
+            return true;
+        }
         case PropertyRegistry::ParserHook::Unknown:
         case PropertyRegistry::ParserHook::parse_identifier:
         case PropertyRegistry::ParserHook::parse_font_size:

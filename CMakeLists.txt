@@ -121,6 +121,7 @@ add_library(Layout STATIC
     src/layout/TreeBuilder.cpp
     src/layout/block/BlockBox.cpp
     src/layout/block/FloatLayoutUtils.cpp
+    src/layout/flex/FlexBox.cpp
     src/layout/flow/InlineBox.cpp
     src/layout/flow/TextBox.cpp
     src/layout/flow/TextMeasurer.cpp

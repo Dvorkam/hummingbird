@@ -207,6 +207,30 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_box_shadow:
             (void)apply_layout_property(property, value, style, overrides, context);
             return;
+        case ApplyHook::apply_flex_direction:
+            (void)apply_layout_property(Property::FlexDirection, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_flex_wrap:
+            (void)apply_layout_property(Property::FlexWrap, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_justify_content:
+            (void)apply_layout_property(Property::JustifyContent, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_align_items:
+            (void)apply_layout_property(Property::AlignItems, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_flex_grow:
+            (void)apply_layout_property(property, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_flex_shrink:
+            (void)apply_layout_property(Property::FlexShrink, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_flex_basis:
+            (void)apply_layout_property(Property::FlexBasis, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_order:
+            (void)apply_layout_property(Property::Order, value, style, overrides, context);
+            return;
         case ApplyHook::Unknown:
             return;
     }
