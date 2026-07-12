@@ -108,7 +108,7 @@ Milestone 6 is complete when all items below are true:
 ## Execution Order Checklist
 
 P0: Layout Compatibility (North Star)
-- [ ] T-LAYOUT-FLEX-1: Flexbox Layout MVP
+- [x] T-LAYOUT-FLEX-1: Flexbox Layout MVP (single-line; wrap + baseline deferred to T-DDG-LAYOUT-1)
 - [ ] T-DDG-LAYOUT-1: Flex Alignment Coverage For Real Pages
 - [ ] T-CSS-CLEAR-1: Float Clear Property
 - [ ] T-CSS-BORDER-COMPAT-1: Border Longhands And Corner Radius Longhands
