@@ -490,3 +490,39 @@ TEST(CSSParserTest, SkipsMalformedRuleAndContinues) {
     ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
     EXPECT_EQ(sheet.rules[0].declarations[0].property, Property::Color);
 }
+
+TEST(CSSParserTest, SkipsAtRuleBlocksWithoutLeakingInnerRules) {
+    Parser parser(R"(
+        @charset "utf-8";
+        @import url(other.css);
+        @media only screen and (max-width: 425px) {
+            .mobile-a { color: red; }
+            .mobile-b { color: blue; }
+        }
+        @font-face { font-family: X; src: url(x.woff); }
+        @supports (display: grid) {
+            .grid-only { color: red; }
+        }
+        .keep { color: green; }
+    )");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].selectors.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].selectors[0].parts.size(), 1u);
+    EXPECT_EQ(sheet.rules[0].selectors[0].parts[0].classes.at(0), "keep");
+}
+
+TEST(CSSParserTest, SkipsNestedAtRuleBlocks) {
+    Parser parser(R"(
+        @media screen {
+            @media (max-width: 100px) {
+                .inner { color: red; }
+            }
+            .also-inner { color: red; }
+        }
+        .keep { color: green; }
+    )");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    EXPECT_EQ(sheet.rules[0].selectors[0].parts[0].classes.at(0), "keep");
+}

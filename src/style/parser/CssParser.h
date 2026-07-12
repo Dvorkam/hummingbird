@@ -39,6 +39,7 @@ private:
     std::string parse_font_family_list();
     std::string parse_custom_property_value();
     bool consume_declaration(std::vector<Declaration>& decls);
+    void skip_at_rule();
 
     std::string m_buffer;
     std::vector<Token> m_tokens;

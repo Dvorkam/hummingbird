@@ -692,9 +692,51 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     return true;
 }
 
+void Parser::skip_at_rule() {
+    // Consume '@' and remember the at-rule name for diagnostics.
+    advance();
+    std::string_view name;
+    if (peek().type == TokenType::Identifier) {
+        name = peek().lexeme;
+    }
+    // Deduped process-wide; kept separate from m_unknown_properties so at-rule
+    // names do not pollute the stylesheet's unknown-property diagnostics.
+    static Core::Utils::WarnOnce skipped_at_rules;
+    if (skipped_at_rules.should_log(name.empty() ? "@" : name)) {
+        HB_LOG_WARN("[parser] Skipping unsupported at-rule: @" << name);
+    }
+
+    // Consume the prelude up to either a block or a statement terminator.
+    while (!eof() && peek().type != TokenType::LBrace && peek().type != TokenType::Semicolon) {
+        advance();
+    }
+    if (match(TokenType::Semicolon)) {
+        return;  // Statement form (@import/@charset).
+    }
+    if (!match(TokenType::LBrace)) {
+        return;
+    }
+    // Skip the whole block with balanced braces so nested rules (e.g. inside
+    // @media) never leak out as unconditional top-level rules.
+    int depth = 1;
+    while (!eof() && depth > 0) {
+        if (peek().type == TokenType::LBrace) {
+            ++depth;
+        } else if (peek().type == TokenType::RBrace) {
+            --depth;
+        }
+        advance();
+    }
+}
+
 Stylesheet Parser::parse() {
     Stylesheet sheet;
     while (!eof()) {
+        skip_whitespace_tokens();
+        if (peek().type == TokenType::At) {
+            skip_at_rule();
+            continue;
+        }
         // Selector
         auto selectors = parse_selectors();
         if (!match(TokenType::LBrace)) {

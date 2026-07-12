@@ -64,6 +64,11 @@ add_executable(HummingbirdTests
     network/StubNetwork.test.cpp
     network/CurlNetwork.test.cpp
     network/NetworkFactory.test.cpp
+    layout/DdgHomeLayout.test.cpp
+)
+
+target_compile_definitions(HummingbirdTests PRIVATE
+    HB_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
 
 # Link the test executable against GTest and our libraries

@@ -22,6 +22,7 @@ enum class TokenType {
     Star,
     Greater,
     Percent,
+    At,
     Url,
     End,
 };
