@@ -1,0 +1,137 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>M5 - The Architect (Tabs &amp; Extensions)</title>
+    <style>
+      body { margin: 0; padding: 0 0 30px 0; background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; }
+      .top { background-color: #14213d; color: #ffffff; padding: 14px 24px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+      .top-title { font-size: 20px; font-weight: bold; margin: 0; }
+      .top a { color: #fca311; }
+      .page { max-width: 860px; margin: 0 auto; padding: 16px 24px; }
+      .section { background-color: #ffffff; border: 1px solid #dde3ee; border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+      .section h2 { margin: 4px 0 10px 0; font-size: 18px; }
+      .note { color: #56617a; font-size: 13px; }
+      code { background-color: #e8ecf4; padding: 1px 5px; border-radius: 4px; }
+
+      .dark-mode-demo { border: 1px solid #bbb; padding: 6px; display: flex; flex-direction: row; }
+      .dark-mode-column { flex: 1; margin-right: 10px; }
+      .dark-demo-card { border: 1px solid #888; padding: 6px; margin: 4px 0; }
+      .dark-demo-card .note { font-size: 13px; }
+
+      .table-align-demo { border: 1px solid #bbb; }
+      .table-align-demo td { border: 1px solid #ddd; padding: 4px; }
+      .table-align-demo .cell-block { width: 60px; border: 1px solid #888; padding: 2px; background-color: #f3f3f3; }
+      .table-balance-demo { width: 100%; border: 1px solid #bbb; }
+      .table-balance-demo td { border: 1px solid #ddd; }
+
+      .opacity-row { display: flex; flex-direction: row; }
+      .opacity-demo-card { flex: 1; margin-right: 10px; padding: 8px; border: 1px solid #666; background-color: #eef3ff; }
+      .opacity-demo-65 { opacity: 0.65; }
+      .opacity-demo-35 { opacity: 0.35; }
+      .transform-demo { width: 140px; padding: 6px; border: 1px solid #666; background-color: #f8f8f8; }
+      .transform-shift { transform: translate(18px, 6px); background-color: #e9f4ff; }
+      .list-reset { list-style: none; padding-left: 0; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="top-title">Milestone 5 &mdash; The Architect (Tabs &amp; Extensions)</p>
+      <a href="https://example.dev">&larr; back to example.dev</a>
+    </div>
+    <div class="page">
+      <p class="note">
+        Added in M5: multi-tab browsing with per-tab isolation, the extension host (manifest, loader,
+        background scripts), <code>browser.tabs</code> events, CSS injection, the built-in dark-mode
+        extension, POST forms, plus table and visual polish.
+      </p>
+
+      <div class="section">
+        <h2>Tabs (manual check)</h2>
+        <p>Press <code>Ctrl+T</code> to open a new tab, <code>Ctrl+Left/Right</code> to switch,
+        <code>Ctrl+W</code> to close. Typing or scrolling in one tab must not affect the others.</p>
+      </div>
+
+      <div class="section">
+        <h2>Extension dark mode</h2>
+        <p>The built-in dark-mode extension injects CSS into every page. With it enabled, both cards render dark
+        (disable via <code>HB_EXTENSIONS_DISABLE=dark-mode</code> or <code>assets/config/browser.ini</code>).</p>
+        <div class="dark-mode-demo">
+          <div class="dark-mode-column">
+            <div class="dark-demo-card">
+              <h3>Global Region A</h3>
+              <p>This block should receive dark-mode colors.</p>
+              <p class="note">Link sample: <a href="https://example.dev">example.dev</a></p>
+              <p class="note"><code>code sample</code> in global region.</p>
+            </div>
+          </div>
+          <div class="dark-mode-column">
+            <div class="dark-demo-card">
+              <h3>Global Region B</h3>
+              <p>This block should also receive dark-mode colors.</p>
+              <p class="note">Link sample: <a href="https://example.dev">example.dev</a></p>
+              <p class="note"><code>code sample</code> in global region.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>POST form</h2>
+        <form action="https://example.dev/search" method="post">
+          <input name="q" value="posted query">
+          <input type="submit" value="Submit via POST">
+        </form>
+        <p class="note">Submits with <code>method=post</code> and an <code>&lt;input type=submit&gt;</code> control (both landed in M5).</p>
+      </div>
+
+      <div class="section">
+        <h2>Tables (width hints &amp; balancing)</h2>
+        <table>
+          <thead><tr><th>Feature</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Layout</td><td>Supported</td></tr>
+            <tr><td>Paint</td><td>Supported</td></tr>
+          </tbody>
+        </table>
+        <p>Cell block alignment:</p>
+        <table class="table-align-demo" width="240">
+          <tr>
+            <td align="right"><div class="cell-block">Right</div></td>
+            <td align="center"><div class="cell-block">Center</div></td>
+          </tr>
+        </table>
+        <p>50/50 width-hint balancing:</p>
+        <table class="table-balance-demo" width="100%">
+          <tr>
+            <td width="50%">Short cell</td>
+            <td width="50%">Longer content cell that should still keep a balanced split.</td>
+          </tr>
+        </table>
+        <p>Mixed absolute/percent hints with thead/tbody:</p>
+        <table class="table-balance-demo" width="100%">
+          <thead><tr><th>Name</th><th>Description</th></tr></thead>
+          <tbody>
+            <tr><td width="180">Fixed column</td><td width="70%">Longer content that stays readable and aligned with the header.</td></tr>
+            <tr><td>Short</td><td>Second row keeps the same split without seam artifacts.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="section">
+        <h2>Visual polish (M5 stories)</h2>
+        <div class="opacity-row">
+          <div class="opacity-demo-card"><strong>opacity: 1.0</strong><p>Fully opaque.</p></div>
+          <div class="opacity-demo-card opacity-demo-65"><strong>opacity: 0.65</strong><p>Semi-transparent.</p></div>
+          <div class="opacity-demo-card opacity-demo-35"><strong>opacity: 0.35</strong><p>More transparent.</p></div>
+        </div>
+        <p class="transform-demo">Original position.</p>
+        <p class="transform-demo transform-shift">Translated by transform.</p>
+        <ul class="list-reset">
+          <li>list-style: none item one</li>
+          <li>list-style: none item two</li>
+        </ul>
+      </div>
+    </div>
+  </body>
+</html>

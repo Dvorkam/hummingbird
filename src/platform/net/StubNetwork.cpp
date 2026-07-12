@@ -67,6 +67,25 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
         return "<html><body><p>Missing stub asset: assets/stub/example.dev.html</p></body></html>";
     }
 
+    // Serve demo subpages: example.dev/<name> -> assets/stub/pages/<name>.html.
+    constexpr std::string_view kHttpPrefix = "http://example.dev/";
+    constexpr std::string_view kHttpsPrefix = "https://example.dev/";
+    std::string_view page;
+    if (url.rfind(kHttpsPrefix, 0) == 0) {
+        page = std::string_view(url).substr(kHttpsPrefix.size());
+    } else if (url.rfind(kHttpPrefix, 0) == 0) {
+        page = std::string_view(url).substr(kHttpPrefix.size());
+    }
+    if (auto query_pos = page.find('?'); query_pos != std::string_view::npos) {
+        page = page.substr(0, query_pos);
+    }
+    if (!page.empty() && page.find('/') == std::string_view::npos && page.find("..") == std::string_view::npos) {
+        std::string page_path = "assets/stub/pages/" + std::string(page) + ".html";
+        if (auto html = Hummingbird::Core::Utils::load_asset_text(page_path, false)) {
+            return *html;
+        }
+    }
+
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
 }
 

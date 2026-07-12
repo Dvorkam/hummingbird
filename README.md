@@ -185,7 +185,7 @@ What is not implemented yet:
 
 ### Built-in dark mode demo
 
-- Open `https://example.dev` and find `Extension Dark Mode Demo`.
+- Open `https://example.dev/m5` and find the `Extension dark mode` section (the landing page at `https://example.dev` links every per-milestone demo page).
 - The built-in dark-mode extension now applies across ordinary page content (with targeted readability safeguards), not only a demo-only scope class.
 - Disable it with `HB_EXTENSIONS_DISABLE=dark-mode`.
 

@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>M1 - The Reader (HTML to Pixels)</title>
+    <style>
+      body { margin: 0; padding: 0 0 30px 0; background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; }
+      .top { background-color: #14213d; color: #ffffff; padding: 14px 24px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+      .top-title { font-size: 20px; font-weight: bold; margin: 0; }
+      .top a { color: #fca311; }
+      .page { max-width: 860px; margin: 0 auto; padding: 16px 24px; }
+      .section { background-color: #ffffff; border: 1px solid #dde3ee; border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+      .section h2 { margin: 4px 0 10px 0; font-size: 18px; }
+      .note { color: #56617a; font-size: 13px; }
+      code { background-color: #e8ecf4; padding: 1px 5px; border-radius: 4px; }
+      .inline-block { display: inline-block; border: 1px solid #008000; padding: 2px; }
+      .baseline-demo { font-size: 16px; }
+      .baseline-demo .big { font-size: 28px; }
+      .baseline-demo .small { font-size: 12px; }
+      .narrow { width: 260px; border: 1px dashed #9aa7bd; padding: 6px; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="top-title">Milestone 1 &mdash; The Reader (HTML to Pixels)</p>
+      <a href="https://example.dev">&larr; back to example.dev</a>
+    </div>
+    <div class="page">
+      <p class="note">
+        Added in M1: zero-copy HTML tokenizer, DOM construction with recovery, block and inline
+        flow with greedy line breaking, and user-agent default styles for the core tags.
+      </p>
+
+      <div class="section">
+        <h2>Headings &amp; default styles</h2>
+        <h1>Heading level 1</h1>
+        <h2>Heading level 2</h2>
+        <h3>Heading level 3</h3>
+        <p>A paragraph with inline <em>emphasis</em>, <strong>strong text</strong>, <code>inline code</code>,
+        a <a href="https://example.dev">link</a>, and an <span class="inline-block">inline-block chip</span>.</p>
+      </div>
+
+      <div class="section">
+        <h2>Text flow &amp; wrapping</h2>
+        <p class="narrow">This paragraph lives in a narrow box so the greedy line breaker has to wrap it
+        across several lines without tearing words apart or drifting vertically.</p>
+        <p class="baseline-demo">Mixed sizes share a baseline: <span class="big">BIG</span> normal <span class="small">small</span>.</p>
+      </div>
+
+      <div class="section">
+        <h2>Lists</h2>
+        <ul>
+          <li>Unordered item one</li>
+          <li>Unordered item two</li>
+        </ul>
+        <ol>
+          <li>Ordered item one</li>
+          <li>Ordered item two</li>
+        </ol>
+      </div>
+
+      <div class="section">
+        <h2>Block elements</h2>
+        <blockquote>A blockquote with its default indent and styling.</blockquote>
+        <hr>
+        <pre>Preformatted
+text stays
+aligned.</pre>
+      </div>
+    </div>
+  </body>
+</html>

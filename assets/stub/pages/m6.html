@@ -1,0 +1,151 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>M6 - The Layouter (Flexbox)</title>
+    <style>
+      body { margin: 0; padding: 0 0 30px 0; background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; }
+      .top { background-color: #14213d; color: #ffffff; padding: 14px 24px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+      .top-title { font-size: 20px; font-weight: bold; margin: 0; }
+      .top a { color: #fca311; }
+      .page { max-width: 860px; margin: 0 auto; padding: 16px 24px; }
+      .section { background-color: #ffffff; border: 1px solid #dde3ee; border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+      .section h2 { margin: 4px 0 10px 0; font-size: 18px; }
+      .note { color: #56617a; font-size: 13px; }
+      code { background-color: #e8ecf4; padding: 1px 5px; border-radius: 4px; }
+
+      .flex-row { display: flex; flex-direction: row; border: 1px dashed #9aa7bd; padding: 6px; }
+      .flex-col { display: flex; flex-direction: column; border: 1px dashed #9aa7bd; padding: 6px; }
+      .item { background-color: #dfe9ff; border: 1px solid #7aa7e3; border-radius: 6px; padding: 8px; margin: 4px; text-align: center; }
+      .item-b { background-color: #ffe8cc; border-color: #e3a35f; }
+      .item-c { background-color: #d9f2d9; border-color: #6fbf6f; }
+
+      .grow-1 { flex: 1; }
+      .grow-2 { flex: 2; }
+      .grow-3 { flex: 3; }
+      .fixed-120 { flex: 0 0 120px; }
+
+      .jc-start { justify-content: flex-start; }
+      .jc-center { justify-content: center; }
+      .jc-end { justify-content: flex-end; }
+      .jc-between { justify-content: space-between; }
+      .jc-around { justify-content: space-around; }
+      .jc-evenly { justify-content: space-evenly; }
+      .jc-demo .item { width: 90px; margin: 4px; }
+
+      .align-demo { height: 110px; }
+      .ai-start { align-items: flex-start; }
+      .ai-center { align-items: center; }
+      .ai-end { align-items: flex-end; }
+      .ai-stretch { align-items: stretch; }
+      .tall { height: 70px; }
+      .short { height: 30px; }
+
+      .order-demo .o1 { order: 1; }
+      .order-demo .o2 { order: 2; }
+      .order-demo .o3 { order: 3; }
+
+      .navbar { display: flex; flex-direction: row; align-items: center; background-color: #14213d; color: #ffffff; border-radius: 8px; padding: 8px 12px; }
+      .navbar-logo { font-weight: bold; letter-spacing: 1px; margin-right: 14px; }
+      .navbar-spacer { flex: 1; }
+      .navbar-btn { background-color: #fca311; color: #14213d; border-radius: 6px; padding: 5px 12px; margin-left: 8px; font-weight: bold; }
+
+      .ddg-hero { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 220px; background-color: #fafbff; border: 1px solid #dde3ee; border-radius: 8px; }
+      .ddg-logo { font-size: 26px; font-weight: bold; color: #14213d; margin-bottom: 12px; }
+      .ddg-form { display: flex; flex-direction: row; align-items: center; }
+      .ddg-form input { width: 320px; padding: 9px 12px; border: 1px solid #9aa7bd; border-radius: 6px; margin-right: 8px; background-color: #ffffff; }
+      .ddg-form button { padding: 9px 16px; border: 1px solid #14213d; border-radius: 6px; background-color: #14213d; color: #ffffff; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="top-title">Milestone 6 &mdash; The Layouter (Flexbox)</p>
+      <a href="https://example.dev">&larr; back to example.dev</a>
+    </div>
+    <div class="page">
+      <p class="note">
+        Added in M6: <code>display: flex</code>, <code>flex-direction</code> (+reverse),
+        <code>justify-content</code>, <code>align-items</code>, <code>flex-grow/shrink/basis</code>,
+        the <code>flex</code> shorthand, and <code>order</code>. Not yet: <code>flex-wrap</code>, baseline alignment.
+      </p>
+
+      <div class="section">
+        <h2>Grow factors (flex: 1 / 2 / 3)</h2>
+        <div class="flex-row">
+          <div class="item grow-1">1</div>
+          <div class="item item-b grow-2">2</div>
+          <div class="item item-c grow-3">3</div>
+        </div>
+        <p class="note">Widths should be proportional 1 : 2 : 3.</p>
+      </div>
+
+      <div class="section">
+        <h2>Fixed basis + flexible fill</h2>
+        <div class="flex-row">
+          <div class="item fixed-120">fixed 120px</div>
+          <div class="item item-b grow-1">takes the rest</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>justify-content</h2>
+        <div class="flex-row jc-demo jc-start"><div class="item">start</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-center"><div class="item">center</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-end"><div class="item">end</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-between"><div class="item">between</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-around"><div class="item">around</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-evenly"><div class="item">evenly</div><div class="item">·</div></div>
+      </div>
+
+      <div class="section">
+        <h2>align-items (container height 110px)</h2>
+        <div class="flex-row align-demo ai-start"><div class="item tall">tall</div><div class="item item-b short">start</div></div>
+        <div class="flex-row align-demo ai-center"><div class="item tall">tall</div><div class="item item-b short">center</div></div>
+        <div class="flex-row align-demo ai-end"><div class="item tall">tall</div><div class="item item-b short">end</div></div>
+        <div class="flex-row align-demo ai-stretch"><div class="item">stretch</div><div class="item item-b">stretch</div></div>
+      </div>
+
+      <div class="section">
+        <h2>Column direction</h2>
+        <div class="flex-col">
+          <div class="item">first</div>
+          <div class="item item-b">second</div>
+          <div class="item item-c">third (items stretch to full width)</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>order (markup order is A, B, C)</h2>
+        <div class="flex-row order-demo">
+          <div class="item o3">A (order 3)</div>
+          <div class="item item-b o1">B (order 1)</div>
+          <div class="item item-c o2">C (order 2)</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Real-world pattern: navbar</h2>
+        <div class="navbar">
+          <span class="navbar-logo">Hummingbird</span>
+          <span>Docs</span>
+          <span class="navbar-spacer"></span>
+          <span class="navbar-btn">Sign in</span>
+          <span class="navbar-btn">Download</span>
+        </div>
+        <p class="note">Logo left, links, flexible spacer, buttons pushed right.</p>
+      </div>
+
+      <div class="section">
+        <h2>Real-world pattern: DDG-style centered search</h2>
+        <div class="ddg-hero">
+          <p class="ddg-logo">Search Engine</p>
+          <form class="ddg-form" action="https://example.dev/search" method="get">
+            <input name="q">
+            <button type="submit">Search</button>
+          </form>
+        </div>
+        <p class="note">Column flex container centering a logo + search form &mdash; the DDG homepage pattern this milestone targets.</p>
+      </div>
+    </div>
+  </body>
+</html>
