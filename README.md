@@ -256,7 +256,9 @@ HB_EXTENSIONS_ENABLE=dark-mode,my-ext ./build/Release/Hummingbird
 
 ## License
 
-Hummingbird is licensed under the Apache License 2.0 (see `LICENSE` and `NOTICE`).
+Hummingbird is licensed under the GNU Affero General Public License v3.0 or later
+(AGPL-3.0-or-later), with an additional permission under section 7 allowing app-store
+distribution (see `LICENSE`). Third-party attribution notices are listed in `NOTICE`.
 
 This repository also contains third-party components. See `THIRD_PARTY_NOTICES.md`.
 
