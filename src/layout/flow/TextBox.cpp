@@ -105,6 +105,9 @@ void build_preserved_lines(IGraphicsContext& context, const std::string& text, c
     while (start < text.size()) {
         size_t nl = text.find('\n', start);
         std::string line = nl == std::string::npos ? text.substr(start) : text.substr(start, nl - start);
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();  // CRLF sources must not leak \r glyphs into preserved lines.
+        }
         float w = measurer.measure(line);
         append_line(lines, line_widths, content_width, std::move(line), w);
         if (nl == std::string::npos) {

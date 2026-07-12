@@ -199,7 +199,25 @@ TEST(HtmlParserTest, DecodesNamedEntities) {
     ASSERT_EQ(p_node->get_children().size(), 1u);
     auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(p_node->get_children()[0].get());
     ASSERT_NE(text_node, nullptr);
-    const std::string expected = "A \u2014 B & C < D > E \"F\" 'G' \u00A0H";
+    // Byte-escaped UTF-8 so the assertion is independent of the compiler's
+    // execution charset (\uXXXX narrow literals are not, without /utf-8).
+    const std::string expected = "A \xE2\x80\x94 B & C < D > E \"F\" 'G' \xC2\xA0H";
+    EXPECT_EQ(text_node->get_text(), expected);
+}
+
+TEST(HtmlParserTest, DecodesExtendedAndNumericEntities) {
+    std::string_view html = "<p>&larr; &middot; &rarr; &hellip; &#8212; &#x2192; &bogus; &#xZZ;</p>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    auto p_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(p_node, nullptr);
+    ASSERT_EQ(p_node->get_children().size(), 1u);
+    auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(p_node->get_children()[0].get());
+    ASSERT_NE(text_node, nullptr);
+    const std::string expected =
+        "\xE2\x86\x90 \xC2\xB7 \xE2\x86\x92 \xE2\x80\xA6 \xE2\x80\x94 \xE2\x86\x92 &bogus; &#xZZ;";
     EXPECT_EQ(text_node->get_text(), expected);
 }
 
