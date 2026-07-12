@@ -22,6 +22,6 @@ For larger changes (new subsystems, big refactors, new dependencies), please ask
 
 ## Licensing
 
-By contributing, you agree that your contributions are licensed under the project’s license (Apache-2.0, see `LICENSE`).
+By contributing, you agree that your contributions are licensed under the project’s license (AGPL-3.0-or-later with an app-store additional permission, see `LICENSE`).
 
 If you add or bundle third-party code/assets, include the relevant license text in the repository (and keep it close to the asset when possible, e.g. `assets/.../LICENSE.txt`).
