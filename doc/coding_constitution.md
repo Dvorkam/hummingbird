@@ -1,12 +1,4 @@
-This is an excellent idea. Establishing a "constitution" for your codebase early is the only way to keep a project of this complexity from collapsing under its own weight.
-
-Below is a **Design & Architecture Guide** tailored specifically for **Hummingbird** (your engine). It combines general "Clean Code" principles with the specific C++20/Browser constraints we discussed.
-
-You can save this as `DESIGN_GUIDE.md` in the root of your repository.
-
----
-
-# Hummingbird Engine – Design & Contribution Guide
+# Hummingbird Engine – Coding Constitution
 
 This document outlines the architectural principles, coding standards, and best practices for the Hummingbird browser engine. All code submitted to the project must adhere to these guidelines to ensure modularity, performance, and maintainability.
 
@@ -14,7 +6,7 @@ This document outlines the architectural principles, coding standards, and best 
 
 ### 1.1. The "Ports & Adapters" Rule (Strict Modularity)
 
-* **Core Logic is Sacred:** The `src/core`, `src/html`, and `src/layout` modules **must never** depend on `src/platform`.
+* **Core Logic is Sacred:** Every module except `src/platform` and `src/app` (`src/core`, `src/html`, `src/style`, `src/layout`, `src/renderer`, `src/engine`) **must never** depend on `src/platform`. This is enforced by `tests/core/DependencyFirewall.test.cpp`.
 * **Inversion of Control:** If the Core needs to draw pixels or fetch data, it must define an **Interface** (e.g., `IGraphicsContext`, `INetwork`). The Platform layer implements these interfaces.
 * **Dependency Injection:** Do not instantiate concrete platform classes inside the core. Pass them in during initialization.
 
@@ -220,10 +212,16 @@ Browser engines are performance-critical. Avoid `try/catch` in hot paths (parsin
 
 All code must reside in the `Hummingbird` namespace, with sub-namespaces for modules:
 
-* `Hummingbird::Core`
-* `Hummingbird::Html`
-* `Hummingbird::Layout`
-* `Hummingbird::Platform`
+* `Hummingbird::Core` (utilities, arena, platform API interfaces)
+* `Hummingbird::DOM` (DOM node model, in `src/core/dom`)
+* `Hummingbird::Geometry` (shared geometry PODs, in `src/core/geometry`)
+* `Hummingbird::Html` (tokenizer/parser)
+* `Hummingbird::Css` (CSS parsing, cascade, computed style, in `src/style`)
+* `Hummingbird::Layout` (render tree, block/inline/table flow)
+* `Hummingbird::Renderer` (display list, painter)
+* `Hummingbird::Engine` (tab, document pipeline, resources, extensions)
+* `Hummingbird::Platform` (SDL/Blend2D/curl/QuickJS adapters)
+* `Hummingbird::App` (browser chrome and wiring)
 
 ---
 

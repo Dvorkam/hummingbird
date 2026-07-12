@@ -1,4 +1,8 @@
-# Tech Debt Game Plan (Temp)
+# Tech Debt Game Plan
+
+Tracked refactoring seams. When touching a file listed here, prefer the planned
+decomposition over ad-hoc changes; check items off (with a note) when they land or
+are superseded.
 
 ## Chokepoint Candidates
 - [x] **Engine::DocumentPipeline**: narrow the public API surface so Tab talks to smaller, purpose-built interfaces (render/layout vs interaction). *(Superseded: the `LayoutApi`/`InteractionApi` facades were pure pass-throughs that tripled each method declaration; flattened back to a single grouped public API.)*

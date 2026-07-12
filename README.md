@@ -254,6 +254,14 @@ HB_EXTENSIONS_DISABLE=dark-mode ./build/Release/Hummingbird
 HB_EXTENSIONS_ENABLE=dark-mode,my-ext ./build/Release/Hummingbird
 ```
 
+## Documentation
+
+- Roadmap and milestone status: [`doc/milestones/roadmap.md`](doc/milestones/roadmap.md)
+- Live backlog: [`doc/TODOs.md`](doc/TODOs.md)
+- Architecture and coding rules: [`doc/coding_constitution.md`](doc/coding_constitution.md)
+- Developer workflow guides: [`doc/dev_guide/`](doc/dev_guide/)
+- Agent/automation entry point: [`AGENTS.md`](AGENTS.md)
+
 ## License
 
 Hummingbird is licensed under the GNU Affero General Public License v3.0 or later
