@@ -227,14 +227,23 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         }
 
         if (resource_provider_) {
+            // Only probe the local asset provider with raw URLs that can plausibly
+            // be asset-relative paths; root-relative ("/x") and protocol-relative
+            // ("//host/x") links belong to the document's origin, not our assets.
+            const bool raw_is_asset_candidate =
+                !raw_url.empty() && raw_url.front() != '/' && raw_url.find("://") == std::string::npos;
             std::optional<std::string> data;
             if (options.use_binary) {
-                data = resource_provider_->load_bytes(raw_url);
+                if (raw_is_asset_candidate) {
+                    data = resource_provider_->load_bytes(raw_url);
+                }
                 if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
                     data = resource_provider_->load_bytes(resolved.resolved);
                 }
             } else {
-                data = resource_provider_->load_text(raw_url);
+                if (raw_is_asset_candidate) {
+                    data = resource_provider_->load_text(raw_url);
+                }
                 if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
                     data = resource_provider_->load_text(resolved.resolved);
                 }

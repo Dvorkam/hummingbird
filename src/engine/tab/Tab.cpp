@@ -313,15 +313,28 @@ std::optional<std::string_view> Tab::resolve_document_ready_body(std::string_vie
 }
 
 void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    // Sub-timers bracket every step so a stall inside the rebuild span is
+    // attributable from logs alone (the 21s DDG freeze hid between these).
+    auto timed = [](const char* label, auto&& fn) {
+        const auto start = Core::Clock::now();
+        fn();
+        HB_LOG_INFO("[perf] rebuild step " << label << " ms=" << Core::duration_ms(start, Core::Clock::now()));
+    };
+
     TabDocumentReadyPolicy::log_discovered_resources(*document_pipeline_);
-    TabDocumentReadyPolicy::request_discovered_resources(*resource_loader_, *document_pipeline_,
-                                                         navigation_lifecycle_.requested_url());
-    bool has_render_tree =
-        rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build", true);
+    timed("request_resources", [&] {
+        TabDocumentReadyPolicy::request_discovered_resources(*resource_loader_, *document_pipeline_,
+                                                             navigation_lifecycle_.requested_url());
+    });
+    bool has_render_tree = false;
+    timed("build_and_layout", [&] {
+        has_render_tree =
+            rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build", true);
+    });
     if (has_render_tree) {
-        apply_autofocus_after_rebuild();
+        timed("autofocus", [&] { apply_autofocus_after_rebuild(); });
     }
-    apply_load_mutations_after_document_ready(graphics, viewport);
+    timed("load_mutations", [&] { apply_load_mutations_after_document_ready(graphics, viewport); });
 }
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -352,7 +365,9 @@ bool Tab::prepare_document_from_response(std::string_view html) {
     navigation_lifecycle_.set_pending_commit_url();
     document_pipeline_->set_extension_style_blocks(extension_style_blocks_);
     extension_css_dirty_ = false;
+    const auto scripts_start = Core::Clock::now();
     document_pipeline_->run_scripts();
+    HB_LOG_INFO("[perf] rebuild step run_scripts ms=" << Core::duration_ms(scripts_start, Core::Clock::now()));
     return true;
 }
 
