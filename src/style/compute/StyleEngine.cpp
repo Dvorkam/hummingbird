@@ -44,7 +44,8 @@ struct MatchedDeclarations {
     CustomPropertyMap custom_properties;
 };
 
-MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DOM::Node* node) {
+MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DOM::Node* node,
+                                               const MediaContext& media) {
     MatchedDeclarations matched;
     size_t order = 0;
 
@@ -52,6 +53,9 @@ MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DO
     if (!element) return matched;
 
     for (const auto& rule : sheet.rules) {
+        if (rule.media && !media_condition_matches(*rule.media, media)) {
+            continue;
+        }
         for (const auto& selector : rule.selectors) {
             if (!matches_selector(node, selector)) continue;
             int spec = selector.specificity();
@@ -191,10 +195,11 @@ void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& sou
 }
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).
-StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, const ComputedStyle* parent_style) {
+StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, const ComputedStyle* parent_style,
+                            const MediaContext& media) {
     StyleResult result{default_computed_style(), {}};
     ComputedStyle& style = result.style;
-    MatchedDeclarations matched = collect_matched_properties(sheet, node);
+    MatchedDeclarations matched = collect_matched_properties(sheet, node, media);
     bool display_set = matched.properties.find(Property::Display) != matched.properties.end();
 
     // Minimal UA defaults for basic HTML readability.
@@ -213,9 +218,10 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, cons
 
 }  // namespace
 
-void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const ComputedStyle* parent_style) {
+void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const ComputedStyle* parent_style,
+                               const MediaContext& media) {
     ComputedStyle base = parent_style ? *parent_style : default_computed_style();
-    StyleResult own = build_style_for(sheet, node, parent_style);
+    StyleResult own = build_style_for(sheet, node, parent_style, media);
 
     // Non-inheritable box properties come from the computed (own) style.
     apply_non_inheritable(base, own.style);
@@ -234,13 +240,13 @@ void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const C
     node->set_computed_style(std::make_shared<ComputedStyle>(style));
 
     for (const auto& child : node->get_children()) {
-        compute_node(sheet, child.get(), node->get_computed_style().get());
+        compute_node(sheet, child.get(), node->get_computed_style().get(), media);
     }
 }
 
-void StyleEngine::apply(const Stylesheet& sheet, DOM::Node* root) {
+void StyleEngine::apply(const Stylesheet& sheet, DOM::Node* root, const MediaContext& media) {
     if (!root) return;
-    compute_node(sheet, root, nullptr);
+    compute_node(sheet, root, nullptr, media);
 }
 
 }  // namespace Hummingbird::Css

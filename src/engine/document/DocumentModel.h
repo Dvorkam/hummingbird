@@ -31,7 +31,7 @@ public:
 
     void reset();
     ParseResult parse_html(std::string_view html);
-    void apply_styles(const std::string& css);
+    void apply_styles(const std::string& css, const Css::MediaContext& media = {});
     bool build_render_tree();
     std::optional<FormSubmission> build_form_submission(const DOM::Element& input, std::string_view base_url) const;
 

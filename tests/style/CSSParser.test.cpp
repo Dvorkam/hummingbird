@@ -506,13 +506,18 @@ TEST(CSSParserTest, SkipsAtRuleBlocksWithoutLeakingInnerRules) {
         .keep { color: green; }
     )");
     auto sheet = parser.parse();
-    ASSERT_EQ(sheet.rules.size(), 1u);
-    ASSERT_EQ(sheet.rules[0].selectors.size(), 1u);
-    ASSERT_EQ(sheet.rules[0].selectors[0].parts.size(), 1u);
-    EXPECT_EQ(sheet.rules[0].selectors[0].parts[0].classes.at(0), "keep");
+    // Evaluable @media rules survive WITH their condition; @font-face/@supports
+    // blocks are skipped entirely, and nothing leaks unconditioned.
+    ASSERT_EQ(sheet.rules.size(), 3u);
+    ASSERT_TRUE(sheet.rules[0].media.has_value());
+    EXPECT_FLOAT_EQ(*sheet.rules[0].media->max_width, 425.0f);
+    ASSERT_TRUE(sheet.rules[1].media.has_value());
+    EXPECT_FLOAT_EQ(*sheet.rules[1].media->max_width, 425.0f);
+    EXPECT_FALSE(sheet.rules[2].media.has_value());
+    EXPECT_EQ(sheet.rules[2].selectors[0].parts[0].classes.at(0), "keep");
 }
 
-TEST(CSSParserTest, SkipsNestedAtRuleBlocks) {
+TEST(CSSParserTest, NestedAtRuleBlocksKeepConditions) {
     Parser parser(R"(
         @media screen {
             @media (max-width: 100px) {
@@ -523,6 +528,63 @@ TEST(CSSParserTest, SkipsNestedAtRuleBlocks) {
         .keep { color: green; }
     )");
     auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 3u);
+    // .inner carries the intersected nested condition.
+    ASSERT_TRUE(sheet.rules[0].media.has_value());
+    ASSERT_TRUE(sheet.rules[0].media->max_width.has_value());
+    EXPECT_FLOAT_EQ(*sheet.rules[0].media->max_width, 100.0f);
+    // .also-inner sits in the unconstrained "screen" block (always matches).
+    ASSERT_TRUE(sheet.rules[1].media.has_value());
+    EXPECT_FALSE(sheet.rules[1].media->max_width.has_value());
+    EXPECT_FALSE(sheet.rules[2].media.has_value());
+    EXPECT_EQ(sheet.rules[2].selectors[0].parts[0].classes.at(0), "keep");
+}
+
+TEST(CSSParserTest, ParsesWidthMediaConditionsOntoRules) {
+    Parser parser(R"(
+        @media only screen and (min-width: 864px) and (max-height: 361.25px) {
+            .desktop { color: red; }
+        }
+        .always { color: green; }
+    )");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 2u);
+    const auto& conditioned = sheet.rules[0];
+    ASSERT_TRUE(conditioned.media.has_value());
+    ASSERT_TRUE(conditioned.media->min_width.has_value());
+    EXPECT_FLOAT_EQ(*conditioned.media->min_width, 864.0f);
+    ASSERT_TRUE(conditioned.media->max_height.has_value());
+    EXPECT_FLOAT_EQ(*conditioned.media->max_height, 361.25f);
+    EXPECT_FALSE(conditioned.media->max_width.has_value());
+    EXPECT_FALSE(sheet.rules[1].media.has_value());
+}
+
+TEST(CSSParserTest, SkipsUnevaluableMediaBlocks) {
+    Parser parser(R"(
+        @media print { .print-only { color: red; } }
+        @media (prefers-color-scheme: dark) { .dark-only { color: red; } }
+        @media screen and (max-width: 40em) { .em-based { color: red; } }
+        @media screen, (min-width: 100px) { .comma-list { color: red; } }
+        .keep { color: green; }
+    )");
+    auto sheet = parser.parse();
     ASSERT_EQ(sheet.rules.size(), 1u);
     EXPECT_EQ(sheet.rules[0].selectors[0].parts[0].classes.at(0), "keep");
+}
+
+TEST(CSSParserTest, NestedMediaBlocksIntersectConditions) {
+    Parser parser(R"(
+        @media (min-width: 600px) {
+            @media (max-width: 900px) {
+                .band { color: red; }
+            }
+        }
+    )");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_TRUE(sheet.rules[0].media.has_value());
+    ASSERT_TRUE(sheet.rules[0].media->min_width.has_value());
+    EXPECT_FLOAT_EQ(*sheet.rules[0].media->min_width, 600.0f);
+    ASSERT_TRUE(sheet.rules[0].media->max_width.has_value());
+    EXPECT_FLOAT_EQ(*sheet.rules[0].media->max_width, 900.0f);
 }

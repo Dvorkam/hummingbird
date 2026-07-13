@@ -70,7 +70,8 @@ DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
-    if (!style_coordinator_->apply_styles_and_build(base_url)) {
+    const Css::MediaContext media{viewport.width, viewport.height};
+    if (!style_coordinator_->apply_styles_and_build(base_url, media)) {
         return;
     }
 

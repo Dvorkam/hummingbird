@@ -65,7 +65,7 @@ DocumentModel::ParseResult DocumentModel::parse_html(std::string_view html) {
     return {true, false};
 }
 
-void DocumentModel::apply_styles(const std::string& css) {
+void DocumentModel::apply_styles(const std::string& css, const Css::MediaContext& media) {
     const auto css_parse_start = Core::Clock::now();
     Css::Parser css_parser(css);
     auto stylesheet = css_parser.parse();
@@ -74,7 +74,7 @@ void DocumentModel::apply_styles(const std::string& css) {
                                        << " rules=" << stylesheet.rules.size());
 
     const auto style_start = Core::Clock::now();
-    style_engine_.apply(stylesheet, dom_tree_.get());
+    style_engine_.apply(stylesheet, dom_tree_.get(), media);
     const auto style_end = Core::Clock::now();
     HB_LOG_INFO("[pipeline] applied stylesheet rules: " << stylesheet.rules.size());
     HB_LOG_INFO("[perf] style apply ms=" << Core::duration_ms(style_start, style_end));

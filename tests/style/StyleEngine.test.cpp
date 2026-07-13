@@ -1298,3 +1298,45 @@ TEST(StyleEngineTest, AuthorBackgroundOverridesCodeAndPreDefaults) {
     EXPECT_EQ(pre_style->background->g, 221);
     EXPECT_EQ(pre_style->background->b, 221);
 }
+
+TEST(StyleEngineTest, EvaluatesMediaConditionsAgainstViewport) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto body = Hummingbird::DOM::DomFactory::create_element(arena, "body");
+    auto div = Hummingbird::DOM::DomFactory::create_element(arena, "div");
+    div->set_attribute("id", "target");
+    body->append_child(std::move(div));
+
+    Hummingbird::Css::Parser parser(R"(
+        #target { width: 10px; }
+        @media (min-width: 800px) { #target { width: 500px; } }
+    )");
+    auto sheet = parser.parse();
+
+    // Wide viewport: the @media rule wins.
+    {
+        Hummingbird::Css::StyleEngine engine;
+        engine.apply(sheet, body.get(), {1024.0f, 768.0f});
+        auto style = body->get_children()[0]->get_computed_style();
+        ASSERT_NE(style, nullptr);
+        ASSERT_TRUE(style->width.has_value());
+        EXPECT_FLOAT_EQ(*style->width, 500.0f);
+    }
+    // Narrow viewport: conditioned rule filtered out.
+    {
+        Hummingbird::Css::StyleEngine engine;
+        engine.apply(sheet, body.get(), {500.0f, 700.0f});
+        auto style = body->get_children()[0]->get_computed_style();
+        ASSERT_NE(style, nullptr);
+        ASSERT_TRUE(style->width.has_value());
+        EXPECT_FLOAT_EQ(*style->width, 10.0f);
+    }
+    // Default context (no viewport): min-width conditions do not match.
+    {
+        Hummingbird::Css::StyleEngine engine;
+        engine.apply(sheet, body.get());
+        auto style = body->get_children()[0]->get_computed_style();
+        ASSERT_NE(style, nullptr);
+        ASSERT_TRUE(style->width.has_value());
+        EXPECT_FLOAT_EQ(*style->width, 10.0f);
+    }
+}

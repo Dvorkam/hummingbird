@@ -39,7 +39,10 @@ private:
     std::string parse_font_family_list();
     std::string parse_custom_property_value();
     bool consume_declaration(std::vector<Declaration>& decls);
-    void skip_at_rule();
+    void handle_at_rule(Stylesheet& sheet, const std::optional<MediaCondition>& enclosing_media);
+    void skip_at_rule_block();
+    std::optional<MediaCondition> parse_media_prelude();
+    bool parse_one_rule(Stylesheet& sheet, const std::optional<MediaCondition>& media);
 
     std::string m_buffer;
     std::vector<Token> m_tokens;

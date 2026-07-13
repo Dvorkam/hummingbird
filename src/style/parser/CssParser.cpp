@@ -1,5 +1,6 @@
 #include "style/parser/CssParser.h"
 
+#include <cstdlib>
 #include <optional>
 #include <ostream>
 #include <utility>
@@ -692,20 +693,63 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     return true;
 }
 
-void Parser::skip_at_rule() {
-    // Consume '@' and remember the at-rule name for diagnostics.
-    advance();
-    std::string_view name;
-    if (peek().type == TokenType::Identifier) {
-        name = peek().lexeme;
+// Parses a @media prelude (tokens up to '{') into a width/height condition.
+// Returns nullopt for anything we cannot evaluate (print, not, comma lists,
+// non-px units, unknown features) so the caller skips the block conservatively.
+// Note: the tokenizer drops parentheses, so "(min-width: 590px)" arrives as
+// [min-width][:][590][px].
+std::optional<MediaCondition> Parser::parse_media_prelude() {
+    MediaCondition condition;
+    while (!eof() && peek().type != TokenType::LBrace && peek().type != TokenType::Semicolon) {
+        if (peek().type == TokenType::Whitespace) {
+            advance();
+            continue;
+        }
+        if (peek().type == TokenType::Identifier) {
+            std::string_view word = peek().lexeme;
+            if (word == "only" || word == "screen" || word == "all" || word == "and") {
+                advance();
+                continue;
+            }
+            const bool is_min_width = word == "min-width";
+            const bool is_max_width = word == "max-width";
+            const bool is_min_height = word == "min-height";
+            const bool is_max_height = word == "max-height";
+            if (is_min_width || is_max_width || is_min_height || is_max_height) {
+                advance();
+                skip_whitespace_tokens();
+                if (!match(TokenType::Colon)) {
+                    return std::nullopt;
+                }
+                skip_whitespace_tokens();
+                if (peek().type != TokenType::Number) {
+                    return std::nullopt;
+                }
+                float value = 0.0f;
+                {
+                    std::string number_text(advance().lexeme);
+                    value = std::strtof(number_text.c_str(), nullptr);
+                }
+                if (peek().type == TokenType::Identifier) {
+                    if (peek().lexeme != ValueNames::Px) {
+                        return std::nullopt;  // em/rem media lengths unsupported.
+                    }
+                    advance();
+                }
+                if (is_min_width) condition.min_width = value;
+                if (is_max_width) condition.max_width = value;
+                if (is_min_height) condition.min_height = value;
+                if (is_max_height) condition.max_height = value;
+                continue;
+            }
+            return std::nullopt;  // not/print/orientation/prefers-*/...
+        }
+        return std::nullopt;  // comma lists and anything else
     }
-    // Deduped process-wide; kept separate from m_unknown_properties so at-rule
-    // names do not pollute the stylesheet's unknown-property diagnostics.
-    static Core::Utils::WarnOnce skipped_at_rules;
-    if (skipped_at_rules.should_log(name.empty() ? "@" : name)) {
-        HB_LOG_WARN("[parser] Skipping unsupported at-rule: @" << name);
-    }
+    return condition;
+}
 
+void Parser::skip_at_rule_block() {
     // Consume the prelude up to either a block or a statement terminator.
     while (!eof() && peek().type != TokenType::LBrace && peek().type != TokenType::Semicolon) {
         advance();
@@ -716,8 +760,8 @@ void Parser::skip_at_rule() {
     if (!match(TokenType::LBrace)) {
         return;
     }
-    // Skip the whole block with balanced braces so nested rules (e.g. inside
-    // @media) never leak out as unconditional top-level rules.
+    // Skip the whole block with balanced braces so nested rules never leak out
+    // as unconditional top-level rules.
     int depth = 1;
     while (!eof() && depth > 0) {
         if (peek().type == TokenType::LBrace) {
@@ -729,24 +773,86 @@ void Parser::skip_at_rule() {
     }
 }
 
+void Parser::handle_at_rule(Stylesheet& sheet, const std::optional<MediaCondition>& enclosing_media) {
+    advance();  // consume '@'
+    std::string_view name;
+    if (peek().type == TokenType::Identifier) {
+        name = peek().lexeme;
+    }
+
+    if (name == "media") {
+        advance();  // consume "media"
+        const size_t prelude_start = m_pos;
+        auto condition = parse_media_prelude();
+        if (condition && match(TokenType::LBrace)) {
+            // Intersect with any enclosing @media condition (nested blocks).
+            if (enclosing_media) {
+                auto tighten_min = [](std::optional<float>& into, const std::optional<float>& from) {
+                    if (from && (!into || *from > *into)) into = *from;
+                };
+                auto tighten_max = [](std::optional<float>& into, const std::optional<float>& from) {
+                    if (from && (!into || *from < *into)) into = *from;
+                };
+                tighten_min(condition->min_width, enclosing_media->min_width);
+                tighten_max(condition->max_width, enclosing_media->max_width);
+                tighten_min(condition->min_height, enclosing_media->min_height);
+                tighten_max(condition->max_height, enclosing_media->max_height);
+            }
+            while (!eof() && peek().type != TokenType::RBrace) {
+                if (!parse_one_rule(sheet, condition)) {
+                    break;
+                }
+            }
+            match(TokenType::RBrace);
+            return;
+        }
+        // Unevaluable prelude: rewind to it and skip the block conservatively.
+        m_pos = prelude_start;
+        skip_at_rule_block();
+        return;
+    }
+
+    // Deduped process-wide; kept separate from m_unknown_properties so at-rule
+    // names do not pollute the stylesheet's unknown-property diagnostics.
+    static Core::Utils::WarnOnce skipped_at_rules;
+    if (skipped_at_rules.should_log(name.empty() ? "@" : name)) {
+        HB_LOG_WARN("[parser] Skipping unsupported at-rule: @" << name);
+    }
+    skip_at_rule_block();
+}
+
+bool Parser::parse_one_rule(Stylesheet& sheet, const std::optional<MediaCondition>& media) {
+    skip_whitespace_tokens();
+    if (eof() || peek().type == TokenType::RBrace) {
+        return false;
+    }
+    if (peek().type == TokenType::At) {
+        handle_at_rule(sheet, media);
+        return true;
+    }
+    auto selectors = parse_selectors();
+    if (!match(TokenType::LBrace)) {
+        advance();
+        return true;
+    }
+    auto declarations = parse_declarations();
+    match(TokenType::RBrace);
+    if (!selectors.empty()) {
+        sheet.rules.push_back({std::move(selectors), std::move(declarations), media});
+    }
+    return true;
+}
+
 Stylesheet Parser::parse() {
     Stylesheet sheet;
     while (!eof()) {
-        skip_whitespace_tokens();
-        if (peek().type == TokenType::At) {
-            skip_at_rule();
-            continue;
-        }
-        // Selector
-        auto selectors = parse_selectors();
-        if (!match(TokenType::LBrace)) {
-            advance();
-            continue;
-        }
-        auto declarations = parse_declarations();
-        match(TokenType::RBrace);
-        if (!selectors.empty()) {
-            sheet.rules.push_back({selectors, declarations});
+        if (!parse_one_rule(sheet, std::nullopt)) {
+            // Stray closing brace at top level; consume and continue.
+            if (peek().type == TokenType::RBrace) {
+                advance();
+                continue;
+            }
+            break;
         }
     }
     sheet.unknown_properties = m_unknown_properties.seen();

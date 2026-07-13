@@ -18,10 +18,13 @@ namespace Hummingbird::Css {
 
 class StyleEngine {
 public:
-    void apply(const Stylesheet& sheet, DOM::Node* root);
+    // `media` supplies the viewport for @media rule evaluation; with the zero
+    // default, rules behind min-* conditions do not apply (headless/test mode).
+    void apply(const Stylesheet& sheet, DOM::Node* root, const MediaContext& media = {});
 
 private:
-    void compute_node(const Stylesheet& sheet, DOM::Node* node, const ComputedStyle* parent_style);
+    void compute_node(const Stylesheet& sheet, DOM::Node* node, const ComputedStyle* parent_style,
+                      const MediaContext& media);
 };
 
 }  // namespace Hummingbird::Css

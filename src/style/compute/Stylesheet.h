@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -144,9 +145,35 @@ struct Declaration {
     Value value;
 };
 
+// Width/height constraints from a parsed @media prelude (px only). Absent
+// fields are unconstrained. Rules without a condition always apply.
+struct MediaCondition {
+    std::optional<float> min_width;
+    std::optional<float> max_width;
+    std::optional<float> min_height;
+    std::optional<float> max_height;
+};
+
+// Viewport context media conditions are evaluated against. The zero default
+// means "no viewport known": conditioned rules with min-* requirements fail,
+// which matches the previous behavior of skipping @media blocks entirely.
+struct MediaContext {
+    float viewport_width = 0.0f;
+    float viewport_height = 0.0f;
+};
+
+inline bool media_condition_matches(const MediaCondition& condition, const MediaContext& context) {
+    if (condition.min_width && context.viewport_width < *condition.min_width) return false;
+    if (condition.max_width && context.viewport_width > *condition.max_width) return false;
+    if (condition.min_height && context.viewport_height < *condition.min_height) return false;
+    if (condition.max_height && context.viewport_height > *condition.max_height) return false;
+    return true;
+}
+
 struct Rule {
     std::vector<Selector> selectors;
     std::vector<Declaration> declarations;
+    std::optional<MediaCondition> media;
 };
 
 struct Stylesheet {

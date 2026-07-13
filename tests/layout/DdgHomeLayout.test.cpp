@@ -94,7 +94,8 @@ TEST(DdgHomeLayoutTest, HomepageSearchBlockIsOnScreenAndCentered) {
     EXPECT_GT(sheet.rules.size(), 100u) << "DDG stylesheet parsed suspiciously few rules";
 
     Hummingbird::Css::StyleEngine engine;
-    engine.apply(sheet, parse_result.dom.get());
+    // Desktop viewport: enables DDG's min-width @media rules (flex centering).
+    engine.apply(sheet, parse_result.dom.get(), {1024.0f, 768.0f});
 
     TreeBuilder builder;
     auto render_root = builder.build(parse_result.dom.get());

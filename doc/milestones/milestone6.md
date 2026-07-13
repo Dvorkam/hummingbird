@@ -102,6 +102,9 @@ Milestone 6 is complete when all items below are true:
 ### 6.6 - Polish
 
 * **[M6 P1] T-HIST-1: Visited Link State**; Goal: track visited URLs and apply `vlink` colors appropriately; Scope: history store + style resolution; Acceptance: visited anchors render with `vlink`/`:visited` color; Tests: engine/style tests.
+* **[M6 P1] T-SEC-URL-1: Resource/Asset Origin Firewall**; Goal: page-controlled URLs must never reach filesystem APIs (a `//host/...` href probed as a local path is a UNC/SMB request to an attacker-chosen host on Windows — caused the 21s DDG freeze); Scope: restrict the asset-provider probe to internal origins (example.dev / explicit fixture roots), assert URLs are resolved before any provider/filesystem call, reject UNC-shaped paths in AssetPath; Acceptance: real-page URLs (`/x`, `//host/x`, `http(s)://...`) provably never hit the asset loader, regression test covers the UNC shape; Tests: resource loader + asset path tests.
+* **[M6 P2] T-PERF-STYLE-1: Selector Match Acceleration**; Goal: style apply must scale to real-world sheets (seznam.cz: 9,652 rules x 4,778 nodes = 6.9s per apply); Scope: bucket rules by rightmost selector key (id/class/tag/universal) and only test candidate buckets per element; keep cascade order stable; Acceptance: seznam-class page styles in well under 1s per apply with identical computed styles on existing tests; Tests: style tests unchanged + perf smoke.
+* **[M6 P2] T-HTML-RAWTEXT-1: Script/Style Raw-Text Parsing**; Goal: `<script>`/`<style>` content must be tokenized as raw text, not markup (JS strings currently leak into DOM/link discovery and trigger garbage requests like `https://host/' + fallbackUrl + '`); Scope: HtmlTokenizer rawtext mode until matching end tag; Acceptance: markup-looking strings inside scripts produce no elements/resource requests; Tests: parser tests.
 * **[M6 P2] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console**; Goal: make F1 debugging actionable on real pages (plain outlines are unlabeled and hard to attribute); Scope: while debug outlines are enabled, clicking an element prints to the console (not the screen, to avoid cluttering the render): tag/id/classes, render object type, absolute rect, and key computed-style fields (display/position/width/height/margins/padding); Acceptance: with F1 active, clicking the DDG search input identifies the element and its geometry in the console; Tests: hit-test/inspect unit test where feasible, otherwise manual checklist.
 
 ---
@@ -127,6 +130,9 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-CACHE-1: Tab Resource Eviction + Rehydrate
 - [ ] T-DOM-1: Infinite Scroll DOM Virtualization
 - [ ] T-DOM-2: DOM Budget Failure UX
+- [ ] T-SEC-URL-1: Resource/Asset Origin Firewall
+- [ ] T-HTML-RAWTEXT-1: Script/Style Raw-Text Parsing
+- [ ] T-PERF-STYLE-1: Selector Match Acceleration
 - [ ] T-HIST-1: Visited Link State
 - [ ] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console
 - [ ] T-ARCH-GUARD-2: Clang-UML Diagram Signal Cleanup
