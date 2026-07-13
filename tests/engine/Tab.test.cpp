@@ -606,6 +606,49 @@ TEST(EngineTabTest, SubmitsInputSubmitControlByClick) {
     EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
 }
 
+// DDG-shaped regression: an absolutely-positioned submit button must only
+// capture clicks inside its own box. Nodes kept in the hit-test walk to reach
+// absolute descendants must not resolve for points outside themselves.
+TEST(EngineTabTest, AbsoluteSubmitButtonDoesNotCaptureClicksOutsideItsBox) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <style>
+      form { position: relative; width: 280px; height: 40px; }
+      #submit { position: absolute; top: 0; right: 0; width: 40px; height: 40px; }
+    </style>
+  </head>
+  <body>
+    <form action="/search" method="get">
+      <input name="q" value="saturn">
+      <input id="submit" type="submit" value="S">
+    </form>
+    <p>plain page text far below the form</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    // Clicking empty space well below the form must not submit anything.
+    Hummingbird::Layout::Point outside{150.0f, 180.0f};
+    EXPECT_FALSE(harness.tab().submit_form_at(outside, harness.viewport()).has_value());
+
+    // Clicking the absolute button itself still submits.
+    Hummingbird::Layout::Point on_button{260.0f, 20.0f};
+    auto submitted = harness.tab().submit_form_at(on_button, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=saturn");
+}
+
 TEST(EngineTabTest, SubmitsInputSubmitControlWithFormAttribute) {
     const std::string html = R"HTML(
 <!doctype html>

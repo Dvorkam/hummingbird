@@ -8,6 +8,7 @@
 #include "engine/document/HitTestUtils.h"
 #include "layout/RenderObject.h"
 #include "layout/geometry/GeometryUtils.h"
+#include "layout/geometry/PositioningUtils.h"
 #include "layout/paint/RenderTreeTraversal.h"
 
 namespace Hummingbird::Engine {
@@ -212,10 +213,14 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
     if (!render_tree) return;
 
     Layout::Point offset{0.0f, -scroll_y};
-    Layout::Traversal::traverse_render_tree(
+    // Positioning-aware traversal: absolute boxes carry offsets the plain
+    // parent-relative walk cannot see, and the overlay must land exactly where
+    // the painter drew the control.
+    Layout::Positioning::traverse_render_tree_z_order(
         *render_tree, offset,
         [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& local_offset) {
-            if (viewport.width > 0.0f && viewport.height > 0.0f && !Layout::rect_intersects(absolute, viewport)) {
+            if (viewport.width > 0.0f && viewport.height > 0.0f && !Layout::rect_intersects(absolute, viewport) &&
+                !node.has_absolute_descendant()) {
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
 

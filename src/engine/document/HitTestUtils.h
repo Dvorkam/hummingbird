@@ -37,7 +37,12 @@ std::optional<ResultT> hit_test_z_order(const Layout::RenderObject* render_tree,
             }
             return Layout::Traversal::TraverseAction::Continue;
         },
-        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
+        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+            // Nodes kept in the walk only to reach absolute descendants must not
+            // resolve themselves: only boxes actually under the cursor may hit.
+            if (!Layout::rect_contains_point(absolute, point)) {
+                return Layout::Traversal::TraverseAction::Continue;
+            }
             auto hit = resolve(node);
             if (hit) {
                 result = std::move(*hit);
