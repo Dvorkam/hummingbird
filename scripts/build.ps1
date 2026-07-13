@@ -7,7 +7,10 @@
 param(
     [string]$Config = "Release",
     [string]$Preset = "",
-    [switch]$Configure
+    [switch]$Configure,
+    # Compile-time log level (OFF|ERROR|WARN|INFO|DEBUG). Sticky: persists in the
+    # CMake cache until changed again. Implies -Configure when set.
+    [string]$LogLevel = ""
 )
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
@@ -32,7 +35,10 @@ if ($onWindows -and -not (Get-Command cl -ErrorAction SilentlyContinue)) {
 
 Push-Location $repo
 try {
-    if ($Configure -or -not (Test-Path (Join-Path $repo "build/CMakeCache.txt"))) {
+    if ($LogLevel) {
+        cmake --preset $Preset "-DHB_LOG_LEVEL=$LogLevel"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    } elseif ($Configure -or -not (Test-Path (Join-Path $repo "build/CMakeCache.txt"))) {
         cmake --preset $Preset
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
