@@ -235,10 +235,73 @@ Value Parser::parse_hash_value() {
 
 Value Parser::parse_identifier_value() {
     std::string ident = std::string(advance().lexeme);
+    if (ident == "rgb" || ident == "rgba") {
+        if (auto color = parse_color_function()) {
+            return Value::color_value(*color);
+        }
+        return Value::identifier(std::move(ident));
+    }
     if (auto color = parse_named_color(ident)) {
         return Value::color_value(*color);
     }
     return Value::identifier(std::move(ident));
+}
+
+// Parses the argument list of rgb()/rgba(). The tokenizer drops parentheses,
+// so "rgba(0, 0, 0, .15)" arrives as [0][,][0][,][0][,][.15]. Channels may be
+// fractional (DDG uses rgba(137.5,...)); alpha is 0..1 and scales to 0..255.
+std::optional<Color> Parser::parse_color_function() {
+    auto read_number = [&]() -> std::optional<float> {
+        skip_whitespace_tokens();
+        if (peek().type != TokenType::Number) {
+            return std::nullopt;
+        }
+        std::string text(advance().lexeme);
+        float value = Core::Utils::parse_float(text).value_or(0.0f);
+        if (match(TokenType::Percent)) {
+            value = value * 255.0f / 100.0f;
+        }
+        return value;
+    };
+    auto expect_comma = [&]() {
+        skip_whitespace_tokens();
+        return match(TokenType::Comma);
+    };
+
+    auto r = read_number();
+    if (!r || !expect_comma()) return std::nullopt;
+    auto g = read_number();
+    if (!g || !expect_comma()) return std::nullopt;
+    auto b = read_number();
+    if (!b) return std::nullopt;
+
+    float alpha = 1.0f;
+    skip_whitespace_tokens();
+    if (match(TokenType::Comma)) {
+        skip_whitespace_tokens();
+        if (peek().type != TokenType::Number) {
+            return std::nullopt;
+        }
+        std::string text(advance().lexeme);
+        alpha = Core::Utils::parse_float(text).value_or(1.0f);
+        if (match(TokenType::Percent)) {
+            alpha /= 100.0f;
+        }
+    }
+
+    auto clamp_channel = [](float value) {
+        if (value < 0.0f) value = 0.0f;
+        if (value > 255.0f) value = 255.0f;
+        return static_cast<uint8_t>(value + 0.5f);
+    };
+    Color color;
+    color.r = clamp_channel(*r);
+    color.g = clamp_channel(*g);
+    color.b = clamp_channel(*b);
+    if (alpha < 0.0f) alpha = 0.0f;
+    if (alpha > 1.0f) alpha = 1.0f;
+    color.a = static_cast<uint8_t>(alpha * 255.0f + 0.5f);
+    return color;
 }
 
 Value Parser::parse_number_value() {
@@ -409,6 +472,14 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                         return Property::BorderWidth;
                 }
             };
+            // `border: none` (or `0 none`) removes the border entirely.
+            for (const auto& value : values) {
+                if (value.type == Value::Type::Identifier && value.ident == ValueNames::None) {
+                    push_decl(border_width_property_for(property), Value::length_value(0.0f, Unit::Px));
+                    push_decl(Property::BorderStyle, Value::identifier(std::string(ValueNames::None)));
+                    return true;
+                }
+            }
             std::optional<Value> border_width;
             std::optional<Value> border_style;
             std::optional<Value> border_color;
@@ -602,6 +673,12 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                     continue;
                 }
                 if (value.type == Value::Type::Identifier) {
+                    if (value.ident == ValueNames::None || value.ident == ValueNames::Transparent) {
+                        // `background: none/transparent` clears both color and image.
+                        push_decl(Property::BackgroundColor, value);
+                        push_decl(Property::BackgroundImage, Value::identifier(std::string(ValueNames::None)));
+                        continue;
+                    }
                     if (value.ident == ValueNames::Repeat || value.ident == ValueNames::NoRepeat ||
                         value.ident == ValueNames::RepeatX || value.ident == ValueNames::RepeatY) {
                         push_decl(Property::BackgroundRepeat, value);

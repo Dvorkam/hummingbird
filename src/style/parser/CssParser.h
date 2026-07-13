@@ -35,6 +35,7 @@ private:
     Property parse_property_name(std::string_view name) const;
     Value parse_hash_value();
     Value parse_identifier_value();
+    std::optional<Color> parse_color_function();
     Value parse_number_value();
     std::string parse_font_family_list();
     std::string parse_custom_property_value();

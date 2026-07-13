@@ -69,6 +69,7 @@ static constexpr std::string_view SpaceBetween = "space-between";
 static constexpr std::string_view SpaceAround = "space-around";
 static constexpr std::string_view SpaceEvenly = "space-evenly";
 static constexpr std::string_view Stretch = "stretch";
+static constexpr std::string_view Transparent = "transparent";
 
 static constexpr std::string_view Red = "red";
 static constexpr std::string_view Blue = "blue";

@@ -588,3 +588,70 @@ TEST(CSSParserTest, NestedMediaBlocksIntersectConditions) {
     ASSERT_TRUE(sheet.rules[0].media->max_width.has_value());
     EXPECT_FLOAT_EQ(*sheet.rules[0].media->max_width, 900.0f);
 }
+
+TEST(CSSParserTest, ParsesRgbAndRgbaColorFunctions) {
+    Parser parser(R"(
+        .a { color: rgb(10, 20, 30); }
+        .b { border: 1px solid rgba(0, 0, 0, .15); }
+        .c { background-color: rgba(137.5, 137.5, 137.5, .9); }
+        .d { color: rgba(50%, 100%, 0%, 50%); }
+    )");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 4u);
+
+    const auto& a = sheet.rules[0].declarations;
+    ASSERT_EQ(a.size(), 1u);
+    EXPECT_EQ(a[0].value.type, Value::Type::Color);
+    EXPECT_EQ(a[0].value.color.r, 10);
+    EXPECT_EQ(a[0].value.color.g, 20);
+    EXPECT_EQ(a[0].value.color.b, 30);
+    EXPECT_EQ(a[0].value.color.a, 255);
+
+    // border shorthand: width + style + color; rgba alpha 0.15 -> 38.
+    bool found_border_color = false;
+    for (const auto& decl : sheet.rules[1].declarations) {
+        if (decl.property == Property::BorderColor) {
+            found_border_color = true;
+            EXPECT_EQ(decl.value.color.r, 0);
+            EXPECT_EQ(decl.value.color.a, 38);
+        }
+    }
+    EXPECT_TRUE(found_border_color);
+
+    const auto& c = sheet.rules[2].declarations;
+    ASSERT_EQ(c.size(), 1u);
+    EXPECT_EQ(c[0].value.type, Value::Type::Color);
+    EXPECT_EQ(c[0].value.color.r, 138);  // 137.5 rounds up
+    EXPECT_EQ(c[0].value.color.a, 230);  // 0.9 * 255
+
+    const auto& d = sheet.rules[3].declarations;
+    ASSERT_EQ(d.size(), 1u);
+    EXPECT_EQ(d[0].value.color.r, 128);  // 50%
+    EXPECT_EQ(d[0].value.color.g, 255);
+    EXPECT_EQ(d[0].value.color.a, 128);  // 50% alpha
+}
+
+TEST(CSSParserTest, BorderNoneRemovesBorder) {
+    Parser parser(".a { border: none; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 2u);
+    EXPECT_EQ(decls[0].property, Property::BorderWidth);
+    EXPECT_EQ(decls[0].value.type, Value::Type::Length);
+    EXPECT_FLOAT_EQ(decls[0].value.length.value, 0.0f);
+    EXPECT_EQ(decls[1].property, Property::BorderStyle);
+    EXPECT_EQ(decls[1].value.ident, "none");
+}
+
+TEST(CSSParserTest, BackgroundNoneClearsColorAndImage) {
+    Parser parser(".a { background: none; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 2u);
+    EXPECT_EQ(decls[0].property, Property::BackgroundColor);
+    EXPECT_EQ(decls[0].value.ident, "none");
+    EXPECT_EQ(decls[1].property, Property::BackgroundImage);
+    EXPECT_EQ(decls[1].value.ident, "none");
+}

@@ -105,6 +105,10 @@ Milestone 6 is complete when all items below are true:
 * **[M6 P1] T-SEC-URL-1: Resource/Asset Origin Firewall**; Goal: page-controlled URLs must never reach filesystem APIs (a `//host/...` href probed as a local path is a UNC/SMB request to an attacker-chosen host on Windows — caused the 21s DDG freeze); Scope: restrict the asset-provider probe to internal origins (example.dev / explicit fixture roots), assert URLs are resolved before any provider/filesystem call, reject UNC-shaped paths in AssetPath; Acceptance: real-page URLs (`/x`, `//host/x`, `http(s)://...`) provably never hit the asset loader, regression test covers the UNC shape; Tests: resource loader + asset path tests.
 * **[M6 P2] T-PERF-STYLE-1: Selector Match Acceleration**; Goal: style apply must scale to real-world sheets (seznam.cz: 9,652 rules x 4,778 nodes = 6.9s per apply); Scope: bucket rules by rightmost selector key (id/class/tag/universal) and only test candidate buckets per element; keep cascade order stable; Acceptance: seznam-class page styles in well under 1s per apply with identical computed styles on existing tests; Tests: style tests unchanged + perf smoke.
 * **[M6 P2] T-HTML-RAWTEXT-1: Script/Style Raw-Text Parsing**; Goal: `<script>`/`<style>` content must be tokenized as raw text, not markup (JS strings currently leak into DOM/link discovery and trigger garbage requests like `https://host/' + fallbackUrl + '`); Scope: HtmlTokenizer rawtext mode until matching end tag; Acceptance: markup-looking strings inside scripts produce no elements/resource requests; Tests: parser tests.
+* **[M6 P2] T-CSS-VAR-3: var() For Non-Color Properties**; Goal: resolve custom properties in length/radius contexts (DDG: `border-radius: var(--default-border-radius)`, `max-width: var(--max-content-width)`); Scope: extend var() resolution beyond colors to length-valued properties with fallback support; Acceptance: DDG search box gets its 4px radius and width caps from variables; Tests: style tests.
+* **[M6 P2] T-POS-ABS-1: Absolute Centering With Opposing Insets**; Goal: `position:absolute; top:0; bottom:0; margin:auto` (and left/right analog) must center the box (DDG search button vertical centering); Scope: positioning resolution for auto margins with both insets set; Acceptance: DDG magnifier button centers inside the form; Tests: positioning tests.
+* **[M6 P2] T-MEDIA-RESIZE-1: Re-Evaluate Media Conditions On Resize**; Goal: crossing a breakpoint after window resize must restyle; Scope: trigger style re-apply (not just relayout) when viewport size changes across any rule's media bounds; Acceptance: resizing across 864px toggles DDG's conditional rules; Tests: engine tests.
+* **[M6 P3] T-FONT-FACE-1: @font-face Web Font Loading**; Goal: load author-declared fonts (DDG magnifier is an icon-font glyph from "ddg-serp-icons"); Scope: parse @font-face src url(), fetch via resource pipeline, register with the font cache behind the platform adapter; Acceptance: DDG icon font renders its glyphs instead of missing-glyph boxes; Tests: style/resource tests + manual.
 * **[M6 P2] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console**; Goal: make F1 debugging actionable on real pages (plain outlines are unlabeled and hard to attribute); Scope: while debug outlines are enabled, clicking an element prints to the console (not the screen, to avoid cluttering the render): tag/id/classes, render object type, absolute rect, and key computed-style fields (display/position/width/height/margins/padding); Acceptance: with F1 active, clicking the DDG search input identifies the element and its geometry in the console; Tests: hit-test/inspect unit test where feasible, otherwise manual checklist.
 
 ---
@@ -133,6 +137,10 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-SEC-URL-1: Resource/Asset Origin Firewall
 - [ ] T-HTML-RAWTEXT-1: Script/Style Raw-Text Parsing
 - [ ] T-PERF-STYLE-1: Selector Match Acceleration
+- [ ] T-CSS-VAR-3: var() For Non-Color Properties
+- [ ] T-POS-ABS-1: Absolute Centering With Opposing Insets
+- [ ] T-MEDIA-RESIZE-1: Re-Evaluate Media Conditions On Resize
+- [ ] T-FONT-FACE-1: @font-face Web Font Loading
 - [ ] T-HIST-1: Visited Link State
 - [ ] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console
 - [ ] T-ARCH-GUARD-2: Clang-UML Diagram Signal Cleanup

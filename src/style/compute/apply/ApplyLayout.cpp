@@ -172,7 +172,9 @@ void apply_margin_value(float& target, bool& auto_flag, const Value& value, floa
 
 void apply_border_style(ComputedStyle& style, const Value& value) {
     if (value.type != Value::Type::Identifier) return;
-    if (value.ident == ValueNames::Solid) {
+    if (value.ident == ValueNames::None) {
+        style.border_style = ComputedStyle::BorderStyle::None;
+    } else if (value.ident == ValueNames::Solid) {
         style.border_style = ComputedStyle::BorderStyle::Solid;
     } else if (value.ident == ValueNames::Outset) {
         style.border_style = ComputedStyle::BorderStyle::Outset;

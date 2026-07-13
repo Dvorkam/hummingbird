@@ -15,6 +15,11 @@ void apply_background_color_value(const Value& value, ComputedStyle& style, Styl
         style.background = value.color;
         overrides.background = true;
     } else if (value.type == Value::Type::Identifier) {
+        if (value.ident == ValueNames::None || value.ident == ValueNames::Transparent) {
+            style.background.reset();
+            overrides.background = true;
+            return;
+        }
         if (auto resolved = resolve_var_color(style, parent_style, value.ident)) {
             style.background = *resolved;
             overrides.background = true;
