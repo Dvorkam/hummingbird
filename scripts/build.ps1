@@ -33,6 +33,15 @@ if ($onWindows -and -not (Get-Command cl -ErrorAction SilentlyContinue)) {
     Enter-VsDevShell -VsInstallPath $vsPath -Arch amd64 -SkipAutomaticLocation 2>$null | Out-Null
 }
 
+# A running Hummingbird locks the exe and the link step fails half-visibly,
+# leaving a stale binary that no longer matches the sources. Fail loudly.
+$exe = Join-Path $repo "build/Release/Hummingbird.exe"
+$running = Get-Process -Name "Hummingbird" -ErrorAction SilentlyContinue
+if ($running) {
+    Write-Error "Hummingbird.exe is running (PID $($running.Id -join ', ')). Close it before building, or the new binary cannot be written."
+    exit 1
+}
+
 Push-Location $repo
 try {
     if ($LogLevel) {
