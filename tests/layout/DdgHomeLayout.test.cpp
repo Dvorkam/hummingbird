@@ -130,4 +130,28 @@ TEST(DdgHomeLayoutTest, HomepageSearchBlockIsOnScreenAndCentered) {
     // And the group is not degenerate or full-bleed.
     EXPECT_GT(group_right - group_left, 200.0f);
     EXPECT_LT(group_right - group_left, 1024.0f);
+
+    // The duck logo is a CSS background image on a.logo_homepage; regression
+    // guard for `background: ..., linear-gradient(transparent, transparent)`
+    // wiping the image layer.
+    AbsoluteBox logo_anchor = find_by_class(render_root.get(), "logo_homepage");
+    ASSERT_NE(logo_anchor.box, nullptr);
+    const auto* logo_style = logo_anchor.box->get_computed_style();
+    ASSERT_NE(logo_style, nullptr);
+    ASSERT_TRUE(logo_style->background_image.has_value()) << "logo background image was cleared";
+    EXPECT_NE(logo_style->background_image->find("logo_homepage"), std::string::npos);
+    EXPECT_GT(logo_anchor.rect.width, 100.0f);
+    EXPECT_GT(logo_anchor.rect.height, 100.0f);
+
+    // Search form anatomy: the input must be tall enough to click (its CSS
+    // height is ~2.5em) and the submit button must not blanket the page.
+    AbsoluteBox input = find_by_class(render_root.get(), "search__input");
+    AbsoluteBox button = find_by_class(render_root.get(), "search__button");
+    ASSERT_NE(input.box, nullptr);
+    ASSERT_NE(button.box, nullptr);
+    EXPECT_GT(input.rect.height, 30.0f) << "search input collapsed to a sliver";
+    EXPECT_LT(input.rect.height, 80.0f);
+    EXPECT_GT(input.rect.width, 300.0f);
+    EXPECT_LT(button.rect.width, 120.0f) << "submit button hit-box is oversized";
+    EXPECT_LT(button.rect.height, 120.0f);
 }

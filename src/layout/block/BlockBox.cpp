@@ -145,6 +145,14 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     float content_bottom = std::max(cursor.y, max_float_bottom);
     m_rect.height = content_bottom + metrics.insets.bottom;
 
+    // Explicit height wins over content height (content may overflow, per CSS).
+    if (style && style->height.has_value()) {
+        if (auto target = resolve_height_constraint(style, *style->height, style->height_is_percent, bounds.height,
+                                                    metrics.insets)) {
+            m_rect.height = *target;
+        }
+    }
+
     if (style) {
         if (style->min_height.has_value()) {
             if (auto target = resolve_height_constraint(style, *style->min_height, style->min_height_is_percent,
@@ -163,6 +171,9 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
             }
         }
     }
+
+    // Inputs styled as display:block still need an editable content box.
+    enforce_min_input_content_box(*this, metrics.insets);
 }
 
 void InlineBlockBox::reset_inline_layout() {

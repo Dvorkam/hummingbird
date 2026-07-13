@@ -673,10 +673,17 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                     continue;
                 }
                 if (value.type == Value::Type::Identifier) {
-                    if (value.ident == ValueNames::None || value.ident == ValueNames::Transparent) {
-                        // `background: none/transparent` clears both color and image.
+                    if (value.ident == ValueNames::None) {
+                        // `background: none` clears both color and image.
                         push_decl(Property::BackgroundColor, value);
                         push_decl(Property::BackgroundImage, Value::identifier(std::string(ValueNames::None)));
+                        continue;
+                    }
+                    if (value.ident == ValueNames::Transparent) {
+                        // `transparent` is a color layer only; it must never clear an
+                        // image from the same shorthand (e.g. "url(x), linear-gradient
+                        // (transparent, transparent)" keeps the url layer).
+                        push_decl(Property::BackgroundColor, value);
                         continue;
                     }
                     if (value.ident == ValueNames::Repeat || value.ident == ValueNames::NoRepeat ||
