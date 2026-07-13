@@ -102,6 +102,7 @@ Milestone 6 is complete when all items below are true:
 ### 6.6 - Polish
 
 * **[M6 P1] T-HIST-1: Visited Link State**; Goal: track visited URLs and apply `vlink` colors appropriately; Scope: history store + style resolution; Acceptance: visited anchors render with `vlink`/`:visited` color; Tests: engine/style tests.
+* **[M6 P2] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console**; Goal: make F1 debugging actionable on real pages (plain outlines are unlabeled and hard to attribute); Scope: while debug outlines are enabled, clicking an element prints to the console (not the screen, to avoid cluttering the render): tag/id/classes, render object type, absolute rect, and key computed-style fields (display/position/width/height/margins/padding); Acceptance: with F1 active, clicking the DDG search input identifies the element and its geometry in the console; Tests: hit-test/inspect unit test where feasible, otherwise manual checklist.
 
 ---
 
@@ -127,6 +128,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-DOM-1: Infinite Scroll DOM Virtualization
 - [ ] T-DOM-2: DOM Budget Failure UX
 - [ ] T-HIST-1: Visited Link State
+- [ ] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console
 - [ ] T-ARCH-GUARD-2: Clang-UML Diagram Signal Cleanup
 
 P2: Only if Schedule Allows
