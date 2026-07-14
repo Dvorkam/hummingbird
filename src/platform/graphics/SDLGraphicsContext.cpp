@@ -21,9 +21,9 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <functional>
 #include <ostream>
-#include <span>
 #include <vector>
 
 #include "core/platform_api/IImageDecoder.h"
@@ -100,11 +100,28 @@ SDL_Texture* build_text_texture(SDL_Renderer* renderer, const std::string& text,
 
     BLImageData imgData;
     img.getData(&imgData);
-    std::span<const uint8_t> pixels{static_cast<const uint8_t*>(imgData.pixelData),
-                                    static_cast<size_t>(imgData.stride) * static_cast<size_t>(target_height)};
+
+    // Blend2D renders premultiplied alpha (PRGB32), but SDL_BLENDMODE_BLEND
+    // expects straight alpha and multiplies by alpha again at composite time.
+    // That second multiply darkens every antialiased edge pixel, leaving a
+    // dark fringe around glyphs. Unpremultiply on the CPU: it works on every
+    // SDL backend (custom blend modes do not), and the resulting texture is
+    // cached, so this pass runs once per cache entry.
+    std::vector<uint8_t> pixels(static_cast<size_t>(imgData.stride) * static_cast<size_t>(target_height));
+    std::memcpy(pixels.data(), imgData.pixelData, pixels.size());
+    for (int row = 0; row < target_height; ++row) {
+        uint8_t* px = pixels.data() + static_cast<size_t>(row) * static_cast<size_t>(imgData.stride);
+        for (int col = 0; col < target_width; ++col, px += 4) {
+            const uint8_t alpha = px[3];
+            if (alpha == 0 || alpha == 255) continue;
+            px[0] = static_cast<uint8_t>((px[0] * 255 + alpha / 2) / alpha);
+            px[1] = static_cast<uint8_t>((px[1] * 255 + alpha / 2) / alpha);
+            px[2] = static_cast<uint8_t>((px[2] * 255 + alpha / 2) / alpha);
+        }
+    }
 
     SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(
-        const_cast<uint8_t*>(pixels.data()), target_width, target_height, 32, imgData.stride, SDL_PIXELFORMAT_BGRA32);
+        pixels.data(), target_width, target_height, 32, imgData.stride, SDL_PIXELFORMAT_BGRA32);
     if (!surface) {
         HB_LOG_ERROR("[platform] Failed to create SDL_Surface from BLImage");
         return nullptr;

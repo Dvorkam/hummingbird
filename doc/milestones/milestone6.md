@@ -115,6 +115,7 @@ Milestone 6 is complete when all items below are true:
 * **[M6 P2] T-CSS-SIBLING-1: Sibling Combinators (`~`, `+`)**; Goal: support general/adjacent sibling combinators in selector matching (DDG: `.search__input:focus~.search__button { background-color:#5b9e4d }` turns the magnifier green while the input is focused); Scope: CssParser combinator parsing + StyleEngine sibling traversal during matching; Acceptance: focusing the DDG input turns the search button green; Tests: style tests.
 * **[M6 P2] T-MEDIA-RESIZE-1: Re-Evaluate Media Conditions On Resize**; Goal: crossing a breakpoint after window resize must restyle; Scope: trigger style re-apply (not just relayout) when viewport size changes across any rule's media bounds; Acceptance: resizing across 864px toggles DDG's conditional rules; Tests: engine tests.
 * **[M6 P3] T-FONT-FACE-1: @font-face Web Font Loading**; Goal: load author-declared fonts (DDG magnifier is an icon-font glyph from "ddg-serp-icons"); Scope: parse @font-face src url(), fetch via resource pipeline, register with the font cache behind the platform adapter; Acceptance: DDG icon font renders its glyphs instead of missing-glyph boxes; Tests: style/resource tests + manual.
+* **[M6 P3] T-SVG-RASTER-1: Rasterize SVG At Display Size**; Goal: crisp vector images at any rendered size (DDG logo wordmark shows nearest-neighbor artifacts); Scope: SvgImageDecoder rasterizes at the SVG's intrinsic size and the bitmap is then GPU-scaled to the CSS box — plumb the display size (background-size / img box) to the decoder or re-rasterize on first draw at target size; consider SDL_HINT_RENDER_SCALE_QUALITY linear filtering as an interim; Acceptance: DDG logo text renders without stair-step artifacts at the homepage's display size; Tests: decoder tests + manual.
 * **[M6 P2] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console**; Goal: make F1 debugging actionable on real pages (plain outlines are unlabeled and hard to attribute); Scope: while debug outlines are enabled, clicking an element prints to the console (not the screen, to avoid cluttering the render): tag/id/classes, render object type, absolute rect, and key computed-style fields (display/position/width/height/margins/padding); Acceptance: with F1 active, clicking the DDG search input identifies the element and its geometry in the console; Tests: hit-test/inspect unit test where feasible, otherwise manual checklist.
 
 ---
@@ -153,6 +154,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [x] T-POS-ABS-1: Absolute Centering With Opposing Insets (auto-margin centering AND auto-size stretch between top+bottom / left+right; DDG magnifier fills the search box)
 - [ ] T-MEDIA-RESIZE-1: Re-Evaluate Media Conditions On Resize
 - [ ] T-FONT-FACE-1: @font-face Web Font Loading
+- [ ] T-SVG-RASTER-1: Rasterize SVG At Display Size (deferred; DDG logo wordmark scaling artifacts)
 - [ ] T-HIST-1: Visited Link State
 - [ ] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console
 - [ ] T-ARCH-GUARD-2: Clang-UML Diagram Signal Cleanup
