@@ -34,6 +34,17 @@ void DocumentModel::reset() {
     stylesheet_links_.clear();
     image_links_.clear();
     background_image_links_.clear();
+    media_conditions_.clear();
+    applied_media_ = {};
+}
+
+bool DocumentModel::media_conditions_change(const Css::MediaContext& media) const {
+    for (const auto& condition : media_conditions_) {
+        if (media_condition_matches(condition, applied_media_) != media_condition_matches(condition, media)) {
+            return true;
+        }
+    }
+    return false;
 }
 
 DocumentModel::ParseResult DocumentModel::parse_html(std::string_view html) {
@@ -72,6 +83,17 @@ void DocumentModel::apply_styles(const std::string& css, const Css::MediaContext
     const auto css_parse_end = Core::Clock::now();
     HB_LOG_INFO("[perf] css parse ms=" << Core::duration_ms(css_parse_start, css_parse_end)
                                        << " rules=" << stylesheet.rules.size());
+
+    // Remember every media condition and the viewport it was evaluated
+    // against, so a later resize can tell whether any rule would flip
+    // (T-MEDIA-RESIZE-1).
+    media_conditions_.clear();
+    for (const auto& rule : stylesheet.rules) {
+        if (rule.media) {
+            media_conditions_.push_back(*rule.media);
+        }
+    }
+    applied_media_ = media;
 
     const auto style_start = Core::Clock::now();
     style_engine_.apply(stylesheet, dom_tree_.get(), media);

@@ -89,6 +89,10 @@ bool DocumentPipeline::update_image_resources(std::string_view base_url) {
     return style_coordinator_->update_image_resources(base_url);
 }
 
+bool DocumentPipeline::needs_restyle_for_viewport(const Layout::Rect& viewport) const {
+    return model_->media_conditions_change({viewport.width, viewport.height});
+}
+
 void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     renderer_->relayout(graphics, viewport);
     if (relayout_debug_enabled()) {

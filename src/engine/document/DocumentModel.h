@@ -32,6 +32,9 @@ public:
     void reset();
     ParseResult parse_html(std::string_view html);
     void apply_styles(const std::string& css, const Css::MediaContext& media = {});
+    // True when any @media rule matches differently under `media` than under
+    // the context styles were last applied with (a breakpoint was crossed).
+    bool media_conditions_change(const Css::MediaContext& media) const;
     bool build_render_tree();
     std::optional<FormSubmission> build_form_submission(const DOM::Element& input, std::string_view base_url) const;
 
@@ -59,6 +62,9 @@ private:
     Core::ArenaAllocator dom_arena_{kDomArenaBlockSize, kDomArenaMaxBlocks};
     Core::ArenaPtr<DOM::Node> dom_tree_;
     std::unique_ptr<Layout::RenderObject> render_tree_;
+
+    std::vector<Css::MediaCondition> media_conditions_;
+    Css::MediaContext applied_media_;
 
     std::vector<std::string> style_blocks_;
     std::vector<std::string> script_blocks_;

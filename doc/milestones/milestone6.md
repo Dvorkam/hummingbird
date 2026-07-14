@@ -136,7 +136,7 @@ P0: Guardrails (North Star)
 P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-CSS-COMPAT-ALIAS-1: Vendor Prefix Alias Layer
 - [ ] T-CSS-MISC-LEGACY-1: Legacy Property Compatibility Slice
-- [ ] T-CSS-INHERIT-1: `inherit` Keyword Support
+- [x] T-CSS-INHERIT-1: `inherit` Keyword Support (winning `inherit` declaration defers to the parent pass; `font-family: inherit` no longer warns; non-inherited props fall to initial)
 - [x] T-CSS-BG-SHORTHAND-SIZE-1: `background` Shorthand `position/size` Syntax (slash token + shorthand split; DDG logo centers)
 - [ ] T-CSS-CALC-1: `calc()` Length Expressions
 - [ ] T-PERF-5: Batch Resource Updates
@@ -150,9 +150,9 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [x] T-FORM-HIT-2: Clicks Outside Submit Controls Must Not Submit (hit-test containment fix)
 - [x] T-CSS-IMPORTANT-1: !important Support (importance tier above specificity in the cascade; shorthand expansion carries the flag; dark-mode extension rules now win their fights)
 - [x] T-CSS-SIBLING-1: Sibling Combinators (`~`, `+`) (DDG magnifier turns green on input focus; element-sibling traversal skips text nodes)
-- [ ] T-CSS-VAR-3: var() For Non-Color Properties
+- [x] T-CSS-VAR-3: var() For Non-Color Properties (generic apply-time substitution; whole-value fallback support; var terms inside border-radius lists; DDG radius + max-width from variables)
 - [x] T-POS-ABS-1: Absolute Centering With Opposing Insets (auto-margin centering AND auto-size stretch between top+bottom / left+right; DDG magnifier fills the search box)
-- [ ] T-MEDIA-RESIZE-1: Re-Evaluate Media Conditions On Resize
+- [x] T-MEDIA-RESIZE-1: Re-Evaluate Media Conditions On Resize (model tracks applied media conditions; resize across any rule's bounds triggers a full restyle instead of plain relayout)
 - [ ] T-FONT-FACE-1: @font-face Web Font Loading
 - [ ] T-SVG-RASTER-1: Rasterize SVG At Display Size (deferred; DDG logo wordmark scaling artifacts)
 - [ ] T-HIST-1: Visited Link State

@@ -73,6 +73,9 @@ public:
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool rebuild_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool update_image_resources(std::string_view base_url);
+    // True when the new viewport flips any @media rule vs. the last style
+    // application — the caller must restyle, a plain relayout is not enough.
+    bool needs_restyle_for_viewport(const Layout::Rect& viewport) const;
     void relayout(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void paint(IGraphicsContext& graphics, const PaintContext& context);
     void paint_controls(IGraphicsContext& graphics, const PaintContext& context, bool repaint_background);

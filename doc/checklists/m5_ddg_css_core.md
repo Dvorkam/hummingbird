@@ -28,7 +28,8 @@ or the paint path, and before tagging a release. The pinned snapshot lives in
 - [ ] Nothing hangs off the **left edge** (the pre-flex failure mode).
 - [ ] The **search input** is a clickable bar (height ~30–80px, width > 300px), not a collapsed sliver.
 - [ ] The **submit button** is a small control next to the input, not an oversized box blanketing the page.
-- [ ] The input's rounded corners / border look like a real control (no square seams).
+- [ ] The input's rounded corners / border look like a real control (no square seams); the 4px radius and width cap come from CSS variables (T-CSS-VAR-3).
+- [ ] Resizing the window across ~864px width toggles DDG's desktop/mobile conditional layout without a reload (T-MEDIA-RESIZE-1).
 
 ## Interaction — focus / type / submit
 
@@ -48,8 +49,6 @@ or the paint path, and before tagging a release. The pinned snapshot lives in
 Each already has a story; note the ticket if the symptom regresses further.
 
 - [ ] Magnifier icon glyph missing (icon font) — **T-FONT-FACE-1** (`@font-face`).
-- [ ] Corner radius / max-width driven by `var()` fall back to defaults — **T-CSS-VAR-3**.
-- [ ] `font-family: inherit` logs a warning and falls back to Roboto — **T-CSS-INHERIT-1**.
 - [ ] `calc()` sizes fall back / are ignored — **T-CSS-CALC-1**.
 - [ ] Hover/focus transitions do not animate — **T-ANIM-1** (static-only, P2).
 

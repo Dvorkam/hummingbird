@@ -86,6 +86,49 @@ TEST(DocumentPipelineTest, DispatchesLoadHandler) {
     EXPECT_TRUE(result.mutated);
 }
 
+TEST(DocumentPipelineTest, DetectsMediaBreakpointCrossOnResize) {
+    // DDG gates its desktop layout behind (min-width: 864px)-style rules;
+    // resizing across such a bound must trigger a restyle (T-MEDIA-RESIZE-1).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <style>
+      body { margin: 0; }
+      @media (min-width: 864px) {
+        body { margin: 8px; }
+      }
+    </style>
+  </head>
+  <body><p>hi</p></body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    TestGraphicsContext graphics;
+    Rect narrow{0, 0, 800, 600};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, narrow, "https://example.dev");
+
+    // Same side of the breakpoint: relayout is enough.
+    EXPECT_FALSE(pipeline.needs_restyle_for_viewport({0, 0, 820, 600}));
+    // Crossing 864px flips the rule: restyle required.
+    EXPECT_TRUE(pipeline.needs_restyle_for_viewport({0, 0, 1024, 768}));
+
+    // After restyling at the wide viewport, staying wide needs no restyle
+    // but shrinking back across the bound does.
+    pipeline.apply_styles_and_layout(graphics, {0, 0, 1024, 768}, "https://example.dev");
+    EXPECT_FALSE(pipeline.needs_restyle_for_viewport({0, 0, 900, 700}));
+    EXPECT_TRUE(pipeline.needs_restyle_for_viewport(narrow));
+}
+
 TEST(DocumentPipelineTest, DispatchesClickHandler) {
     const std::string html = R"HTML(
 <!doctype html>

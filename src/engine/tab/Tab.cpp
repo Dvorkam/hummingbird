@@ -116,8 +116,14 @@ void Tab::apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout
 void Tab::relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (document_pipeline_->has_render_tree()) {
         if (layout_state_.viewport_changed(viewport)) {
-            document_pipeline_->relayout(graphics, viewport);
-            update_layout_state(viewport, "tick:viewport_changed");
+            if (document_pipeline_->needs_restyle_for_viewport(viewport)) {
+                // Crossing a @media breakpoint changes which rules apply;
+                // a plain relayout would keep the old styles (T-MEDIA-RESIZE-1).
+                (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:viewport_breakpoint");
+            } else {
+                document_pipeline_->relayout(graphics, viewport);
+                update_layout_state(viewport, "tick:viewport_changed");
+            }
             mark_dirty("viewport_changed");
         }
     }
