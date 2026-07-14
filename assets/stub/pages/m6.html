@@ -69,6 +69,8 @@
                     background-position: center; }
       .bs-100 { background-size: 100%; }
       .bs-contain { background-size: contain; }
+      /* Shorthand position/size syntax: `center/100%`. */
+      .bs-shorthand { background: url(assets/logos/hummingbird.svg) no-repeat center/100%; }
       .chrome-row { display: flex; flex-direction: row; align-items: center; }
       .swatch { width: 96px; height: 64px; margin: 6px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
                 color: #1d2433; font-size: 12px; text-align: center; }
@@ -216,11 +218,13 @@
         <div class="bgsize-row">
           <div class="bgsize-box bs-100"></div>
           <div class="bgsize-box bs-contain"></div>
+          <div class="bgsize-box bs-shorthand"></div>
         </div>
-        <p class="note">Both boxes show the logo at its correct proportions &mdash; <code>background-size: 100%</code>
-        (left) scales the image to the box width preserving aspect ratio, <code>contain</code> (right) fits it inside.
-        This is the fix behind DDG's round duck logo: <code>100%</code> was previously read as <code>100px</code>,
-        squishing the image into an ellipse.</p>
+        <p class="note">All three boxes show the logo at its correct proportions &mdash; <code>background-size: 100%</code>
+        (left) scales the image to the box width preserving aspect ratio, <code>contain</code> (middle) fits it inside,
+        and the <code>background: … center/100%</code> shorthand (right) parses the <code>/size</code> syntax so
+        <code>100%</code> sets the size instead of leaking into the position. This is the fix behind DDG's round,
+        centered duck logo.</p>
       </div>
 
       <div class="section">

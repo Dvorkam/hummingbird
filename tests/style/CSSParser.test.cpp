@@ -685,3 +685,46 @@ TEST(CSSParserTest, BackgroundNoneClearsColorAndImage) {
     EXPECT_EQ(decls[1].property, Property::BackgroundImage);
     EXPECT_EQ(decls[1].value.ident, "none");
 }
+
+TEST(CSSParserTest, BackgroundShorthandSlashSizeGoesToSizeNotPosition) {
+    // DDG logo: `center/100%` -> position=center, size=100%. The 100% must land
+    // on background-size, not leak into background-position.
+    Parser parser(".a { background: no-repeat center/100% url(logo.svg); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+
+    bool saw_position = false;
+    bool saw_size = false;
+    for (const auto& decl : decls) {
+        if (decl.property == Property::BackgroundPosition) {
+            saw_position = true;
+            EXPECT_EQ(decl.value.ident, "center");  // no stray "100%"
+        }
+        if (decl.property == Property::BackgroundSize) {
+            saw_size = true;
+            EXPECT_NE(decl.value.ident.find("100"), std::string::npos);
+            EXPECT_NE(decl.value.ident.find('%'), std::string::npos);
+        }
+    }
+    EXPECT_TRUE(saw_position);
+    EXPECT_TRUE(saw_size);
+}
+
+TEST(CSSParserTest, FontShorthandSlashLineHeightDoesNotLeakToFamily) {
+    // `16px/1.5` -> font-size 16px, line-height 1.5; the "/" must not become a
+    // font-family token.
+    Parser parser(".a { font: 16px/1.5 sans-serif; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+
+    for (const auto& decl : decls) {
+        if (decl.property == Property::FontFamily) {
+            EXPECT_EQ(decl.value.ident.find('/'), std::string::npos) << "family was: " << decl.value.ident;
+        }
+        if (decl.property == Property::LineHeight) {
+            EXPECT_FLOAT_EQ(decl.value.number, 1.5f);
+        }
+    }
+}

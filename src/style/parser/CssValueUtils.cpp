@@ -35,6 +35,10 @@ std::string value_to_text(const Value& value) {
 std::string join_value_list(const std::vector<Value>& list) {
     std::string out;
     for (const auto& value : list) {
+        // The `/` separator marker (see parse_value_list) is structural, not text.
+        if (value.type == Value::Type::Identifier && value.ident == "/") {
+            continue;
+        }
         std::string piece = value_to_text(value);
         if (piece.empty()) {
             continue;

@@ -172,6 +172,9 @@ bool Tokenizer::consume_simple_token(std::vector<Token>& tokens) {
         case '@':
             tokens.push_back(emit_single(TokenType::At, "@"));
             return true;
+        case '/':
+            tokens.push_back(emit_single(TokenType::Slash, "/"));
+            return true;
         default:
             return false;
     }

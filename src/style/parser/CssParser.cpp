@@ -193,6 +193,13 @@ std::vector<Value> Parser::parse_value_list() {
                 break;
             }
         }
+        // Preserve `/` as a marker so shorthands can split on it (the
+        // `background` position/size and `font` size/line-height separator).
+        if (peek().type == TokenType::Slash) {
+            values.push_back(Value::identifier("/"));
+            advance();
+            continue;
+        }
         if (peek().type == TokenType::Hash || peek().type == TokenType::Identifier ||
             peek().type == TokenType::Number || peek().type == TokenType::Url) {
             values.push_back(parse_value());
@@ -542,6 +549,11 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
 
             bool after_size = false;
             for (const auto& value : values) {
+                // The `/` between font-size and line-height is a separator, not
+                // a family token.
+                if (value.type == Value::Type::Identifier && value.ident == "/") {
+                    continue;
+                }
                 if (!after_size) {
                     if (value.type == Value::Type::Identifier &&
                         (value.ident == ValueNames::Italic || value.ident == ValueNames::Normal)) {
@@ -690,7 +702,14 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             }
 
             std::vector<Value> position_values;
+            std::vector<Value> size_values;
+            // In `<position> / <size>`, everything after the slash is the size.
+            bool after_slash = false;
             for (const auto& value : values) {
+                if (value.type == Value::Type::Identifier && value.ident == "/") {
+                    after_slash = true;
+                    continue;
+                }
                 if (value.type == Value::Type::Color) {
                     push_decl(Property::BackgroundColor, value);
                     continue;
@@ -718,26 +737,35 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
                         push_decl(Property::BackgroundRepeat, value);
                         continue;
                     }
-                    if (value.ident == ValueNames::Cover || value.ident == ValueNames::Contain ||
-                        value.ident == ValueNames::Auto) {
+                    if (value.ident == ValueNames::Cover || value.ident == ValueNames::Contain) {
                         push_decl(Property::BackgroundSize, value);
+                        continue;
+                    }
+                    if (value.ident == ValueNames::Auto) {
+                        (after_slash ? size_values : position_values).push_back(value);
                         continue;
                     }
                     if (value.ident == ValueNames::Left || value.ident == ValueNames::Right ||
                         value.ident == ValueNames::Center || value.ident == ValueNames::Top ||
                         value.ident == ValueNames::Bottom) {
-                        position_values.push_back(value);
+                        (after_slash ? size_values : position_values).push_back(value);
                         continue;
                     }
                 }
                 if (value.type == Value::Type::Length || value.type == Value::Type::Number) {
-                    position_values.push_back(value);
+                    (after_slash ? size_values : position_values).push_back(value);
                 }
             }
             if (!position_values.empty()) {
                 std::string position_text = join_value_list(position_values);
                 if (!position_text.empty()) {
                     push_decl(Property::BackgroundPosition, Value::identifier(std::move(position_text)));
+                }
+            }
+            if (!size_values.empty()) {
+                std::string size_text = join_value_list(size_values);
+                if (!size_text.empty()) {
+                    push_decl(Property::BackgroundSize, Value::identifier(std::move(size_text)));
                 }
             }
             return true;

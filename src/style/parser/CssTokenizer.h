@@ -23,6 +23,7 @@ enum class TokenType {
     Greater,
     Percent,
     At,
+    Slash,
     Url,
     End,
 };

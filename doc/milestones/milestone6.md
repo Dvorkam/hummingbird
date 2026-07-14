@@ -80,6 +80,7 @@ Milestone 6 is complete when all items below are true:
 * **[M6 P2] T-CSS-COMPAT-ALIAS-1: Vendor Prefix Alias Layer**; Goal: reduce noisy unsupported-property fallout for legacy CSS; Scope: alias common prefixed properties to supported canonical forms where behavior is equivalent (`-webkit-user-select`, `-moz-appearance`, `-webkit-tap-highlight-color`, etc.) and silently ignore purely cosmetic no-op aliases; Acceptance: warning noise drops on DDG-like pages without behavioral regressions; Tests: parser alias tests.
 * **[M6 P2] T-CSS-MISC-LEGACY-1: Legacy Property Compatibility Slice**; Goal: close remaining DDG visual deltas not covered by flex/border work; Scope: targeted support for `text-shadow`, `visibility`, `pointer-events`, and legacy `clip` usage required by DDG assets/icons; Acceptance: DDG search icon/control visuals and hit behavior align with reference browser; Tests: style/layout interaction regressions.
 * **[M6 P2] T-CSS-INHERIT-1: `inherit` Keyword Support**; Goal: honor the CSS-wide `inherit` keyword instead of mis-parsing it (DDG: `.search__input { font-family: inherit }` currently logs "Unsupported font family list 'inherit'" and falls back to Roboto rather than taking the parent's value); Scope: detect an `inherit` declaration value in the apply pipeline and copy the parent's computed value for that property (parent style is already threaded through `apply_properties_to_style`); start with the inherited text/font properties that DDG uses; Acceptance: `font-family: inherit` (and `color: inherit`) resolve to the parent's value with no warning; Tests: style tests. *(Filed while completing T-DDG-CSS-CORE-2.)*
+* **[M6 P2] T-CSS-BG-SHORTHAND-SIZE-1: `background` Shorthand `position/size` Syntax**; Goal: honor the `<position> / <size>` form in the `background` shorthand (DDG logo: `background: no-repeat center/100% url(...)`); currently the tokenizer drops `/` and the size value (`100%`) leaks into `background-position`, shifting the DDG logo off-centre and clipping the baked-in "DuckDuckGo" wordmark; Scope: emit a slash token, split the shorthand at `/` so values after it apply to `background-size` (not position); Acceptance: the DDG logo centres correctly and shows the full SVG (duck + wordmark); Tests: parser + a background-position/size regression. *(Filed after T-DDG-CSS-CORE-2: the logo shape was fixed by percentage background-size, but position/wordmark trace to this.)*
 * **[M6 P3] T-CSS-CALC-1: `calc()` Length Expressions**; Goal: resolve simple `calc()` length expressions (DDG uses `calc()` in ~10 declarations for sizing); Scope: parse `calc(a +/- b)` with px/%/em terms and evaluate against the resolution reference at apply time; no nested/multiplication support required initially; Acceptance: a `width: calc(100% - 20px)` resolves correctly; Tests: parser/style tests. *(Filed while completing T-DDG-CSS-CORE-2.)*
 * **[M6 P2] T-ANIM-1: transition + transform (static)**; Goal: parse/apply transforms without timing engine; Scope: style + paint; Acceptance: transform affects paint matrix; Tests: renderer tests.
 
@@ -125,7 +126,7 @@ P0: Layout Compatibility (North Star)
 - [x] T-DDG-LAYOUT-1: Flex Alignment Coverage For Real Pages (flex-wrap + wrap-reverse + baseline)
 - [x] T-CSS-CLEAR-1: Float Clear Property
 - [x] T-CSS-BORDER-COMPAT-1: Border Longhands And Corner Radius Longhands (per-corner radius + per-side color + vendor aliases)
-- [ ] T-DDG-CSS-CORE-2: DDG CSS Compatibility Carryover
+- [x] T-DDG-CSS-CORE-2: DDG CSS Compatibility Carryover (centered round logo + no overlap; residual deltas filed as their own stories)
 
 P0: Guardrails (North Star)
 - [x] T-DDG-E2E-1: Real DDG HTML Snapshot Regression Harness (layout guard + focus/type/submit/navigate flow, in CI)
@@ -135,6 +136,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-CSS-COMPAT-ALIAS-1: Vendor Prefix Alias Layer
 - [ ] T-CSS-MISC-LEGACY-1: Legacy Property Compatibility Slice
 - [ ] T-CSS-INHERIT-1: `inherit` Keyword Support
+- [ ] T-CSS-BG-SHORTHAND-SIZE-1: `background` Shorthand `position/size` Syntax
 - [ ] T-CSS-CALC-1: `calc()` Length Expressions
 - [ ] T-PERF-5: Batch Resource Updates
 - [ ] T-PERF-4: Offscreen Raster Cache + Layer Invalidation
