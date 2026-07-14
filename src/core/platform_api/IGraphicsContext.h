@@ -50,6 +50,13 @@ public:
     virtual void set_global_alpha(float /*alpha*/) {}
     virtual void set_text_cache_owner(std::uint64_t /*owner_id*/) {}
 
+    // Restrict subsequent drawing to the intersection of `rect` with the current
+    // clip, until the matching pop_clip(). Implementations without clipping
+    // ignore both (drawing is simply not clipped). Used for background-clip and,
+    // later, overflow:hidden.
+    virtual void push_clip(const Hummingbird::Geometry::Rect& /*rect*/) {}
+    virtual void pop_clip() {}
+
     // Optional document cache hooks for partial redraws.
     virtual bool begin_document_cache(const Hummingbird::Geometry::Rect& /*viewport*/) { return false; }
     virtual void end_document_cache() {}

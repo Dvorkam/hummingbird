@@ -297,8 +297,14 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
         return;
     }
 
+    // Background painting is clipped to the box (background-clip: border-box),
+    // so a scaled image larger than the box (e.g. background-size:100% on a
+    // wide box) is cropped rather than overflowing.
+    context.push_clip(area);
+
     if (style.background_repeat == Css::ComputedStyle::BackgroundRepeat::NoRepeat) {
         context.draw_image(image, dest);
+        context.pop_clip();
         return;
     }
 
@@ -333,6 +339,8 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
         if (!repeat_y) break;
         y += dest.height;
     } while (y < area.y + area.height);
+
+    context.pop_clip();
 }
 
 inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, const Css::ComputedStyle* style,

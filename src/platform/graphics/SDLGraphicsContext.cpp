@@ -201,6 +201,46 @@ void SDLGraphicsContext::set_global_alpha(float alpha) {
     global_alpha_ = std::clamp(alpha, 0.0f, 1.0f);
 }
 
+namespace {
+Hummingbird::Layout::Rect intersect_rect(const Hummingbird::Layout::Rect& a, const Hummingbird::Layout::Rect& b) {
+    const float x1 = std::max(a.x, b.x);
+    const float y1 = std::max(a.y, b.y);
+    const float x2 = std::min(a.x + a.width, b.x + b.width);
+    const float y2 = std::min(a.y + a.height, b.y + b.height);
+    return {x1, y1, std::max(0.0f, x2 - x1), std::max(0.0f, y2 - y1)};
+}
+
+SDL_Rect to_sdl_rect(const Hummingbird::Layout::Rect& r) {
+    return SDL_Rect{static_cast<int>(std::floor(r.x)), static_cast<int>(std::floor(r.y)),
+                    std::max(0, static_cast<int>(std::ceil(r.width))),
+                    std::max(0, static_cast<int>(std::ceil(r.height)))};
+}
+}  // namespace
+
+void SDLGraphicsContext::push_clip(const Hummingbird::Layout::Rect& rect) {
+    Hummingbird::Layout::Rect clip = clip_stack_.empty() ? rect : intersect_rect(clip_stack_.back(), rect);
+    clip_stack_.push_back(clip);
+    if (m_renderer) {
+        SDL_Rect r = to_sdl_rect(clip);
+        SDL_RenderSetClipRect(m_renderer, &r);
+    }
+}
+
+void SDLGraphicsContext::pop_clip() {
+    if (clip_stack_.empty()) {
+        return;
+    }
+    clip_stack_.pop_back();
+    if (m_renderer) {
+        if (clip_stack_.empty()) {
+            SDL_RenderSetClipRect(m_renderer, nullptr);
+        } else {
+            SDL_Rect r = to_sdl_rect(clip_stack_.back());
+            SDL_RenderSetClipRect(m_renderer, &r);
+        }
+    }
+}
+
 size_t SDLGraphicsContext::TextCacheKeyHash::operator()(const TextCacheKey& key) const {
     const size_t text_hash = std::hash<std::string>{}(key.text);
     const size_t path_hash = std::hash<std::string>{}(key.font_path);

@@ -881,3 +881,56 @@ TEST(BackgroundSizeGeometryTest, ExplicitTwoValuePercentResolvesBothAxes) {
     EXPECT_FLOAT_EQ(dest.width, 100.0f);  // 50% of 200
     EXPECT_FLOAT_EQ(dest.height, 50.0f);  // 25% of 200
 }
+
+namespace {
+// Records clip push/pop and image draws to verify background-clip behavior.
+class ClipRecordingContext : public IGraphicsContext {
+public:
+    void set_viewport(const Hummingbird::Layout::Rect&) override {}
+    void clear(const Color&) override {}
+    void present() override {}
+    void fill_rect(const Hummingbird::Layout::Rect&, const Color&) override {}
+    void draw_image(const ImageBitmap&, const Hummingbird::Layout::Rect& dest) override {
+        image_dests.push_back(dest);
+        clipped_when_drawn.push_back(clip_depth > 0);
+    }
+    TextMetrics measure_text(const std::string&, const TextStyle&) override { return {}; }
+    void draw_text(const std::string&, float, float, const TextStyle&) override {}
+    void push_clip(const Hummingbird::Layout::Rect& rect) override {
+        pushed.push_back(rect);
+        ++clip_depth;
+    }
+    void pop_clip() override { --clip_depth; }
+
+    std::vector<Hummingbird::Layout::Rect> image_dests;
+    std::vector<Hummingbird::Layout::Rect> pushed;
+    std::vector<bool> clipped_when_drawn;
+    int clip_depth = 0;
+};
+}  // namespace
+
+TEST(BackgroundClipTest, BackgroundImageIsClippedToItsBox) {
+    ClipRecordingContext ctx;
+    ImageBitmap image;
+    image.width = 100;
+    image.height = 100;  // square image
+    ComputedStyle style;
+    style.background_image = "logo.svg";
+    style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
+    style.background_size.width = 100.0f;
+    style.background_size.width_is_percent = true;  // 100% -> 200 wide, 200 tall
+    style.background_repeat = ComputedStyle::BackgroundRepeat::NoRepeat;
+
+    const Hummingbird::Layout::Rect area{0, 0, 200, 80};  // wide/short box
+    Hummingbird::Layout::PaintUtils::draw_background_image(ctx, area, image, style);
+
+    // A clip matching the box was pushed, the image drawn under it, clip balanced.
+    ASSERT_EQ(ctx.pushed.size(), 1u);
+    EXPECT_FLOAT_EQ(ctx.pushed[0].width, 200.0f);
+    EXPECT_FLOAT_EQ(ctx.pushed[0].height, 80.0f);
+    ASSERT_EQ(ctx.image_dests.size(), 1u);
+    EXPECT_TRUE(ctx.clipped_when_drawn[0]);
+    EXPECT_EQ(ctx.clip_depth, 0);  // push/pop balanced
+    // The image is genuinely taller than the box, so the clip is what crops it.
+    EXPECT_GT(ctx.image_dests[0].height, area.height);
+}
