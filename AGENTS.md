@@ -23,6 +23,15 @@ rules; keep this file thin — detailed rules live in the linked docs.
   suggest the architecturally cleanest resolution before coding.
 - If a new task appears during work that does not fit the current scope, add it to
   `doc/TODOs.md` as a future story (match the existing `T-*` story format).
+- **Demo every user-visible feature.** When a change adds or extends something
+  observable on a page (a CSS property/value, a layout mode, form/JS behavior),
+  also represent it on the demo site under `assets/stub/pages/` (served as
+  `example.dev/<name>`): add a new element or extend an existing one on the
+  relevant milestone's page, and update that page's "Added in MN" note. These
+  pages are living documentation *and* the manual test surface, so a user-visible
+  feature that ships without a demo entry is incomplete. Purely internal changes
+  (perf, security, refactors, tooling, parser plumbing with no new rendered
+  result) are exempt.
 - Make a git commit after every self-contained change, in conventional format:
   `feat|fix|chore|docs|refactor|test: message`.
 
