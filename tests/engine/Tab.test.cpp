@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 #include "core/platform_api/InputEvent.h"
@@ -750,6 +752,48 @@ TEST(EngineTabTest, EnterSubmitsPostFormWithEncodedBody) {
     EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Post);
     EXPECT_EQ(result.submitted_form->body, "q=duck+duck+go");
     EXPECT_EQ(result.submitted_form->content_type, "application/x-www-form-urlencoded");
+}
+
+// End-to-end regression on the pinned DuckDuckGo HTML homepage snapshot
+// (tests/fixtures/ddg): drive the real focus -> type -> submit -> navigate flow
+// through the tab. Guards the exact DDG form contract (POST to /html/, the
+// autofocused name="q" search box) so a regression in autofocus, text editing,
+// or form submission fails CI.
+TEST(EngineTabTest, DdgHomepageSnapshotFocusTypeSubmitFlow) {
+    std::ifstream file(std::string(HB_TEST_FIXTURE_DIR) + "/ddg/ddg_home.html", std::ios::binary);
+    ASSERT_TRUE(file) << "missing fixture ddg/ddg_home.html";
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    const std::string html = buffer.str();
+    ASSERT_FALSE(html.empty());
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 1024, 768});
+    harness.navigate("https://html.duckduckgo.com/html/");
+    ASSERT_TRUE(harness.tick());
+
+    // The search box carries `autofocus`, so typing lands there with no click.
+    ASSERT_TRUE(harness.tab().has_focused_input());
+    EXPECT_TRUE(harness.tab().handle_text_input("hummingbird browser"));
+    auto typed = harness.tab().focused_input_value();
+    ASSERT_TRUE(typed.has_value());
+    EXPECT_EQ(*typed, "hummingbird browser");
+
+    // Enter submits the form as a POST to the resolved action with the query.
+    Hummingbird::InputEvent enter_event;
+    enter_event.type = Hummingbird::EventType::KeyDown;
+    enter_event.key.key = Hummingbird::Key::Enter;
+    auto result = harness.tab().handle_key_down(enter_event);
+    EXPECT_TRUE(result.handled);
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://html.duckduckgo.com/html/");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Post);
+    EXPECT_NE(result.submitted_form->body.find("q=hummingbird+browser"), std::string::npos)
+        << "form body was: " << result.submitted_form->body;
 }
 
 TEST(EngineTabTest, ClickSubmitReturnsPostFormSubmission) {

@@ -126,7 +126,7 @@ P0: Layout Compatibility (North Star)
 - [ ] T-DDG-CSS-CORE-2: DDG CSS Compatibility Carryover
 
 P0: Guardrails (North Star)
-- [ ] T-DDG-E2E-1: Real DDG HTML Snapshot Regression Harness
+- [x] T-DDG-E2E-1: Real DDG HTML Snapshot Regression Harness (layout guard + focus/type/submit/navigate flow, in CI)
 - [ ] T-ARCH-GUARD-1: Dependency Guardrails in CI
 
 P1: Compatibility + Hygiene (pull in as needed)
