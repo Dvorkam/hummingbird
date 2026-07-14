@@ -79,6 +79,8 @@ Milestone 6 is complete when all items below are true:
 * **[M6 P1] T-CSS-BORDER-COMPAT-1: Border Longhands And Corner Radius Longhands**; Goal: remove visible control chrome mismatches on real forms; Scope: add `border-top/right/bottom/left-color`, `border-top-left/right/bottom-left/bottom-right-radius`, and vendor aliases (`-moz-`, `-webkit-`) mapped to standard properties; Acceptance: DDG search control corners/borders match expected shape without split seams; Tests: parser/style/paint regressions.
 * **[M6 P2] T-CSS-COMPAT-ALIAS-1: Vendor Prefix Alias Layer**; Goal: reduce noisy unsupported-property fallout for legacy CSS; Scope: alias common prefixed properties to supported canonical forms where behavior is equivalent (`-webkit-user-select`, `-moz-appearance`, `-webkit-tap-highlight-color`, etc.) and silently ignore purely cosmetic no-op aliases; Acceptance: warning noise drops on DDG-like pages without behavioral regressions; Tests: parser alias tests.
 * **[M6 P2] T-CSS-MISC-LEGACY-1: Legacy Property Compatibility Slice**; Goal: close remaining DDG visual deltas not covered by flex/border work; Scope: targeted support for `text-shadow`, `visibility`, `pointer-events`, and legacy `clip` usage required by DDG assets/icons; Acceptance: DDG search icon/control visuals and hit behavior align with reference browser; Tests: style/layout interaction regressions.
+* **[M6 P2] T-CSS-INHERIT-1: `inherit` Keyword Support**; Goal: honor the CSS-wide `inherit` keyword instead of mis-parsing it (DDG: `.search__input { font-family: inherit }` currently logs "Unsupported font family list 'inherit'" and falls back to Roboto rather than taking the parent's value); Scope: detect an `inherit` declaration value in the apply pipeline and copy the parent's computed value for that property (parent style is already threaded through `apply_properties_to_style`); start with the inherited text/font properties that DDG uses; Acceptance: `font-family: inherit` (and `color: inherit`) resolve to the parent's value with no warning; Tests: style tests. *(Filed while completing T-DDG-CSS-CORE-2.)*
+* **[M6 P3] T-CSS-CALC-1: `calc()` Length Expressions**; Goal: resolve simple `calc()` length expressions (DDG uses `calc()` in ~10 declarations for sizing); Scope: parse `calc(a +/- b)` with px/%/em terms and evaluate against the resolution reference at apply time; no nested/multiplication support required initially; Acceptance: a `width: calc(100% - 20px)` resolves correctly; Tests: parser/style tests. *(Filed while completing T-DDG-CSS-CORE-2.)*
 * **[M6 P2] T-ANIM-1: transition + transform (static)**; Goal: parse/apply transforms without timing engine; Scope: style + paint; Acceptance: transform affects paint matrix; Tests: renderer tests.
 
 ### 6.3 - DDG Parity + Regression Harness
@@ -132,6 +134,8 @@ P0: Guardrails (North Star)
 P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-CSS-COMPAT-ALIAS-1: Vendor Prefix Alias Layer
 - [ ] T-CSS-MISC-LEGACY-1: Legacy Property Compatibility Slice
+- [ ] T-CSS-INHERIT-1: `inherit` Keyword Support
+- [ ] T-CSS-CALC-1: `calc()` Length Expressions
 - [ ] T-PERF-5: Batch Resource Updates
 - [ ] T-PERF-4: Offscreen Raster Cache + Layer Invalidation
 - [ ] T-CACHE-1: Tab Resource Eviction + Rehydrate
