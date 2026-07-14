@@ -1086,6 +1086,102 @@ TEST(StyleEngineTest, CursorIsInheritedToChildren) {
     EXPECT_EQ(child_style->cursor, ComputedStyle::Cursor::Text);
 }
 
+// Drift guard for inherit_from_parent (T-STYLE-FIELDCOPY-1): a child that sets
+// nothing must inherit every inherited text/font property from its parent. If a
+// new inherited property is added but not wired into inherit_from_parent, one of
+// these assertions fails instead of the bug surfacing silently at render time.
+TEST(StyleEngineTest, InheritsAllInheritedProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "p");
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
+
+    std::string css = R"(.p {
+        color: #ff0000;
+        font-size: 20px;
+        font-weight: bold;
+        font-style: italic;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+        text-indent: 7px;
+        white-space: nowrap;
+        line-height: 30px;
+        cursor: pointer;
+        list-style-type: decimal;
+        list-style-position: inside;
+        word-wrap: break-word;
+        text-decoration: underline;
+    })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto child = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child);
+    EXPECT_EQ(child->color.r, 255);
+    EXPECT_EQ(child->color.g, 0);
+    EXPECT_FLOAT_EQ(child->font_size, 20.0f);
+    EXPECT_EQ(child->weight, ComputedStyle::FontWeight::Bold);
+    EXPECT_EQ(child->style, ComputedStyle::FontStyle::Italic);
+    EXPECT_EQ(child->text_align, ComputedStyle::TextAlign::Center);
+    EXPECT_EQ(child->text_transform, ComputedStyle::TextTransform::Uppercase);
+    EXPECT_FLOAT_EQ(child->letter_spacing, 3.0f);
+    EXPECT_FLOAT_EQ(child->text_indent, 7.0f);
+    EXPECT_EQ(child->whitespace, ComputedStyle::WhiteSpace::NoWrap);
+    EXPECT_FLOAT_EQ(child->line_height, 30.0f);
+    EXPECT_EQ(child->cursor, ComputedStyle::Cursor::Pointer);
+    EXPECT_EQ(child->list_style_type, ComputedStyle::ListStyleType::Decimal);
+    EXPECT_EQ(child->list_style_position, ComputedStyle::ListStylePosition::Inside);
+    EXPECT_EQ(child->word_wrap, ComputedStyle::WordWrap::BreakWord);
+    EXPECT_TRUE(child->underline);
+}
+
+// Core invariant of the inverted merge: non-inherited box properties must NOT
+// leak from parent to child. This is what lets adding a new box property require
+// no field-copy wiring at all.
+TEST(StyleEngineTest, DoesNotInheritBoxPropertiesFromParent) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "p");
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
+
+    std::string css = R"(.p {
+        width: 100px;
+        margin: 5px;
+        padding: 4px;
+        border: 2px solid #ff0000;
+        border-radius: 6px;
+        float: left;
+        clear: both;
+        position: relative;
+        display: flex;
+        z-index: 3;
+    })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto parent = root->get_computed_style();
+    ASSERT_TRUE(parent);
+    ASSERT_TRUE(parent->width.has_value());  // parent really did get the box props
+
+    auto child = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child);
+    EXPECT_FALSE(child->width.has_value());
+    EXPECT_FLOAT_EQ(child->margin.top, 0.0f);
+    EXPECT_FLOAT_EQ(child->padding.top, 0.0f);
+    EXPECT_EQ(child->border_style, ComputedStyle::BorderStyle::None);
+    EXPECT_FLOAT_EQ(child->border_radius.top_left.value, 0.0f);
+    EXPECT_EQ(child->float_type, ComputedStyle::Float::None);
+    EXPECT_EQ(child->clear, ComputedStyle::Clear::None);
+    EXPECT_EQ(child->position, ComputedStyle::Position::Static);
+    EXPECT_NE(child->display, ComputedStyle::Display::Flex);
+    EXPECT_FALSE(child->z_index.has_value());
+}
+
 TEST(StyleEngineTest, AppliesVerticalAlignProperty) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
