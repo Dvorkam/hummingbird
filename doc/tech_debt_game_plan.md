@@ -37,3 +37,12 @@ are superseded.
 - [ ] `src/engine/extensions/ExtensionManifest.cpp`: extract a small `JsonMiniParser` (cursor/skip helpers) to reduce bespoke parsing code.
 - [ ] `src/engine/resources/ResourceLoader.cpp`: extract a `DocumentFetchPolicy` helper to separate navigation policy from request handling.
 - [ ] `src/engine/document/DocumentPipeline.cpp`: keep the orchestrator thin by pushing any new business logic into helpers.
+
+## CSS Property System Ceremony
+
+Surfaced while adding `clear` (T-CSS-CLEAR-1): a genuinely new property with its
+own field touches ~5 wiring points before the actual behavior. The layering is
+correct (Ports & Adapters firewall holds), but two seams are avoidable ceremony.
+
+- [ ] **T-STYLE-FIELDCOPY-1: Make `apply_non_inheritable` drift-proof** (`src/style/compute/StyleEngine.cpp`). Goal: a non-inherited `ComputedStyle` field that is added but not hand-copied is a *silent* runtime bug (hit repeatedly — flex fields, `clear`); replace the hand-enumerated copy with a mechanism that cannot drift (single memberwise copy of a non-inherited sub-struct, or a compile-time/reflection check that every non-inherited field is covered). Acceptance: forgetting to wire a new non-inherited field fails at build/test time, not silently at runtime. **Highest-value item here** — it is the one actually-fragile seam, not just verbose.
+- [ ] `src/style/registry` + `src/style/compute/apply/PropertyApplier.cpp`: collapse the `ApplyHook` enum + dispatch `switch` redundancy. The registry `.inl` already names the applier; a hand-maintained enum plus a switch that only forwards to a function is boilerplate. Consider keying appliers directly off the registry (function pointer / small dispatch table) so adding a simple property needs one registry row + one apply case, not four synced touchpoints.
