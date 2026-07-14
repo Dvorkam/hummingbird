@@ -71,6 +71,41 @@ bool apply_positioning_recursive(RenderObject& node, IGraphicsContext& context, 
         Rect layout_bounds{0.0f, 0.0f, base.width, 0.0f};
         node.layout(context, layout_bounds);
         rect = node.get_rect();
+
+        // An auto size between two opposing insets stretches to fill the gap:
+        // `top:0; bottom:0; height:auto` makes the box as tall as its container
+        // (the DDG search button/magnifier). Auto margins on that axis count as 0.
+        if (style->top.has_value() && style->bottom.has_value() && !style->height.has_value()) {
+            float top = resolve_inset(*style->top, style->top_is_percent, base.height);
+            float bottom = resolve_inset(*style->bottom, style->bottom_is_percent, base.height);
+            float mt = style->margin_top_auto ? 0.0f : style->margin.top;
+            float mb = style->margin_bottom_auto ? 0.0f : style->margin.bottom;
+            float stretched = base.height - top - bottom - mt - mb;
+            if (style->min_height.has_value()) {
+                stretched =
+                    std::max(stretched, resolve_inset(*style->min_height, style->min_height_is_percent, base.height));
+            }
+            if (stretched > 0.0f) {
+                rect.height = stretched;
+                node.set_rect(rect);
+            }
+        }
+        if (style->left.has_value() && style->right.has_value() && !style->width.has_value()) {
+            float left = resolve_inset(*style->left, style->left_is_percent, base.width);
+            float right = resolve_inset(*style->right, style->right_is_percent, base.width);
+            float ml = style->margin_left_auto ? 0.0f : style->margin.left;
+            float mr = style->margin_right_auto ? 0.0f : style->margin.right;
+            float stretched = base.width - left - right - ml - mr;
+            if (style->min_width.has_value()) {
+                stretched =
+                    std::max(stretched, resolve_inset(*style->min_width, style->min_width_is_percent, base.width));
+            }
+            if (stretched > 0.0f) {
+                rect.width = stretched;
+                node.set_rect(rect);
+            }
+        }
+
         float x = base.x + resolve_horizontal_offset(style, base.width, rect.width);
         float y = base.y + resolve_vertical_offset(style, base.height, rect.height);
         rect.x = x - parent_abs.x;
