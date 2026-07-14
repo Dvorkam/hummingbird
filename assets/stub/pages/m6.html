@@ -64,12 +64,16 @@
       .ddg-form button { padding: 9px 16px; border: 1px solid #14213d; border-radius: 6px; background-color: #14213d; color: #ffffff; }
 
       .bgsize-row { display: flex; flex-direction: row; align-items: flex-start; }
-      .bgsize-box { width: 120px; height: 120px; margin: 0 16px 0 0; border: 1px solid #dde3ee; background-color: #fafbff;
+      .bgsize-cell { display: flex; flex-direction: column; align-items: center; margin: 0 16px 0 0; }
+      /* A wide box so the sizing modes render differently (a square box hides the difference). */
+      .bgsize-box { width: 170px; height: 80px; border: 1px solid #7aa7e3; background-color: #fafbff;
                     background-image: url(assets/logos/hummingbird.svg); background-repeat: no-repeat;
                     background-position: center; }
-      .bs-100 { background-size: 100%; }
+      .bgsize-cap { font-size: 12px; color: #56617a; margin-top: 5px; }
       .bs-contain { background-size: contain; }
-      /* Shorthand position/size syntax: `center/100%`. */
+      .bs-100 { background-size: 100%; }
+      .bs-stretch { background-size: 100% 100%; }
+      /* Shorthand position/size syntax: `center/100%` (should match the 100% box). */
       .bs-shorthand { background: url(assets/logos/hummingbird.svg) no-repeat center/100%; }
       .chrome-row { display: flex; flex-direction: row; align-items: center; }
       .swatch { width: 96px; height: 64px; margin: 6px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
@@ -216,15 +220,16 @@
       <div class="section">
         <h2>background-size: 100% (fills width, keeps aspect ratio)</h2>
         <div class="bgsize-row">
-          <div class="bgsize-box bs-100"></div>
-          <div class="bgsize-box bs-contain"></div>
-          <div class="bgsize-box bs-shorthand"></div>
+          <div class="bgsize-cell"><div class="bgsize-box bs-contain"></div><span class="bgsize-cap">contain</span></div>
+          <div class="bgsize-cell"><div class="bgsize-box bs-100"></div><span class="bgsize-cap">100%</span></div>
+          <div class="bgsize-cell"><div class="bgsize-box bs-stretch"></div><span class="bgsize-cap">100% 100%</span></div>
+          <div class="bgsize-cell"><div class="bgsize-box bs-shorthand"></div><span class="bgsize-cap">center/100% (shorthand)</span></div>
         </div>
-        <p class="note">All three boxes show the logo at its correct proportions &mdash; <code>background-size: 100%</code>
-        (left) scales the image to the box width preserving aspect ratio, <code>contain</code> (middle) fits it inside,
-        and the <code>background: … center/100%</code> shorthand (right) parses the <code>/size</code> syntax so
-        <code>100%</code> sets the size instead of leaking into the position. This is the fix behind DDG's round,
-        centered duck logo.</p>
+        <p class="note">In a wide box the modes render distinctly: <code>contain</code> fits the whole logo inside
+        (small, letterboxed); <code>100%</code> scales it to the box <em>width</em> keeping aspect ratio (larger,
+        cropped top/bottom); <code>100% 100%</code> stretches it to fill both axes (distorted). The
+        <code>background: … center/100%</code> shorthand (right) parses the <code>/size</code> syntax and so matches
+        the <code>100%</code> box &mdash; the fix behind DDG's round, centered logo.</p>
       </div>
 
       <div class="section">
