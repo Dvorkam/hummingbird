@@ -1262,6 +1262,27 @@ TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
     EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Contain);
 }
 
+TEST(StyleEngineTest, ParsesPercentBackgroundSize) {
+    // DDG logo: `background-size: 100%` must keep the percentage (resolved at
+    // paint time) rather than degrading to 100px, which squished the SVG.
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background-size: 100%; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Length);
+    ASSERT_TRUE(style->background_size.width.has_value());
+    EXPECT_FLOAT_EQ(*style->background_size.width, 100.0f);
+    EXPECT_TRUE(style->background_size.width_is_percent);
+    EXPECT_FALSE(style->background_size.height.has_value());  // auto -> aspect-preserved
+}
+
 TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
@@ -59,17 +60,13 @@ struct ResolvedCorners {
     float top_right = 0.0f;
     float bottom_right = 0.0f;
     float bottom_left = 0.0f;
-    bool any() const {
-        return top_left > 0.0f || top_right > 0.0f || bottom_right > 0.0f || bottom_left > 0.0f;
-    }
+    bool any() const { return top_left > 0.0f || top_right > 0.0f || bottom_right > 0.0f || bottom_left > 0.0f; }
 };
 
 inline ResolvedCorners resolve_corners(const Css::CornerRadii& radii, float width, float height) {
     const float reference = std::min(width, height);
     const float cap = std::max(0.0f, reference * 0.5f);
-    auto rv = [&](const Css::CornerRadius& corner) {
-        return std::min(std::max(0.0f, corner.resolve(reference)), cap);
-    };
+    auto rv = [&](const Css::CornerRadius& corner) { return std::min(std::max(0.0f, corner.resolve(reference)), cap); };
     return {rv(radii.top_left), rv(radii.top_right), rv(radii.bottom_right), rv(radii.bottom_left)};
 }
 
@@ -263,11 +260,26 @@ inline Rect compute_background_image_rect(const Rect& area, const ImageBitmap& i
         dest_width = image_width * scale;
         dest_height = image_height * scale;
     } else if (style.background_size.type == Css::ComputedStyle::BackgroundSize::Type::Length) {
-        if (style.background_size.width) {
-            dest_width = *style.background_size.width;
+        const auto& bs = style.background_size;
+        std::optional<float> resolved_w;
+        std::optional<float> resolved_h;
+        if (bs.width) {
+            resolved_w = bs.width_is_percent ? area.width * (*bs.width * 0.01f) : *bs.width;
         }
-        if (style.background_size.height) {
-            dest_height = *style.background_size.height;
+        if (bs.height) {
+            resolved_h = bs.height_is_percent ? area.height * (*bs.height * 0.01f) : *bs.height;
+        }
+        // A single specified axis (e.g. `background-size: 100%`) keeps the
+        // image's aspect ratio by deriving the other axis from it.
+        if (resolved_w && !resolved_h) {
+            dest_width = *resolved_w;
+            dest_height = image_height * (*resolved_w / image_width);
+        } else if (!resolved_w && resolved_h) {
+            dest_height = *resolved_h;
+            dest_width = image_width * (*resolved_h / image_height);
+        } else if (resolved_w && resolved_h) {
+            dest_width = *resolved_w;
+            dest_height = *resolved_h;
         }
     }
 

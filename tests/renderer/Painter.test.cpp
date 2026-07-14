@@ -12,6 +12,7 @@
 #include "html/HtmlTagNames.h"
 #include "layout/TreeBuilder.h"
 #include "layout/flow/TextBox.h"
+#include "layout/paint/PaintUtils.h"
 #include "layout/formatting/RenderListItem.h"
 #include "style/compute/StyleEngine.h"
 #include "style/parser/CssParser.h"
@@ -830,4 +831,53 @@ TEST(PainterTest, SkipsFallbackGridForLikelyLayoutTableWithoutBorderHints) {
     painter.paint(*render_tree, context, opts);
 
     EXPECT_EQ(context.fill_calls.size(), 0u);
+}
+
+// background-size geometry (compute_background_image_rect): the DDG logo bug
+// where `background-size: 100%%` squished the SVG into an ellipse.
+TEST(BackgroundSizeGeometryTest, PercentFillsWidthAndPreservesAspect) {
+    ImageBitmap image;
+    image.width = 200;
+    image.height = 200;  // square (duck-in-circle)
+    ComputedStyle style;
+    style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
+    style.background_size.width = 100.0f;
+    style.background_size.width_is_percent = true;  // 100%, height auto
+
+    const Hummingbird::Layout::Rect area{0, 0, 205, 200};
+    const auto dest = Hummingbird::Layout::PaintUtils::compute_background_image_rect(area, image, style);
+    EXPECT_FLOAT_EQ(dest.width, 205.0f);   // 100% of the box width
+    EXPECT_FLOAT_EQ(dest.height, 205.0f);  // aspect preserved -> circle stays a circle
+}
+
+TEST(BackgroundSizeGeometryTest, PercentPortraitImageKeepsAspect) {
+    ImageBitmap image;
+    image.width = 200;
+    image.height = 250;  // portrait (duck + wordmark)
+    ComputedStyle style;
+    style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
+    style.background_size.width = 100.0f;
+    style.background_size.width_is_percent = true;
+
+    const Hummingbird::Layout::Rect area{0, 0, 205, 200};
+    const auto dest = Hummingbird::Layout::PaintUtils::compute_background_image_rect(area, image, style);
+    EXPECT_FLOAT_EQ(dest.width, 205.0f);
+    EXPECT_NEAR(dest.height, 256.25f, 0.1f);  // 250 * (205/200), aspect preserved
+}
+
+TEST(BackgroundSizeGeometryTest, ExplicitTwoValuePercentResolvesBothAxes) {
+    ImageBitmap image;
+    image.width = 200;
+    image.height = 200;
+    ComputedStyle style;
+    style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
+    style.background_size.width = 50.0f;
+    style.background_size.width_is_percent = true;
+    style.background_size.height = 25.0f;
+    style.background_size.height_is_percent = true;
+
+    const Hummingbird::Layout::Rect area{0, 0, 200, 200};
+    const auto dest = Hummingbird::Layout::PaintUtils::compute_background_image_rect(area, image, style);
+    EXPECT_FLOAT_EQ(dest.width, 100.0f);  // 50% of 200
+    EXPECT_FLOAT_EQ(dest.height, 50.0f);  // 25% of 200
 }

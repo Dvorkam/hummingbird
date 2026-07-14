@@ -40,12 +40,9 @@ struct CornerRadii {
     CornerRadius bottom_right;
     CornerRadius bottom_left;
 
-    void set_all(CornerRadius corner) {
-        top_left = top_right = bottom_right = bottom_left = corner;
-    }
+    void set_all(CornerRadius corner) { top_left = top_right = bottom_right = bottom_left = corner; }
     bool any() const {
-        return top_left.value > 0.0f || top_right.value > 0.0f || bottom_right.value > 0.0f ||
-               bottom_left.value > 0.0f;
+        return top_left.value > 0.0f || top_right.value > 0.0f || bottom_right.value > 0.0f || bottom_left.value > 0.0f;
     }
     bool uniform() const {
         auto same = [](const CornerRadius& a, const CornerRadius& b) {
@@ -173,8 +170,10 @@ struct ComputedStyle {
     struct BackgroundSize {
         enum class Type { Auto, Contain, Cover, Length };
         Type type = Type::Auto;
-        std::optional<float> width;
-        std::optional<float> height;
+        std::optional<float> width;   // nullopt => auto (aspect-preserved)
+        std::optional<float> height;  // nullopt => auto (aspect-preserved)
+        bool width_is_percent = false;
+        bool height_is_percent = false;
     };
     BackgroundSize background_size;
     enum class ListStyleType { Disc, Decimal, None };

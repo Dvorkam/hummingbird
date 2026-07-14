@@ -23,7 +23,7 @@ or the paint path, and before tagging a release. The pinned snapshot lives in
 
 ## Layout — centered logo + search block
 
-- [ ] The DuckDuckGo duck **logo renders** (background image on `a.logo_homepage`), not a blank box.
+- [ ] The DuckDuckGo duck **logo renders as a proper circle** (with the "DuckDuckGo" wordmark from the SVG), **not a squished vertical ellipse** — regression guard for percentage `background-size`.
 - [ ] Logo and search form are **horizontally centered** and sit in the upper-middle band (~top 24%).
 - [ ] Nothing hangs off the **left edge** (the pre-flex failure mode).
 - [ ] The **search input** is a clickable bar (height ~30–80px, width > 300px), not a collapsed sliver.

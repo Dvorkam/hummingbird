@@ -63,6 +63,12 @@
       .ddg-form input { width: 320px; padding: 9px 12px; border: 1px solid #9aa7bd; border-radius: 6px; margin-right: 8px; background-color: #ffffff; }
       .ddg-form button { padding: 9px 16px; border: 1px solid #14213d; border-radius: 6px; background-color: #14213d; color: #ffffff; }
 
+      .bgsize-row { display: flex; flex-direction: row; align-items: flex-start; }
+      .bgsize-box { width: 120px; height: 120px; margin: 0 16px 0 0; border: 1px solid #dde3ee; background-color: #fafbff;
+                    background-image: url(assets/logos/hummingbird.svg); background-repeat: no-repeat;
+                    background-position: center; }
+      .bs-100 { background-size: 100%; }
+      .bs-contain { background-size: contain; }
       .chrome-row { display: flex; flex-direction: row; align-items: center; }
       .swatch { width: 96px; height: 64px; margin: 6px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
                 color: #1d2433; font-size: 12px; text-align: center; }
@@ -97,8 +103,8 @@
         <code>justify-content</code>, <code>align-items</code>, <code>flex-grow/shrink/basis</code>,
         the <code>flex</code> shorthand, <code>order</code>, and <code>flex-wrap</code> (+
         <code>wrap-reverse</code>); float <code>clear</code>; plus CSS control-chrome compat &mdash;
-        per-corner <code>border-radius</code>, per-side <code>border-color</code>, and vendor-prefixed
-        aliases; and <code>align-items: baseline</code>.
+        per-corner <code>border-radius</code>, per-side <code>border-color</code>, vendor-prefixed
+        aliases, and percentage <code>background-size</code>; and <code>align-items: baseline</code>.
       </p>
 
       <div class="section">
@@ -203,6 +209,18 @@
           </form>
         </div>
         <p class="note">Column flex container centering a logo + search form &mdash; the DDG homepage pattern this milestone targets.</p>
+      </div>
+
+      <div class="section">
+        <h2>background-size: 100% (fills width, keeps aspect ratio)</h2>
+        <div class="bgsize-row">
+          <div class="bgsize-box bs-100"></div>
+          <div class="bgsize-box bs-contain"></div>
+        </div>
+        <p class="note">Both boxes show the logo at its correct proportions &mdash; <code>background-size: 100%</code>
+        (left) scales the image to the box width preserving aspect ratio, <code>contain</code> (right) fits it inside.
+        This is the fix behind DDG's round duck logo: <code>100%</code> was previously read as <code>100px</code>,
+        squishing the image into an ellipse.</p>
       </div>
 
       <div class="section">
