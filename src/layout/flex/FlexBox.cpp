@@ -125,13 +125,8 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const bool reversed = style && (style->flex_direction == ComputedStyle::FlexDirection::RowReverse ||
                                     style->flex_direction == ComputedStyle::FlexDirection::ColumnReverse);
 
-    if (style && style->flex_wrap != ComputedStyle::FlexWrap::NoWrap) {
-        static bool warned_wrap = false;
-        if (!warned_wrap) {
-            HB_LOG_WARN("[layout] flex-wrap is not implemented yet; treating as nowrap");
-            warned_wrap = true;
-        }
-    }
+    const bool wrap = style && style->flex_wrap != ComputedStyle::FlexWrap::NoWrap;
+    const bool wrap_reverse = style && style->flex_wrap == ComputedStyle::FlexWrap::WrapReverse;
 
     const std::optional<float> definite_content_height = resolve_definite_content_height(style, bounds, insets);
 
@@ -239,157 +234,202 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
         item.base_main = clamped;
     }
 
-    // Pass 2: distribute free space via flex-grow / flex-shrink.
-    float sum_outer = 0.0f;
-    float sum_grow = 0.0f;
-    float sum_scaled_shrink = 0.0f;
-    for (auto& item : items) {
-        item.target_main = item.base_main;
-        sum_outer += item.base_main + main_margins(item, row);
-        sum_grow += item.grow;
-        sum_scaled_shrink += item.shrink * item.base_main;
-    }
-    const float container_main = main_available >= 0.0f ? main_available : sum_outer;
-    float free_space = container_main - sum_outer;
-    if (free_space > 0.0f && sum_grow > 0.0f) {
-        for (auto& item : items) {
-            item.target_main = item.base_main + free_space * (item.grow / sum_grow);
-        }
-    } else if (free_space < 0.0f && sum_scaled_shrink > 0.0f) {
-        for (auto& item : items) {
-            float ratio = (item.shrink * item.base_main) / sum_scaled_shrink;
-            item.target_main = std::max(0.0f, item.base_main + free_space * ratio);
-        }
-    }
-
-    float leftover = container_main;
-    for (auto& item : items) {
-        leftover -= item.target_main + main_margins(item, row);
-    }
-
-    // Justify-content offsets (only positive leftover distributes space).
-    float lead = 0.0f;
-    float between = 0.0f;
-    const auto justify = style ? style->justify_content : ComputedStyle::JustifyContent::FlexStart;
-    if (!items.empty()) {
-        switch (justify) {
-            case ComputedStyle::JustifyContent::FlexEnd:
-                lead = leftover;
-                break;
-            case ComputedStyle::JustifyContent::Center:
-                lead = leftover / 2.0f;
-                break;
-            case ComputedStyle::JustifyContent::SpaceBetween:
-                if (leftover > 0.0f && items.size() > 1) {
-                    between = leftover / static_cast<float>(items.size() - 1);
-                }
-                break;
-            case ComputedStyle::JustifyContent::SpaceAround:
-                if (leftover > 0.0f) {
-                    between = leftover / static_cast<float>(items.size());
-                    lead = between / 2.0f;
-                }
-                break;
-            case ComputedStyle::JustifyContent::SpaceEvenly:
-                if (leftover > 0.0f) {
-                    between = leftover / static_cast<float>(items.size() + 1);
-                    lead = between;
-                }
-                break;
-            case ComputedStyle::JustifyContent::FlexStart:
-            default:
-                break;
-        }
-    }
-
-    // Pass 3: final layout at target main sizes; capture natural cross sizes.
-    const auto align = style ? style->align_items : ComputedStyle::AlignItems::Stretch;
-    for (auto& item : items) {
-        const auto* child_style = item.box->get_computed_style();
-        if (row) {
-            item.box->layout(context, {0.0f, 0.0f, item.target_main, 0.0f});
-            force_rect_main(*item.box, row, item.target_main);
-            apply_explicit_height(*item.box, child_style, definite_content_height);
-            item.cross = item.box->get_rect().height;
-        } else {
-            float cross_avail = std::max(0.0f, metrics.content_width - item.margins.left - item.margins.right);
-            float layout_width = cross_avail;
-            bool has_width = child_style && child_style->width.has_value();
-            if (align != ComputedStyle::AlignItems::Stretch && !has_width && !is_inline_level(*item.box)) {
-                item.box->layout(context, {0.0f, 0.0f, kIntrinsicMeasureWidth, 0.0f});
-                layout_width = std::min(cross_avail, shrink_to_fit_width(*item.box));
+    // Break items into flex lines. Wrapping needs a definite main size to wrap
+    // against; an indefinite main axis is treated as a single unbounded line.
+    struct FlexLine {
+        size_t begin = 0;
+        size_t end = 0;
+        float cross = 0.0f;
+    };
+    std::vector<FlexLine> lines;
+    if (wrap && main_available >= 0.0f && !items.empty()) {
+        size_t start = 0;
+        float run = 0.0f;
+        for (size_t i = 0; i < items.size(); ++i) {
+            const float outer = items[i].base_main + main_margins(items[i], row);
+            if (i > start && run + outer > main_available + 0.5f) {
+                lines.push_back({start, i, 0.0f});
+                start = i;
+                run = 0.0f;
             }
-            item.box->layout(context, {0.0f, 0.0f, layout_width, 0.0f});
-            apply_explicit_height(*item.box, child_style, std::nullopt);
-            force_rect_main(*item.box, row, item.target_main);
-            item.cross = item.box->get_rect().width;
+            run += outer;
         }
+        lines.push_back({start, items.size(), 0.0f});
+    } else {
+        lines.push_back({0, items.size(), 0.0f});
     }
 
-    // Line cross size: max item extent, or the definite container cross size.
-    float line_cross = 0.0f;
-    for (auto& item : items) {
-        line_cross = std::max(line_cross, item.cross + cross_margins(item, row));
-    }
-    if (row && definite_content_height) {
-        line_cross = std::max(line_cross, *definite_content_height);
-    }
-    if (!row) {
-        line_cross = metrics.content_width;
+    const auto align = style ? style->align_items : ComputedStyle::AlignItems::Stretch;
+    const auto justify = style ? style->justify_content : ComputedStyle::JustifyContent::FlexStart;
+    const float cross_axis_extent = row ? definite_content_height.value_or(0.0f) : metrics.content_width;
+
+    // Phase A: per line, distribute free space and lay each item out at its
+    // target main size, then measure the line's cross extent.
+    for (auto& line : lines) {
+        float sum_outer = 0.0f;
+        float sum_grow = 0.0f;
+        float sum_scaled_shrink = 0.0f;
+        for (size_t i = line.begin; i < line.end; ++i) {
+            FlexItem& item = items[i];
+            item.target_main = item.base_main;
+            sum_outer += item.base_main + main_margins(item, row);
+            sum_grow += item.grow;
+            sum_scaled_shrink += item.shrink * item.base_main;
+        }
+        const float container_main = main_available >= 0.0f ? main_available : sum_outer;
+        const float free_space = container_main - sum_outer;
+        if (free_space > 0.0f && sum_grow > 0.0f) {
+            for (size_t i = line.begin; i < line.end; ++i) {
+                items[i].target_main = items[i].base_main + free_space * (items[i].grow / sum_grow);
+            }
+        } else if (free_space < 0.0f && sum_scaled_shrink > 0.0f) {
+            for (size_t i = line.begin; i < line.end; ++i) {
+                const float ratio = (items[i].shrink * items[i].base_main) / sum_scaled_shrink;
+                items[i].target_main = std::max(0.0f, items[i].base_main + free_space * ratio);
+            }
+        }
+
+        for (size_t i = line.begin; i < line.end; ++i) {
+            FlexItem& item = items[i];
+            const auto* child_style = item.box->get_computed_style();
+            if (row) {
+                item.box->layout(context, {0.0f, 0.0f, item.target_main, 0.0f});
+                force_rect_main(*item.box, row, item.target_main);
+                apply_explicit_height(*item.box, child_style, definite_content_height);
+                item.cross = item.box->get_rect().height;
+            } else {
+                float cross_avail = std::max(0.0f, metrics.content_width - item.margins.left - item.margins.right);
+                float layout_width = cross_avail;
+                bool has_width = child_style && child_style->width.has_value();
+                if (align != ComputedStyle::AlignItems::Stretch && !has_width && !is_inline_level(*item.box)) {
+                    item.box->layout(context, {0.0f, 0.0f, kIntrinsicMeasureWidth, 0.0f});
+                    layout_width = std::min(cross_avail, shrink_to_fit_width(*item.box));
+                }
+                item.box->layout(context, {0.0f, 0.0f, layout_width, 0.0f});
+                apply_explicit_height(*item.box, child_style, std::nullopt);
+                force_rect_main(*item.box, row, item.target_main);
+                item.cross = item.box->get_rect().width;
+            }
+        }
+
+        float measured = 0.0f;
+        for (size_t i = line.begin; i < line.end; ++i) {
+            measured = std::max(measured, items[i].cross + cross_margins(items[i], row));
+        }
+        line.cross = measured;
     }
 
-    // Pass 4: position items along main axis and align on cross axis.
+    // A single line stretches to fill a definite cross extent (so align works
+    // against the whole container); multiple lines keep their measured heights.
+    float total_cross = 0.0f;
+    for (const auto& line : lines) {
+        total_cross += line.cross;
+    }
+    if (lines.size() == 1 && cross_axis_extent > total_cross) {
+        lines.front().cross = cross_axis_extent;
+        total_cross = cross_axis_extent;
+    }
+
+    // Phase B: assign each line a cross band (wrap-reverse stacks bottom-up),
+    // then position items along the main axis and align them on the cross axis.
     const float main_start = row ? insets.left : insets.top;
     const float cross_start = row ? insets.top : insets.left;
-    float cursor = main_start + lead;
-    for (size_t index = 0; index < items.size(); ++index) {
-        FlexItem& item = items[reversed ? items.size() - 1 - index : index];
-        const float main_margin_start = row ? item.margins.left : item.margins.top;
-        const float main_margin_end = row ? item.margins.right : item.margins.bottom;
-        const float cross_margin_start = row ? item.margins.top : item.margins.left;
-        const float cross_margin_end = row ? item.margins.bottom : item.margins.right;
+    float cross_cursor = cross_start;
+    for (size_t line_index = 0; line_index < lines.size(); ++line_index) {
+        const FlexLine& line = lines[wrap_reverse ? lines.size() - 1 - line_index : line_index];
+        const size_t count = line.end - line.begin;
 
-        float cross_offset = cross_start + cross_margin_start;
-        const float item_cross_extent = item.cross + cross_margin_start + cross_margin_end;
-        switch (align) {
-            case ComputedStyle::AlignItems::Center:
-                cross_offset += std::max(0.0f, (line_cross - item_cross_extent) / 2.0f);
-                break;
-            case ComputedStyle::AlignItems::FlexEnd:
-                cross_offset += std::max(0.0f, line_cross - item_cross_extent);
-                break;
-            case ComputedStyle::AlignItems::Stretch:
-                if (row && !item.has_explicit_cross) {
-                    Rect rect = item.box->get_rect();
-                    float stretched = line_cross - cross_margin_start - cross_margin_end;
-                    if (stretched > rect.height) {
-                        rect.height = stretched;
-                        item.box->set_rect(rect);
-                        item.cross = rect.height;
+        float leftover = (main_available >= 0.0f ? main_available : 0.0f);
+        if (main_available >= 0.0f) {
+            for (size_t i = line.begin; i < line.end; ++i) {
+                leftover -= items[i].target_main + main_margins(items[i], row);
+            }
+        }
+
+        float lead = 0.0f;
+        float between = 0.0f;
+        if (count > 0) {
+            switch (justify) {
+                case ComputedStyle::JustifyContent::FlexEnd:
+                    lead = leftover;
+                    break;
+                case ComputedStyle::JustifyContent::Center:
+                    lead = leftover / 2.0f;
+                    break;
+                case ComputedStyle::JustifyContent::SpaceBetween:
+                    if (leftover > 0.0f && count > 1) {
+                        between = leftover / static_cast<float>(count - 1);
                     }
-                }
-                break;
-            case ComputedStyle::AlignItems::FlexStart:
-            case ComputedStyle::AlignItems::Baseline:  // Baseline alignment not implemented; behaves as start.
-            default:
-                break;
+                    break;
+                case ComputedStyle::JustifyContent::SpaceAround:
+                    if (leftover > 0.0f) {
+                        between = leftover / static_cast<float>(count);
+                        lead = between / 2.0f;
+                    }
+                    break;
+                case ComputedStyle::JustifyContent::SpaceEvenly:
+                    if (leftover > 0.0f) {
+                        between = leftover / static_cast<float>(count + 1);
+                        lead = between;
+                    }
+                    break;
+                case ComputedStyle::JustifyContent::FlexStart:
+                default:
+                    break;
+            }
         }
 
-        Rect rect = item.box->get_rect();
-        if (row) {
-            rect.x = cursor + main_margin_start;
-            rect.y = cross_offset;
-        } else {
-            rect.x = cross_offset;
-            rect.y = cursor + main_margin_start;
+        float cursor = main_start + lead;
+        for (size_t offset = 0; offset < count; ++offset) {
+            FlexItem& item = items[line.begin + (reversed ? count - 1 - offset : offset)];
+            const float main_margin_start = row ? item.margins.left : item.margins.top;
+            const float main_margin_end = row ? item.margins.right : item.margins.bottom;
+            const float cross_margin_start = row ? item.margins.top : item.margins.left;
+            const float cross_margin_end = row ? item.margins.bottom : item.margins.right;
+
+            float cross_offset = cross_cursor + cross_margin_start;
+            const float item_cross_extent = item.cross + cross_margin_start + cross_margin_end;
+            switch (align) {
+                case ComputedStyle::AlignItems::Center:
+                    cross_offset += std::max(0.0f, (line.cross - item_cross_extent) / 2.0f);
+                    break;
+                case ComputedStyle::AlignItems::FlexEnd:
+                    cross_offset += std::max(0.0f, line.cross - item_cross_extent);
+                    break;
+                case ComputedStyle::AlignItems::Stretch:
+                    if (row && !item.has_explicit_cross) {
+                        Rect rect = item.box->get_rect();
+                        float stretched = line.cross - cross_margin_start - cross_margin_end;
+                        if (stretched > rect.height) {
+                            rect.height = stretched;
+                            item.box->set_rect(rect);
+                            item.cross = rect.height;
+                        }
+                    }
+                    break;
+                case ComputedStyle::AlignItems::FlexStart:
+                case ComputedStyle::AlignItems::Baseline:  // Baseline alignment not implemented; behaves as start.
+                default:
+                    break;
+            }
+
+            Rect rect = item.box->get_rect();
+            if (row) {
+                rect.x = cursor + main_margin_start;
+                rect.y = cross_offset;
+            } else {
+                rect.x = cross_offset;
+                rect.y = cursor + main_margin_start;
+            }
+            item.box->set_rect(rect);
+            cursor += main_margin_start + item.target_main + main_margin_end + between;
         }
-        item.box->set_rect(rect);
-        cursor += main_margin_start + item.target_main + main_margin_end + between;
+        cross_cursor += line.cross;
     }
 
-    // Container height.
+    // Container cross size (height for row, unchanged content model for column).
     if (row) {
-        float content_height = definite_content_height ? *definite_content_height : line_cross;
+        float content_height = definite_content_height ? std::max(*definite_content_height, total_cross) : total_cross;
         m_rect.height = insets.top + content_height + insets.bottom;
     } else {
         float total_main = 0.0f;

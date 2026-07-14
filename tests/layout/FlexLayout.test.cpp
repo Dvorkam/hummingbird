@@ -294,3 +294,57 @@ TEST(FlexLayoutTest, PercentBasisResolvesAgainstContainerMainSize) {
     EXPECT_NEAR(b->get_rect().width, 200.0f, 0.5f);
     EXPECT_NEAR(b->get_rect().x, 100.0f, 0.5f);
 }
+
+TEST(FlexLayoutTest, FlexWrapMovesOverflowingItemToNextLine) {
+    FlexFixture fixture;
+    // a(60)+b(60)=120 fit in 130; d(60) overflows and wraps to a second line.
+    fixture.build(R"(
+        #c { display: flex; flex-wrap: wrap; width: 130px; }
+        #a { width: 60px; height: 20px; flex-shrink: 0; }
+        #b { width: 60px; height: 20px; flex-shrink: 0; }
+        #d { width: 60px; height: 30px; flex-shrink: 0; }
+    )",
+                  /*third_item=*/true);
+
+    auto* a = find_by_id(fixture.render_root.get(), "a");
+    auto* b = find_by_id(fixture.render_root.get(), "b");
+    auto* d = find_by_id(fixture.render_root.get(), "d");
+    auto* c = find_by_id(fixture.render_root.get(), "c");
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(b, nullptr);
+    ASSERT_NE(d, nullptr);
+    ASSERT_NE(c, nullptr);
+
+    // Line 1: a and b side by side at the top.
+    EXPECT_FLOAT_EQ(a->get_rect().y, 0.0f);
+    EXPECT_FLOAT_EQ(b->get_rect().x, 60.0f);
+    EXPECT_FLOAT_EQ(b->get_rect().y, 0.0f);
+    // Line 2: d drops below line 1 (whose cross height is 20).
+    EXPECT_FLOAT_EQ(d->get_rect().x, 0.0f);
+    EXPECT_FLOAT_EQ(d->get_rect().y, 20.0f);
+    // Container height spans both lines: 20 + 30.
+    EXPECT_FLOAT_EQ(c->get_rect().height, 50.0f);
+}
+
+TEST(FlexLayoutTest, FlexWrapReverseStacksLinesFromOppositeSide) {
+    FlexFixture fixture;
+    fixture.build(R"(
+        #c { display: flex; flex-wrap: wrap-reverse; width: 130px; }
+        #a { width: 60px; height: 20px; flex-shrink: 0; }
+        #b { width: 60px; height: 20px; flex-shrink: 0; }
+        #d { width: 60px; height: 30px; flex-shrink: 0; }
+    )",
+                  /*third_item=*/true);
+
+    auto* a = find_by_id(fixture.render_root.get(), "a");
+    auto* d = find_by_id(fixture.render_root.get(), "d");
+    auto* c = find_by_id(fixture.render_root.get(), "c");
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(d, nullptr);
+    ASSERT_NE(c, nullptr);
+
+    // wrap-reverse puts the last line (d) at the top and the first line (a,b) below.
+    EXPECT_FLOAT_EQ(d->get_rect().y, 0.0f);
+    EXPECT_FLOAT_EQ(a->get_rect().y, 30.0f);
+    EXPECT_FLOAT_EQ(c->get_rect().height, 50.0f);
+}
