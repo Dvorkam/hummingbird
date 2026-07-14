@@ -122,7 +122,7 @@ P0: Layout Compatibility (North Star)
 - [x] T-LAYOUT-FLEX-1: Flexbox Layout MVP (single-line; wrap + baseline deferred to T-DDG-LAYOUT-1)
 - [ ] T-DDG-LAYOUT-1: Flex Alignment Coverage For Real Pages
 - [ ] T-CSS-CLEAR-1: Float Clear Property
-- [ ] T-CSS-BORDER-COMPAT-1: Border Longhands And Corner Radius Longhands
+- [x] T-CSS-BORDER-COMPAT-1: Border Longhands And Corner Radius Longhands (per-corner radius + per-side color + vendor aliases)
 - [ ] T-DDG-CSS-CORE-2: DDG CSS Compatibility Carryover
 
 P0: Guardrails (North Star)

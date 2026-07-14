@@ -15,6 +15,46 @@ struct EdgeSizes {
     float left = 0;
 };
 
+// Per-side border colors. `border`/`border-color` set all four; the
+// `border-<side>-color` longhands set one. Painting uses `top` as the
+// representative color for uniform (rounded) borders and each side
+// individually for the square multi-edge path.
+struct EdgeColors {
+    Color top{0, 0, 0, 255};
+    Color right{0, 0, 0, 255};
+    Color bottom{0, 0, 0, 255};
+    Color left{0, 0, 0, 255};
+};
+
+// One corner's radius, either an absolute px value or a percentage of the
+// box's reference length (resolved at paint time — percentages need the box).
+struct CornerRadius {
+    float value = 0.0f;
+    bool percent = false;
+    float resolve(float reference) const { return percent ? value * 0.01f * reference : value; }
+};
+
+struct CornerRadii {
+    CornerRadius top_left;
+    CornerRadius top_right;
+    CornerRadius bottom_right;
+    CornerRadius bottom_left;
+
+    void set_all(CornerRadius corner) {
+        top_left = top_right = bottom_right = bottom_left = corner;
+    }
+    bool any() const {
+        return top_left.value > 0.0f || top_right.value > 0.0f || bottom_right.value > 0.0f ||
+               bottom_left.value > 0.0f;
+    }
+    bool uniform() const {
+        auto same = [](const CornerRadius& a, const CornerRadius& b) {
+            return a.value == b.value && a.percent == b.percent;
+        };
+        return same(top_left, top_right) && same(top_left, bottom_right) && same(top_left, bottom_left);
+    }
+};
+
 struct ComputedStyle {
     enum class Display { Block, Inline, InlineBlock, ListItem, Flex, None };
     Display display = Display::Block;
@@ -55,8 +95,9 @@ struct ComputedStyle {
     enum class BorderStyle { None, Solid, Outset, Inset, Ridge, Groove };
     BorderStyle border_style = BorderStyle::None;
     EdgeSizes border_width;
-    float border_radius = 0.0f;
+    CornerRadii border_radius;
     Color border_color{0, 0, 0, 255};
+    EdgeColors border_edge_color;
     float outline_width = 0.0f;
     float outline_offset = 0.0f;
     Color outline_color{0, 0, 0, 255};

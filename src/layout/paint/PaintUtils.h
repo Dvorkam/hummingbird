@@ -52,6 +52,62 @@ inline void draw_rounded_fill(IGraphicsContext& context, const Rect& rect, float
     }
 }
 
+// Corner radii resolved to px for a specific box, clamped so no single corner
+// exceeds half the shorter side.
+struct ResolvedCorners {
+    float top_left = 0.0f;
+    float top_right = 0.0f;
+    float bottom_right = 0.0f;
+    float bottom_left = 0.0f;
+    bool any() const {
+        return top_left > 0.0f || top_right > 0.0f || bottom_right > 0.0f || bottom_left > 0.0f;
+    }
+};
+
+inline ResolvedCorners resolve_corners(const Css::CornerRadii& radii, float width, float height) {
+    const float reference = std::min(width, height);
+    const float cap = std::max(0.0f, reference * 0.5f);
+    auto rv = [&](const Css::CornerRadius& corner) {
+        return std::min(std::max(0.0f, corner.resolve(reference)), cap);
+    };
+    return {rv(radii.top_left), rv(radii.top_right), rv(radii.bottom_right), rv(radii.bottom_left)};
+}
+
+// Horizontal inset into a circular corner of the given radius, for a row whose
+// center is `dist_from_edge` px from the near horizontal edge.
+inline float corner_inset(float dist_from_edge, float radius) {
+    if (radius <= 0.0f || dist_from_edge >= radius) {
+        return 0.0f;
+    }
+    const float dy = radius - dist_from_edge;
+    return radius - std::sqrt(std::max(0.0f, radius * radius - dy * dy));
+}
+
+// Scanline fill supporting four independent corner radii (e.g. `0 4px 4px 0`).
+inline void draw_rounded_fill_corners(IGraphicsContext& context, const Rect& rect, const ResolvedCorners& corners,
+                                      const Color& color) {
+    if (!corners.any()) {
+        context.fill_rect(rect, color);
+        return;
+    }
+    const int row_count = std::max(1, static_cast<int>(std::ceil(rect.height)));
+    for (int row = 0; row < row_count; ++row) {
+        const float center = static_cast<float>(row) + 0.5f;
+        const float dist_top = center;
+        const float dist_bottom = rect.height - center;
+        float left = 0.0f;
+        float right = 0.0f;
+        left = std::max(left, corner_inset(dist_top, corners.top_left));
+        left = std::max(left, corner_inset(dist_bottom, corners.bottom_left));
+        right = std::max(right, corner_inset(dist_top, corners.top_right));
+        right = std::max(right, corner_inset(dist_bottom, corners.bottom_right));
+        const float width = std::max(0.0f, rect.width - left - right);
+        if (width > 0.0f) {
+            context.fill_rect(Rect{rect.x + left, rect.y + static_cast<float>(row), width, 1.0f}, color);
+        }
+    }
+}
+
 inline bool is_uniform_border_width(const Css::EdgeSizes& width, float epsilon = 0.01f) {
     return std::fabs(width.top - width.right) < epsilon && std::fabs(width.top - width.bottom) < epsilon &&
            std::fabs(width.top - width.left) < epsilon;
@@ -224,6 +280,9 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
     if (!style) {
         return;
     }
+    const ResolvedCorners corners = resolve_corners(style->border_radius, rect.width, rect.height);
+    const bool uniform_corners = style->border_radius.uniform();
+    const float radius = std::max({corners.top_left, corners.top_right, corners.bottom_right, corners.bottom_left});
     if (style->box_shadow.has_value()) {
         const auto& shadow = *style->box_shadow;
         const float blur = std::max(0.0f, shadow.blur);
@@ -238,7 +297,7 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
             if (blur > 0.0f) {
                 shadow_color.a = static_cast<uint8_t>(shadow_color.a * 0.6f);
             }
-            const float shadow_radius = std::max(0.0f, style->border_radius + blur);
+            const float shadow_radius = std::max(0.0f, radius + blur);
             if (shadow_radius > 0.0f) {
                 draw_rounded_fill(context, shadow_rect, shadow_radius, shadow_color);
             } else {
@@ -246,10 +305,9 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
             }
         }
     }
-    const float radius = std::max(0.0f, style->border_radius);
     if (style->background.has_value()) {
-        if (radius > 0.0f) {
-            draw_rounded_fill(context, rect, radius, *style->background);
+        if (corners.any()) {
+            draw_rounded_fill_corners(context, rect, corners, *style->background);
         } else {
             context.fill_rect(rect, *style->background);
         }
@@ -259,25 +317,29 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
     }
     if (style->border_style != Css::ComputedStyle::BorderStyle::None) {
         const auto& bw = style->border_width;
-        const auto& color = style->border_color;
-        if (radius > 0.0f && is_uniform_border_width(bw)) {
-            draw_uniform_rounded_border(context, rect, radius, bw.top, color);
+        const auto& edge = style->border_edge_color;
+        // Rounded borders are only stroked cleanly for uniform corners + width
+        // (the common control-chrome case). Non-uniform corners fall back to
+        // straight per-side edges, which is acceptable since pages that mix
+        // per-corner radii with visible borders are rare.
+        if (radius > 0.0f && uniform_corners && is_uniform_border_width(bw)) {
+            draw_uniform_rounded_border(context, rect, radius, bw.top, style->border_color);
         } else {
             if (bw.top > 0.0f) {
                 Rect top{rect.x, rect.y, rect.width, bw.top};
-                context.fill_rect(top, color);
+                context.fill_rect(top, edge.top);
             }
             if (bw.bottom > 0.0f) {
                 Rect bottom{rect.x, rect.y + rect.height - bw.bottom, rect.width, bw.bottom};
-                context.fill_rect(bottom, color);
+                context.fill_rect(bottom, edge.bottom);
             }
             if (bw.left > 0.0f) {
                 Rect left{rect.x, rect.y, bw.left, rect.height};
-                context.fill_rect(left, color);
+                context.fill_rect(left, edge.left);
             }
             if (bw.right > 0.0f) {
                 Rect right{rect.x + rect.width - bw.right, rect.y, bw.right, rect.height};
-                context.fill_rect(right, color);
+                context.fill_rect(right, edge.right);
             }
         }
     }

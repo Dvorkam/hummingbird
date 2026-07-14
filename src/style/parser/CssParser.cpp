@@ -506,6 +506,33 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             if (border_color) push_decl(Property::BorderColor, *border_color);
             return true;
         }
+        case PropertyRegistry::ParserHook::parse_border_radius: {
+            // `border-radius` shorthand: 1-4 lengths mapped to the four corners.
+            // (The elliptical `/ <vertical>` syntax is not supported; DDG's
+            // controls use circular radii only.) Vendor-prefixed shorthands
+            // resolve to this same property, so they land here too.
+            std::vector<Value> radii;
+            for (const auto& value : values) {
+                if (value.type == Value::Type::Length || value.type == Value::Type::Number) {
+                    radii.push_back(value);
+                }
+                if (radii.size() == 4) {
+                    break;
+                }
+            }
+            if (radii.empty()) {
+                return true;
+            }
+            const Value& tl = radii[0];
+            const Value& tr = radii.size() > 1 ? radii[1] : radii[0];
+            const Value& br = radii.size() > 2 ? radii[2] : radii[0];
+            const Value& bl = radii.size() > 3 ? radii[3] : (radii.size() > 1 ? radii[1] : radii[0]);
+            push_decl(Property::BorderTopLeftRadius, tl);
+            push_decl(Property::BorderTopRightRadius, tr);
+            push_decl(Property::BorderBottomRightRadius, br);
+            push_decl(Property::BorderBottomLeftRadius, bl);
+            return true;
+        }
         case PropertyRegistry::ParserHook::parse_font_shorthand: {
             std::optional<Value> font_style;
             std::optional<Value> font_weight;

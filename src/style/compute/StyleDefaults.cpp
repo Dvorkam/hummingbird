@@ -98,7 +98,8 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.border_style = ComputedStyle::BorderStyle::Solid;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
         style.border_color = {125, 125, 125, 255};
-        style.border_radius = 2.0f;
+        style.border_edge_color = {style.border_color, style.border_color, style.border_color, style.border_color};
+        style.border_radius.set_all({2.0f, false});
         style.padding.left = 8.0f;
         style.padding.right = 8.0f;
         style.padding.top = 4.0f;
@@ -118,7 +119,8 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.border_style = ComputedStyle::BorderStyle::Outset;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
         style.border_color = {80, 80, 80, 255};
-        style.border_radius = 2.0f;
+        style.border_edge_color = {style.border_color, style.border_color, style.border_color, style.border_color};
+        style.border_radius.set_all({2.0f, false});
         style.padding.left = 10.0f;
         style.padding.right = 10.0f;
         style.padding.top = 4.0f;

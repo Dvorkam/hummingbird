@@ -631,6 +631,36 @@ TEST(CSSParserTest, ParsesRgbAndRgbaColorFunctions) {
     EXPECT_EQ(d[0].value.color.a, 128);  // 50% alpha
 }
 
+TEST(CSSParserTest, BorderRadiusShorthandExpandsToFourCorners) {
+    // DDG search-button shape: `0 4px 4px 0` -> TL, TR, BR, BL.
+    Parser parser(".a { border-radius: 0 4px 4px 0; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 4u);
+    EXPECT_EQ(decls[0].property, Property::BorderTopLeftRadius);
+    EXPECT_FLOAT_EQ(decls[0].value.length.value, 0.0f);
+    EXPECT_EQ(decls[1].property, Property::BorderTopRightRadius);
+    EXPECT_FLOAT_EQ(decls[1].value.length.value, 4.0f);
+    EXPECT_EQ(decls[2].property, Property::BorderBottomRightRadius);
+    EXPECT_FLOAT_EQ(decls[2].value.length.value, 4.0f);
+    EXPECT_EQ(decls[3].property, Property::BorderBottomLeftRadius);
+    EXPECT_FLOAT_EQ(decls[3].value.length.value, 0.0f);
+}
+
+TEST(CSSParserTest, VendorPrefixedBorderRadiusResolvesToStandard) {
+    Parser parser(".a { -webkit-border-radius: 8px; -moz-border-radius-topleft: 3px; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    // -webkit-border-radius expands to four corners, -moz corner longhand to one.
+    ASSERT_EQ(decls.size(), 5u);
+    EXPECT_EQ(decls[0].property, Property::BorderTopLeftRadius);
+    EXPECT_FLOAT_EQ(decls[0].value.length.value, 8.0f);
+    EXPECT_EQ(decls[4].property, Property::BorderTopLeftRadius);
+    EXPECT_FLOAT_EQ(decls[4].value.length.value, 3.0f);
+}
+
 TEST(CSSParserTest, BorderNoneRemovesBorder) {
     Parser parser(".a { border: none; }");
     auto sheet = parser.parse();

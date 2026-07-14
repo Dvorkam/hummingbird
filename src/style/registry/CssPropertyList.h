@@ -26,6 +26,7 @@ enum class ParserHook : std::uint8_t {
     parse_length,
     parse_transform,
     parse_border_shorthand,
+    parse_border_radius,
     parse_color,
     parse_number_auto,
     parse_text_decoration,

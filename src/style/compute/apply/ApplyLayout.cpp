@@ -138,6 +138,23 @@ void apply_edge(EdgeSizes& edges, float value) {
     edges.top = edges.right = edges.bottom = edges.left = value;
 }
 
+// A single corner radius value. Percentages are kept unresolved (they need the
+// box dimensions, which only exist at paint time); px/em resolve to px here.
+CornerRadius value_to_corner_radius(const Value& value, float font_size) {
+    CornerRadius corner;
+    if (value.type == Value::Type::Number) {
+        corner.value = std::max(0.0f, value.number);
+        return corner;
+    }
+    if (value.type == Value::Type::Length && value.length.unit == Unit::Percent) {
+        corner.value = std::max(0.0f, value.length.value);
+        corner.percent = true;
+        return corner;
+    }
+    corner.value = std::max(0.0f, StyleValueUtils::value_to_length(value, 0.0f, font_size));
+    return corner;
+}
+
 void apply_optional_length(std::optional<float>& target, bool& is_percent, const Value& value, float font_size) {
     if (value.type == Value::Type::Length) {
         if (value.length.unit == Unit::Px) {
@@ -469,11 +486,46 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             style.border_width.left = StyleValueUtils::value_to_length(value, style.border_width.left, style.font_size);
             return true;
         case Property::BorderRadius:
-            style.border_radius = std::max(0.0f, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            // Shorthand normally expands to the four corner longhands in the
+            // parser; handle a direct value defensively as all-corners.
+            style.border_radius.set_all(value_to_corner_radius(value, style.font_size));
+            return true;
+        case Property::BorderTopLeftRadius:
+            style.border_radius.top_left = value_to_corner_radius(value, style.font_size);
+            return true;
+        case Property::BorderTopRightRadius:
+            style.border_radius.top_right = value_to_corner_radius(value, style.font_size);
+            return true;
+        case Property::BorderBottomRightRadius:
+            style.border_radius.bottom_right = value_to_corner_radius(value, style.font_size);
+            return true;
+        case Property::BorderBottomLeftRadius:
+            style.border_radius.bottom_left = value_to_corner_radius(value, style.font_size);
             return true;
         case Property::BorderColor:
             if (value.type == Value::Type::Color) {
                 style.border_color = value.color;
+                style.border_edge_color = {value.color, value.color, value.color, value.color};
+            }
+            return true;
+        case Property::BorderTopColor:
+            if (value.type == Value::Type::Color) {
+                style.border_edge_color.top = value.color;
+            }
+            return true;
+        case Property::BorderRightColor:
+            if (value.type == Value::Type::Color) {
+                style.border_edge_color.right = value.color;
+            }
+            return true;
+        case Property::BorderBottomColor:
+            if (value.type == Value::Type::Color) {
+                style.border_edge_color.bottom = value.color;
+            }
+            return true;
+        case Property::BorderLeftColor:
+            if (value.type == Value::Type::Color) {
+                style.border_edge_color.left = value.color;
             }
             return true;
         case Property::Outline:

@@ -75,9 +75,27 @@ HB_CSS_PROPERTY(BorderBottomWidth, BorderBottomWidth, "border-bottom-width", "bo
                 ParserHook::parse_length, ApplyHook::apply_border_width, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BorderLeftWidth, BorderLeftWidth, "border-left-width", "border-left-width", ParserHook::parse_length,
                 ApplyHook::apply_border_width, PropertyFlags::LayoutAffecting)
-HB_CSS_PROPERTY(BorderRadius, BorderRadius, "border-radius", "border-radius", ParserHook::parse_length,
+HB_CSS_PROPERTY(BorderRadius, BorderRadius, "border-radius", "border-radius", ParserHook::parse_border_radius,
                 ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderTopLeftRadius, BorderTopLeftRadius, "border-top-left-radius", "border-top-left-radius",
+                ParserHook::parse_length, ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderTopRightRadius, BorderTopRightRadius, "border-top-right-radius", "border-top-right-radius",
+                ParserHook::parse_length, ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderBottomRightRadius, BorderBottomRightRadius, "border-bottom-right-radius",
+                "border-bottom-right-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderBottomLeftRadius, BorderBottomLeftRadius, "border-bottom-left-radius",
+                "border-bottom-left-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BorderColor, BorderColor, "border-color", "border-color", ParserHook::parse_color,
+                ApplyHook::apply_border_color, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderTopColor, BorderTopColor, "border-top-color", "border-top-color", ParserHook::parse_color,
+                ApplyHook::apply_border_color, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderRightColor, BorderRightColor, "border-right-color", "border-right-color", ParserHook::parse_color,
+                ApplyHook::apply_border_color, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderBottomColor, BorderBottomColor, "border-bottom-color", "border-bottom-color",
+                ParserHook::parse_color, ApplyHook::apply_border_color, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(BorderLeftColor, BorderLeftColor, "border-left-color", "border-left-color", ParserHook::parse_color,
                 ApplyHook::apply_border_color, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Outline, Outline, "outline", "outline", ParserHook::parse_outline_shorthand, ApplyHook::apply_outline,
                 PropertyFlags::LayoutAffecting)
@@ -180,3 +198,40 @@ HB_CSS_PROPERTY_ALIAS(BoxSizing, MsBoxSizing, "-ms-box-sizing", "box-sizing", Pa
                       ApplyHook::apply_box_sizing, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY_ALIAS(BoxSizing, OBoxSizing, "-o-box-sizing", "box-sizing", ParserHook::parse_identifier,
                       ApplyHook::apply_box_sizing, PropertyFlags::LayoutAffecting)
+
+// Vendor-prefixed border-radius shorthand (all resolve to the standard property).
+HB_CSS_PROPERTY_ALIAS(BorderRadius, WebkitBorderRadius, "-webkit-border-radius", "border-radius",
+                      ParserHook::parse_border_radius, ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderRadius, MozBorderRadius, "-moz-border-radius", "border-radius",
+                      ParserHook::parse_border_radius, ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderRadius, MsBorderRadius, "-ms-border-radius", "border-radius",
+                      ParserHook::parse_border_radius, ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderRadius, OBorderRadius, "-o-border-radius", "border-radius",
+                      ParserHook::parse_border_radius, ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
+
+// Vendor-prefixed per-corner radius. WebKit uses the standard corner names;
+// Gecko uses the older `-moz-border-radius-<corner>` spelling.
+HB_CSS_PROPERTY_ALIAS(BorderTopLeftRadius, WebkitBorderTopLeftRadius, "-webkit-border-top-left-radius",
+                      "border-top-left-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                      PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderTopRightRadius, WebkitBorderTopRightRadius, "-webkit-border-top-right-radius",
+                      "border-top-right-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                      PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderBottomRightRadius, WebkitBorderBottomRightRadius, "-webkit-border-bottom-right-radius",
+                      "border-bottom-right-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                      PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderBottomLeftRadius, WebkitBorderBottomLeftRadius, "-webkit-border-bottom-left-radius",
+                      "border-bottom-left-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                      PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderTopLeftRadius, MozBorderRadiusTopleft, "-moz-border-radius-topleft",
+                      "border-top-left-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                      PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderTopRightRadius, MozBorderRadiusTopright, "-moz-border-radius-topright",
+                      "border-top-right-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                      PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderBottomRightRadius, MozBorderRadiusBottomright, "-moz-border-radius-bottomright",
+                      "border-bottom-right-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                      PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderBottomLeftRadius, MozBorderRadiusBottomleft, "-moz-border-radius-bottomleft",
+                      "border-bottom-left-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
+                      PropertyFlags::LayoutAffecting)

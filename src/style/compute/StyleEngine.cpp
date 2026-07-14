@@ -143,6 +143,7 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.border_width = source.border_width;
     target.border_radius = source.border_radius;
     target.border_color = source.border_color;
+    target.border_edge_color = source.border_edge_color;
     target.border_style = source.border_style;
     target.outline_width = source.outline_width;
     target.outline_offset = source.outline_offset;

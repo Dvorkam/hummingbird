@@ -878,7 +878,78 @@ TEST(StyleEngineTest, AppliesBorderRadiusProperty) {
 
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
-    EXPECT_FLOAT_EQ(style->border_radius, 12.0f);
+    EXPECT_TRUE(style->border_radius.uniform());
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 12.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_right.value, 12.0f);
+}
+
+TEST(StyleEngineTest, AppliesPerCornerAndVendorBorderRadius) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "corners");
+
+    // Right-side-only rounding, DDG search-button style, plus a vendor alias
+    // that must resolve to the standard property.
+    std::string css = R"(#corners {
+        border-radius: 0 4px 4px 0;
+        -webkit-border-top-left-radius: 9px;
+    })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 9.0f);  // vendor longhand wins by order
+    EXPECT_FLOAT_EQ(style->border_radius.top_right.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_right.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_left.value, 0.0f);
+    EXPECT_FALSE(style->border_radius.uniform());
+}
+
+TEST(StyleEngineTest, AppliesPercentBorderRadius) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "circle");
+
+    std::string css = R"(#circle { border-radius: 50%; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_TRUE(style->border_radius.top_left.percent);
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 50.0f);
+    // 50% of a 40px box (min side) resolves to a 20px corner radius.
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.resolve(40.0f), 20.0f);
+}
+
+TEST(StyleEngineTest, AppliesPerSideBorderColor) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "sides");
+
+    std::string css = R"(#sides {
+        border-color: #111111;
+        border-left-color: #3969ef;
+    })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->border_edge_color.top.r, 0x11);
+    EXPECT_EQ(style->border_edge_color.left.r, 0x39);
+    EXPECT_EQ(style->border_edge_color.left.g, 0x69);
+    EXPECT_EQ(style->border_edge_color.left.b, 0xef);
 }
 
 TEST(StyleEngineTest, AppliesOutlineAndOffsetProperties) {

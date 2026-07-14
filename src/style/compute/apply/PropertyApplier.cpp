@@ -70,10 +70,13 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
             (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::apply_border_radius:
-            (void)apply_layout_property(Property::BorderRadius, value, style, overrides, context);
+            // property carries the specific corner (or the shorthand) so the
+            // layout applier can target one corner or all four.
+            (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::apply_border_color:
-            (void)apply_layout_property(Property::BorderColor, value, style, overrides, context);
+            // property carries the specific side (or the shorthand).
+            (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::apply_outline:
             (void)apply_layout_property(Property::Outline, value, style, overrides, context);
