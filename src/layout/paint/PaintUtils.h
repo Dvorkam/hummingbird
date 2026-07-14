@@ -83,6 +83,15 @@ inline float corner_inset(float dist_from_edge, float radius) {
     return radius - std::sqrt(std::max(0.0f, radius * radius - dy * dy));
 }
 
+// Left/right horizontal insets for one scanline row, given four corner radii.
+inline void corner_insets_at_row(const ResolvedCorners& corners, float row_center, float height, float& left,
+                                 float& right) {
+    const float dist_top = row_center;
+    const float dist_bottom = height - row_center;
+    left = std::max(corner_inset(dist_top, corners.top_left), corner_inset(dist_bottom, corners.bottom_left));
+    right = std::max(corner_inset(dist_top, corners.top_right), corner_inset(dist_bottom, corners.bottom_right));
+}
+
 // Scanline fill supporting four independent corner radii (e.g. `0 4px 4px 0`).
 inline void draw_rounded_fill_corners(IGraphicsContext& context, const Rect& rect, const ResolvedCorners& corners,
                                       const Color& color) {
@@ -92,18 +101,57 @@ inline void draw_rounded_fill_corners(IGraphicsContext& context, const Rect& rec
     }
     const int row_count = std::max(1, static_cast<int>(std::ceil(rect.height)));
     for (int row = 0; row < row_count; ++row) {
-        const float center = static_cast<float>(row) + 0.5f;
-        const float dist_top = center;
-        const float dist_bottom = rect.height - center;
         float left = 0.0f;
         float right = 0.0f;
-        left = std::max(left, corner_inset(dist_top, corners.top_left));
-        left = std::max(left, corner_inset(dist_bottom, corners.bottom_left));
-        right = std::max(right, corner_inset(dist_top, corners.top_right));
-        right = std::max(right, corner_inset(dist_bottom, corners.bottom_right));
+        corner_insets_at_row(corners, static_cast<float>(row) + 0.5f, rect.height, left, right);
         const float width = std::max(0.0f, rect.width - left - right);
         if (width > 0.0f) {
             context.fill_rect(Rect{rect.x + left, rect.y + static_cast<float>(row), width, 1.0f}, color);
+        }
+    }
+}
+
+// Uniform-width border stroke that follows four independent corner radii: fills
+// the gap between the outer rounded edge and an inner edge inset by `thickness`
+// (with each corner radius reduced by the thickness).
+inline void draw_rounded_border_corners(IGraphicsContext& context, const Rect& rect, const ResolvedCorners& corners,
+                                        float thickness, const Color& color) {
+    if (thickness <= 0.0f) {
+        return;
+    }
+    const Rect inner{rect.x + thickness, rect.y + thickness, std::max(0.0f, rect.width - thickness * 2.0f),
+                     std::max(0.0f, rect.height - thickness * 2.0f)};
+    const ResolvedCorners inner_corners{
+        std::max(0.0f, corners.top_left - thickness),
+        std::max(0.0f, corners.top_right - thickness),
+        std::max(0.0f, corners.bottom_right - thickness),
+        std::max(0.0f, corners.bottom_left - thickness),
+    };
+    const int row_count = std::max(1, static_cast<int>(std::ceil(rect.height)));
+    for (int row = 0; row < row_count; ++row) {
+        const float y_abs = rect.y + static_cast<float>(row);
+        float outer_left = 0.0f;
+        float outer_right = 0.0f;
+        corner_insets_at_row(corners, static_cast<float>(row) + 0.5f, rect.height, outer_left, outer_right);
+        const float ox_left = rect.x + outer_left;
+        const float ox_right = rect.x + rect.width - outer_right;
+        if (ox_right <= ox_left) {
+            continue;
+        }
+        if (y_abs < inner.y || y_abs >= inner.y + inner.height || inner.width <= 0.0f || inner.height <= 0.0f) {
+            context.fill_rect(Rect{ox_left, y_abs, ox_right - ox_left, 1.0f}, color);
+            continue;
+        }
+        float inner_left = 0.0f;
+        float inner_right = 0.0f;
+        corner_insets_at_row(inner_corners, (y_abs - inner.y) + 0.5f, inner.height, inner_left, inner_right);
+        const float ix_left = inner.x + inner_left;
+        const float ix_right = inner.x + inner.width - inner_right;
+        if (ix_left > ox_left) {
+            context.fill_rect(Rect{ox_left, y_abs, ix_left - ox_left, 1.0f}, color);
+        }
+        if (ox_right > ix_right) {
+            context.fill_rect(Rect{ix_right, y_abs, ox_right - ix_right, 1.0f}, color);
         }
     }
 }
@@ -281,7 +329,6 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
         return;
     }
     const ResolvedCorners corners = resolve_corners(style->border_radius, rect.width, rect.height);
-    const bool uniform_corners = style->border_radius.uniform();
     const float radius = std::max({corners.top_left, corners.top_right, corners.bottom_right, corners.bottom_left});
     if (style->box_shadow.has_value()) {
         const auto& shadow = *style->box_shadow;
@@ -318,12 +365,12 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
     if (style->border_style != Css::ComputedStyle::BorderStyle::None) {
         const auto& bw = style->border_width;
         const auto& edge = style->border_edge_color;
-        // Rounded borders are only stroked cleanly for uniform corners + width
-        // (the common control-chrome case). Non-uniform corners fall back to
-        // straight per-side edges, which is acceptable since pages that mix
-        // per-corner radii with visible borders are rare.
-        if (radius > 0.0f && uniform_corners && is_uniform_border_width(bw)) {
-            draw_uniform_rounded_border(context, rect, radius, bw.top, style->border_color);
+        // A uniform-width border follows the corner radii (each corner rounds
+        // independently). A single border color is used for the rounded stroke;
+        // per-side colors only apply to the square multi-edge path below, which
+        // is also the fallback when border widths differ per side.
+        if (radius > 0.0f && is_uniform_border_width(bw)) {
+            draw_rounded_border_corners(context, rect, corners, bw.top, style->border_color);
         } else {
             if (bw.top > 0.0f) {
                 Rect top{rect.x, rect.y, rect.width, bw.top};
