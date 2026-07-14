@@ -252,6 +252,23 @@ TEST(StyleEngineTest, AppliesFloatProperty) {
     EXPECT_EQ(style->float_type, ComputedStyle::Float::Right);
 }
 
+TEST(StyleEngineTest, AppliesClearProperty) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "cleared");
+
+    std::string css = R"(.cleared { clear: both; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->clear, ComputedStyle::Clear::Both);
+}
+
 TEST(StyleEngineTest, AppliesBoxSizingProperty) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

@@ -73,6 +73,8 @@ struct ComputedStyle {
     int order = 0;
     enum class Float { None, Left, Right };
     Float float_type = Float::None;
+    enum class Clear { None, Left, Right, Both };
+    Clear clear = Clear::None;
     enum class Position { Static, Relative, Absolute };
     Position position = Position::Static;
     enum class TextAlign { Left, Center, Right };

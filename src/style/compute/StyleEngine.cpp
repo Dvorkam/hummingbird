@@ -166,6 +166,7 @@ void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
     target.z_index = source.z_index;
     target.opacity = source.opacity;
     target.float_type = source.float_type;
+    target.clear = source.clear;
     target.text_overflow = source.text_overflow;
 }
 

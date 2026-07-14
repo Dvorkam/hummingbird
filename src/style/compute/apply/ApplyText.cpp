@@ -250,6 +250,19 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                 }
             }
             return true;
+        case Property::Clear:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Left) {
+                    style.clear = ComputedStyle::Clear::Left;
+                } else if (value.ident == ValueNames::Right) {
+                    style.clear = ComputedStyle::Clear::Right;
+                } else if (value.ident == ValueNames::Both) {
+                    style.clear = ComputedStyle::Clear::Both;
+                } else if (value.ident == ValueNames::None) {
+                    style.clear = ComputedStyle::Clear::None;
+                }
+            }
+            return true;
         case Property::ListStyle:
             if (value.type == Value::Type::Identifier) {
                 auto tokens = StyleValueUtils::split_tokens(value.ident);

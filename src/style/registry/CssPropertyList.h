@@ -100,6 +100,7 @@ enum class ApplyHook : std::uint8_t {
     apply_font_weight,
     apply_font_style,
     apply_float,
+    apply_clear,
     apply_list_style,
     apply_list_style_type,
     apply_list_style_position,

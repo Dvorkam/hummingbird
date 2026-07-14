@@ -71,6 +71,12 @@
       .sides { width: 120px; height: 64px; margin: 6px; background-color: #ffffff; border: 5px solid #cccccc;
                border-top-color: #e05a5a; border-right-color: #e0a63c; border-bottom-color: #4a8a3d;
                border-left-color: #3969ef; }
+
+      .float-box { border: 1px solid #dde3ee; padding: 8px; background-color: #fafbff; }
+      .float-left { float: left; width: 80px; height: 56px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
+                    border-radius: 6px; margin: 0 10px 6px 0; text-align: center; }
+      .float-flowed { background-color: #fff4e0; }
+      .float-cleared { clear: left; background-color: #d9f2d9; border-radius: 6px; padding: 8px; }
     </style>
   </head>
   <body>
@@ -82,9 +88,10 @@
       <p class="note">
         Added in M6: <code>display: flex</code>, <code>flex-direction</code> (+reverse),
         <code>justify-content</code>, <code>align-items</code>, <code>flex-grow/shrink/basis</code>,
-        the <code>flex</code> shorthand, and <code>order</code>; plus CSS control-chrome compat &mdash;
-        per-corner <code>border-radius</code>, per-side <code>border-color</code>, and vendor-prefixed
-        aliases. Not yet: <code>flex-wrap</code>, baseline alignment.
+        the <code>flex</code> shorthand, and <code>order</code>; float <code>clear</code>; plus CSS
+        control-chrome compat &mdash; per-corner <code>border-radius</code>, per-side
+        <code>border-color</code>, and vendor-prefixed aliases. Not yet: <code>flex-wrap</code>,
+        baseline alignment.
       </p>
 
       <div class="section">
@@ -184,6 +191,19 @@
             its own color.
           </p>
         </div>
+      </div>
+
+      <div class="section">
+        <h2>Float and clear</h2>
+        <div class="float-box">
+          <div class="float-left">float<br>left</div>
+          <p class="float-flowed">This paragraph flows alongside the floated box, wrapping its text into the
+          narrower band beside the float &mdash; the classic magazine-style text wrap.</p>
+          <div class="float-cleared">This block uses <code>clear: left</code>, so it drops below the float
+          instead of sitting beside it.</div>
+        </div>
+        <p class="note">The green <code>clear: left</code> block starts below the floated box; the amber
+        paragraph above it wraps beside the float.</p>
       </div>
     </div>
   </body>

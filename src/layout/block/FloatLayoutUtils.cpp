@@ -8,6 +8,23 @@ bool overlaps_vertical(const Rect& rect, float y, float height) {
     return y < rect.y + rect.height && y + height > rect.y;
 }
 
+float clearance_y(const std::vector<FloatBox>& floats, Css::ComputedStyle::Clear clear, float current_y) {
+    if (clear == Css::ComputedStyle::Clear::None) {
+        return current_y;
+    }
+    float target = current_y;
+    for (const auto& f : floats) {
+        const bool clears_side =
+            clear == Css::ComputedStyle::Clear::Both ||
+            (clear == Css::ComputedStyle::Clear::Left && f.side == Css::ComputedStyle::Float::Left) ||
+            (clear == Css::ComputedStyle::Clear::Right && f.side == Css::ComputedStyle::Float::Right);
+        if (clears_side) {
+            target = std::max(target, f.rect.y + f.rect.height);
+        }
+    }
+    return target;
+}
+
 FloatBand compute_float_band(const std::vector<FloatBox>& floats, float y, float height, float content_left,
                              float content_right) {
     FloatBand band{content_left, content_right, y, false};

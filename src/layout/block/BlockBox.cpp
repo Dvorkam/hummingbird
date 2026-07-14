@@ -69,6 +69,15 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
         }
         FlowLayout::ChildMargins margins = FlowLayout::compute_child_margins(child_style, true);
 
+        // `clear` drops this child below the bottom edge of earlier floats on
+        // the relevant side(s). Applied as a delta so any pending inline line
+        // height is preserved for the subsequent flush.
+        if (child_style && child_style->clear != Css::ComputedStyle::Clear::None && !floats.empty()) {
+            float effective_bottom = cursor.y + cursor.line_height;
+            float cleared = FloatLayout::clearance_y(floats, child_style->clear, effective_bottom);
+            cursor.y += cleared - effective_bottom;
+        }
+
         Css::ComputedStyle::Float float_type = FlowLayout::resolve_float_type(*child, true);
         if (float_type != Css::ComputedStyle::Float::None) {
             FlowLayout::layout_float_child(context, *child, margins, cursor, float_type, floats, max_float_bottom,

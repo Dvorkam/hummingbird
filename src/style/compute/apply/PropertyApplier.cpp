@@ -177,6 +177,9 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_float:
             (void)apply_text_property(Property::Float, value, style, overrides, context);
             return;
+        case ApplyHook::apply_clear:
+            (void)apply_text_property(Property::Clear, value, style, overrides, context);
+            return;
         case ApplyHook::apply_list_style:
             (void)apply_text_property(Property::ListStyle, value, style, overrides, context);
             return;

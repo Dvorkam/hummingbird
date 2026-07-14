@@ -164,6 +164,8 @@ HB_CSS_PROPERTY(FontStyle, FontStyle, "font-style", "font-style", ParserHook::pa
                 ApplyHook::apply_font_style, PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Float, Float, "float", "float", ParserHook::parse_identifier, ApplyHook::apply_float,
                 PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(Clear, Clear, "clear", "clear", ParserHook::parse_identifier, ApplyHook::apply_clear,
+                PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(ListStyle, ListStyle, "list-style", "list-style", ParserHook::parse_list_style_shorthand,
                 ApplyHook::apply_list_style, PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(ListStyleType, ListStyleType, "list-style-type", "list-style-type", ParserHook::parse_identifier,

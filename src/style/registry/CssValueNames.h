@@ -20,6 +20,7 @@ static constexpr std::string_view Center = "center";
 static constexpr std::string_view Right = "right";
 static constexpr std::string_view Top = "top";
 static constexpr std::string_view Bottom = "bottom";
+static constexpr std::string_view Both = "both";
 static constexpr std::string_view Middle = "middle";
 static constexpr std::string_view Baseline = "baseline";
 static constexpr std::string_view Normal = "normal";
