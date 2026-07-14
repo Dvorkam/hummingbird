@@ -55,6 +55,22 @@
       .ddg-form { display: flex; flex-direction: row; align-items: center; }
       .ddg-form input { width: 320px; padding: 9px 12px; border: 1px solid #9aa7bd; border-radius: 6px; margin-right: 8px; background-color: #ffffff; }
       .ddg-form button { padding: 9px 16px; border: 1px solid #14213d; border-radius: 6px; background-color: #14213d; color: #ffffff; }
+
+      .chrome-row { display: flex; flex-direction: row; align-items: center; }
+      .swatch { width: 96px; height: 64px; margin: 6px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
+                color: #1d2433; font-size: 12px; text-align: center; }
+      .r-pill { border-radius: 40px; }
+      .r-circle { width: 64px; border-radius: 50%; }
+      .r-top { border-radius: 16px 16px 0 0; }
+      .r-diag { border-radius: 20px 0 20px 0; }
+      /* The exact DDG search-button shape: square left, rounded right. */
+      .r-ddg-btn { border-radius: 0 16px 16px 0; background-color: #5b9e4d; border-color: #4a8a3d; color: #ffffff; }
+      /* Vendor-prefixed forms must resolve to the standard property. */
+      .r-vendor { -webkit-border-radius: 16px; -moz-border-radius: 16px; }
+      /* Per-side border colors on a square box (each edge its own color). */
+      .sides { width: 120px; height: 64px; margin: 6px; background-color: #ffffff; border: 5px solid #cccccc;
+               border-top-color: #e05a5a; border-right-color: #e0a63c; border-bottom-color: #4a8a3d;
+               border-left-color: #3969ef; }
     </style>
   </head>
   <body>
@@ -66,7 +82,9 @@
       <p class="note">
         Added in M6: <code>display: flex</code>, <code>flex-direction</code> (+reverse),
         <code>justify-content</code>, <code>align-items</code>, <code>flex-grow/shrink/basis</code>,
-        the <code>flex</code> shorthand, and <code>order</code>. Not yet: <code>flex-wrap</code>, baseline alignment.
+        the <code>flex</code> shorthand, and <code>order</code>; plus CSS control-chrome compat &mdash;
+        per-corner <code>border-radius</code>, per-side <code>border-color</code>, and vendor-prefixed
+        aliases. Not yet: <code>flex-wrap</code>, baseline alignment.
       </p>
 
       <div class="section">
@@ -145,6 +163,27 @@
           </form>
         </div>
         <p class="note">Column flex container centering a logo + search form &mdash; the DDG homepage pattern this milestone targets.</p>
+      </div>
+
+      <div class="section">
+        <h2>Control chrome: per-corner radius &amp; per-side borders</h2>
+        <div class="chrome-row">
+          <div class="swatch r-pill">pill<br>40px</div>
+          <div class="swatch r-circle">50%</div>
+          <div class="swatch r-top">top<br>16 16 0 0</div>
+          <div class="swatch r-diag">diagonal<br>20 0 20 0</div>
+          <div class="swatch r-ddg-btn">DDG btn<br>0 16 16 0</div>
+          <div class="swatch r-vendor">vendor<br>-webkit-</div>
+        </div>
+        <div class="chrome-row">
+          <div class="sides">4 colored sides</div>
+          <p class="note">
+            Each corner rounds independently (<code>border-radius: 0 16px 16px 0</code> is the DDG search
+            button), <code>50%</code> makes a circle, vendor-prefixed <code>-webkit-/-moz-border-radius</code>
+            resolve to the standard property, and <code>border-&lt;side&gt;-color</code> paints each edge
+            its own color.
+          </p>
+        </div>
       </div>
     </div>
   </body>
