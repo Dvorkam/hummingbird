@@ -19,6 +19,8 @@ struct DisplayCommand {
         DrawText,
         DrawTextWithMetrics,
         SetGlobalAlpha,
+        PushClip,
+        PopClip,
     };
 
     Type type;
@@ -44,6 +46,8 @@ public:
     void add_draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
                                     const TextMetrics& metrics);
     void add_set_global_alpha(float alpha);
+    void add_push_clip(const Hummingbird::Layout::Rect& rect);
+    void add_pop_clip();
 
     void replay(IGraphicsContext& context) const;
 
@@ -79,6 +83,8 @@ public:
         list_.add_draw_text_with_metrics(text, x, y, style, metrics);
     }
     void set_global_alpha(float alpha) override { list_.add_set_global_alpha(alpha); }
+    void push_clip(const Hummingbird::Layout::Rect& rect) override { list_.add_push_clip(rect); }
+    void pop_clip() override { list_.add_pop_clip(); }
 
 private:
     DisplayList& list_;

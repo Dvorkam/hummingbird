@@ -50,6 +50,19 @@ DisplayCommand make_set_global_alpha(float alpha) {
     return command;
 }
 
+DisplayCommand make_push_clip(const Hummingbird::Layout::Rect& rect) {
+    DisplayCommand command;
+    command.type = DisplayCommand::Type::PushClip;
+    command.rect = rect;
+    return command;
+}
+
+DisplayCommand make_pop_clip() {
+    DisplayCommand command;
+    command.type = DisplayCommand::Type::PopClip;
+    return command;
+}
+
 void replay_command(const DisplayCommand& command, IGraphicsContext& context) {
     switch (command.type) {
         case DisplayCommand::Type::FillRect:
@@ -69,6 +82,12 @@ void replay_command(const DisplayCommand& command, IGraphicsContext& context) {
             break;
         case DisplayCommand::Type::SetGlobalAlpha:
             context.set_global_alpha(command.alpha);
+            break;
+        case DisplayCommand::Type::PushClip:
+            context.push_clip(command.rect);
+            break;
+        case DisplayCommand::Type::PopClip:
+            context.pop_clip();
             break;
     }
 }
