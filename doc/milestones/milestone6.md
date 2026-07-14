@@ -127,7 +127,7 @@ P0: Layout Compatibility (North Star)
 
 P0: Guardrails (North Star)
 - [x] T-DDG-E2E-1: Real DDG HTML Snapshot Regression Harness (layout guard + focus/type/submit/navigate flow, in CI)
-- [ ] T-ARCH-GUARD-1: Dependency Guardrails in CI
+- [x] T-ARCH-GUARD-1: Dependency Guardrails in CI (package-cycle detection in DependencyFirewall test, runs via ctest on Linux+Windows)
 
 P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-CSS-COMPAT-ALIAS-1: Vendor Prefix Alias Layer
