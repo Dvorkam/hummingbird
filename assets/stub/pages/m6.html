@@ -34,6 +34,11 @@
       .jc-demo .item { width: 90px; margin: 4px; }
       .wrap-demo { flex-wrap: wrap; }
       .wrap-item { width: 130px; flex-shrink: 0; }
+      .baseline-demo { align-items: baseline; background-color: #fafbff; border: 1px solid #dde3ee; padding: 6px; }
+      .baseline-demo .bl { margin: 0 14px 0 0; color: #14213d; }
+      .bl-sm { font-size: 13px; }
+      .bl-md { font-size: 22px; }
+      .bl-lg { font-size: 38px; }
 
       .align-demo { height: 110px; }
       .ai-start { align-items: flex-start; }
@@ -93,7 +98,7 @@
         the <code>flex</code> shorthand, <code>order</code>, and <code>flex-wrap</code> (+
         <code>wrap-reverse</code>); float <code>clear</code>; plus CSS control-chrome compat &mdash;
         per-corner <code>border-radius</code>, per-side <code>border-color</code>, and vendor-prefixed
-        aliases. Not yet: baseline alignment.
+        aliases; and <code>align-items: baseline</code>.
       </p>
 
       <div class="section">
@@ -144,6 +149,18 @@
         <div class="flex-row align-demo ai-center"><div class="item tall">tall</div><div class="item item-b short">center</div></div>
         <div class="flex-row align-demo ai-end"><div class="item tall">tall</div><div class="item item-b short">end</div></div>
         <div class="flex-row align-demo ai-stretch"><div class="item">stretch</div><div class="item item-b">stretch</div></div>
+      </div>
+
+      <div class="section">
+        <h2>align-items: baseline (mixed font sizes share a text baseline)</h2>
+        <div class="flex-row baseline-demo">
+          <span class="bl bl-sm">small</span>
+          <span class="bl bl-md">medium</span>
+          <span class="bl bl-lg">large</span>
+          <span class="bl bl-sm">small again</span>
+        </div>
+        <p class="note">Text of different sizes sits on a common baseline &mdash; the bottoms of the letters
+        line up rather than the tops or box edges.</p>
       </div>
 
       <div class="section">

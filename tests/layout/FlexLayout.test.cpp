@@ -348,3 +348,25 @@ TEST(FlexLayoutTest, FlexWrapReverseStacksLinesFromOppositeSide) {
     EXPECT_FLOAT_EQ(a->get_rect().y, 30.0f);
     EXPECT_FLOAT_EQ(c->get_rect().height, 50.0f);
 }
+
+TEST(FlexLayoutTest, AlignItemsBaselineAlignsFirstLineBaselines) {
+    FlexFixture fixture;
+    // Same box height, very different font sizes -> different ascents. Baseline
+    // alignment keeps the larger-text item at the top and pushes the smaller-text
+    // item down so their text baselines line up.
+    fixture.build(R"(
+        #c { display: flex; align-items: baseline; width: 300px; }
+        #a { width: 40px; height: 50px; font-size: 40px; }
+        #b { width: 40px; height: 50px; font-size: 10px; }
+    )");
+
+    auto* a = find_by_id(fixture.render_root.get(), "a");
+    auto* b = find_by_id(fixture.render_root.get(), "b");
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(b, nullptr);
+
+    EXPECT_NEAR(a->get_rect().y, 0.0f, 1.0f);
+    // b is shifted down by roughly (ascent_a - ascent_b) ~ (32 - 8) = 24px.
+    EXPECT_GT(b->get_rect().y, 10.0f);
+    EXPECT_NEAR(b->get_rect().y, 24.0f, 3.0f);
+}

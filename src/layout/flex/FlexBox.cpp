@@ -8,6 +8,7 @@
 #include "core/utils/Log.h"
 #include "layout/flow/FlowLayoutUtils.h"
 #include "layout/geometry/PositioningUtils.h"
+#include "layout/geometry/metrics/InlineBaselineUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "style/types/ComputedStyle.h"
 
@@ -26,9 +27,10 @@ using Css::ComputedStyle;
 struct FlexItem {
     RenderObject* box = nullptr;
     FlowLayout::ChildMargins margins;
-    float base_main = 0.0f;    // hypothetical main size (border-box)
-    float target_main = 0.0f;  // main size after grow/shrink
-    float cross = 0.0f;        // natural cross size (border-box)
+    float base_main = 0.0f;        // hypothetical main size (border-box)
+    float target_main = 0.0f;      // main size after grow/shrink
+    float cross = 0.0f;            // natural cross size (border-box)
+    float baseline_ascent = 0.0f;  // border-box top -> first text baseline (row/baseline align)
     float grow = 0.0f;
     float shrink = 1.0f;
     int order = 0;
@@ -240,6 +242,7 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
         size_t begin = 0;
         size_t end = 0;
         float cross = 0.0f;
+        float baseline = 0.0f;  // shared baseline offset for align-items: baseline
     };
     std::vector<FlexLine> lines;
     if (wrap && main_available >= 0.0f && !items.empty()) {
@@ -297,6 +300,11 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
                 force_rect_main(*item.box, row, item.target_main);
                 apply_explicit_height(*item.box, child_style, definite_content_height);
                 item.cross = item.box->get_rect().height;
+                // First-line baseline, measured from the item's border-box top
+                // (approximated from the item's own font metrics).
+                const Metrics::Insets child_insets = Metrics::compute_insets(child_style);
+                item.baseline_ascent =
+                    std::min(item.cross, child_insets.top + InlineBaselineUtils::estimate_text_ascent(context, child_style));
             } else {
                 float cross_avail = std::max(0.0f, metrics.content_width - item.margins.left - item.margins.right);
                 float layout_width = cross_avail;
@@ -317,6 +325,22 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
             measured = std::max(measured, items[i].cross + cross_margins(items[i], row));
         }
         line.cross = measured;
+
+        // For baseline alignment, items shift so their first-line baselines
+        // coincide; the line height must cover the deepest resulting extent.
+        if (row && align == ComputedStyle::AlignItems::Baseline) {
+            float shared = 0.0f;
+            for (size_t i = line.begin; i < line.end; ++i) {
+                shared = std::max(shared, items[i].margins.top + items[i].baseline_ascent);
+            }
+            line.baseline = shared;
+            float baseline_cross = 0.0f;
+            for (size_t i = line.begin; i < line.end; ++i) {
+                float top = shared - items[i].baseline_ascent;  // border-box top offset
+                baseline_cross = std::max(baseline_cross, top + items[i].cross + items[i].margins.bottom);
+            }
+            line.cross = std::max(line.cross, baseline_cross);
+        }
     }
 
     // A single line stretches to fill a definite cross extent (so align works
@@ -407,8 +431,14 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
                         }
                     }
                     break;
+                case ComputedStyle::AlignItems::Baseline:
+                    // Align first-line baselines (row only); shift each item so
+                    // its baseline meets the line's shared baseline.
+                    if (row) {
+                        cross_offset = cross_cursor + std::max(0.0f, line.baseline - item.baseline_ascent);
+                    }
+                    break;
                 case ComputedStyle::AlignItems::FlexStart:
-                case ComputedStyle::AlignItems::Baseline:  // Baseline alignment not implemented; behaves as start.
                 default:
                     break;
             }
