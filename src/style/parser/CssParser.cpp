@@ -465,12 +465,16 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         return false;
     }
 
-    if (parser_hook == PropertyRegistry::ParserHook::parse_color) {
-        std::string var_expr = build_var_expression(values);
-        if (!var_expr.empty()) {
-            values.clear();
-            values.push_back(Value::identifier(std::move(var_expr)));
-        }
+    // Package var() for any property (T-CSS-VAR-3): a whole-value
+    // `var(--x[, fallback])` keeps its fallback; var() terms inside longer
+    // lists (border-radius corners) merge pairwise without fallback support.
+    // The StyleEngine substitutes the custom property's value at apply time.
+    std::string var_expr = build_var_expression(values);
+    if (!var_expr.empty()) {
+        values.clear();
+        values.push_back(Value::identifier(std::move(var_expr)));
+    } else {
+        merge_var_terms(values);
     }
 
     if (property == Property::Unknown && !property_name.empty()) {
@@ -559,6 +563,10 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             std::vector<Value> radii;
             for (const auto& value : values) {
                 if (value.type == Value::Type::Length || value.type == Value::Type::Number) {
+                    radii.push_back(value);
+                } else if (value.type == Value::Type::Identifier && value.ident.starts_with("var(")) {
+                    // Resolved per-corner at apply time (DDG: `border-radius:
+                    // 0 var(--default-border-radius) var(--default-border-radius) 0`).
                     radii.push_back(value);
                 }
                 if (radii.size() == 4) {
@@ -733,9 +741,11 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             return true;
         }
         case PropertyRegistry::ParserHook::parse_background_shorthand: {
-            std::string var_expr = build_var_expression(values);
-            if (!var_expr.empty()) {
-                push_decl(Property::BackgroundColor, Value::identifier(std::move(var_expr)));
+            // A whole-value var() was already packaged into a single
+            // identifier above; treat it as the color layer (legacy behavior).
+            if (values.size() == 1 && values[0].type == Value::Type::Identifier &&
+                values[0].ident.starts_with("var(")) {
+                push_decl(Property::BackgroundColor, values[0]);
                 return true;
             }
 

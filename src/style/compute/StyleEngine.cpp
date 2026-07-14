@@ -11,7 +11,9 @@
 #include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "style/compute/StyleDefaults.h"
+#include "style/compute/StyleValueUtils.h"
 #include "style/compute/Stylesheet.h"
+#include "style/compute/apply/ApplyColorUtils.h"
 #include "style/compute/apply/PropertyApplier.h"
 #include "style/registry/CssPropertyRegistry.h"
 #include "style/selector/SelectorMatcher.h"
@@ -110,6 +112,22 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         // their initial value, which is the supported slice for now.
         const Value& value = it->second.value;
         if (value.type == Value::Type::Identifier && value.ident == "inherit") {
+            continue;
+        }
+        // var() substitution for any property (T-CSS-VAR-3): resolve the
+        // custom property to its raw text and re-type it (length/color/
+        // number) before the apply hook runs. An unresolvable var leaves the
+        // property at its initial/inherited value, per spec.
+        if (value.type == Value::Type::Identifier && value.ident.starts_with("var(")) {
+            auto text = Apply::resolve_var_text(style, parent_style, value.ident);
+            if (!text) {
+                continue;
+            }
+            Value substituted = StyleValueUtils::parse_substituted_value(*text);
+            if (substituted.type == Value::Type::Identifier && substituted.ident == "inherit") {
+                continue;
+            }
+            Apply::apply_property(entry.property, substituted, style, overrides, context);
             continue;
         }
         Apply::apply_property(entry.property, value, style, overrides, context);

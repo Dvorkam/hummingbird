@@ -51,6 +51,28 @@ std::string join_value_list(const std::vector<Value>& list) {
     return out;
 }
 
+void merge_var_terms(std::vector<Value>& values) {
+    // The tokenizer drops parentheses, so `var(--x)` arrives as the two
+    // identifiers [var][--x]. Merge such pairs into one `var(--x)` identifier
+    // so shorthand splitters (border-radius corners) can carry the term.
+    // Fallbacks are not representable here: `var(--x, 4px)` inside a longer
+    // list is indistinguishable from `var(--x)` followed by a `4px` term.
+    std::vector<Value> merged;
+    merged.reserve(values.size());
+    for (size_t i = 0; i < values.size(); ++i) {
+        const bool var_head = values[i].type == Value::Type::Identifier && values[i].ident == "var" &&
+                              i + 1 < values.size() && values[i + 1].type == Value::Type::Identifier &&
+                              values[i + 1].ident.starts_with("--");
+        if (var_head) {
+            merged.push_back(Value::identifier("var(" + values[i + 1].ident + ")"));
+            ++i;
+            continue;
+        }
+        merged.push_back(values[i]);
+    }
+    values = std::move(merged);
+}
+
 std::string build_var_expression(const std::vector<Value>& list) {
     if (list.empty()) {
         return "";

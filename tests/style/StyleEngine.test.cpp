@@ -483,6 +483,71 @@ TEST(StyleEngineTest, InheritWinsCascadeOverConcreteValue) {
     EXPECT_EQ(style->color.b, 255);
 }
 
+TEST(StyleEngineTest, ResolvesVarForLengthProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    root->append_child(std::move(child));
+
+    // DDG: --default-border-radius / --max-content-width feed length props.
+    std::string css = R"(
+        div { --default-border-radius: 4px; --max-content-width: 590px; }
+        p { border-radius: var(--default-border-radius); max-width: var(--max-content-width); }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_right.value, 4.0f);
+    ASSERT_TRUE(style->max_width.has_value());
+    EXPECT_FLOAT_EQ(*style->max_width, 590.0f);
+}
+
+TEST(StyleEngineTest, ResolvesVarInsideBorderRadiusList) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    // DDG button: `border-radius: 0 var(--r) var(--r) 0` — var terms mixed
+    // with plain lengths inside one shorthand.
+    std::string css = R"(
+        div { --r: 4px; border-radius: 0 var(--r) var(--r) 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 0.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.top_right.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_right.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_left.value, 0.0f);
+}
+
+TEST(StyleEngineTest, VarFallbackAppliesWhenUnset) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { max-width: var(--missing, 320px); }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->max_width.has_value());
+    EXPECT_FLOAT_EQ(*style->max_width, 320.0f);
+}
+
 TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
