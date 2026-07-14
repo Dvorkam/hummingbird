@@ -1283,6 +1283,27 @@ TEST(StyleEngineTest, ParsesPercentBackgroundSize) {
     EXPECT_FALSE(style->background_size.height.has_value());  // auto -> aspect-preserved
 }
 
+TEST(StyleEngineTest, ParsesPercentBackgroundPosition) {
+    // DDG magnifier: `background-position: 50% 50%` must keep the percentage so
+    // the painter centers it, rather than treating 50 as a pixel offset.
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background-position: 50% 50%; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->background_position.offset_x.has_value());
+    EXPECT_FLOAT_EQ(*style->background_position.offset_x, 50.0f);
+    EXPECT_TRUE(style->background_position.offset_x_is_percent);
+    ASSERT_TRUE(style->background_position.offset_y.has_value());
+    EXPECT_TRUE(style->background_position.offset_y_is_percent);
+}
+
 TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

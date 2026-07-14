@@ -128,23 +128,35 @@ void apply_background_position_value(const Value& value, ComputedStyle& style) {
     };
 
     const float font_size = style.font_size;
+    // Try to parse one axis token as a percentage or a length; keyword otherwise.
+    auto apply_axis = [&](std::string_view token, std::optional<float>& offset, bool& is_percent, bool& axis_set) {
+        token = Core::Utils::trim_ascii_whitespace(token);
+        if (!token.empty() && token.back() == '%') {
+            if (auto number = Core::Utils::parse_float(token.substr(0, token.size() - 1))) {
+                offset = *number;
+                is_percent = true;
+                axis_set = true;
+                return;
+            }
+        }
+        if (auto length = StyleValueUtils::parse_length_token(token, font_size)) {
+            offset = *length;
+            is_percent = false;
+            axis_set = true;
+            return;
+        }
+        apply_keyword(token);
+    };
+
     size_t index = 0;
     if (index < tokens.size()) {
-        if (auto length = StyleValueUtils::parse_length_token(tokens[index], font_size)) {
-            style.background_position.offset_x = *length;
-            horizontal_set = true;
-        } else {
-            apply_keyword(tokens[index]);
-        }
+        apply_axis(tokens[index], style.background_position.offset_x, style.background_position.offset_x_is_percent,
+                   horizontal_set);
         ++index;
     }
     if (index < tokens.size()) {
-        if (auto length = StyleValueUtils::parse_length_token(tokens[index], font_size)) {
-            style.background_position.offset_y = *length;
-            vertical_set = true;
-        } else {
-            apply_keyword(tokens[index]);
-        }
+        apply_axis(tokens[index], style.background_position.offset_y, style.background_position.offset_y_is_percent,
+                   vertical_set);
     }
 
     if (horizontal_set && !vertical_set) {

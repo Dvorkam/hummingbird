@@ -882,6 +882,25 @@ TEST(BackgroundSizeGeometryTest, ExplicitTwoValuePercentResolvesBothAxes) {
     EXPECT_FLOAT_EQ(dest.height, 50.0f);  // 25% of 200
 }
 
+TEST(BackgroundSizeGeometryTest, PercentPositionCentersImageNotOffsetsByPixels) {
+    // DDG magnifier bug: background-position:50% 50% must center the image
+    // ((box - image) * 0.5), not offset it 50px down-right (which pushed the
+    // loupe outside the button box).
+    ImageBitmap image;
+    image.width = 20;
+    image.height = 20;
+    ComputedStyle style;  // no size -> natural 20x20
+    style.background_position.offset_x = 50.0f;
+    style.background_position.offset_x_is_percent = true;
+    style.background_position.offset_y = 50.0f;
+    style.background_position.offset_y_is_percent = true;
+
+    const Hummingbird::Layout::Rect area{0, 0, 100, 100};
+    const auto dest = Hummingbird::Layout::PaintUtils::compute_background_image_rect(area, image, style);
+    EXPECT_FLOAT_EQ(dest.x, 40.0f);  // (100 - 20) * 0.5, centered
+    EXPECT_FLOAT_EQ(dest.y, 40.0f);
+}
+
 namespace {
 // Records clip push/pop and image draws to verify background-clip behavior.
 class ClipRecordingContext : public IGraphicsContext {

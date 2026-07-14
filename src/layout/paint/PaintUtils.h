@@ -283,10 +283,25 @@ inline Rect compute_background_image_rect(const Rect& area, const ImageBitmap& i
         }
     }
 
-    float offset_x = style.background_position.offset_x.value_or(
-        aligned_offset(area.width, dest_width, style.background_position.horizontal));
-    float offset_y = style.background_position.offset_y.value_or(
-        aligned_offset(area.height, dest_height, style.background_position.vertical));
+    // A percentage offset aligns the same-percent point of the image to that
+    // point of the box: offset = (box - image) * pct. A length offset is used
+    // as-is; with neither, fall back to the keyword alignment.
+    float offset_x;
+    if (style.background_position.offset_x.has_value()) {
+        offset_x = style.background_position.offset_x_is_percent
+                       ? (area.width - dest_width) * (*style.background_position.offset_x * 0.01f)
+                       : *style.background_position.offset_x;
+    } else {
+        offset_x = aligned_offset(area.width, dest_width, style.background_position.horizontal);
+    }
+    float offset_y;
+    if (style.background_position.offset_y.has_value()) {
+        offset_y = style.background_position.offset_y_is_percent
+                       ? (area.height - dest_height) * (*style.background_position.offset_y * 0.01f)
+                       : *style.background_position.offset_y;
+    } else {
+        offset_y = aligned_offset(area.height, dest_height, style.background_position.vertical);
+    }
     return {area.x + offset_x, area.y + offset_y, dest_width, dest_height};
 }
 

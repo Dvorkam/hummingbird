@@ -167,6 +167,10 @@ struct ComputedStyle {
         Vertical vertical = Vertical::Top;
         std::optional<float> offset_x;
         std::optional<float> offset_y;
+        // Percentages position by (box - image) * pct: 0%=start, 50%=center,
+        // 100%=end (resolved at paint time). Otherwise the offset is px.
+        bool offset_x_is_percent = false;
+        bool offset_y_is_percent = false;
     };
     BackgroundPosition background_position;
     struct BackgroundSize {
