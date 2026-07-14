@@ -28,11 +28,17 @@ float resolve_horizontal_offset(const Css::ComputedStyle* style, float container
         float free = container_width - left - right - box_width;
         return left + std::max(0.0f, free) / 2.0f;
     }
+    // Explicit margins shift the box away from the anchoring inset; DDG's
+    // search button uses `right:2px; margin-right:-3px` to sit flush against
+    // the form border. Auto margins on a single-inset axis resolve to 0.
     if (style->left.has_value()) {
-        return resolve_inset(*style->left, style->left_is_percent, container_width);
+        float margin_left = style->margin_left_auto ? 0.0f : style->margin.left;
+        return resolve_inset(*style->left, style->left_is_percent, container_width) + margin_left;
     }
     if (style->right.has_value()) {
-        return container_width - resolve_inset(*style->right, style->right_is_percent, container_width) - box_width;
+        float margin_right = style->margin_right_auto ? 0.0f : style->margin.right;
+        return container_width - resolve_inset(*style->right, style->right_is_percent, container_width) -
+               margin_right - box_width;
     }
     return 0.0f;
 }
@@ -49,11 +55,13 @@ float resolve_vertical_offset(const Css::ComputedStyle* style, float container_h
         return top + std::max(0.0f, free) / 2.0f;
     }
     if (style->top.has_value()) {
-        return resolve_inset(*style->top, style->top_is_percent, container_height);
+        float margin_top = style->margin_top_auto ? 0.0f : style->margin.top;
+        return resolve_inset(*style->top, style->top_is_percent, container_height) + margin_top;
     }
     if (style->bottom.has_value()) {
+        float margin_bottom = style->margin_bottom_auto ? 0.0f : style->margin.bottom;
         return container_height - resolve_inset(*style->bottom, style->bottom_is_percent, container_height) -
-               box_height;
+               margin_bottom - box_height;
     }
     return 0.0f;
 }
@@ -134,7 +142,14 @@ bool apply_positioning_recursive(RenderObject& node, IGraphicsContext& context, 
     }
 
     if (is_positioned(style)) {
-        next_containing = {abs, true};
+        // The containing block for absolute descendants is the padding box,
+        // not the border box: insets are measured from inside the border.
+        Rect padding_box = abs;
+        padding_box.x += style->border_width.left;
+        padding_box.y += style->border_width.top;
+        padding_box.width -= style->border_width.left + style->border_width.right;
+        padding_box.height -= style->border_width.top + style->border_width.bottom;
+        next_containing = {padding_box, true};
     }
 
     bool has_absolute = is_absolute(style);

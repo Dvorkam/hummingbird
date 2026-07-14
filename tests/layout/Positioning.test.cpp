@@ -80,6 +80,55 @@ TEST(PositioningLayoutTest, PositionsAbsoluteChildrenRelativeToContainingBlock) 
     EXPECT_FLOAT_EQ(container_render->get_rect().height, flow_render->get_rect().height);
 }
 
+TEST(PositioningLayoutTest, ExplicitMarginsShiftAbsoluteBoxFromInsets) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto container = DomFactory::create_element(arena, "div");
+    container->set_attribute("id", "container");
+    auto abs = DomFactory::create_element(arena, "div");
+    abs->set_attribute("id", "abs");
+    container->append_child(std::move(abs));
+    body->append_child(std::move(container));
+
+    // DDG search button shape: `right:2px; margin-right:-3px` pulls the box
+    // 3px past its inset, and the containing block is the padding box (inside
+    // the 1px border), so the button lands flush against the border.
+    std::string css = R"(
+        #container { position: relative; width: 200px; height: 100px; margin: 0; padding: 0;
+                     border: 1px solid black; }
+        #abs { position: absolute; top: 10px; right: 2px; margin-right: -3px; margin-top: 4px;
+               width: 50px; height: 10px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 300, 200};
+    render_root->layout(context, viewport);
+    Positioning::apply_positioning(*render_root, context, viewport);
+
+    auto* container_render = find_by_id(render_root.get(), "container");
+    auto* abs_render = find_by_id(render_root.get(), "abs");
+    ASSERT_NE(container_render, nullptr);
+    ASSERT_NE(abs_render, nullptr);
+
+    const Rect container_rect = container_render->get_rect();
+    // The abs child's rect is container-relative. Padding box right edge in
+    // that space: container width minus the 1px right border. right:2px puts
+    // the box 2px inside it; margin-right:-3px pulls it 3px back out; net:
+    // 1px past the padding edge = flush with the container's outer edge.
+    const Rect abs_rect = abs_render->get_rect();
+    EXPECT_FLOAT_EQ(abs_rect.x + abs_rect.width, container_rect.width);
+    // top:10px from the padding box (1px border) plus margin-top:4px.
+    EXPECT_FLOAT_EQ(abs_rect.y, 1.0f + 10.0f + 4.0f);
+}
+
 TEST(PositioningLayoutTest, AutoMarginsCenterBoxBetweenOpposingInsets) {
     Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");

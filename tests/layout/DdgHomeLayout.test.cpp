@@ -187,6 +187,12 @@ TEST(DdgHomeLayoutTest, HomepageSearchBlockIsOnScreenAndCentered) {
     // The button uses height:auto between top:0/bottom:0, so it should stretch to
     // roughly the form's height, not sit small at the top.
     EXPECT_GE(button.rect.height, form.rect.height * 0.6f) << where;
+
+    // `right:2px; margin-right:-3px` seats the green button flush against the
+    // form's right border — no white sliver between them (T-POS-ABS margins).
+    const float form_right = form.rect.x + form.rect.width;
+    const float button_right = button.rect.x + button.rect.width;
+    EXPECT_NEAR(button_right, form_right, 1.5f) << "button right=" << button_right << " form right=" << form_right;
 }
 
 // DDG: `.search__input:focus~.search__button { background-color:#5b9e4d }`.
