@@ -150,7 +150,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-CSS-IMPORTANT-1: !important Support
 - [ ] T-CSS-SIBLING-1: Sibling Combinators (`~`, `+`)
 - [ ] T-CSS-VAR-3: var() For Non-Color Properties
-- [ ] T-POS-ABS-1: Absolute Centering With Opposing Insets
+- [x] T-POS-ABS-1: Absolute Centering With Opposing Insets (auto margins between top+bottom / left+right; DDG magnifier centers)
 - [ ] T-MEDIA-RESIZE-1: Re-Evaluate Media Conditions On Resize
 - [ ] T-FONT-FACE-1: @font-face Web Font Loading
 - [ ] T-HIST-1: Visited Link State

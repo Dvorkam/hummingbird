@@ -1,5 +1,7 @@
 #include "layout/geometry/PositioningUtils.h"
 
+#include <algorithm>
+
 #include "layout/RenderObject.h"
 
 namespace Hummingbird::Layout::Positioning {
@@ -10,30 +12,48 @@ struct ContainingBlock {
     bool valid = false;
 };
 
+float resolve_inset(float value, bool is_percent, float reference) {
+    return is_percent ? reference * (value / 100.0f) : value;
+}
+
 float resolve_horizontal_offset(const Css::ComputedStyle* style, float container_width, float box_width) {
-    if (style && style->left.has_value()) {
-        if (style->left_is_percent) {
-            return container_width * (*style->left / 100.0f);
-        }
-        return *style->left;
+    if (!style) {
+        return 0.0f;
     }
-    if (style && style->right.has_value()) {
-        float right = style->right_is_percent ? container_width * (*style->right / 100.0f) : *style->right;
-        return container_width - right - box_width;
+    // Opposing insets + auto side margins center the box (the auto margins
+    // absorb the leftover space equally): `left:0; right:0; margin:auto`.
+    if (style->left.has_value() && style->right.has_value() && style->margin_left_auto && style->margin_right_auto) {
+        float left = resolve_inset(*style->left, style->left_is_percent, container_width);
+        float right = resolve_inset(*style->right, style->right_is_percent, container_width);
+        float free = container_width - left - right - box_width;
+        return left + std::max(0.0f, free) / 2.0f;
+    }
+    if (style->left.has_value()) {
+        return resolve_inset(*style->left, style->left_is_percent, container_width);
+    }
+    if (style->right.has_value()) {
+        return container_width - resolve_inset(*style->right, style->right_is_percent, container_width) - box_width;
     }
     return 0.0f;
 }
 
 float resolve_vertical_offset(const Css::ComputedStyle* style, float container_height, float box_height) {
-    if (style && style->top.has_value()) {
-        if (style->top_is_percent) {
-            return container_height * (*style->top / 100.0f);
-        }
-        return *style->top;
+    if (!style) {
+        return 0.0f;
     }
-    if (style && style->bottom.has_value()) {
-        float bottom = style->bottom_is_percent ? container_height * (*style->bottom / 100.0f) : *style->bottom;
-        return container_height - bottom - box_height;
+    // `top:0; bottom:0; margin:auto` centers vertically (DDG search button).
+    if (style->top.has_value() && style->bottom.has_value() && style->margin_top_auto && style->margin_bottom_auto) {
+        float top = resolve_inset(*style->top, style->top_is_percent, container_height);
+        float bottom = resolve_inset(*style->bottom, style->bottom_is_percent, container_height);
+        float free = container_height - top - bottom - box_height;
+        return top + std::max(0.0f, free) / 2.0f;
+    }
+    if (style->top.has_value()) {
+        return resolve_inset(*style->top, style->top_is_percent, container_height);
+    }
+    if (style->bottom.has_value()) {
+        return container_height - resolve_inset(*style->bottom, style->bottom_is_percent, container_height) -
+               box_height;
     }
     return 0.0f;
 }

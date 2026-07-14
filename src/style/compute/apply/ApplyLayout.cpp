@@ -419,13 +419,13 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             apply_edge(style.margin, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
             return true;
         case Property::MarginTop:
-            apply_length(style.margin.top, value, style.font_size);
+            apply_margin_value(style.margin.top, style.margin_top_auto, value, style.font_size);
             return true;
         case Property::MarginRight:
             apply_margin_value(style.margin.right, style.margin_right_auto, value, style.font_size);
             return true;
         case Property::MarginBottom:
-            apply_length(style.margin.bottom, value, style.font_size);
+            apply_margin_value(style.margin.bottom, style.margin_bottom_auto, value, style.font_size);
             return true;
         case Property::MarginLeft:
             apply_margin_value(style.margin.left, style.margin_left_auto, value, style.font_size);

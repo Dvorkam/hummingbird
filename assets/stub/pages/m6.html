@@ -96,6 +96,13 @@
                     border-radius: 6px; margin: 0 10px 6px 0; text-align: center; }
       .float-flowed { background-color: #fff4e0; }
       .float-cleared { clear: left; background-color: #d9f2d9; border-radius: 6px; padding: 8px; }
+
+      .abscenter-box { position: relative; width: 280px; height: 90px; border: 1px solid #7aa7e3;
+                       background-color: #fafbff; }
+      .abscenter-dot { position: absolute; top: 0; bottom: 0; left: 0; right: 0; margin: auto; width: 90px; height: 32px;
+                       background-color: #dfe9ff; border: 1px solid #7aa7e3; border-radius: 6px; text-align: center; }
+      .abscenter-btn { position: absolute; top: 0; bottom: 0; right: 8px; left: auto; margin: auto; width: 40px;
+                       height: 40px; background-color: #5b9e4d; border-radius: 0 6px 6px 0; }
     </style>
   </head>
   <body>
@@ -251,6 +258,17 @@
             its own color.
           </p>
         </div>
+      </div>
+
+      <div class="section">
+        <h2>Absolute centering with opposing insets (margin:auto)</h2>
+        <div class="abscenter-box">
+          <div class="abscenter-dot">centered</div>
+          <div class="abscenter-btn"></div>
+        </div>
+        <p class="note">The blue box uses <code>position:absolute; top:0; bottom:0; left:0; right:0; margin:auto</code>
+        to center in both axes; the green box (<code>right:8px; left:auto; margin:auto</code>) is vertically centered
+        and pinned right &mdash; the DDG search-button pattern.</p>
       </div>
 
       <div class="section">
