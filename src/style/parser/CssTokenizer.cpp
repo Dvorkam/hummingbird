@@ -169,6 +169,13 @@ bool Tokenizer::consume_simple_token(std::vector<Token>& tokens) {
         case '>':
             tokens.push_back(emit_single(TokenType::Greater, ">"));
             return true;
+        case '~':
+            tokens.push_back(emit_single(TokenType::Tilde, "~"));
+            return true;
+        case '+':
+            // A '+' starting a number is consumed by the number path first.
+            tokens.push_back(emit_single(TokenType::Plus, "+"));
+            return true;
         case '@':
             tokens.push_back(emit_single(TokenType::At, "@"));
             return true;

@@ -125,6 +125,8 @@ struct Selector {
     enum class Combinator {
         Descendant,
         Child,
+        NextSibling,        // '+'
+        SubsequentSibling,  // '~'
     };
 
     std::vector<SelectorPart> parts;

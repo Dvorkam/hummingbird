@@ -72,6 +72,20 @@ AbsoluteBox find_by_class(RenderObject* root, std::string_view token) {
     return out;
 }
 
+Element* find_element_by_class(Node* node, std::string_view token) {
+    if (!node) return nullptr;
+    auto* element = dynamic_cast<Element*>(node);
+    if (has_class_token(element, token)) {
+        return element;
+    }
+    for (const auto& child : node->get_children()) {
+        if (Element* found = find_element_by_class(child.get(), token)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
 }  // namespace
 
 // Regression harness for the pinned DuckDuckGo HTML homepage snapshot
@@ -173,4 +187,48 @@ TEST(DdgHomeLayoutTest, HomepageSearchBlockIsOnScreenAndCentered) {
     // The button uses height:auto between top:0/bottom:0, so it should stretch to
     // roughly the form's height, not sit small at the top.
     EXPECT_GE(button.rect.height, form.rect.height * 0.6f) << where;
+}
+
+// DDG: `.search__input:focus~.search__button { background-color:#5b9e4d }`.
+// Focusing the search input must turn the sibling submit button green, and
+// clearing focus must revert it (T-CSS-SIBLING-1). Mirrors the app flow:
+// pseudo-state flips, then refresh_styles_for_interaction re-applies styles.
+TEST(DdgHomeLayoutTest, FocusingSearchInputTurnsSubmitButtonGreen) {
+    std::string html = read_fixture("ddg/ddg_home.html");
+    std::string css = read_fixture("ddg/ddg_home.css");
+    ASSERT_FALSE(html.empty()) << "missing fixture ddg/ddg_home.html";
+    ASSERT_FALSE(css.empty()) << "missing fixture ddg/ddg_home.css";
+
+    Hummingbird::Core::ArenaAllocator arena(1 << 22);
+    Hummingbird::Html::Parser html_parser(arena, html);
+    auto parse_result = html_parser.parse();
+    ASSERT_NE(parse_result.dom, nullptr);
+
+    Hummingbird::Css::Parser css_parser(css);
+    auto sheet = css_parser.parse();
+
+    Element* input = find_element_by_class(parse_result.dom.get(), "search__input");
+    Element* button = find_element_by_class(parse_result.dom.get(), "search__button");
+    ASSERT_NE(input, nullptr);
+    ASSERT_NE(button, nullptr);
+
+    const Hummingbird::Color green{0x5b, 0x9e, 0x4d, 255};
+    auto button_is_green = [&]() {
+        auto style = button->get_computed_style();
+        if (!style || !style->background) return false;
+        const auto& c = *style->background;
+        return c.r == green.r && c.g == green.g && c.b == green.b;
+    };
+
+    Hummingbird::Css::StyleEngine engine;
+    engine.apply(sheet, parse_result.dom.get(), {1024.0f, 768.0f});
+    EXPECT_FALSE(button_is_green()) << "button is green before the input is focused";
+
+    input->set_pseudo_state(Element::PseudoState::Focus, true);
+    engine.apply(sheet, parse_result.dom.get(), {1024.0f, 768.0f});
+    EXPECT_TRUE(button_is_green()) << "focusing the input did not turn the sibling button green";
+
+    input->set_pseudo_state(Element::PseudoState::Focus, false);
+    engine.apply(sheet, parse_result.dom.get(), {1024.0f, 768.0f});
+    EXPECT_FALSE(button_is_green()) << "button stayed green after focus was cleared";
 }

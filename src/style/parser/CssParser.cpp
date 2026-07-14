@@ -69,14 +69,22 @@ Selector Parser::parse_selector() {
             advance();
         }
 
+        std::optional<Selector::Combinator> explicit_combinator;
         if (match(TokenType::Greater)) {
+            explicit_combinator = Selector::Combinator::Child;
+        } else if (match(TokenType::Plus)) {
+            explicit_combinator = Selector::Combinator::NextSibling;
+        } else if (match(TokenType::Tilde)) {
+            explicit_combinator = Selector::Combinator::SubsequentSibling;
+        }
+        if (explicit_combinator) {
             while (peek().type == TokenType::Whitespace) {
                 advance();
             }
             if (!is_selector_start(peek().type)) {
                 break;
             }
-            selector.combinators.push_back(Selector::Combinator::Child);
+            selector.combinators.push_back(*explicit_combinator);
             selector.parts.push_back(parse_simple_selector());
             continue;
         }

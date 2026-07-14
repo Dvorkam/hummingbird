@@ -105,6 +105,47 @@ TEST(CSSParserTest, ParsesChildSelector) {
     EXPECT_EQ(rule.selectors[0].parts[1].classes[0], "note");
 }
 
+TEST(CSSParserTest, ParsesAdjacentSiblingSelector) {
+    Parser parser("div + .note { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& rule = sheet.rules[0];
+    ASSERT_EQ(rule.selectors.size(), 1u);
+    ASSERT_EQ(rule.selectors[0].parts.size(), 2u);
+    ASSERT_EQ(rule.selectors[0].combinators.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].combinators[0], Selector::Combinator::NextSibling);
+    EXPECT_EQ(rule.selectors[0].parts[0].tag, Hummingbird::Html::TagNames::Div);
+    ASSERT_EQ(rule.selectors[0].parts[1].classes.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].parts[1].classes[0], "note");
+}
+
+TEST(CSSParserTest, ParsesGeneralSiblingSelectorWithoutWhitespace) {
+    // DDG: .search__input:focus~.search__button { background-color: #5b9e4d }
+    Parser parser(".search__input:focus~.search__button { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& rule = sheet.rules[0];
+    ASSERT_EQ(rule.selectors.size(), 1u);
+    ASSERT_EQ(rule.selectors[0].parts.size(), 2u);
+    ASSERT_EQ(rule.selectors[0].combinators.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].combinators[0], Selector::Combinator::SubsequentSibling);
+    ASSERT_EQ(rule.selectors[0].parts[0].classes.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].parts[0].classes[0], "search__input");
+    ASSERT_EQ(rule.selectors[0].parts[0].pseudo_classes.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].parts[0].pseudo_classes[0], SelectorPart::PseudoClass::Focus);
+    ASSERT_EQ(rule.selectors[0].parts[1].classes.size(), 1u);
+    EXPECT_EQ(rule.selectors[0].parts[1].classes[0], "search__button");
+}
+
+TEST(CSSParserTest, PlusBeforeNumberStaysANumericValue) {
+    Parser parser("div { margin-left: +4px; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].declarations[0].value.type, Value::Type::Length);
+    EXPECT_FLOAT_EQ(sheet.rules[0].declarations[0].value.length.value, 4.0f);
+}
+
 TEST(CSSParserTest, ParsesPseudoClassSelector) {
     Parser parser("input:focus, button:hover, button:active { color: red; }");
     auto sheet = parser.parse();

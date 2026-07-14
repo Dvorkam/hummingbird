@@ -36,14 +36,13 @@ or the paint path, and before tagging a release. The pinned snapshot lives in
 - [ ] Typing shows the text **as you type**, with a caret; deleting removes it immediately.
 - [ ] **Enter** submits: navigates to `.../html/` with the query (`POST`, body contains `q=<query>`).
 - [ ] Clicking the **magnifier button** submits the same way.
+- [ ] Focusing the search input turns the **magnifier button background green** (#5b9e4d); clicking away reverts it — regression guard for the `~` sibling combinator (T-CSS-SIBLING-1).
 - [ ] Clicking **empty page area** does nothing (does not submit / reload).
 
 ## Known-deferred (expected NOT-yet; do not file as new bugs)
 
 Each already has a story; note the ticket if the symptom regresses further.
 
-- [ ] Magnifier sits slightly outside the form box — **T-POS-ABS-1** (absolute centering w/ opposing insets).
-- [ ] Magnifier background does not turn green on input focus — **T-CSS-SIBLING-1** (`~` combinator).
 - [ ] Magnifier icon glyph missing (icon font) — **T-FONT-FACE-1** (`@font-face`).
 - [ ] Corner radius / max-width driven by `var()` fall back to defaults — **T-CSS-VAR-3**.
 - [ ] Dark-mode extension does not fully theme the page — **T-CSS-IMPORTANT-1** (`!important`).
