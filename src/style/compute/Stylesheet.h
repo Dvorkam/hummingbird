@@ -145,6 +145,7 @@ struct Declaration {
     Property property = Property::Unknown;
     std::string custom_property;
     Value value;
+    bool important = false;
 };
 
 // Width/height constraints from a parsed @media prelude (px only). Absent

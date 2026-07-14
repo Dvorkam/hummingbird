@@ -185,11 +185,28 @@ Value Parser::parse_value() {
     return Value::identifier("");
 }
 
-std::vector<Value> Parser::parse_value_list() {
+// Consumes `!important` (whitespace allowed after the bang). Called with peek()
+// on a Bang token; a bang followed by anything else is consumed and ignored.
+bool Parser::consume_important_flag() {
+    advance();  // '!'
+    skip_whitespace_tokens();
+    if (peek().type == TokenType::Identifier && Core::Utils::to_lower(std::string(peek().lexeme)) == "important") {
+        advance();
+        return true;
+    }
+    return false;
+}
+
+std::vector<Value> Parser::parse_value_list(bool* important) {
     std::vector<Value> values;
     while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
         if (peek().type == TokenType::Whitespace) {
             advance();
+            continue;
+        }
+        if (peek().type == TokenType::Bang) {
+            bool flagged = consume_important_flag();
+            if (important) *important |= flagged;
             continue;
         }
         if (peek().type == TokenType::Identifier) {
@@ -336,7 +353,7 @@ Value Parser::parse_number_value() {
     return Value::number_value(number);
 }
 
-std::string Parser::parse_font_family_list() {
+std::string Parser::parse_font_family_list(bool* important) {
     std::string list;
     std::string current;
 
@@ -352,6 +369,11 @@ std::string Parser::parse_font_family_list() {
     while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
         if (peek().type == TokenType::Whitespace) {
             advance();
+            continue;
+        }
+        if (peek().type == TokenType::Bang) {
+            bool flagged = consume_important_flag();
+            if (important) *important |= flagged;
             continue;
         }
         if (peek().type == TokenType::Comma) {
@@ -373,9 +395,14 @@ std::string Parser::parse_font_family_list() {
     return list;
 }
 
-std::string Parser::parse_custom_property_value() {
+std::string Parser::parse_custom_property_value(bool* important) {
     std::string raw;
     while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+        if (peek().type == TokenType::Bang) {
+            bool flagged = consume_important_flag();
+            if (important) *important |= flagged;
+            continue;
+        }
         raw.append(advance().lexeme);
     }
     auto trimmed = Core::Utils::trim_ascii_whitespace(raw);
@@ -401,20 +428,23 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         return false;
     }
     skip_whitespace_tokens();
+    bool important = false;
     auto push_decl = [&](Property decl_property, Value value) {
         Declaration decl;
         decl.property = decl_property;
         decl.value = std::move(value);
+        decl.important = important;
         decls.push_back(std::move(decl));
     };
     if (property == Property::Custom) {
-        std::string raw_value = parse_custom_property_value();
+        std::string raw_value = parse_custom_property_value(&important);
         match(TokenType::Semicolon);  // consume if present
         if (!raw_value.empty()) {
             Declaration decl;
             decl.property = Property::Custom;
             decl.custom_property = std::string(property_name);
             decl.value = Value::identifier(std::move(raw_value));
+            decl.important = important;
             decls.push_back(std::move(decl));
         }
         return true;
@@ -422,14 +452,14 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
 
     PropertyRegistry::ParserHook parser_hook = PropertyRegistry::parser_hook(property);
     if (parser_hook == PropertyRegistry::ParserHook::parse_font_family) {
-        std::string list = parse_font_family_list();
+        std::string list = parse_font_family_list(&important);
         match(TokenType::Semicolon);  // consume if present
         if (!list.empty()) {
             push_decl(property, Value::identifier(std::move(list)));
         }
         return true;
     }
-    std::vector<Value> values = parse_value_list();
+    std::vector<Value> values = parse_value_list(&important);
     match(TokenType::Semicolon);  // consume if present
     if (values.empty()) {
         return false;

@@ -146,6 +146,56 @@ TEST(CSSParserTest, PlusBeforeNumberStaysANumericValue) {
     EXPECT_FLOAT_EQ(sheet.rules[0].declarations[0].value.length.value, 4.0f);
 }
 
+TEST(CSSParserTest, ParsesImportantFlag) {
+    Parser parser("div { color: red !important; width: 10px; margin: 4px ! IMPORTANT; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    // color + width + margin expanded to 4 edges
+    ASSERT_EQ(decls.size(), 6u);
+    EXPECT_EQ(decls[0].property, Property::Color);
+    EXPECT_TRUE(decls[0].important);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Color);
+    EXPECT_EQ(decls[0].value.color.r, 255);
+    EXPECT_FALSE(decls[1].important);
+    // Shorthand expansion carries importance to every edge (whitespace after
+    // the bang and uppercase keyword are both legal CSS).
+    for (size_t i = 2; i < 6; ++i) {
+        EXPECT_TRUE(decls[i].important) << "margin edge " << i;
+        EXPECT_FLOAT_EQ(decls[i].value.length.value, 4.0f);
+    }
+}
+
+TEST(CSSParserTest, ImportantOnFontFamilyDoesNotJoinTheList) {
+    Parser parser("div { font-family: Arial, sans-serif !important; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    const auto& decl = sheet.rules[0].declarations[0];
+    EXPECT_TRUE(decl.important);
+    EXPECT_EQ(decl.value.ident, "arial,sans-serif");
+}
+
+TEST(CSSParserTest, ImportantOnCustomPropertyIsStripped) {
+    Parser parser("div { --accent: #ff0000 !important; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    const auto& decl = sheet.rules[0].declarations[0];
+    EXPECT_TRUE(decl.important);
+    EXPECT_EQ(decl.value.ident, "#ff0000");
+}
+
+TEST(CSSParserTest, BangWithoutImportantIsIgnored) {
+    Parser parser("div { color: red !banana; width: 10px; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 2u);
+    EXPECT_FALSE(decls[0].important);
+    EXPECT_FALSE(decls[1].important);
+}
+
 TEST(CSSParserTest, ParsesPseudoClassSelector) {
     Parser parser("input:focus, button:hover, button:active { color: red; }");
     auto sheet = parser.parse();

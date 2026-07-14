@@ -25,6 +25,7 @@ enum class TokenType {
     Plus,
     Percent,
     At,
+    Bang,
     Slash,
     Url,
     End,

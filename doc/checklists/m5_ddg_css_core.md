@@ -19,7 +19,7 @@ or the paint path, and before tagging a release. The pinned snapshot lives in
 2. Launch the app and navigate to `https://html.duckduckgo.com/html/`.
 3. Use a desktop-sized window (~1024×768). For a clean read, first check with the
    dark-mode extension **disabled** (`HB_EXTENSIONS_DISABLE=dark-mode`), then again
-   enabled once `!important` (T-CSS-IMPORTANT-1) lands.
+   enabled (`!important` support landed with T-CSS-IMPORTANT-1).
 
 ## Layout — centered logo + search block
 
@@ -39,13 +39,16 @@ or the paint path, and before tagging a release. The pinned snapshot lives in
 - [ ] Focusing the search input turns the **magnifier button background green** (#5b9e4d); clicking away reverts it — regression guard for the `~` sibling combinator (T-CSS-SIBLING-1).
 - [ ] Clicking **empty page area** does nothing (does not submit / reload).
 
+## Dark mode (extension enabled)
+
+- [ ] With the dark-mode extension enabled, the page background/text/links **darken consistently** (no half-dark page, no lone dark control) — regression guard for `!important` (T-CSS-IMPORTANT-1).
+
 ## Known-deferred (expected NOT-yet; do not file as new bugs)
 
 Each already has a story; note the ticket if the symptom regresses further.
 
 - [ ] Magnifier icon glyph missing (icon font) — **T-FONT-FACE-1** (`@font-face`).
 - [ ] Corner radius / max-width driven by `var()` fall back to defaults — **T-CSS-VAR-3**.
-- [ ] Dark-mode extension does not fully theme the page — **T-CSS-IMPORTANT-1** (`!important`).
 - [ ] `font-family: inherit` logs a warning and falls back to Roboto — **T-CSS-INHERIT-1**.
 - [ ] `calc()` sizes fall back / are ignored — **T-CSS-CALC-1**.
 - [ ] Hover/focus transitions do not animate — **T-ANIM-1** (static-only, P2).

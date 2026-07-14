@@ -25,7 +25,15 @@ struct MatchedProperty {
     int specificity;
     size_t order;
     Value value;
+    bool important;
 };
+
+// Cascade: importance beats specificity beats source order (T-CSS-IMPORTANT-1).
+bool declaration_wins(bool important, int specificity, size_t order, const MatchedProperty& incumbent) {
+    if (important != incumbent.important) return important;
+    if (specificity != incumbent.specificity) return specificity > incumbent.specificity;
+    return order > incumbent.order;
+}
 
 struct StyleResult {
     ComputedStyle style;
@@ -66,17 +74,16 @@ MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DO
                         continue;
                     }
                     auto it = matched.custom_properties.find(decl.custom_property);
-                    if (it == matched.custom_properties.end() || spec > it->second.specificity ||
-                        (spec == it->second.specificity && order > it->second.order)) {
-                        matched.custom_properties[decl.custom_property] = {spec, order, decl.value};
+                    if (it == matched.custom_properties.end() ||
+                        declaration_wins(decl.important, spec, order, it->second)) {
+                        matched.custom_properties[decl.custom_property] = {spec, order, decl.value, decl.important};
                     }
                     ++order;
                     continue;
                 }
                 auto it = matched.properties.find(decl.property);
-                if (it == matched.properties.end() || spec > it->second.specificity ||
-                    (spec == it->second.specificity && order > it->second.order)) {
-                    matched.properties[decl.property] = {spec, order, decl.value};
+                if (it == matched.properties.end() || declaration_wins(decl.important, spec, order, it->second)) {
+                    matched.properties[decl.property] = {spec, order, decl.value, decl.important};
                 }
                 ++order;
             }

@@ -147,7 +147,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-HTML-RAWTEXT-1: Script/Style Raw-Text Parsing
 - [ ] T-PERF-STYLE-1: Selector Match Acceleration
 - [x] T-FORM-HIT-2: Clicks Outside Submit Controls Must Not Submit (hit-test containment fix)
-- [ ] T-CSS-IMPORTANT-1: !important Support
+- [x] T-CSS-IMPORTANT-1: !important Support (importance tier above specificity in the cascade; shorthand expansion carries the flag; dark-mode extension rules now win their fights)
 - [x] T-CSS-SIBLING-1: Sibling Combinators (`~`, `+`) (DDG magnifier turns green on input focus; element-sibling traversal skips text nodes)
 - [ ] T-CSS-VAR-3: var() For Non-Color Properties
 - [x] T-POS-ABS-1: Absolute Centering With Opposing Insets (auto-margin centering AND auto-size stretch between top+bottom / left+right; DDG magnifier fills the search box)

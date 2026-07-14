@@ -380,6 +380,56 @@ TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
     EXPECT_FLOAT_EQ(style->margin.top, 3.0f);
 }
 
+TEST(StyleEngineTest, ImportantBeatsSpecificityAndOrder) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    root->set_attribute(Attr::Class, "text");
+    root->set_attribute(Attr::Id, "main");
+
+    // The dark-mode-extension shape: a low-specificity important rule must beat
+    // higher-specificity and later normal rules (T-CSS-IMPORTANT-1).
+    std::string css = R"(
+        p { color: blue !important; margin: 1px; }
+        .text { color: red; margin: 2px !important; }
+        #main { color: black; margin: 3px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    // p!important beats .text and #main.
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 255);
+    // .text!important beats #main.
+    EXPECT_FLOAT_EQ(style->margin.top, 2.0f);
+}
+
+TEST(StyleEngineTest, LaterImportantWinsAmongImportant) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = R"(
+        p { color: blue !important; }
+        p { color: red !important; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 255);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 0);
+}
+
 TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
