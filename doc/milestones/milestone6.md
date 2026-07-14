@@ -136,7 +136,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-CSS-COMPAT-ALIAS-1: Vendor Prefix Alias Layer
 - [ ] T-CSS-MISC-LEGACY-1: Legacy Property Compatibility Slice
 - [ ] T-CSS-INHERIT-1: `inherit` Keyword Support
-- [ ] T-CSS-BG-SHORTHAND-SIZE-1: `background` Shorthand `position/size` Syntax
+- [x] T-CSS-BG-SHORTHAND-SIZE-1: `background` Shorthand `position/size` Syntax (slash token + shorthand split; DDG logo centers)
 - [ ] T-CSS-CALC-1: `calc()` Length Expressions
 - [ ] T-PERF-5: Batch Resource Updates
 - [ ] T-PERF-4: Offscreen Raster Cache + Layer Invalidation
