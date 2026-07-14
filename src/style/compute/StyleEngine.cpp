@@ -103,12 +103,26 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         if (it == properties.end()) {
             continue;
         }
-        Apply::apply_property(entry.property, it->second.value, style, overrides, context);
+        // CSS-wide `inherit` (T-CSS-INHERIT-1): leave the field untouched and
+        // its override flag unset so inherit_from_parent copies the parent's
+        // computed value. This is exact for inherited properties (DDG's
+        // `font-family: inherit`); non-inherited properties fall back to
+        // their initial value, which is the supported slice for now.
+        const Value& value = it->second.value;
+        if (value.type == Value::Type::Identifier && value.ident == "inherit") {
+            continue;
+        }
+        Apply::apply_property(entry.property, value, style, overrides, context);
     }
 }
 
 void apply_custom_properties(const CustomPropertyMap& properties, ComputedStyle& style) {
     for (const auto& [name, property] : properties) {
+        // `--x: inherit` keeps the parent's value (custom properties inherit
+        // by default; the parent merge in compute_node fills the gap).
+        if (property.value.ident == "inherit") {
+            continue;
+        }
         style.custom_properties[name] = property.value.ident;
     }
 }

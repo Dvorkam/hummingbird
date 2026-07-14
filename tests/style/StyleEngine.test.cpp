@@ -430,6 +430,59 @@ TEST(StyleEngineTest, LaterImportantWinsAmongImportant) {
     EXPECT_EQ(style->color.b, 0);
 }
 
+TEST(StyleEngineTest, InheritKeywordCopiesParentValue) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    root->append_child(std::move(child));
+
+    // DDG: `.search__input { font-family: inherit }` must take the parent's
+    // font, not warn and fall back (T-CSS-INHERIT-1).
+    std::string css = R"(
+        div { font-family: Arial; color: red; }
+        input { font-family: inherit; color: inherit; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->font_face, "arial");
+    EXPECT_EQ(style->color.r, 255);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 0);
+}
+
+TEST(StyleEngineTest, InheritWinsCascadeOverConcreteValue) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    child->set_attribute(Attr::Class, "quiet");
+    root->append_child(std::move(child));
+
+    // `.quiet { color: inherit }` outranks `p { color: red }`; the winning
+    // declaration is `inherit`, so the parent's blue applies — not red.
+    std::string css = R"(
+        div { color: blue; }
+        p { color: red; }
+        .quiet { color: inherit; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 255);
+}
+
 TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
