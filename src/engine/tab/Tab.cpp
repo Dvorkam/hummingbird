@@ -107,7 +107,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
 void Tab::apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (extension_css_dirty_ && document_pipeline_->has_dom_tree()) {
         document_pipeline_->set_extension_style_blocks(extension_style_blocks_);
-        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:extension_css", true);
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:extension_css");
         extension_css_dirty_ = false;
         mark_dirty("extension_css");
     }
@@ -168,7 +168,7 @@ Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::R
     auto result = document_pipeline_->dispatch_click(
         make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y));
     if (result.mutated) {
-        (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation", false);
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation");
         mark_dirty();
     }
     return {result.handled, result.mutated};
@@ -201,7 +201,7 @@ bool Tab::refresh_styles_for_interaction(IGraphicsContext& graphics, const Layou
     if (!document_pipeline_->has_dom_tree()) {
         return false;
     }
-    return rebuild_document_and_sync_layout(graphics, viewport, "refresh_styles_for_interaction", false);
+    return rebuild_document_and_sync_layout(graphics, viewport, "refresh_styles_for_interaction");
 }
 
 bool Tab::has_focused_input() const {
@@ -329,7 +329,7 @@ void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout:
     bool has_render_tree = false;
     timed("build_and_layout", [&] {
         has_render_tree =
-            rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build", true);
+            rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build");
     });
     if (has_render_tree) {
         timed("autofocus", [&] { apply_autofocus_after_rebuild(); });
@@ -339,7 +339,7 @@ void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout:
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto style_update_start = Core::Clock::now();
-    (void)rebuild_document_and_sync_layout(graphics, viewport, "handle_stylesheet_ready", true);
+    (void)rebuild_document_and_sync_layout(graphics, viewport, "handle_stylesheet_ready");
     const auto style_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] stylesheet update ms=" << Core::duration_ms(style_update_start, style_update_end));
     mark_dirty("stylesheet_ready");
@@ -377,7 +377,7 @@ void Tab::apply_load_mutations_after_document_ready(IGraphicsContext& graphics, 
         return;
     }
 
-    if (rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:load_mutation", true)) {
+    if (rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:load_mutation")) {
         apply_autofocus_after_rebuild();
     }
     mark_dirty();
@@ -398,13 +398,16 @@ void Tab::mark_dirty(std::string_view reason) {
 }
 
 bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
-                                           std::string_view reason, bool request_background_images) {
+                                           std::string_view reason) {
     bool has_render_tree =
         document_pipeline_->rebuild_and_layout(graphics, viewport, navigation_lifecycle_.requested_url());
-    if (request_background_images) {
-        resource_loader_->request_images(document_pipeline_->background_image_links(),
-                                         navigation_lifecycle_.requested_url());
-    }
+    // Every rebuild requests the background images its computed styles now
+    // reference: interaction restyles can switch a node to an image that was
+    // not discoverable at load time (DDG's loupe swaps white<->gray with
+    // :focus, and autofocus means only one variant exists at load). The
+    // resource store dedupes, so re-requesting known URLs is a no-op.
+    resource_loader_->request_images(document_pipeline_->background_image_links(),
+                                     navigation_lifecycle_.requested_url());
     if (has_render_tree) {
         update_layout_state(viewport, reason);
     }

@@ -107,7 +107,7 @@ private:
     void relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_animation_updates();
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
-                                          std::string_view reason, bool request_background_images);
+                                          std::string_view reason);
     void begin_navigation_session(std::string_view url);
     bool prepare_document_from_response(std::string_view html);
     void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
