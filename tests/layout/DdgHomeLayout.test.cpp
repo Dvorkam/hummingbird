@@ -154,4 +154,23 @@ TEST(DdgHomeLayoutTest, HomepageSearchBlockIsOnScreenAndCentered) {
     EXPECT_GT(input.rect.width, 300.0f);
     EXPECT_LT(button.rect.width, 120.0f) << "submit button hit-box is oversized";
     EXPECT_LT(button.rect.height, 120.0f);
+
+    // The submit button is absolutely positioned inside the search form
+    // (position:relative). It should sit within the form's vertical band, not
+    // dangle below it. Diagnostic values are printed so a failure shows where
+    // the button actually lands.
+    AbsoluteBox form = find_by_class(render_root.get(), "search");
+    ASSERT_NE(form.box, nullptr);
+    const float form_top = form.rect.y;
+    const float form_bottom = form.rect.y + form.rect.height;
+    const float button_top = button.rect.y;
+    const float button_bottom = button.rect.y + button.rect.height;
+    const std::string where = "form=[" + std::to_string(form_top) + ".." + std::to_string(form_bottom) +
+                              "] h=" + std::to_string(form.rect.height) + " button=[" + std::to_string(button_top) +
+                              ".." + std::to_string(button_bottom) + "] h=" + std::to_string(button.rect.height);
+    EXPECT_GE(button_top, form_top - 4.0f) << where;
+    EXPECT_LE(button_bottom, form_bottom + 4.0f) << where;
+    // The button uses height:auto between top:0/bottom:0, so it should stretch to
+    // roughly the form's height, not sit small at the top.
+    EXPECT_GE(button.rect.height, form.rect.height * 0.6f) << where;
 }
