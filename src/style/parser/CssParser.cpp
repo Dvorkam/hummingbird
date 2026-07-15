@@ -906,6 +906,7 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         case PropertyRegistry::ParserHook::parse_font_weight:
         case PropertyRegistry::ParserHook::parse_color:
         case PropertyRegistry::ParserHook::parse_opacity:
+        case PropertyRegistry::ParserHook::Count:
             break;
     }
 

@@ -67,8 +67,10 @@ TEST(CssPropertyRegistryTest, PropertyListMetadataMatchesRegistryAccessors) {
 }
 
 TEST(CssPropertyRegistryTest, EveryTypedHookIsUsedByAtLeastOneProperty) {
-    std::array<bool, enum_index(PropertyRegistry::ParserHook::parse_box_shadow) + 1> parser_seen{};
-    std::array<bool, enum_index(PropertyRegistry::ApplyHook::apply_box_shadow) + 1> applier_seen{};
+    // Size to the Count sentinel so the arrays span the whole enum; otherwise
+    // hooks enumerated after the chosen bound would write out of bounds.
+    std::array<bool, enum_index(PropertyRegistry::ParserHook::Count)> parser_seen{};
+    std::array<bool, enum_index(PropertyRegistry::ApplyHook::Count)> applier_seen{};
 
     for (const auto& entry : PropertyRegistry::property_list()) {
         parser_seen[enum_index(entry.parser_hook)] = true;
