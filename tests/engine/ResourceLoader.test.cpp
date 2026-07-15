@@ -152,6 +152,32 @@ TEST(ResourceLoaderTest, NeverProbesProviderForOriginRelativeUrls) {
     }
 }
 
+TEST(ResourceLoaderTest, CoalescesMultipleArrivalsIntoOneBatch) {
+    // Several resources arriving before a tick must drain in a single
+    // consume_pending_updates() with one aggregate ready flag, so the tab does
+    // one restyle/relayout instead of one per resource (T-PERF-5).
+    auto fallback = std::make_unique<CapturingNetwork>();
+    fallback->body = "PNGDATA";
+
+    ResourceLoader loader(nullptr, std::move(fallback), nullptr,
+                          std::make_unique<Hummingbird::Test::InlineImageDecoder>());
+    loader.allow_insecure_host("example.dev");
+
+    const std::string base_url = "https://example.dev/index.html";
+    loader.request_images({"/img/a.png", "/img/b.png", "/img/c.png"}, base_url);
+
+    // All three network callbacks fired synchronously and enqueued; a single
+    // consume drains them together.
+    auto batch = loader.consume_pending_updates();
+    EXPECT_EQ(batch.pending_count, 3u);
+    EXPECT_TRUE(batch.image_ready);
+
+    // The queue is now empty: no second rebuild is triggered.
+    auto empty = loader.consume_pending_updates();
+    EXPECT_EQ(empty.pending_count, 0u);
+    EXPECT_FALSE(empty.image_ready);
+}
+
 TEST(ResourceLoaderTest, ImageUsesFallbackNetworkAndDecoder) {
     auto fallback = std::make_unique<CapturingNetwork>();
     auto* fallback_ptr = fallback.get();
