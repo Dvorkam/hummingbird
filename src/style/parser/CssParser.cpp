@@ -754,6 +754,13 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             }
             return true;
         }
+        case PropertyRegistry::ParserHook::parse_passthrough: {
+            // Recognized-but-inert properties (e.g. transition, transform-origin):
+            // consume the whole value so it is not reported as unsupported. The
+            // applier ignores it (static application, T-ANIM-1).
+            push_decl(property, Value::identifier(join_value_list(values)));
+            return true;
+        }
         case PropertyRegistry::ParserHook::parse_outline_shorthand: {
             std::optional<Value> outline_width;
             std::optional<Value> outline_color;

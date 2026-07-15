@@ -249,6 +249,7 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_order:
             (void)apply_layout_property(Property::Order, value, style, overrides, context);
             return;
+        case ApplyHook::apply_noop:
         case ApplyHook::Unknown:
         case ApplyHook::Count:
             return;

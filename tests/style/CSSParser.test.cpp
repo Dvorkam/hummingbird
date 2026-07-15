@@ -303,6 +303,22 @@ TEST(CSSParserTest, ParsesVerticalAlignProperty) {
     EXPECT_EQ(decls[0].value.ident, "middle");
 }
 
+TEST(CSSParserTest, RecognizesAnimationPropertiesAsNoOps) {
+    // transition/transform-origin are recognized (not warned) but inert (T-ANIM-1).
+    Parser parser(
+        "div { transition: opacity 0.3s ease; transition-delay: 100ms; transform-origin: center; color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    // None of the animation properties are reported as unsupported.
+    EXPECT_TRUE(sheet.unknown_properties.empty());
+    // The real property (color) still applies alongside them.
+    bool has_color = false;
+    for (const auto& decl : sheet.rules[0].declarations) {
+        if (decl.property == Property::Color) has_color = true;
+    }
+    EXPECT_TRUE(has_color);
+}
+
 TEST(CSSParserTest, ParsesCalcPercentMinusPx) {
     Parser parser("div { width: calc(100% - 14px); }");
     auto sheet = parser.parse();

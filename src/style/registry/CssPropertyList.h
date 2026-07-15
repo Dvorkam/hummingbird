@@ -43,6 +43,7 @@ enum class ParserHook : std::uint8_t {
     parse_box_shadow,
     parse_clip,
     parse_flex_shorthand,
+    parse_passthrough,
     Count,  // Sentinel: number of parser hooks. Keep last.
 };
 
@@ -126,6 +127,7 @@ enum class ApplyHook : std::uint8_t {
     apply_flex_shrink,
     apply_flex_basis,
     apply_order,
+    apply_noop,
     Count,  // Sentinel: number of applier hooks. Keep last.
 };
 

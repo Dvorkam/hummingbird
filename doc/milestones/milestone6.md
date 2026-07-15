@@ -161,4 +161,4 @@ P1: Compatibility + Hygiene (pull in as needed)
 
 P2: Only if Schedule Allows
 - [ ] T-LAYOUT-GRID-1: Grid Layout MVP
-- [ ] T-ANIM-1: transition + transform (static)
+- [x] T-ANIM-1: transition + transform (static) (transform translate applies to the paint offset; transition/transition-*/transform-origin recognized as static no-ops, clearing their unsupported-property warnings; scale/rotate deferred pending a graphics matrix API)

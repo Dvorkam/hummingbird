@@ -196,6 +196,22 @@ HB_CSS_PROPERTY(BackgroundSize, BackgroundSize, "background-size", "background-s
                 ApplyHook::apply_background_size, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BoxShadow, BoxShadow, "box-shadow", "box-shadow", ParserHook::parse_box_shadow,
                 ApplyHook::apply_box_shadow, PropertyFlags::None)
+// Animation properties (T-ANIM-1): recognized but applied statically, i.e. as
+// no-ops — with no timing engine the property simply takes its target value and
+// the transition/timing metadata has no visual effect. Registering them keeps
+// them out of the "unsupported property" warning stream.
+HB_CSS_PROPERTY(Transition, Transition, "transition", "transition", ParserHook::parse_passthrough,
+                ApplyHook::apply_noop, PropertyFlags::None)
+HB_CSS_PROPERTY(TransitionProperty, TransitionProperty, "transition-property", "transition-property",
+                ParserHook::parse_passthrough, ApplyHook::apply_noop, PropertyFlags::None)
+HB_CSS_PROPERTY(TransitionDuration, TransitionDuration, "transition-duration", "transition-duration",
+                ParserHook::parse_passthrough, ApplyHook::apply_noop, PropertyFlags::None)
+HB_CSS_PROPERTY(TransitionDelay, TransitionDelay, "transition-delay", "transition-delay", ParserHook::parse_passthrough,
+                ApplyHook::apply_noop, PropertyFlags::None)
+HB_CSS_PROPERTY(TransitionTimingFunction, TransitionTimingFunction, "transition-timing-function",
+                "transition-timing-function", ParserHook::parse_passthrough, ApplyHook::apply_noop, PropertyFlags::None)
+HB_CSS_PROPERTY(TransformOrigin, TransformOrigin, "transform-origin", "transform-origin", ParserHook::parse_passthrough,
+                ApplyHook::apply_noop, PropertyFlags::None)
 HB_CSS_PROPERTY(TextShadow, TextShadow, "text-shadow", "text-shadow", ParserHook::parse_box_shadow,
                 ApplyHook::apply_text_shadow, PropertyFlags::Inherited)
 
@@ -216,8 +232,8 @@ HB_CSS_PROPERTY_ALIAS(BorderRadius, MozBorderRadius, "-moz-border-radius", "bord
                       ParserHook::parse_border_radius, ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY_ALIAS(BorderRadius, MsBorderRadius, "-ms-border-radius", "border-radius",
                       ParserHook::parse_border_radius, ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
-HB_CSS_PROPERTY_ALIAS(BorderRadius, OBorderRadius, "-o-border-radius", "border-radius",
-                      ParserHook::parse_border_radius, ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(BorderRadius, OBorderRadius, "-o-border-radius", "border-radius", ParserHook::parse_border_radius,
+                      ApplyHook::apply_border_radius, PropertyFlags::LayoutAffecting)
 
 // Vendor-prefixed per-corner radius. WebKit uses the standard corner names;
 // Gecko uses the older `-moz-border-radius-<corner>` spelling.
@@ -248,7 +264,7 @@ HB_CSS_PROPERTY_ALIAS(BorderBottomLeftRadius, MozBorderRadiusBottomleft, "-moz-b
 
 // Vendor-prefixed text-overflow: Opera and IE shipped this before it was
 // unprefixed. Behavior-equivalent, so alias to the standard property.
-HB_CSS_PROPERTY_ALIAS(TextOverflow, OTextOverflow, "-o-text-overflow", "text-overflow",
-                      ParserHook::parse_identifier, ApplyHook::apply_text_overflow, PropertyFlags::LayoutAffecting)
-HB_CSS_PROPERTY_ALIAS(TextOverflow, MsTextOverflow, "-ms-text-overflow", "text-overflow",
-                      ParserHook::parse_identifier, ApplyHook::apply_text_overflow, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(TextOverflow, OTextOverflow, "-o-text-overflow", "text-overflow", ParserHook::parse_identifier,
+                      ApplyHook::apply_text_overflow, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(TextOverflow, MsTextOverflow, "-ms-text-overflow", "text-overflow", ParserHook::parse_identifier,
+                      ApplyHook::apply_text_overflow, PropertyFlags::LayoutAffecting)
