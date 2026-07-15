@@ -2,9 +2,17 @@
 
 #include <string_view>
 
+#include "core/utils/StringUtils.h"
 #include "html/HtmlTagNames.h"
 
 namespace Hummingbird::Html::TagMetadata {
+
+// Raw-text elements: their content is consumed literally up to the matching end
+// tag, so `<` inside (e.g. JS/CSS string literals) is never treated as markup.
+inline bool is_raw_text_tag(std::string_view name) {
+    return Core::Utils::equals_ignore_case(name, Hummingbird::Html::TagNames::Script) ||
+           Core::Utils::equals_ignore_case(name, Hummingbird::Html::TagNames::Style);
+}
 
 inline bool is_void_tag(std::string_view name) {
     static constexpr std::string_view kVoidTags[] = {

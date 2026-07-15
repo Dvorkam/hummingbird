@@ -15,7 +15,7 @@ public:
     Token next_token();
 
 private:
-    enum class State { Data, TagOpen, TagName, EndTagOpen, SelfClosingStartTag };
+    enum class State { Data, TagOpen, TagName, EndTagOpen, SelfClosingStartTag, RawText };
 
     char peek_char(size_t offset = 0) const;
     char consume_char();
@@ -29,12 +29,15 @@ private:
     bool handle_data_state(Token& out);
     bool handle_tag_open_state(Token& out);
     bool handle_end_tag_open_state(Token& out);
+    bool handle_rawtext_state(Token& out);
     void skip_directive_or_comment();
     void skip_until(char terminal);
 
     std::string_view m_input;
     size_t m_pos = 0;
     State m_state = State::Data;
+    // The tag name (script/style) whose matching end tag terminates RawText.
+    std::string_view m_rawtext_tag;
 };
 
 }  // namespace Hummingbird::Html
