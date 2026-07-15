@@ -341,10 +341,11 @@
         <h2>Visited link state</h2>
         <p><a href="https://example.dev">example.dev</a> (you navigated here from it, so it renders
         <code>:visited</code> purple) &mdash;
-        <a href="https://example.dev/unvisited-page">an unvisited link</a> (default link blue).</p>
+        <a href="https://example.dev/link-target">a fresh link</a> (default link blue &mdash; click it, then come
+        back, and it turns purple).</p>
         <p class="note">The engine records every navigated URL; an anchor whose href resolves to a visited URL
         matches <code>:visited</code> and takes the <code>vlink</code> color (here forced purple via
-        <code>a:visited</code>). Reload after visiting different pages to see it update.</p>
+        <code>a:visited</code>). Both links go to real pages you can return from.</p>
       </div>
 
       <div class="section">
