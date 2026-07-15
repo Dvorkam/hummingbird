@@ -54,17 +54,14 @@ inline float compute_available_width(const Rect& bounds, const Insets& insets) {
     return available;
 }
 
-inline float resolve_axis_length(float value, bool is_percent, float reference) {
-    if (!is_percent) {
-        return value;
-    }
-    return reference * (value / 100.0f);
+inline float resolve_axis_length(const Css::ComputedStyle::LengthValue& length, float reference) {
+    return length.resolve(reference);
 }
 
 inline float compute_available_width(const Css::ComputedStyle* style, const Rect& bounds, const Insets& insets) {
     float available = compute_available_width(bounds, insets);
     if (style && style->width.has_value()) {
-        float resolved = resolve_axis_length(*style->width, style->width_is_percent, bounds.width);
+        float resolved = resolve_axis_length(*style->width, bounds.width);
         available = resolved - insets.left - insets.right;
         if (available < 0.0f) {
             available = 0.0f;
@@ -95,17 +92,17 @@ inline BoxMetrics compute_box_metrics(const Css::ComputedStyle* style, const Rec
     bool constrained = false;
 
     if (style && width_policy != BoxWidthPolicy::Ignore && style->width.has_value()) {
-        float resolved = resolve_axis_length(*style->width, style->width_is_percent, bounds.width);
+        float resolved = resolve_axis_length(*style->width, bounds.width);
         target_width = std::min(target_width, resolved);
         constrained = true;
     }
     if (style && width_policy != BoxWidthPolicy::Ignore && style->min_width.has_value()) {
-        float resolved = resolve_axis_length(*style->min_width, style->min_width_is_percent, bounds.width);
+        float resolved = resolve_axis_length(*style->min_width, bounds.width);
         target_width = std::max(target_width, resolved);
         constrained = true;
     }
     if (style && width_policy == BoxWidthPolicy::WidthAndMax && style->max_width.has_value()) {
-        float resolved = resolve_axis_length(*style->max_width, style->max_width_is_percent, bounds.width);
+        float resolved = resolve_axis_length(*style->max_width, bounds.width);
         target_width = std::min(target_width, resolved);
         constrained = true;
     }

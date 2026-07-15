@@ -155,21 +155,17 @@ CornerRadius value_to_corner_radius(const Value& value, float font_size) {
     return corner;
 }
 
-void apply_optional_length(std::optional<float>& target, bool& is_percent, const Value& value, float font_size) {
+void apply_optional_length(std::optional<ComputedStyle::LengthValue>& target, const Value& value, float font_size) {
     if (value.type == Value::Type::Length) {
         if (value.length.unit == Unit::Px) {
-            target = value.length.value;
-            is_percent = false;
+            target = ComputedStyle::LengthValue::from_px(value.length.value);
         } else if (value.length.unit == Unit::Em) {
-            target = value.length.value * font_size;
-            is_percent = false;
+            target = ComputedStyle::LengthValue::from_px(value.length.value * font_size);
         } else if (value.length.unit == Unit::Percent) {
-            target = value.length.value;
-            is_percent = true;
+            target = ComputedStyle::LengthValue::from_percent(value.length.value);
         }
     } else if (value.type == Value::Type::Number) {
-        target = value.number;
-        is_percent = false;
+        target = ComputedStyle::LengthValue::from_px(value.number);
     }
 }
 
@@ -547,34 +543,34 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             apply_border_style(style, value);
             return true;
         case Property::Width:
-            apply_optional_length(style.width, style.width_is_percent, value, style.font_size);
+            apply_optional_length(style.width, value, style.font_size);
             return true;
         case Property::Height:
-            apply_optional_length(style.height, style.height_is_percent, value, style.font_size);
+            apply_optional_length(style.height, value, style.font_size);
             return true;
         case Property::MinWidth:
-            apply_optional_length(style.min_width, style.min_width_is_percent, value, style.font_size);
+            apply_optional_length(style.min_width, value, style.font_size);
             return true;
         case Property::MinHeight:
-            apply_optional_length(style.min_height, style.min_height_is_percent, value, style.font_size);
+            apply_optional_length(style.min_height, value, style.font_size);
             return true;
         case Property::MaxWidth:
-            apply_optional_length(style.max_width, style.max_width_is_percent, value, style.font_size);
+            apply_optional_length(style.max_width, value, style.font_size);
             return true;
         case Property::MaxHeight:
-            apply_optional_length(style.max_height, style.max_height_is_percent, value, style.font_size);
+            apply_optional_length(style.max_height, value, style.font_size);
             return true;
         case Property::Top:
-            apply_optional_length(style.top, style.top_is_percent, value, style.font_size);
+            apply_optional_length(style.top, value, style.font_size);
             return true;
         case Property::Right:
-            apply_optional_length(style.right, style.right_is_percent, value, style.font_size);
+            apply_optional_length(style.right, value, style.font_size);
             return true;
         case Property::Bottom:
-            apply_optional_length(style.bottom, style.bottom_is_percent, value, style.font_size);
+            apply_optional_length(style.bottom, value, style.font_size);
             return true;
         case Property::Left:
-            apply_optional_length(style.left, style.left_is_percent, value, style.font_size);
+            apply_optional_length(style.left, value, style.font_size);
             return true;
         case Property::ZIndex:
             apply_z_index_value(style, value);
@@ -603,10 +599,9 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
         case Property::FlexBasis:
             if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
                 style.flex_basis.reset();
-                style.flex_basis_is_percent = false;
                 return true;
             }
-            apply_optional_length(style.flex_basis, style.flex_basis_is_percent, value, style.font_size);
+            apply_optional_length(style.flex_basis, value, style.font_size);
             return true;
         case Property::Order:
             apply_order_value(style, value);

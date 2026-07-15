@@ -53,6 +53,21 @@ struct CornerRadii {
 };
 
 struct ComputedStyle {
+    // A computed length that may carry both an absolute part (px, with em already
+    // resolved at apply time) and a percentage part, so `calc(100% - 20px)` is one
+    // value. Plain lengths use only `px`; plain percentages only `percent`. The
+    // percentage resolves against a reference length supplied at layout time.
+    struct LengthValue {
+        float px = 0.0f;
+        float percent = 0.0f;
+        bool has_percent = false;
+
+        static LengthValue from_px(float value) { return {value, 0.0f, false}; }
+        static LengthValue from_percent(float value) { return {0.0f, value, true}; }
+
+        float resolve(float reference) const { return px + (has_percent ? percent * 0.01f * reference : 0.0f); }
+    };
+
     enum class Display { Block, Inline, InlineBlock, ListItem, Flex, None };
     Display display = Display::Block;
     enum class FlexDirection { Row, RowReverse, Column, ColumnReverse };
@@ -65,8 +80,7 @@ struct ComputedStyle {
     AlignItems align_items = AlignItems::Stretch;
     float flex_grow = 0.0f;
     float flex_shrink = 1.0f;
-    std::optional<float> flex_basis;
-    bool flex_basis_is_percent = false;
+    std::optional<LengthValue> flex_basis;
     int order = 0;
     enum class Float { None, Left, Right };
     Float float_type = Float::None;
@@ -119,26 +133,16 @@ struct ComputedStyle {
     bool transform_has_translate = false;
     float transform_translate_x = 0.0f;
     float transform_translate_y = 0.0f;
-    std::optional<float> width;
-    std::optional<float> height;
-    std::optional<float> min_width;
-    std::optional<float> min_height;
-    std::optional<float> max_width;
-    std::optional<float> max_height;
-    bool width_is_percent = false;
-    bool height_is_percent = false;
-    bool min_width_is_percent = false;
-    bool min_height_is_percent = false;
-    bool max_width_is_percent = false;
-    bool max_height_is_percent = false;
-    std::optional<float> top;
-    std::optional<float> right;
-    std::optional<float> bottom;
-    std::optional<float> left;
-    bool top_is_percent = false;
-    bool right_is_percent = false;
-    bool bottom_is_percent = false;
-    bool left_is_percent = false;
+    std::optional<LengthValue> width;
+    std::optional<LengthValue> height;
+    std::optional<LengthValue> min_width;
+    std::optional<LengthValue> min_height;
+    std::optional<LengthValue> max_width;
+    std::optional<LengthValue> max_height;
+    std::optional<LengthValue> top;
+    std::optional<LengthValue> right;
+    std::optional<LengthValue> bottom;
+    std::optional<LengthValue> left;
     std::optional<int> z_index;
     float opacity = 1.0f;
     Color color{0, 0, 0, 255};

@@ -27,12 +27,13 @@ constexpr float kInlineAtomicLayoutWidth = 100000.0f;
 constexpr float kMinInputContentWidth = 8.0f;
 constexpr float kMinInputContentHeight = 12.0f;
 
-std::optional<float> resolve_height_constraint(const Css::ComputedStyle* style, float value, bool is_percent,
-                                               float reference_height, const Metrics::Insets& insets) {
-    if (is_percent && reference_height <= 0.0f) {
+std::optional<float> resolve_height_constraint(const Css::ComputedStyle* style,
+                                               const Css::ComputedStyle::LengthValue& value, float reference_height,
+                                               const Metrics::Insets& insets) {
+    if (value.has_percent && reference_height <= 0.0f) {
         return std::nullopt;
     }
-    float resolved = Metrics::resolve_axis_length(value, is_percent, reference_height);
+    float resolved = value.resolve(reference_height);
     return Metrics::resolve_border_box_height(style, resolved, insets);
 }
 
@@ -156,24 +157,21 @@ void BlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
     // Explicit height wins over content height (content may overflow, per CSS).
     if (style && style->height.has_value()) {
-        if (auto target = resolve_height_constraint(style, *style->height, style->height_is_percent, bounds.height,
-                                                    metrics.insets)) {
+        if (auto target = resolve_height_constraint(style, *style->height, bounds.height, metrics.insets)) {
             m_rect.height = *target;
         }
     }
 
     if (style) {
         if (style->min_height.has_value()) {
-            if (auto target = resolve_height_constraint(style, *style->min_height, style->min_height_is_percent,
-                                                        bounds.height, metrics.insets)) {
+            if (auto target = resolve_height_constraint(style, *style->min_height, bounds.height, metrics.insets)) {
                 if (m_rect.height < *target) {
                     m_rect.height = *target;
                 }
             }
         }
         if (style->max_height.has_value()) {
-            if (auto target = resolve_height_constraint(style, *style->max_height, style->max_height_is_percent,
-                                                        bounds.height, metrics.insets)) {
+            if (auto target = resolve_height_constraint(style, *style->max_height, bounds.height, metrics.insets)) {
                 if (m_rect.height > *target) {
                     m_rect.height = *target;
                 }
@@ -236,8 +234,7 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     const auto* style = get_computed_style();
     if (style && style->height.has_value()) {
         Metrics::Insets insets = Metrics::compute_insets(style);
-        if (auto target_height =
-                resolve_height_constraint(style, *style->height, style->height_is_percent, bounds.height, insets)) {
+        if (auto target_height = resolve_height_constraint(style, *style->height, bounds.height, insets)) {
             if (m_rect.height < *target_height) {
                 m_rect.height = *target_height;
             }
@@ -246,16 +243,14 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     if (style) {
         Metrics::Insets insets = Metrics::compute_insets(style);
         if (style->min_height.has_value()) {
-            if (auto target_height = resolve_height_constraint(style, *style->min_height, style->min_height_is_percent,
-                                                               bounds.height, insets)) {
+            if (auto target_height = resolve_height_constraint(style, *style->min_height, bounds.height, insets)) {
                 if (m_rect.height < *target_height) {
                     m_rect.height = *target_height;
                 }
             }
         }
         if (style->max_height.has_value()) {
-            if (auto target_height = resolve_height_constraint(style, *style->max_height, style->max_height_is_percent,
-                                                               bounds.height, insets)) {
+            if (auto target_height = resolve_height_constraint(style, *style->max_height, bounds.height, insets)) {
                 if (m_rect.height > *target_height) {
                     m_rect.height = *target_height;
                 }

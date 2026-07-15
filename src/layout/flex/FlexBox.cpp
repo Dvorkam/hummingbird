@@ -75,10 +75,10 @@ std::optional<float> resolve_definite_content_height(const ComputedStyle* style,
     if (!style || !style->height.has_value()) {
         return std::nullopt;
     }
-    if (style->height_is_percent && bounds.height <= 0.0f) {
+    if (style->height->has_percent && bounds.height <= 0.0f) {
         return std::nullopt;
     }
-    float resolved = Metrics::resolve_axis_length(*style->height, style->height_is_percent, bounds.height);
+    float resolved = Metrics::resolve_axis_length(*style->height, bounds.height);
     float border_box = Metrics::resolve_border_box_height(style, resolved, insets);
     return std::max(0.0f, border_box - insets.top - insets.bottom);
 }
@@ -103,11 +103,11 @@ void apply_explicit_height(RenderObject& box, const ComputedStyle* style,
     if (!style || !style->height.has_value()) {
         return;
     }
-    if (style->height_is_percent && !container_content_height) {
+    if (style->height->has_percent && !container_content_height) {
         return;
     }
     float reference = container_content_height.value_or(0.0f);
-    float resolved = Metrics::resolve_axis_length(*style->height, style->height_is_percent, reference);
+    float resolved = Metrics::resolve_axis_length(*style->height, reference);
     Metrics::Insets insets = Metrics::compute_insets(style);
     Rect rect = box.get_rect();
     rect.height = std::max(rect.height, Metrics::resolve_border_box_height(style, resolved, insets));
@@ -164,30 +164,23 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
         std::optional<float> basis;
         if (child_style && child_style->flex_basis.has_value()) {
-            float value = *child_style->flex_basis;
-            bool resolvable = true;
-            if (child_style->flex_basis_is_percent) {
-                if (main_available < 0.0f) {
-                    resolvable = false;
-                } else {
-                    value = main_available * (value / 100.0f);
-                }
-            }
-            if (resolvable) {
+            const auto& fb = *child_style->flex_basis;
+            // A percentage basis needs a definite main size; without one it falls
+            // through to explicit size / content, like an auto basis.
+            if (!fb.has_percent || main_available >= 0.0f) {
+                float value = fb.resolve(main_available);
                 basis = row ? Metrics::resolve_border_box_width(child_style, value, child_insets)
                             : Metrics::resolve_border_box_height(child_style, value, child_insets);
             }
         }
         if (!basis && child_style) {
             if (row && child_style->width.has_value()) {
-                float resolved = Metrics::resolve_axis_length(*child_style->width, child_style->width_is_percent,
-                                                              metrics.content_width);
+                float resolved = Metrics::resolve_axis_length(*child_style->width, metrics.content_width);
                 basis = Metrics::resolve_border_box_width(child_style, resolved, child_insets);
             } else if (!row && child_style->height.has_value() &&
-                       !(child_style->height_is_percent && !definite_content_height)) {
+                       !(child_style->height->has_percent && !definite_content_height)) {
                 float reference = definite_content_height.value_or(0.0f);
-                float resolved =
-                    Metrics::resolve_axis_length(*child_style->height, child_style->height_is_percent, reference);
+                float resolved = Metrics::resolve_axis_length(*child_style->height, reference);
                 basis = Metrics::resolve_border_box_height(child_style, resolved, child_insets);
             }
         }
@@ -210,22 +203,23 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
         // Clamp against main-axis min/max constraints where resolvable.
         float clamped = std::max(0.0f, *basis);
         if (child_style) {
-            auto resolve_constraint = [&](const std::optional<float>& value, bool is_percent) -> std::optional<float> {
+            auto resolve_constraint =
+                [&](const std::optional<ComputedStyle::LengthValue>& value) -> std::optional<float> {
                 if (!value.has_value()) {
                     return std::nullopt;
                 }
                 float reference = row ? metrics.content_width : definite_content_height.value_or(-1.0f);
-                if (is_percent && reference < 0.0f) {
+                if (value->has_percent && reference < 0.0f) {
                     return std::nullopt;
                 }
-                float resolved = Metrics::resolve_axis_length(*value, is_percent, reference);
+                float resolved = value->resolve(reference);
                 return row ? Metrics::resolve_border_box_width(child_style, resolved, child_insets)
                            : Metrics::resolve_border_box_height(child_style, resolved, child_insets);
             };
-            auto min_main = row ? resolve_constraint(child_style->min_width, child_style->min_width_is_percent)
-                                : resolve_constraint(child_style->min_height, child_style->min_height_is_percent);
-            auto max_main = row ? resolve_constraint(child_style->max_width, child_style->max_width_is_percent)
-                                : resolve_constraint(child_style->max_height, child_style->max_height_is_percent);
+            auto min_main =
+                row ? resolve_constraint(child_style->min_width) : resolve_constraint(child_style->min_height);
+            auto max_main =
+                row ? resolve_constraint(child_style->max_width) : resolve_constraint(child_style->max_height);
             if (max_main) {
                 clamped = std::min(clamped, *max_main);
             }
@@ -303,8 +297,8 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
                 // First-line baseline, measured from the item's border-box top
                 // (approximated from the item's own font metrics).
                 const Metrics::Insets child_insets = Metrics::compute_insets(child_style);
-                item.baseline_ascent =
-                    std::min(item.cross, child_insets.top + InlineBaselineUtils::estimate_text_ascent(context, child_style));
+                item.baseline_ascent = std::min(
+                    item.cross, child_insets.top + InlineBaselineUtils::estimate_text_ascent(context, child_style));
             } else {
                 float cross_avail = std::max(0.0f, metrics.content_width - item.margins.left - item.margins.right);
                 float layout_width = cross_avail;
@@ -472,20 +466,20 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
 
     // Honor min/max height like other boxes.
     if (style) {
-        auto resolve_height = [&](float value, bool is_percent) -> std::optional<float> {
-            if (is_percent && bounds.height <= 0.0f) {
+        auto resolve_height = [&](const ComputedStyle::LengthValue& value) -> std::optional<float> {
+            if (value.has_percent && bounds.height <= 0.0f) {
                 return std::nullopt;
             }
-            float resolved = Metrics::resolve_axis_length(value, is_percent, bounds.height);
+            float resolved = value.resolve(bounds.height);
             return Metrics::resolve_border_box_height(style, resolved, insets);
         };
         if (style->min_height.has_value()) {
-            if (auto target = resolve_height(*style->min_height, style->min_height_is_percent)) {
+            if (auto target = resolve_height(*style->min_height)) {
                 m_rect.height = std::max(m_rect.height, *target);
             }
         }
         if (style->max_height.has_value()) {
-            if (auto target = resolve_height(*style->max_height, style->max_height_is_percent)) {
+            if (auto target = resolve_height(*style->max_height)) {
                 m_rect.height = std::min(m_rect.height, *target);
             }
         }

@@ -265,12 +265,12 @@ TEST(FlexLayoutTest, FlexShorthandExpandsToGrowShrinkBasis) {
     EXPECT_FLOAT_EQ(a_style->flex_grow, 2.0f);
     EXPECT_FLOAT_EQ(a_style->flex_shrink, 1.0f);
     ASSERT_TRUE(a_style->flex_basis.has_value());
-    EXPECT_FLOAT_EQ(*a_style->flex_basis, 0.0f);
+    EXPECT_FLOAT_EQ(a_style->flex_basis->px, 0.0f);
 
     EXPECT_FLOAT_EQ(b_style->flex_grow, 0.0f);
     EXPECT_FLOAT_EQ(b_style->flex_shrink, 0.0f);
     ASSERT_TRUE(b_style->flex_basis.has_value());
-    EXPECT_FLOAT_EQ(*b_style->flex_basis, 80.0f);
+    EXPECT_FLOAT_EQ(b_style->flex_basis->px, 80.0f);
 
     // Layout consequence: a takes the remaining 220px, b keeps its 80px basis.
     EXPECT_NEAR(a_node->get_rect().width, 220.0f, 0.5f);

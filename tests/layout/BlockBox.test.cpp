@@ -118,8 +118,8 @@ TEST(BlockBoxLayoutTest, FloatLeftShiftsInlineContent) {
 
     auto float_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
     float_style->float_type = Hummingbird::Css::ComputedStyle::Float::Left;
-    float_style->width = 50.0f;
-    float_style->height = 10.0f;
+    float_style->width = Hummingbird::Css::ComputedStyle::LengthValue::from_px(50.0f);
+    float_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(10.0f);
     root->get_children()[0]->set_computed_style(float_style);
 
     auto render_root = BlockBox::create(root.get());
@@ -228,12 +228,12 @@ struct ClearFixture {
         auto float_style =
             std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
         float_style->float_type = Hummingbird::Css::ComputedStyle::Float::Left;
-        float_style->width = 50.0f;
-        float_style->height = 40.0f;
+        float_style->width = Hummingbird::Css::ComputedStyle::LengthValue::from_px(50.0f);
+        float_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(40.0f);
         root->get_children()[0]->set_computed_style(float_style);
 
         block_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
-        block_style->height = 10.0f;
+        block_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(10.0f);
         root->get_children()[1]->set_computed_style(block_style);
     }
 

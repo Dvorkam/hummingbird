@@ -91,7 +91,7 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.margin.top = 8.0f;
         style.margin.bottom = 8.0f;
     } else if (tag == Hummingbird::Html::TagNames::Hr) {
-        style.height = 2.0f;
+        style.height = ComputedStyle::LengthValue::from_px(2.0f);
         style.margin.top = style.margin.bottom = 8.0f;
         style.background = Color{50, 50, 50, 255};
     } else if (tag == Hummingbird::Html::TagNames::Input) {
@@ -105,13 +105,13 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.padding.top = 4.0f;
         style.padding.bottom = 4.0f;
         if (input_type_is_text_like(element)) {
-            style.width = 180.0f;
-            style.height = 24.0f;
+            style.width = ComputedStyle::LengthValue::from_px(180.0f);
+            style.height = ComputedStyle::LengthValue::from_px(24.0f);
             style.border_style = ComputedStyle::BorderStyle::Inset;
             style.background = Color{255, 255, 255, 255};
         } else {
-            style.width = 80.0f;
-            style.height = 24.0f;
+            style.width = ComputedStyle::LengthValue::from_px(80.0f);
+            style.height = ComputedStyle::LengthValue::from_px(24.0f);
             style.border_style = ComputedStyle::BorderStyle::Outset;
             style.background = Color{236, 236, 236, 255};
         }
@@ -220,11 +220,11 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
             overrides.whitespace = true;
         } else if (key == Hummingbird::Html::AttributeNames::Width && !style.width.has_value()) {
             if (auto parsed = parse_length_value(value)) {
-                style.width = *parsed;
+                style.width = ComputedStyle::LengthValue::from_px(*parsed);
             }
         } else if (key == Hummingbird::Html::AttributeNames::Height && !style.height.has_value()) {
             if (auto parsed = parse_length_value(value)) {
-                style.height = *parsed;
+                style.height = ComputedStyle::LengthValue::from_px(*parsed);
             }
         } else if (key == Hummingbird::Html::AttributeNames::Size) {
             if (auto parsed = parse_font_size_value(value)) {

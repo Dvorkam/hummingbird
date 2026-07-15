@@ -36,7 +36,7 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
     EXPECT_EQ(style_root->margin.top, 5);
     EXPECT_EQ(style_root->padding.top, 3);
     ASSERT_TRUE(style_root->width.has_value());
-    EXPECT_FLOAT_EQ(style_root->width.value(), 80);
+    EXPECT_FLOAT_EQ(style_root->width->px, 80);
 
     // Child span should at least have a computed style object (even if empty).
     auto style_child = root->get_children()[0]->get_computed_style();
@@ -100,7 +100,7 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
 
     EXPECT_FLOAT_EQ(blockquote_style->margin.left, 40.0f);
     EXPECT_TRUE(hr_style->height.has_value());
-    EXPECT_GT(hr_style->height.value(), 0.0f);
+    EXPECT_GT(hr_style->height->px, 0.0f);
 
     EXPECT_GT(h1_style->font_size, 16.0f);
     EXPECT_EQ(h1_style->weight, ComputedStyle::FontWeight::Bold);
@@ -126,9 +126,9 @@ TEST(StyleEngineTest, SubmitInputUsesCompactDefaultWidth) {
     ASSERT_TRUE(submit_style);
     ASSERT_TRUE(text_style);
     EXPECT_TRUE(submit_style->width.has_value());
-    EXPECT_FLOAT_EQ(*submit_style->width, 80.0f);
+    EXPECT_FLOAT_EQ(submit_style->width->px, 80.0f);
     EXPECT_TRUE(text_style->width.has_value());
-    EXPECT_FLOAT_EQ(*text_style->width, 180.0f);
+    EXPECT_FLOAT_EQ(text_style->width->px, 180.0f);
 }
 
 TEST(StyleEngineTest, TableCellsUseDefaultPaddingForReadability) {
@@ -334,14 +334,14 @@ TEST(StyleEngineTest, PreservesPercentUnitsForLayoutProperties) {
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
     ASSERT_TRUE(style->width.has_value());
-    EXPECT_FLOAT_EQ(*style->width, 70.0f);
-    EXPECT_TRUE(style->width_is_percent);
+    EXPECT_FLOAT_EQ(style->width->percent, 70.0f);
+    EXPECT_TRUE(style->width->has_percent);
     ASSERT_TRUE(style->top.has_value());
-    EXPECT_FLOAT_EQ(*style->top, 24.0f);
-    EXPECT_TRUE(style->top_is_percent);
+    EXPECT_FLOAT_EQ(style->top->percent, 24.0f);
+    EXPECT_TRUE(style->top->has_percent);
     ASSERT_TRUE(style->left.has_value());
-    EXPECT_FLOAT_EQ(*style->left, 10.0f);
-    EXPECT_TRUE(style->left_is_percent);
+    EXPECT_FLOAT_EQ(style->left->percent, 10.0f);
+    EXPECT_TRUE(style->left->has_percent);
 }
 
 TEST(StyleEngineTest, AppliesTransformTranslate) {
@@ -538,7 +538,7 @@ TEST(StyleEngineTest, ResolvesVarForLengthProperties) {
     EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 4.0f);
     EXPECT_FLOAT_EQ(style->border_radius.bottom_right.value, 4.0f);
     ASSERT_TRUE(style->max_width.has_value());
-    EXPECT_FLOAT_EQ(*style->max_width, 590.0f);
+    EXPECT_FLOAT_EQ(style->max_width->px, 590.0f);
 }
 
 TEST(StyleEngineTest, ResolvesVarInsideBorderRadiusList) {
@@ -578,7 +578,7 @@ TEST(StyleEngineTest, VarFallbackAppliesWhenUnset) {
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
     ASSERT_TRUE(style->max_width.has_value());
-    EXPECT_FLOAT_EQ(*style->max_width, 320.0f);
+    EXPECT_FLOAT_EQ(style->max_width->px, 320.0f);
 }
 
 TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
@@ -719,7 +719,7 @@ TEST(StyleEngineTest, SupportsMarginAutoAndMaxWidth) {
     EXPECT_TRUE(style->margin_left_auto);
     EXPECT_TRUE(style->margin_right_auto);
     ASSERT_TRUE(style->max_width.has_value());
-    EXPECT_FLOAT_EQ(style->max_width.value(), 200.0f);
+    EXPECT_FLOAT_EQ(style->max_width->px, 200.0f);
 }
 
 TEST(StyleEngineTest, AppliesMinMaxSizeProperties) {
@@ -737,13 +737,13 @@ TEST(StyleEngineTest, AppliesMinMaxSizeProperties) {
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
     ASSERT_TRUE(style->min_width.has_value());
-    EXPECT_FLOAT_EQ(style->min_width.value(), 80.0f);
+    EXPECT_FLOAT_EQ(style->min_width->px, 80.0f);
     ASSERT_TRUE(style->min_height.has_value());
-    EXPECT_FLOAT_EQ(style->min_height.value(), 20.0f);
+    EXPECT_FLOAT_EQ(style->min_height->px, 20.0f);
     ASSERT_TRUE(style->max_width.has_value());
-    EXPECT_FLOAT_EQ(style->max_width.value(), 160.0f);
+    EXPECT_FLOAT_EQ(style->max_width->px, 160.0f);
     ASSERT_TRUE(style->max_height.has_value());
-    EXPECT_FLOAT_EQ(style->max_height.value(), 40.0f);
+    EXPECT_FLOAT_EQ(style->max_height->px, 40.0f);
 }
 
 TEST(StyleEngineTest, InheritsListStyleFromParent) {
@@ -1226,8 +1226,8 @@ TEST(StyleEngineTest, AppliesPositionProperties) {
     EXPECT_EQ(style->position, ComputedStyle::Position::Absolute);
     ASSERT_TRUE(style->top.has_value());
     ASSERT_TRUE(style->left.has_value());
-    EXPECT_FLOAT_EQ(*style->top, 4.0f);
-    EXPECT_FLOAT_EQ(*style->left, 6.0f);
+    EXPECT_FLOAT_EQ(style->top->px, 4.0f);
+    EXPECT_FLOAT_EQ(style->left->px, 6.0f);
     ASSERT_TRUE(style->z_index.has_value());
     EXPECT_EQ(*style->z_index, 3);
 }
@@ -1730,8 +1730,8 @@ TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
     ASSERT_TRUE(img_style);
     ASSERT_TRUE(img_style->width.has_value());
     ASSERT_TRUE(img_style->height.has_value());
-    EXPECT_FLOAT_EQ(img_style->width.value(), 120.0f);
-    EXPECT_FLOAT_EQ(img_style->height.value(), 80.0f);
+    EXPECT_FLOAT_EQ(img_style->width->px, 120.0f);
+    EXPECT_FLOAT_EQ(img_style->height->px, 80.0f);
 }
 
 TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
@@ -1823,7 +1823,7 @@ TEST(StyleEngineTest, EvaluatesMediaConditionsAgainstViewport) {
         auto style = body->get_children()[0]->get_computed_style();
         ASSERT_NE(style, nullptr);
         ASSERT_TRUE(style->width.has_value());
-        EXPECT_FLOAT_EQ(*style->width, 500.0f);
+        EXPECT_FLOAT_EQ(style->width->px, 500.0f);
     }
     // Narrow viewport: conditioned rule filtered out.
     {
@@ -1832,7 +1832,7 @@ TEST(StyleEngineTest, EvaluatesMediaConditionsAgainstViewport) {
         auto style = body->get_children()[0]->get_computed_style();
         ASSERT_NE(style, nullptr);
         ASSERT_TRUE(style->width.has_value());
-        EXPECT_FLOAT_EQ(*style->width, 10.0f);
+        EXPECT_FLOAT_EQ(style->width->px, 10.0f);
     }
     // Default context (no viewport): min-width conditions do not match.
     {
@@ -1841,6 +1841,6 @@ TEST(StyleEngineTest, EvaluatesMediaConditionsAgainstViewport) {
         auto style = body->get_children()[0]->get_computed_style();
         ASSERT_NE(style, nullptr);
         ASSERT_TRUE(style->width.has_value());
-        EXPECT_FLOAT_EQ(*style->width, 10.0f);
+        EXPECT_FLOAT_EQ(style->width->px, 10.0f);
     }
 }

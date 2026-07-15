@@ -12,8 +12,8 @@ struct ContainingBlock {
     bool valid = false;
 };
 
-float resolve_inset(float value, bool is_percent, float reference) {
-    return is_percent ? reference * (value / 100.0f) : value;
+float resolve_inset(const Css::ComputedStyle::LengthValue& value, float reference) {
+    return value.resolve(reference);
 }
 
 float resolve_horizontal_offset(const Css::ComputedStyle* style, float container_width, float box_width) {
@@ -23,8 +23,8 @@ float resolve_horizontal_offset(const Css::ComputedStyle* style, float container
     // Opposing insets + auto side margins center the box (the auto margins
     // absorb the leftover space equally): `left:0; right:0; margin:auto`.
     if (style->left.has_value() && style->right.has_value() && style->margin_left_auto && style->margin_right_auto) {
-        float left = resolve_inset(*style->left, style->left_is_percent, container_width);
-        float right = resolve_inset(*style->right, style->right_is_percent, container_width);
+        float left = resolve_inset(*style->left, container_width);
+        float right = resolve_inset(*style->right, container_width);
         float free = container_width - left - right - box_width;
         return left + std::max(0.0f, free) / 2.0f;
     }
@@ -33,12 +33,11 @@ float resolve_horizontal_offset(const Css::ComputedStyle* style, float container
     // the form border. Auto margins on a single-inset axis resolve to 0.
     if (style->left.has_value()) {
         float margin_left = style->margin_left_auto ? 0.0f : style->margin.left;
-        return resolve_inset(*style->left, style->left_is_percent, container_width) + margin_left;
+        return resolve_inset(*style->left, container_width) + margin_left;
     }
     if (style->right.has_value()) {
         float margin_right = style->margin_right_auto ? 0.0f : style->margin.right;
-        return container_width - resolve_inset(*style->right, style->right_is_percent, container_width) -
-               margin_right - box_width;
+        return container_width - resolve_inset(*style->right, container_width) - margin_right - box_width;
     }
     return 0.0f;
 }
@@ -49,19 +48,18 @@ float resolve_vertical_offset(const Css::ComputedStyle* style, float container_h
     }
     // `top:0; bottom:0; margin:auto` centers vertically (DDG search button).
     if (style->top.has_value() && style->bottom.has_value() && style->margin_top_auto && style->margin_bottom_auto) {
-        float top = resolve_inset(*style->top, style->top_is_percent, container_height);
-        float bottom = resolve_inset(*style->bottom, style->bottom_is_percent, container_height);
+        float top = resolve_inset(*style->top, container_height);
+        float bottom = resolve_inset(*style->bottom, container_height);
         float free = container_height - top - bottom - box_height;
         return top + std::max(0.0f, free) / 2.0f;
     }
     if (style->top.has_value()) {
         float margin_top = style->margin_top_auto ? 0.0f : style->margin.top;
-        return resolve_inset(*style->top, style->top_is_percent, container_height) + margin_top;
+        return resolve_inset(*style->top, container_height) + margin_top;
     }
     if (style->bottom.has_value()) {
         float margin_bottom = style->margin_bottom_auto ? 0.0f : style->margin.bottom;
-        return container_height - resolve_inset(*style->bottom, style->bottom_is_percent, container_height) -
-               margin_bottom - box_height;
+        return container_height - resolve_inset(*style->bottom, container_height) - margin_bottom - box_height;
     }
     return 0.0f;
 }
@@ -84,14 +82,13 @@ bool apply_positioning_recursive(RenderObject& node, IGraphicsContext& context, 
         // `top:0; bottom:0; height:auto` makes the box as tall as its container
         // (the DDG search button/magnifier). Auto margins on that axis count as 0.
         if (style->top.has_value() && style->bottom.has_value() && !style->height.has_value()) {
-            float top = resolve_inset(*style->top, style->top_is_percent, base.height);
-            float bottom = resolve_inset(*style->bottom, style->bottom_is_percent, base.height);
+            float top = resolve_inset(*style->top, base.height);
+            float bottom = resolve_inset(*style->bottom, base.height);
             float mt = style->margin_top_auto ? 0.0f : style->margin.top;
             float mb = style->margin_bottom_auto ? 0.0f : style->margin.bottom;
             float stretched = base.height - top - bottom - mt - mb;
             if (style->min_height.has_value()) {
-                stretched =
-                    std::max(stretched, resolve_inset(*style->min_height, style->min_height_is_percent, base.height));
+                stretched = std::max(stretched, resolve_inset(*style->min_height, base.height));
             }
             if (stretched > 0.0f) {
                 rect.height = stretched;
@@ -99,14 +96,13 @@ bool apply_positioning_recursive(RenderObject& node, IGraphicsContext& context, 
             }
         }
         if (style->left.has_value() && style->right.has_value() && !style->width.has_value()) {
-            float left = resolve_inset(*style->left, style->left_is_percent, base.width);
-            float right = resolve_inset(*style->right, style->right_is_percent, base.width);
+            float left = resolve_inset(*style->left, base.width);
+            float right = resolve_inset(*style->right, base.width);
             float ml = style->margin_left_auto ? 0.0f : style->margin.left;
             float mr = style->margin_right_auto ? 0.0f : style->margin.right;
             float stretched = base.width - left - right - ml - mr;
             if (style->min_width.has_value()) {
-                stretched =
-                    std::max(stretched, resolve_inset(*style->min_width, style->min_width_is_percent, base.width));
+                stretched = std::max(stretched, resolve_inset(*style->min_width, base.width));
             }
             if (stretched > 0.0f) {
                 rect.width = stretched;
@@ -124,15 +120,15 @@ bool apply_positioning_recursive(RenderObject& node, IGraphicsContext& context, 
         float dx = 0.0f;
         float dy = 0.0f;
         if (style->left.has_value()) {
-            dx += style->left_is_percent ? parent_abs.width * (*style->left / 100.0f) : *style->left;
+            dx += style->left->resolve(parent_abs.width);
         } else if (style->right.has_value()) {
-            float right = style->right_is_percent ? parent_abs.width * (*style->right / 100.0f) : *style->right;
+            float right = style->right->resolve(parent_abs.width);
             dx -= right;
         }
         if (style->top.has_value()) {
-            dy += style->top_is_percent ? parent_abs.height * (*style->top / 100.0f) : *style->top;
+            dy += style->top->resolve(parent_abs.height);
         } else if (style->bottom.has_value()) {
-            float bottom = style->bottom_is_percent ? parent_abs.height * (*style->bottom / 100.0f) : *style->bottom;
+            float bottom = style->bottom->resolve(parent_abs.height);
             dy -= bottom;
         }
         rect.x += dx;
