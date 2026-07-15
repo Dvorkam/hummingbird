@@ -219,6 +219,9 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_box_shadow:
             (void)apply_layout_property(property, value, style, overrides, context);
             return;
+        case ApplyHook::apply_text_shadow:
+            (void)apply_layout_property(Property::TextShadow, value, style, overrides, context);
+            return;
         case ApplyHook::apply_flex_direction:
             (void)apply_layout_property(Property::FlexDirection, value, style, overrides, context);
             return;

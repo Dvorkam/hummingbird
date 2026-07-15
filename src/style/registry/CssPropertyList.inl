@@ -194,6 +194,8 @@ HB_CSS_PROPERTY(BackgroundSize, BackgroundSize, "background-size", "background-s
                 ApplyHook::apply_background_size, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(BoxShadow, BoxShadow, "box-shadow", "box-shadow", ParserHook::parse_box_shadow,
                 ApplyHook::apply_box_shadow, PropertyFlags::None)
+HB_CSS_PROPERTY(TextShadow, TextShadow, "text-shadow", "text-shadow", ParserHook::parse_box_shadow,
+                ApplyHook::apply_text_shadow, PropertyFlags::Inherited)
 
 // Alias property names that map to canonical entries
 HB_CSS_PROPERTY_ALIAS(BoxSizing, WebkitBoxSizing, "-webkit-box-sizing", "box-sizing", ParserHook::parse_identifier,

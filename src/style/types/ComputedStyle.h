@@ -166,6 +166,9 @@ struct ComputedStyle {
         Color color{0, 0, 0, 255};
     };
     std::optional<BoxShadow> box_shadow;
+    // Inherited. Same value shape as box-shadow (offset + blur + color), no
+    // spread/inset. Painted as an offset copy of the glyphs behind the text.
+    std::optional<BoxShadow> text_shadow;
     enum class BackgroundRepeat { Repeat, NoRepeat, RepeatX, RepeatY };
     BackgroundRepeat background_repeat = BackgroundRepeat::Repeat;
     struct BackgroundPosition {

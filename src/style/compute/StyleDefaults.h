@@ -39,6 +39,7 @@ struct StyleOverrides {
     bool cursor = false;
     bool visibility = false;
     bool pointer_events = false;
+    bool text_shadow = false;
 };
 
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,

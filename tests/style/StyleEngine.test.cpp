@@ -1421,6 +1421,54 @@ TEST(StyleEngineTest, AppliesBoxShadowProperty) {
     EXPECT_EQ(style->box_shadow->color.b, 0x33);
 }
 
+TEST(StyleEngineTest, AppliesAndInheritsTextShadow) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    root->append_child(std::move(child));
+
+    std::string css = "div { text-shadow: 1px 2px 3px #112233; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->text_shadow.has_value());
+    EXPECT_FLOAT_EQ(style->text_shadow->offset_x, 1.0f);
+    EXPECT_FLOAT_EQ(style->text_shadow->offset_y, 2.0f);
+    EXPECT_FLOAT_EQ(style->text_shadow->blur, 3.0f);
+    EXPECT_EQ(style->text_shadow->color.r, 0x11);
+
+    // text-shadow is inherited, so the child picks it up.
+    auto child_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child_style);
+    ASSERT_TRUE(child_style->text_shadow.has_value());
+    EXPECT_FLOAT_EQ(child_style->text_shadow->offset_y, 2.0f);
+}
+
+TEST(StyleEngineTest, TextShadowNoneClearsInheritedShadow) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    child->set_attribute(Attr::Class, "flat");
+    root->append_child(std::move(child));
+
+    std::string css = "div { text-shadow: 1px 1px 1px #000; } .flat { text-shadow: none; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto child_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child_style);
+    // `text-shadow: none` overrides the inherited shadow rather than keeping it.
+    EXPECT_FALSE(child_style->text_shadow.has_value());
+}
+
 TEST(StyleEngineTest, AppliesPseudoClassFocusForInput) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);

@@ -37,30 +37,41 @@ void append_line(std::vector<std::string>& lines, std::vector<float>& line_width
 }
 
 void draw_spaced_text(IGraphicsContext& context, std::string_view text, float x, float y, const TextStyle& text_style,
-                      float letter_spacing) {
+                      float letter_spacing,
+                      const std::optional<Css::ComputedStyle::BoxShadow>& text_shadow = std::nullopt) {
     if (text.empty()) {
         return;
     }
-    if (letter_spacing == 0.0f) {
-        context.draw_text(std::string(text), x, y, text_style);
-        return;
-    }
-    float cursor_x = x;
-    size_t index = 0;
-    while (index < text.size()) {
-        size_t next = Core::Utils::next_codepoint(text, index);
-        if (next <= index) {
-            break;
+    auto draw_run = [&](float run_x, float run_y, const TextStyle& run_style) {
+        if (letter_spacing == 0.0f) {
+            context.draw_text(std::string(text), run_x, run_y, run_style);
+            return;
         }
-        std::string glyph(text.substr(index, next - index));
-        TextMetrics glyph_metrics = context.measure_text(glyph, text_style);
-        context.draw_text(glyph, cursor_x, y, text_style);
-        cursor_x += glyph_metrics.width;
-        if (next < text.size()) {
-            cursor_x += letter_spacing;
+        float cursor_x = run_x;
+        size_t index = 0;
+        while (index < text.size()) {
+            size_t next = Core::Utils::next_codepoint(text, index);
+            if (next <= index) {
+                break;
+            }
+            std::string glyph(text.substr(index, next - index));
+            TextMetrics glyph_metrics = context.measure_text(glyph, run_style);
+            context.draw_text(glyph, cursor_x, run_y, run_style);
+            cursor_x += glyph_metrics.width;
+            if (next < text.size()) {
+                cursor_x += letter_spacing;
+            }
+            index = next;
         }
-        index = next;
+    };
+    // Paint the shadow first, as an offset copy of the glyphs in the shadow
+    // color. Blur is not yet emulated (the single offset copy approximates it).
+    if (text_shadow) {
+        TextStyle shadow_style = text_style;
+        shadow_style.color = text_shadow->color;
+        draw_run(x + text_shadow->offset_x, y + text_shadow->offset_y, shadow_style);
     }
+    draw_run(x, y, text_style);
 }
 
 std::string split_token_by_width(IGraphicsContext& context, std::string_view token, const TextStyle& text_style,
@@ -477,7 +488,7 @@ void TextBox::paint_fragments(IGraphicsContext& context, const TextStyle& text_s
             info.baseline = std::max(info.baseline, frag.rect.y + frag.ascent);
         }
         draw_spaced_text(context, frag.text, absolute_x + frag.rect.x, absolute_y + frag.rect.y, text_style,
-                         letter_spacing);
+                         letter_spacing, style ? style->text_shadow : std::nullopt);
     }
 
     if (!underline) {
@@ -515,7 +526,8 @@ void TextBox::paint_lines(IGraphicsContext& context, const TextStyle& text_style
             line_width = m_line_widths[i];
         }
         if (!m_lines[i].empty()) {
-            draw_spaced_text(context, m_lines[i], line_x, line_top, text_style, letter_spacing);
+            draw_spaced_text(context, m_lines[i], line_x, line_top, text_style, letter_spacing,
+                             style ? style->text_shadow : std::nullopt);
         }
         if (underline && line_width > 0.0f) {
             float underline_y = compute_underline_y(line_top, line_height, line_metrics, underline_metrics);
