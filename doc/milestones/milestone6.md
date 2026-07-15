@@ -146,7 +146,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-DOM-2: DOM Budget Failure UX
 - [x] T-SEC-URL-1: Resource/Asset Origin Firewall (asset loader refuses absolute/UNC/drive/traversal/URL ids; ResourceLoader guards BOTH provider probes — raw and resolved — so origin-relative `//host/x`, `/x`, `\\host\x` never reach the filesystem)
 - [x] T-HTML-RAWTEXT-1: Script/Style Raw-Text Parsing (RawText tokenizer state consumes `<script>`/`<style>` bodies to the matching case-insensitive end tag; `<` in JS/CSS strings no longer spawns fake tags or garbage resource requests)
-- [ ] T-PERF-STYLE-1: Selector Match Acceleration
+- [x] T-PERF-STYLE-1: Selector Match Acceleration (rules bucketed by key selector into id/class/tag/universal; each element tests only candidate buckets, re-sorted into document order so the cascade is unchanged)
 - [x] T-FORM-HIT-2: Clicks Outside Submit Controls Must Not Submit (hit-test containment fix)
 - [x] T-CSS-IMPORTANT-1: !important Support (importance tier above specificity in the cascade; shorthand expansion carries the flag; dark-mode extension rules now win their fights)
 - [x] T-CSS-SIBLING-1: Sibling Combinators (`~`, `+`) (DDG magnifier turns green on input focus; element-sibling traversal skips text nodes)

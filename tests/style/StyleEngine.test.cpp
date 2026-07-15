@@ -43,6 +43,49 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
     ASSERT_TRUE(style_child);
 }
 
+TEST(StyleEngineTest, CascadeOrderPreservedAcrossSelectorBuckets) {
+    // The key-selector index buckets these three rules separately (class, tag,
+    // class); the winner must still be decided by specificity then document
+    // order after they are re-merged (T-PERF-STYLE-1 must not reorder cascade).
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "a");
+
+    // .a (spec 10) beats div (spec 1); between the two equal-specificity .a
+    // rules, the later one wins -> green.
+    std::string css = R"(.a { color: #ff0000; } div { color: #0000ff; } .a { color: #00ff00; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.g, 0xff);
+    EXPECT_EQ(style->color.r, 0x00);
+    EXPECT_EQ(style->color.b, 0x00);
+}
+
+TEST(StyleEngineTest, UniversalAndIdBucketsBothConsidered) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    root->set_attribute(Attr::Id, "x");
+
+    // Universal rule applies, but the id rule (spec 100) wins the color.
+    std::string css = R"(* { color: #ff0000; letter-spacing: 2px; } #x { color: #0000ff; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.b, 0xff);               // from #x
+    EXPECT_FLOAT_EQ(style->letter_spacing, 2.0f);  // from *
+}
+
 TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto ul = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Ul);

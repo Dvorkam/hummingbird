@@ -2,14 +2,18 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/utils/StringUtils.h"
+#include "html/HtmlAttributeNames.h"
 #include "style/compute/StyleDefaults.h"
 #include "style/compute/StyleValueUtils.h"
 #include "style/compute/Stylesheet.h"
@@ -54,41 +58,111 @@ struct MatchedDeclarations {
     CustomPropertyMap custom_properties;
 };
 
-MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DOM::Node* node,
-                                               const MediaContext& media) {
-    MatchedDeclarations matched;
-    size_t order = 0;
+// A single (rule, selector) pair, tagged with its document-order sequence so
+// candidates gathered from several buckets can be re-sorted into cascade order.
+struct RuleCandidate {
+    const Rule* rule;
+    const Selector* selector;
+    size_t sequence;
+};
 
-    const auto* element = dynamic_cast<const DOM::Element*>(node);
-    if (!element) return matched;
+// Rules bucketed by the key (rightmost) compound selector's most specific simple
+// part, so an element only tests selectors that could plausibly match it instead
+// of the whole sheet (T-PERF-STYLE-1). Media-non-matching rules are excluded at
+// build time, since a build is scoped to one MediaContext.
+struct RuleIndex {
+    std::unordered_map<std::string, std::vector<RuleCandidate>> by_id;
+    std::unordered_map<std::string, std::vector<RuleCandidate>> by_class;
+    std::unordered_map<std::string, std::vector<RuleCandidate>> by_tag;
+    std::vector<RuleCandidate> universal;
+};
 
+RuleIndex build_rule_index(const Stylesheet& sheet, const MediaContext& media) {
+    RuleIndex index;
+    size_t sequence = 0;
     for (const auto& rule : sheet.rules) {
         if (rule.media && !media_condition_matches(*rule.media, media)) {
             continue;
         }
         for (const auto& selector : rule.selectors) {
-            if (!matches_selector(node, selector)) continue;
-            int spec = selector.specificity();
-            for (const auto& decl : rule.declarations) {
-                if (decl.property == Property::Custom) {
-                    if (decl.custom_property.empty()) {
-                        ++order;
-                        continue;
-                    }
-                    auto it = matched.custom_properties.find(decl.custom_property);
-                    if (it == matched.custom_properties.end() ||
-                        declaration_wins(decl.important, spec, order, it->second)) {
-                        matched.custom_properties[decl.custom_property] = {spec, order, decl.value, decl.important};
-                    }
+            RuleCandidate candidate{&rule, &selector, sequence++};
+            if (selector.parts.empty()) {
+                continue;
+            }
+            const SelectorPart& key = selector.parts.back();
+            if (!key.id.empty()) {
+                index.by_id[key.id].push_back(candidate);
+            } else if (!key.classes.empty()) {
+                index.by_class[key.classes.front()].push_back(candidate);
+            } else if (!key.tag.empty() && key.tag != "*") {
+                index.by_tag[key.tag].push_back(candidate);
+            } else {
+                index.universal.push_back(candidate);
+            }
+        }
+    }
+    return index;
+}
+
+MatchedDeclarations collect_matched_properties(const RuleIndex& index, const DOM::Node* node) {
+    MatchedDeclarations matched;
+
+    const auto* element = dynamic_cast<const DOM::Element*>(node);
+    if (!element) return matched;
+
+    // Gather the candidate selectors whose key part could match this element:
+    // its id bucket, one bucket per class, its tag bucket, and the universal set.
+    std::vector<const RuleCandidate*> candidates;
+    auto append_bucket = [&](const std::unordered_map<std::string, std::vector<RuleCandidate>>& buckets,
+                             const std::string& key) {
+        auto it = buckets.find(key);
+        if (it == buckets.end()) return;
+        for (const auto& candidate : it->second) {
+            candidates.push_back(&candidate);
+        }
+    };
+
+    if (const auto* id = element->find_attribute(Hummingbird::Html::AttributeNames::Id); id && !id->empty()) {
+        append_bucket(index.by_id, *id);
+    }
+    if (const auto* classes = element->find_attribute(Hummingbird::Html::AttributeNames::Class);
+        classes && !classes->empty()) {
+        for (auto token : Core::Utils::split_ascii_whitespace(*classes)) {
+            append_bucket(index.by_class, std::string(token));
+        }
+    }
+    append_bucket(index.by_tag, std::string(element->get_tag_name()));
+    for (const auto& candidate : index.universal) {
+        candidates.push_back(&candidate);
+    }
+
+    // Restore cascade (document) order across the mixed buckets before applying.
+    std::sort(candidates.begin(), candidates.end(),
+              [](const RuleCandidate* a, const RuleCandidate* b) { return a->sequence < b->sequence; });
+
+    size_t order = 0;
+    for (const auto* candidate : candidates) {
+        if (!matches_selector(node, *candidate->selector)) continue;
+        int spec = candidate->selector->specificity();
+        for (const auto& decl : candidate->rule->declarations) {
+            if (decl.property == Property::Custom) {
+                if (decl.custom_property.empty()) {
                     ++order;
                     continue;
                 }
-                auto it = matched.properties.find(decl.property);
-                if (it == matched.properties.end() || declaration_wins(decl.important, spec, order, it->second)) {
-                    matched.properties[decl.property] = {spec, order, decl.value, decl.important};
+                auto it = matched.custom_properties.find(decl.custom_property);
+                if (it == matched.custom_properties.end() ||
+                    declaration_wins(decl.important, spec, order, it->second)) {
+                    matched.custom_properties[decl.custom_property] = {spec, order, decl.value, decl.important};
                 }
                 ++order;
+                continue;
             }
+            auto it = matched.properties.find(decl.property);
+            if (it == matched.properties.end() || declaration_wins(decl.important, spec, order, it->second)) {
+                matched.properties[decl.property] = {spec, order, decl.value, decl.important};
+            }
+            ++order;
         }
     }
 
@@ -182,11 +256,10 @@ void inherit_from_parent(ComputedStyle& style, const ComputedStyle& parent,
 }
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).
-StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, const ComputedStyle* parent_style,
-                            const MediaContext& media) {
+StyleResult build_style_for(const RuleIndex& index, const DOM::Node* node, const ComputedStyle* parent_style) {
     StyleResult result{default_computed_style(), {}};
     ComputedStyle& style = result.style;
-    MatchedDeclarations matched = collect_matched_properties(sheet, node, media);
+    MatchedDeclarations matched = collect_matched_properties(index, node);
     bool display_set = matched.properties.find(Property::Display) != matched.properties.end();
 
     // Minimal UA defaults for basic HTML readability.
@@ -203,11 +276,8 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, cons
     return result;
 }
 
-}  // namespace
-
-void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const ComputedStyle* parent_style,
-                               const MediaContext& media) {
-    StyleResult own = build_style_for(sheet, node, parent_style, media);
+void compute_node(const RuleIndex& index, DOM::Node* node, const ComputedStyle* parent_style) {
+    StyleResult own = build_style_for(index, node, parent_style);
     // Start from the element's own computed style: every non-inherited (box)
     // property is already correct by construction, so no per-field copy list is
     // needed. Only inherited properties fall back to the parent. (Text nodes
@@ -225,13 +295,18 @@ void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const C
     node->set_computed_style(std::make_shared<ComputedStyle>(std::move(style)));
 
     for (const auto& child : node->get_children()) {
-        compute_node(sheet, child.get(), node->get_computed_style().get(), media);
+        compute_node(index, child.get(), node->get_computed_style().get());
     }
 }
 
+}  // namespace
+
 void StyleEngine::apply(const Stylesheet& sheet, DOM::Node* root, const MediaContext& media) {
     if (!root) return;
-    compute_node(sheet, root, nullptr, media);
+    // Index the sheet once per apply (bucketed by key selector), then walk the
+    // tree testing only candidate rules per element instead of the whole sheet.
+    const RuleIndex index = build_rule_index(sheet, media);
+    compute_node(index, root, nullptr);
 }
 
 }  // namespace Hummingbird::Css
