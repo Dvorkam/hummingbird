@@ -26,6 +26,17 @@ TEST(AssetLoaderTest, RejectsEmptyAndUrlIds) {
     EXPECT_FALSE(load_asset_text("https://example.dev/style.css", false).has_value());
 }
 
+TEST(AssetLoaderTest, RejectsNonRelativePaths) {
+    // Page-controlled URLs must never reach the filesystem as absolute, UNC/SMB,
+    // drive, or traversal paths (T-SEC-URL-1).
+    EXPECT_FALSE(load_asset_bytes("//evil.example/share/x", false).has_value());      // protocol-relative / UNC
+    EXPECT_FALSE(load_asset_bytes("\\\\evil.example\\share\\x", false).has_value());  // Windows UNC
+    EXPECT_FALSE(load_asset_bytes("/etc/passwd", false).has_value());                 // absolute
+    EXPECT_FALSE(load_asset_bytes("C:\\Windows\\win.ini", false).has_value());        // drive-absolute
+    EXPECT_FALSE(load_asset_bytes("../../secret.key", false).has_value());            // parent traversal
+    EXPECT_FALSE(load_asset_text("assets/../../secret", false).has_value());          // embedded traversal
+}
+
 TEST(AssetLoaderTest, MissingAssetReturnsNullopt) {
     EXPECT_FALSE(load_asset_bytes("assets/does_not_exist.bin", false).has_value());
 }

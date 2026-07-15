@@ -227,24 +227,33 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         }
 
         if (resource_provider_) {
-            // Only probe the local asset provider with raw URLs that can plausibly
-            // be asset-relative paths; root-relative ("/x") and protocol-relative
-            // ("//host/x") links belong to the document's origin, not our assets.
-            const bool raw_is_asset_candidate =
-                !raw_url.empty() && raw_url.front() != '/' && raw_url.find("://") == std::string::npos;
+            // Only probe the local asset provider with paths that can plausibly be
+            // asset-relative; root-relative ("/x"), protocol-relative ("//host/x"),
+            // UNC ("\\host\x"), and absolute-URL links belong to the document's
+            // origin, not our bundled assets, and must never reach the filesystem
+            // (T-SEC-URL-1). The same guard applies to the resolved URL, since a
+            // protocol-relative link survives resolution unchanged when the base
+            // does not parse as absolute.
+            auto is_asset_candidate = [](std::string_view candidate) {
+                return !candidate.empty() && candidate.front() != '/' && candidate.front() != '\\' &&
+                       candidate.find("://") == std::string_view::npos;
+            };
+            const bool raw_is_asset_candidate = is_asset_candidate(raw_url);
+            const bool resolved_is_asset_candidate =
+                is_asset_candidate(resolved.resolved) && resolved.resolved != raw_url;
             std::optional<std::string> data;
             if (options.use_binary) {
                 if (raw_is_asset_candidate) {
                     data = resource_provider_->load_bytes(raw_url);
                 }
-                if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
+                if (!data && resolved_is_asset_candidate) {
                     data = resource_provider_->load_bytes(resolved.resolved);
                 }
             } else {
                 if (raw_is_asset_candidate) {
                     data = resource_provider_->load_text(raw_url);
                 }
-                if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
+                if (!data && resolved_is_asset_candidate) {
                     data = resource_provider_->load_text(resolved.resolved);
                 }
             }

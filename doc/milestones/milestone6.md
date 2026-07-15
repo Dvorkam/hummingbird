@@ -144,7 +144,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-CACHE-1: Tab Resource Eviction + Rehydrate
 - [ ] T-DOM-1: Infinite Scroll DOM Virtualization
 - [ ] T-DOM-2: DOM Budget Failure UX
-- [ ] T-SEC-URL-1: Resource/Asset Origin Firewall
+- [x] T-SEC-URL-1: Resource/Asset Origin Firewall (asset loader refuses absolute/UNC/drive/traversal/URL ids; ResourceLoader guards BOTH provider probes — raw and resolved — so origin-relative `//host/x`, `/x`, `\\host\x` never reach the filesystem)
 - [x] T-HTML-RAWTEXT-1: Script/Style Raw-Text Parsing (RawText tokenizer state consumes `<script>`/`<style>` bodies to the matching case-insensitive end tag; `<` in JS/CSS strings no longer spawns fake tags or garbage resource requests)
 - [ ] T-PERF-STYLE-1: Selector Match Acceleration
 - [x] T-FORM-HIT-2: Clicks Outside Submit Controls Must Not Submit (hit-test containment fix)
