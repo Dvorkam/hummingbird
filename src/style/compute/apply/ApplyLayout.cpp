@@ -657,6 +657,25 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
                 style.text_shadow = shadow;
             }
             return true;
+        case Property::Clip: {
+            // `clip: auto` (or any identifier) clears the clip.
+            if (value.type != Value::Type::Clip) {
+                style.clip.reset();
+                return true;
+            }
+            auto to_px = [&](const std::optional<Length>& edge) -> std::optional<float> {
+                if (!edge) return std::nullopt;
+                if (edge->unit == Unit::Em) return edge->value * style.font_size;
+                return edge->value;  // px (and unitless treated as px at parse)
+            };
+            ComputedStyle::ClipRect rect;
+            rect.top = to_px(value.clip.top);
+            rect.right = to_px(value.clip.right);
+            rect.bottom = to_px(value.clip.bottom);
+            rect.left = to_px(value.clip.left);
+            style.clip = rect;
+            return true;
+        }
         default:
             return false;
     }

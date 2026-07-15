@@ -149,6 +149,8 @@ HB_CSS_PROPERTY(TextIndent, TextIndent, "text-indent", "text-indent", ParserHook
                 ApplyHook::apply_text_indent, PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(TextOverflow, TextOverflow, "text-overflow", "text-overflow", ParserHook::parse_identifier,
                 ApplyHook::apply_text_overflow, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(Clip, Clip, "clip", "clip", ParserHook::parse_clip, ApplyHook::apply_clip,
+                PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(WordWrap, WordWrap, "word-wrap", "word-wrap", ParserHook::parse_identifier, ApplyHook::apply_word_wrap,
                 PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(TextDecoration, TextDecoration, "text-decoration", "text-decoration", ParserHook::parse_text_decoration,

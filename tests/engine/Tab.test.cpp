@@ -460,6 +460,31 @@ TEST(EngineTabTest, HitTestSkipsVisibilityHidden) {
     EXPECT_FALSE(harness.tab().hit_test_link(point, harness.viewport()).has_value());
 }
 
+TEST(EngineTabTest, HitTestSkipsEmptyClipRect) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>a { position: absolute; top: 0; left: 0; clip: rect(0 0 0 0); }</style></head>
+  <body>
+    <a HREF="/next">Next</a>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 200, 200});
+    harness.navigate("https://example.dev");
+    EXPECT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{4.0f, 6.0f};
+    // The clipped-away anchor is hidden from hit-testing.
+    EXPECT_FALSE(harness.tab().hit_test_link(point, harness.viewport()).has_value());
+}
+
 TEST(EngineTabTest, FocusesInputAndEditsValue) {
     const std::string html = R"HTML(
 <!doctype html>

@@ -40,6 +40,7 @@ struct Value {
         Url,
         Number,
         Shadow,
+        Clip,
     };
 
     struct Shadow {
@@ -49,12 +50,22 @@ struct Value {
         Color color{0, 0, 0, 255};
     };
 
+    // Legacy `clip: rect(top, right, bottom, left)`. Each edge is a length
+    // offset from the box's top-left, or nullopt for `auto` (the box edge).
+    struct Clip {
+        std::optional<Length> top;
+        std::optional<Length> right;
+        std::optional<Length> bottom;
+        std::optional<Length> left;
+    };
+
     Type type = Type::Identifier;
     std::string ident;
     Length length;
     Color color{0, 0, 0, 255};
     float number = 0.0f;
     Shadow shadow;
+    Clip clip;
 
     static Value identifier(std::string text) {
         Value v;
@@ -95,6 +106,13 @@ struct Value {
         Value v;
         v.type = Type::Shadow;
         v.shadow = shadow;
+        return v;
+    }
+
+    static Value clip_value(Clip clip) {
+        Value v;
+        v.type = Type::Clip;
+        v.clip = clip;
         return v;
     }
 };

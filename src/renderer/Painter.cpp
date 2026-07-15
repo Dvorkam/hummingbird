@@ -33,6 +33,15 @@ void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, con
                 !current.has_absolute_descendant()) {
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
+            // Legacy `clip: rect(...)` that collapses to an empty region hides the
+            // element and its subtree (the accessibility "visually hidden"
+            // pattern). Skip before pushing alpha so enter/exit stays balanced.
+            if (const auto* clip_style = current.get_computed_style()) {
+                if (clip_style->position == Css::ComputedStyle::Position::Absolute && clip_style->clip &&
+                    clip_style->clip->hides_content()) {
+                    return Layout::Traversal::TraverseAction::SkipChildren;
+                }
+            }
             float local_opacity = 1.0f;
             bool visible = true;
             if (const auto* style = current.get_computed_style()) {

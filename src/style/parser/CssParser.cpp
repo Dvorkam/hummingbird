@@ -701,6 +701,36 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
             }
             return true;
         }
+        case PropertyRegistry::ParserHook::parse_clip: {
+            // Legacy `clip: rect(top, right, bottom, left)`. The tokenizer drops
+            // the parens and commas, so a rect arrives as [ident "rect"] followed
+            // by four edge tokens. `clip: auto` (or any non-rect) leaves it
+            // unclipped; emit the identifier so apply resets a prior clip.
+            if (values.empty()) {
+                return true;
+            }
+            if (values[0].type != Value::Type::Identifier || values[0].ident != "rect") {
+                push_decl(property, values[0]);
+                return true;
+            }
+            Value::Clip clip;
+            std::optional<Length>* edges[4] = {&clip.top, &clip.right, &clip.bottom, &clip.left};
+            size_t edge_index = 0;
+            for (size_t i = 1; i < values.size() && edge_index < 4; ++i) {
+                const Value& edge = values[i];
+                if (edge.type == Value::Type::Identifier && edge.ident == ValueNames::Auto) {
+                    *edges[edge_index++] = std::nullopt;
+                } else if (edge.type == Value::Type::Length) {
+                    *edges[edge_index++] = edge.length;
+                } else if (edge.type == Value::Type::Number) {
+                    *edges[edge_index++] = Length{edge.number, Unit::Px};
+                }
+            }
+            if (edge_index == 4) {
+                push_decl(property, Value::clip_value(clip));
+            }
+            return true;
+        }
         case PropertyRegistry::ParserHook::parse_box_shadow: {
             if (values.size() == 1 && values[0].type == Value::Type::Identifier &&
                 values[0].ident == ValueNames::None) {

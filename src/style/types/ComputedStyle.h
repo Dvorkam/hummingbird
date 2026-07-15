@@ -193,6 +193,24 @@ struct ComputedStyle {
         bool height_is_percent = false;
     };
     BackgroundSize background_size;
+    // Legacy `clip: rect(...)`, applies only to absolutely-positioned boxes.
+    // Edges are px offsets from the box's top-left; nullopt means `auto` (the
+    // box edge). The dominant real-world use is the accessibility "visually
+    // hidden" pattern (`clip:rect(0 0 0 0)`), a degenerate rect that hides the
+    // element; hides_content() detects it. Non-degenerate rectangular clipping
+    // is stored but not yet applied at paint time.
+    struct ClipRect {
+        std::optional<float> top;
+        std::optional<float> right;
+        std::optional<float> bottom;
+        std::optional<float> left;
+        bool hides_content() const {
+            const bool empty_x = left && right && *right <= *left;
+            const bool empty_y = top && bottom && *bottom <= *top;
+            return empty_x || empty_y;
+        }
+    };
+    std::optional<ClipRect> clip;
     enum class ListStyleType { Disc, Decimal, None };
     enum class ListStylePosition { Outside, Inside };
     ListStyleType list_style_type = ListStyleType::Disc;

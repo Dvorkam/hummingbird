@@ -303,6 +303,36 @@ TEST(CSSParserTest, ParsesVerticalAlignProperty) {
     EXPECT_EQ(decls[0].value.ident, "middle");
 }
 
+TEST(CSSParserTest, ParsesLegacyClipRect) {
+    // Comma- and space-separated forms both arrive without parens/commas.
+    Parser parser("span { clip: rect(1px, 2px, 3px, 4px); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+
+    EXPECT_EQ(decls[0].property, Property::Clip);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Clip);
+    const auto& clip = decls[0].value.clip;
+    ASSERT_TRUE(clip.top && clip.right && clip.bottom && clip.left);
+    EXPECT_FLOAT_EQ(clip.top->value, 1.0f);
+    EXPECT_FLOAT_EQ(clip.right->value, 2.0f);
+    EXPECT_FLOAT_EQ(clip.bottom->value, 3.0f);
+    EXPECT_FLOAT_EQ(clip.left->value, 4.0f);
+}
+
+TEST(CSSParserTest, ParsesClipRectWithAutoEdges) {
+    Parser parser("span { clip: rect(auto, auto, 5px, auto); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& clip = sheet.rules[0].declarations[0].value.clip;
+    EXPECT_FALSE(clip.top.has_value());
+    EXPECT_FALSE(clip.right.has_value());
+    ASSERT_TRUE(clip.bottom.has_value());
+    EXPECT_FLOAT_EQ(clip.bottom->value, 5.0f);
+    EXPECT_FALSE(clip.left.has_value());
+}
+
 TEST(CSSParserTest, ParsesBoxShadowProperty) {
     Parser parser("div { box-shadow: 2px 4px 6px #000; }");
     auto sheet = parser.parse();

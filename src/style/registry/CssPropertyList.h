@@ -40,6 +40,7 @@ enum class ParserHook : std::uint8_t {
     parse_background_size,
     parse_outline_shorthand,
     parse_opacity,
+    parse_clip,
     parse_box_shadow,
     parse_flex_shorthand,
 };
@@ -90,6 +91,7 @@ enum class ApplyHook : std::uint8_t {
     apply_visibility,
     apply_pointer_events,
     apply_text_shadow,
+    apply_clip,
     apply_vertical_align,
     apply_letter_spacing,
     apply_text_indent,

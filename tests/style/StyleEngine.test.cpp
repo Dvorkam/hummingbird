@@ -1421,6 +1421,35 @@ TEST(StyleEngineTest, AppliesBoxShadowProperty) {
     EXPECT_EQ(style->box_shadow->color.b, 0x33);
 }
 
+TEST(StyleEngineTest, LegacyClipRectHidesContentWhenEmpty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto hidden = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    hidden->set_attribute(Attr::Class, "sr-only");
+    auto boxed = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    boxed->set_attribute(Attr::Class, "framed");
+    root->append_child(std::move(hidden));
+    root->append_child(std::move(boxed));
+
+    std::string css =
+        ".sr-only { position: absolute; clip: rect(0 0 0 0); }"
+        ".framed { position: absolute; clip: rect(0 20px 20px 0); }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto hidden_style = root->get_children()[0]->get_computed_style();
+    auto boxed_style = root->get_children()[1]->get_computed_style();
+    ASSERT_TRUE(hidden_style && hidden_style->clip.has_value());
+    ASSERT_TRUE(boxed_style && boxed_style->clip.has_value());
+    // rect(0 0 0 0) collapses to an empty region -> hides.
+    EXPECT_TRUE(hidden_style->clip->hides_content());
+    // rect(0 20px 20px 0) is a real 20x20 region -> does not hide.
+    EXPECT_FALSE(boxed_style->clip->hides_content());
+}
+
 TEST(StyleEngineTest, AppliesAndInheritsTextShadow) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

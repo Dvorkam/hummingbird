@@ -30,6 +30,14 @@ std::optional<ResultT> hit_test_z_order(const Layout::RenderObject* render_tree,
     Layout::Positioning::traverse_render_tree_z_order(
         *render_tree, offset,
         [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
+            // A `clip:rect(...)` that collapses to an empty region hides the box
+            // and its whole subtree from hit-testing (accessibility hide pattern).
+            if (const auto* style = node.get_computed_style()) {
+                if (style->position == Css::ComputedStyle::Position::Absolute && style->clip &&
+                    style->clip->hides_content()) {
+                    return Layout::Traversal::TraverseAction::SkipChildren;
+                }
+            }
             if (!Layout::rect_intersects(absolute, viewport) || !Layout::rect_contains_point(absolute, point)) {
                 if (node.has_absolute_descendant()) {
                     return Layout::Traversal::TraverseAction::Continue;
