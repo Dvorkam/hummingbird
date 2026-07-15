@@ -411,6 +411,55 @@ TEST(EngineTabTest, HitTestResolvesLink) {
     EXPECT_EQ(*link, "https://example.dev/next");
 }
 
+TEST(EngineTabTest, HitTestSkipsPointerEventsNone) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>a { pointer-events: none; }</style></head>
+  <body>
+    <a HREF="/next">Next</a>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 200, 200});
+    harness.navigate("https://example.dev");
+    EXPECT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{10.0f, 12.0f};
+    // The anchor is transparent to hit-testing, so the click falls through.
+    EXPECT_FALSE(harness.tab().hit_test_link(point, harness.viewport()).has_value());
+}
+
+TEST(EngineTabTest, HitTestSkipsVisibilityHidden) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>a { visibility: hidden; }</style></head>
+  <body>
+    <a HREF="/next">Next</a>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 200, 200});
+    harness.navigate("https://example.dev");
+    EXPECT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{10.0f, 12.0f};
+    EXPECT_FALSE(harness.tab().hit_test_link(point, harness.viewport()).has_value());
+}
+
 TEST(EngineTabTest, FocusesInputAndEditsValue) {
     const std::string html = R"HTML(
 <!doctype html>

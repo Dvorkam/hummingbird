@@ -160,6 +160,39 @@ TEST(StyleEngineTest, TableCellsUseDefaultPaddingForReadability) {
     EXPECT_FLOAT_EQ(th_style->padding.bottom, 2.0f);
 }
 
+TEST(StyleEngineTest, VisibilityAndPointerEventsInheritAndReEnable) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    auto grandchild = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    grandchild->set_attribute(Attr::Class, "show");
+
+    child->append_child(std::move(grandchild));
+    root->append_child(std::move(child));
+
+    std::string css = R"(div { visibility: hidden; pointer-events: none; }
+                         .show { visibility: visible; pointer-events: auto; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto root_style = root->get_computed_style();
+    auto child_style = root->get_children()[0]->get_computed_style();
+    auto grandchild_style = root->get_children()[0]->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(root_style && child_style && grandchild_style);
+
+    EXPECT_EQ(root_style->visibility, ComputedStyle::Visibility::Hidden);
+    EXPECT_EQ(root_style->pointer_events, ComputedStyle::PointerEvents::None);
+    // The <p> sets neither property, so it inherits hidden / none from <div>.
+    EXPECT_EQ(child_style->visibility, ComputedStyle::Visibility::Hidden);
+    EXPECT_EQ(child_style->pointer_events, ComputedStyle::PointerEvents::None);
+    // The .show <span> re-enables both.
+    EXPECT_EQ(grandchild_style->visibility, ComputedStyle::Visibility::Visible);
+    EXPECT_EQ(grandchild_style->pointer_events, ComputedStyle::PointerEvents::Auto);
+}
+
 TEST(StyleEngineTest, StoresAndInheritsCustomProperties) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

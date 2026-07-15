@@ -176,6 +176,8 @@ void inherit_from_parent(ComputedStyle& style, const ComputedStyle& parent,
     if (!overrides.line_height) style.line_height = parent.line_height;
     if (!overrides.list_style_type) style.list_style_type = parent.list_style_type;
     if (!overrides.list_style_position) style.list_style_position = parent.list_style_position;
+    if (!overrides.visibility) style.visibility = parent.visibility;
+    if (!overrides.pointer_events) style.pointer_events = parent.pointer_events;
 }
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).

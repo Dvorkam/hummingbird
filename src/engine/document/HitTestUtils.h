@@ -6,6 +6,7 @@
 #include "layout/geometry/GeometryUtils.h"
 #include "layout/geometry/PositioningUtils.h"
 #include "layout/paint/RenderTreeTraversal.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout {
 class RenderObject;
@@ -42,6 +43,16 @@ std::optional<ResultT> hit_test_z_order(const Layout::RenderObject* render_tree,
             // resolve themselves: only boxes actually under the cursor may hit.
             if (!Layout::rect_contains_point(absolute, point)) {
                 return Layout::Traversal::TraverseAction::Continue;
+            }
+            // `visibility:hidden`/`collapse` and `pointer-events:none` boxes are
+            // transparent to hit-testing. Both properties are inherited, so a
+            // descendant that re-enables (`visibility:visible`/`pointer-events:auto`)
+            // still resolves on its own visit; the walk continues regardless.
+            if (const auto* style = node.get_computed_style()) {
+                if (style->visibility != Css::ComputedStyle::Visibility::Visible ||
+                    style->pointer_events == Css::ComputedStyle::PointerEvents::None) {
+                    return Layout::Traversal::TraverseAction::Continue;
+                }
             }
             auto hit = resolve(node);
             if (hit) {

@@ -34,14 +34,21 @@ void paint_tree(const Layout::RenderObject& node, IGraphicsContext& context, con
                 return Layout::Traversal::TraverseAction::SkipChildren;
             }
             float local_opacity = 1.0f;
+            bool visible = true;
             if (const auto* style = current.get_computed_style()) {
                 local_opacity = std::clamp(style->opacity, 0.0f, 1.0f);
+                // `visibility` is inherited, so a hidden ancestor already marked
+                // its descendants hidden; skip this box's own paint but keep
+                // walking, since a child may re-set `visibility:visible`.
+                visible = style->visibility == Css::ComputedStyle::Visibility::Visible;
             }
             const float parent_opacity = mutable_context.alpha_stack.back();
             const float node_opacity = parent_opacity * local_opacity;
             mutable_context.alpha_stack.push_back(node_opacity);
             context.set_global_alpha(node_opacity);
-            current.paint_self(context, local_offset);
+            if (visible) {
+                current.paint_self(context, local_offset);
+            }
             if (mutable_context.debug_outlines) {
                 RenderCommandUtils::draw_outline(context, absolute, kOutlineColor);
             }

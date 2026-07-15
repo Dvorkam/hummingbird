@@ -137,6 +137,10 @@ HB_CSS_PROPERTY(TextTransform, TextTransform, "text-transform", "text-transform"
                 ApplyHook::apply_text_transform, PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Cursor, Cursor, "cursor", "cursor", ParserHook::parse_identifier, ApplyHook::apply_cursor,
                 PropertyFlags::Inherited)
+HB_CSS_PROPERTY(Visibility, Visibility, "visibility", "visibility", ParserHook::parse_identifier,
+                ApplyHook::apply_visibility, PropertyFlags::Inherited)
+HB_CSS_PROPERTY(PointerEvents, PointerEvents, "pointer-events", "pointer-events", ParserHook::parse_identifier,
+                ApplyHook::apply_pointer_events, PropertyFlags::Inherited)
 HB_CSS_PROPERTY(VerticalAlign, VerticalAlign, "vertical-align", "vertical-align", ParserHook::parse_identifier,
                 ApplyHook::apply_vertical_align, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(LetterSpacing, LetterSpacing, "letter-spacing", "letter-spacing", ParserHook::parse_length_number,

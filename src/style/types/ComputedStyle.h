@@ -74,6 +74,14 @@ struct ComputedStyle {
     Clear clear = Clear::None;
     enum class Position { Static, Relative, Absolute };
     Position position = Position::Static;
+    // Inherited. `hidden`/`collapse` keep layout space but suppress paint and
+    // hit-testing; a descendant may reveal itself again with `visibility:visible`.
+    enum class Visibility { Visible, Hidden, Collapse };
+    Visibility visibility = Visibility::Visible;
+    // Inherited. `none` makes the box transparent to hit-testing (pointer events
+    // fall through to what is behind it); a descendant may opt back in with `auto`.
+    enum class PointerEvents { Auto, None };
+    PointerEvents pointer_events = PointerEvents::Auto;
     enum class TextAlign { Left, Center, Right };
     enum class Cursor { Auto, Default, Pointer, Text };
     enum class VerticalAlign { Baseline, Top, Middle, Bottom };

@@ -138,6 +138,12 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_cursor:
             (void)apply_text_property(property, value, style, overrides, context);
             return;
+        case ApplyHook::apply_visibility:
+            (void)apply_text_property(Property::Visibility, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_pointer_events:
+            (void)apply_text_property(Property::PointerEvents, value, style, overrides, context);
+            return;
         case ApplyHook::apply_vertical_align:
             (void)apply_text_property(property, value, style, overrides, context);
             return;

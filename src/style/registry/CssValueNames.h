@@ -46,6 +46,7 @@ static constexpr std::string_view Relative = "relative";
 static constexpr std::string_view Absolute = "absolute";
 static constexpr std::string_view Visible = "visible";
 static constexpr std::string_view Hidden = "hidden";
+static constexpr std::string_view Collapse = "collapse";
 static constexpr std::string_view Scroll = "scroll";
 static constexpr std::string_view Repeat = "repeat";
 static constexpr std::string_view NoRepeat = "no-repeat";
