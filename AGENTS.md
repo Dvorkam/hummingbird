@@ -32,6 +32,14 @@ rules; keep this file thin — detailed rules live in the linked docs.
   feature that ships without a demo entry is incomplete. Purely internal changes
   (perf, security, refactors, tooling, parser plumbing with no new rendered
   result) are exempt.
+- **Never work around a bug.** Code that masks or dodges a defect is not an
+  acceptable resolution. When you hit a bug:
+  - If it is small and blocks the current story: fix it properly, then note the
+    fix (commit message / relevant doc) and continue.
+  - If fixing it is large or risky: stop and defer the current work until the bug
+    is fixed rather than building on top of it.
+  - If it has no bearing on the current task: note it (add to `doc/TODOs.md`) and
+    keep working on the task — do not derail, and do not paper over it.
 - Make a git commit after every self-contained change, in conventional format:
   `feat|fix|chore|docs|refactor|test: message`.
 
