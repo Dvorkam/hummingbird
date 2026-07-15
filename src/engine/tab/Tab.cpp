@@ -303,6 +303,11 @@ void Tab::handle_document_ready(std::string_view document_url, std::string_view 
     if (!prepare_document_from_response(*document_body)) {
         return;
     }
+    // Record this navigation so links pointing back at it style as :visited
+    // (T-HIST-1). Both the requested and post-redirect URLs count, since an
+    // anchor may resolve to either.
+    document_pipeline_->mark_url_visited(navigation_lifecycle_.requested_url());
+    document_pipeline_->mark_url_visited(effective_url);
     rebuild_after_document_ready(graphics, viewport);
     HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_->render_tree_children());
     mark_dirty("document_ready");
@@ -334,8 +339,7 @@ void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout:
     });
     bool has_render_tree = false;
     timed("build_and_layout", [&] {
-        has_render_tree =
-            rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build");
+        has_render_tree = rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build");
     });
     if (has_render_tree) {
         timed("autofocus", [&] { apply_autofocus_after_rebuild(); });

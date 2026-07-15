@@ -4,6 +4,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "core/ArenaAllocator.h"
@@ -32,6 +33,9 @@ public:
     void reset();
     ParseResult parse_html(std::string_view html);
     void apply_styles(const std::string& css, const Css::MediaContext& media = {});
+    // Set the `:visited` pseudo-state on anchors whose href (resolved against
+    // base_url) is in the visited set. Call before apply_styles (T-HIST-1).
+    void mark_visited_links(const std::unordered_set<std::string>& visited_urls, std::string_view base_url);
     // True when any @media rule matches differently under `media` than under
     // the context styles were last applied with (a breakpoint was crossed).
     bool media_conditions_change(const Css::MediaContext& media) const;

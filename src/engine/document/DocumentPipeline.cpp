@@ -68,9 +68,18 @@ DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
     return {result.handled, result.mutated};
 }
 
+void DocumentPipeline::mark_url_visited(std::string_view url) {
+    if (!url.empty()) {
+        visited_urls_.emplace(url);
+    }
+}
+
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
     const Css::MediaContext media{viewport.width, viewport.height};
+    // Flag anchors whose target has been visited before styling, so `:visited`
+    // and the vlink color resolve during this apply (T-HIST-1).
+    model_->mark_visited_links(visited_urls_, base_url);
     if (!style_coordinator_->apply_styles_and_build(base_url, media)) {
         return;
     }

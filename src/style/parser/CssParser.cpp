@@ -129,6 +129,8 @@ SelectorPart Parser::parse_simple_selector() {
                     selector.pseudo_classes.push_back(SelectorPart::PseudoClass::Active);
                 } else if (pseudo == "focus") {
                     selector.pseudo_classes.push_back(SelectorPart::PseudoClass::Focus);
+                } else if (pseudo == "visited") {
+                    selector.pseudo_classes.push_back(SelectorPart::PseudoClass::Visited);
                 }
                 continue;
             }

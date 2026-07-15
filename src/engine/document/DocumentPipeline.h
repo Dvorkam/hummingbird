@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "engine/forms/FormSubmission.h"
@@ -73,6 +74,9 @@ public:
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool rebuild_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool update_image_resources(std::string_view base_url);
+    // Record a URL as visited so anchors pointing at it style with `:visited`
+    // (T-HIST-1). The set persists across navigations within the tab.
+    void mark_url_visited(std::string_view url);
     // True when the new viewport flips any @media rule vs. the last style
     // application — the caller must restyle, a plain relayout is not enough.
     bool needs_restyle_for_viewport(const Layout::Rect& viewport) const;
@@ -109,6 +113,7 @@ private:
     std::unique_ptr<DocumentRenderer> renderer_;
     std::unique_ptr<DocumentStyleCoordinator> style_coordinator_;
     std::unique_ptr<DocumentScripting> scripting_;
+    std::unordered_set<std::string> visited_urls_;
 };
 
 }  // namespace Hummingbird::Engine

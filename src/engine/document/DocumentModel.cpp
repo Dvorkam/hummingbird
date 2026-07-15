@@ -2,12 +2,16 @@
 
 #include <ostream>
 
+#include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
+#include "core/utils/Url.h"
 #include "engine/document/DocumentLinkDiscovery.h"
 #include "engine/document/FormSubmissionBuilder.h"
+#include "html/HtmlAttributeNames.h"
 #include "html/HtmlParser.h"
+#include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
 #include "style/compute/Stylesheet.h"
 #include "style/parser/CssParser.h"
@@ -74,6 +78,36 @@ DocumentModel::ParseResult DocumentModel::parse_html(std::string_view html) {
     HB_LOG_INFO("[perf] html parse ms=" << Core::duration_ms(parse_start, parse_end));
 
     return {true, false};
+}
+
+namespace {
+void mark_visited_recursive(DOM::Node* node, const std::unordered_set<std::string>& visited_urls,
+                            std::string_view base_url) {
+    if (auto* element = dynamic_cast<DOM::Element*>(node)) {
+        if (element->get_tag_name() == Hummingbird::Html::TagNames::A) {
+            const auto* href = element->find_attribute(Hummingbird::Html::AttributeNames::Href);
+            bool is_visited = false;
+            if (href && !href->empty()) {
+                std::string resolved = Core::resolve_url(base_url, *href);
+                if (resolved.empty()) {
+                    resolved = *href;
+                }
+                is_visited = visited_urls.count(resolved) > 0;
+            }
+            element->set_pseudo_state(DOM::Element::PseudoState::Visited, is_visited);
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        mark_visited_recursive(child.get(), visited_urls, base_url);
+    }
+}
+}  // namespace
+
+void DocumentModel::mark_visited_links(const std::unordered_set<std::string>& visited_urls, std::string_view base_url) {
+    if (!dom_tree_ || visited_urls.empty()) {
+        return;
+    }
+    mark_visited_recursive(dom_tree_.get(), visited_urls, base_url);
 }
 
 void DocumentModel::apply_styles(const std::string& css, const Css::MediaContext& media) {

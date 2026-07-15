@@ -70,10 +70,15 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         overrides.whitespace = true;
         overrides.font_monospace = true;
     } else if (tag == Hummingbird::Html::TagNames::A) {
-        if (parent_style && parent_style->link_color.has_value()) {
-            style.color = *parent_style->link_color;
-        } else if (parent_style && parent_style->vlink_color.has_value()) {
+        // A visited link prefers the document's vlink color (or the UA default
+        // purple); otherwise the link color (or UA default blue). T-HIST-1.
+        const bool visited = element.has_pseudo_state(DOM::Element::PseudoState::Visited);
+        if (visited && parent_style && parent_style->vlink_color.has_value()) {
             style.color = *parent_style->vlink_color;
+        } else if (parent_style && parent_style->link_color.has_value()) {
+            style.color = *parent_style->link_color;
+        } else if (visited) {
+            style.color = {0x55, 0x1a, 0x8b, 255};
         } else {
             style.color = {0, 0, 255, 255};
         }

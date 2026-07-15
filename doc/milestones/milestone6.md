@@ -155,7 +155,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [x] T-MEDIA-RESIZE-1: Re-Evaluate Media Conditions On Resize (model tracks applied media conditions; resize across any rule's bounds triggers a full restyle instead of plain relayout)
 - [ ] T-FONT-FACE-1: @font-face Web Font Loading
 - [ ] T-SVG-RASTER-1: Rasterize SVG At Display Size (deferred; DDG logo wordmark scaling artifacts)
-- [ ] T-HIST-1: Visited Link State
+- [x] T-HIST-1: Visited Link State (:visited pseudo-class + Visited pseudo-state; anchors marked from a per-tab visited-URL set before styling; visited links take vlink/UA-purple)
 - [ ] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console
 - [ ] T-ARCH-GUARD-2: Clang-UML Diagram Signal Cleanup
 

@@ -93,6 +93,9 @@ bool matches_simple_selector(const DOM::Node* node, const SelectorPart& selector
             case SelectorPart::PseudoClass::Focus:
                 matches = element->has_pseudo_state(DOM::Element::PseudoState::Focus);
                 break;
+            case SelectorPart::PseudoClass::Visited:
+                matches = element->has_pseudo_state(DOM::Element::PseudoState::Visited);
+                break;
         }
         if (!matches) {
             return false;

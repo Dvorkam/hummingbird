@@ -140,6 +140,7 @@ struct SelectorPart {
         Hover,
         Active,
         Focus,
+        Visited,
     };
 
     std::string tag;

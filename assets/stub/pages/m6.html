@@ -122,6 +122,10 @@
       /* The accessibility "visually hidden" pattern: an empty clip rect. */
       .sr-only { position: absolute; clip: rect(0 0 0 0); }
 
+      /* T-HIST-1: visited link state. */
+      .link-demo a { margin-right: 18px; font-weight: bold; }
+      .link-demo a:visited { color: #8e44ad; }
+
       /* T-CSS-CALC-1: calc() length expressions (percent +/- px). */
       .calc-track { background-color: #eef2fb; border: 1px solid #dde3ee; padding: 8px; }
       .calc-bar { height: 26px; background-color: #14213d; color: #ffffff; border-radius: 6px; padding: 4px 8px;
@@ -146,7 +150,8 @@
         Also a legacy compatibility slice &mdash; <code>visibility</code>, <code>pointer-events</code>,
         <code>text-shadow</code>, and legacy <code>clip: rect(...)</code> &mdash; and vendor-prefixed
         properties we do not implement are now dropped silently instead of warning.
-        Additive <code>calc()</code> (percentage &plusmn; px) resolves at layout time.
+        Additive <code>calc()</code> (percentage &plusmn; px) resolves at layout time, and visited links
+        (<code>:visited</code> / <code>vlink</code>) style from navigation history.
       </p>
 
       <div class="section">
@@ -330,6 +335,16 @@
         link beneath it instead of hitting the overlay.</p>
         <p>Accessibility-hidden text follows:<span class="sr-only">you should not see this</span> (a
         <code>clip: rect(0 0 0 0)</code> span renders nothing and is not hit-testable).</p>
+      </div>
+
+      <div class="section link-demo">
+        <h2>Visited link state</h2>
+        <p><a href="https://example.dev">example.dev</a> (you navigated here from it, so it renders
+        <code>:visited</code> purple) &mdash;
+        <a href="https://example.dev/unvisited-page">an unvisited link</a> (default link blue).</p>
+        <p class="note">The engine records every navigated URL; an anchor whose href resolves to a visited URL
+        matches <code>:visited</code> and takes the <code>vlink</code> color (here forced purple via
+        <code>a:visited</code>). Reload after visiting different pages to see it update.</p>
       </div>
 
       <div class="section">

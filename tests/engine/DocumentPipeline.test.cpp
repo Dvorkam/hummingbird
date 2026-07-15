@@ -2,12 +2,17 @@
 
 #include <gtest/gtest.h>
 
+#include <functional>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
+#include "core/dom/Element.h"
+#include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
+#include "engine/document/DocumentModel.h"
 #include "engine/resources/ResourceStore.h"
 #include "layout/geometry/Geometry.h"
 #include "test_utils/TestGraphicsContext.h"
@@ -84,6 +89,32 @@ TEST(DocumentPipelineTest, DispatchesLoadHandler) {
     auto result = pipeline.dispatch_load();
     EXPECT_TRUE(result.handled);
     EXPECT_TRUE(result.mutated);
+}
+
+TEST(DocumentModelTest, MarksAnchorsVisitedByResolvedHref) {
+    using Hummingbird::DOM::Element;
+    using Hummingbird::DOM::Node;
+    using Hummingbird::Engine::DocumentModel;
+
+    DocumentModel model;
+    ASSERT_TRUE(model.parse_html("<html><body><a href=\"/next\">n</a><a href=\"/other\">o</a></body></html>").ok);
+
+    std::unordered_set<std::string> visited{"https://example.dev/next"};
+    model.mark_visited_links(visited, "https://example.dev/page");
+
+    std::vector<Element*> anchors;
+    std::function<void(Node*)> walk = [&](Node* node) {
+        if (auto* element = dynamic_cast<Element*>(node)) {
+            if (element->get_tag_name() == "a") anchors.push_back(element);
+        }
+        for (const auto& child : node->get_children()) walk(child.get());
+    };
+    walk(model.dom_root());
+
+    ASSERT_EQ(anchors.size(), 2u);
+    // /next resolves to the visited URL; /other does not.
+    EXPECT_TRUE(anchors[0]->has_pseudo_state(Element::PseudoState::Visited));
+    EXPECT_FALSE(anchors[1]->has_pseudo_state(Element::PseudoState::Visited));
 }
 
 TEST(DocumentPipelineTest, DetectsMediaBreakpointCrossOnResize) {

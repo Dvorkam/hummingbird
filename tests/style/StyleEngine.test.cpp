@@ -43,6 +43,57 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
     ASSERT_TRUE(style_child);
 }
 
+TEST(StyleEngineTest, VisitedAnchorUsesVlinkColor) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
+    body->set_attribute(Attr::Link, "#112233");
+    body->set_attribute(Attr::VLink, "#778899");
+
+    auto visited = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    visited->set_pseudo_state(Element::PseudoState::Visited, true);
+    auto fresh = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    body->append_child(std::move(visited));
+    body->append_child(std::move(fresh));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, body.get());
+
+    auto visited_style = body->get_children()[0]->get_computed_style();
+    auto fresh_style = body->get_children()[1]->get_computed_style();
+    ASSERT_TRUE(visited_style && fresh_style);
+    // Visited -> vlink (#778899); unvisited -> link (#112233).
+    EXPECT_EQ(visited_style->color.r, 0x77);
+    EXPECT_EQ(visited_style->color.b, 0x99);
+    EXPECT_EQ(fresh_style->color.r, 0x11);
+    EXPECT_EQ(fresh_style->color.b, 0x33);
+}
+
+TEST(StyleEngineTest, VisitedPseudoClassMatchesOnlyVisitedAnchors) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto visited = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    visited->set_pseudo_state(Element::PseudoState::Visited, true);
+    auto fresh = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    root->append_child(std::move(visited));
+    root->append_child(std::move(fresh));
+
+    std::string css = "a:visited { color: #00ff00; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto visited_style = root->get_children()[0]->get_computed_style();
+    auto fresh_style = root->get_children()[1]->get_computed_style();
+    ASSERT_TRUE(visited_style && fresh_style);
+    EXPECT_EQ(visited_style->color.g, 0xff);  // :visited rule applied
+    // The unvisited anchor keeps the UA default link blue, not green.
+    EXPECT_NE(fresh_style->color.g, 0xff);
+    EXPECT_EQ(fresh_style->color.b, 0xff);
+}
+
 TEST(StyleEngineTest, CascadeOrderPreservedAcrossSelectorBuckets) {
     // The key-selector index buckets these three rules separately (class, tag,
     // class); the winner must still be decided by specificity then document
