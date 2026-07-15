@@ -156,7 +156,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-FONT-FACE-1: @font-face Web Font Loading
 - [ ] T-SVG-RASTER-1: Rasterize SVG At Display Size (deferred; DDG logo wordmark scaling artifacts)
 - [x] T-HIST-1: Visited Link State (:visited pseudo-class + Visited pseudo-state; anchors marked from a per-tab visited-URL set before styling; visited links take vlink/UA-purple)
-- [ ] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console
+- [x] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console (with F1 outlines active, clicking logs the topmost element under the cursor  14 tag/id/classes, absolute rect, display/position/size/margin/padding  14 to the console)
 - [ ] T-ARCH-GUARD-2: Clang-UML Diagram Signal Cleanup
 
 P2: Only if Schedule Allows

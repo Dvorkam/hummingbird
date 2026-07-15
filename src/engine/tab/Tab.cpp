@@ -169,6 +169,11 @@ std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const 
         make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y));
 }
 
+std::optional<std::string> Tab::inspect_at(const Layout::Point& point, const Layout::Rect& viewport) const {
+    return document_pipeline_->inspect_at(
+        make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y));
+}
+
 Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
                                      IGraphicsContext& graphics) {
     auto result = document_pipeline_->dispatch_click(

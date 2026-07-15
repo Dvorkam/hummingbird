@@ -48,6 +48,13 @@ void DocumentEventRouter::handle_mouse_down(const Hummingbird::InputEvent& event
     HB_LOG_DEBUG("[input] mouse click at (" << point.x << "," << point.y << ") viewport=(" << viewport.x << ","
                                             << viewport.y << "," << viewport.width << "," << viewport.height << ")");
     auto& tab = app_.active_tab();
+    // F1 debug mode: log the element under the cursor to the console instead of
+    // cluttering the render (T-DEBUG-INSPECT-1).
+    if (render_.debug_outlines()) {
+        if (auto info = tab.inspect_at(point, viewport)) {
+            HB_LOG_INFO("[inspect] " << *info);
+        }
+    }
     auto click_result = tab.dispatch_click(point, viewport, *graphics_);
     if (click_result.mutated) {
         render_.set_document_dirty();

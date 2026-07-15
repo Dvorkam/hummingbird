@@ -95,6 +95,7 @@ public:
     ScriptDispatchResult dispatch_click(const HitTestContext& context);
     ScriptDispatchResult dispatch_load();
     std::optional<std::string> hit_test_link(const HitTestContext& context) const;
+    std::optional<std::string> inspect_at(const HitTestContext& context) const;
     std::optional<FormSubmission> submit_form_at(const HitTestContext& context) const;
     bool focus_input_at(const HitTestContext& context);
     bool focus_autofocus_input();

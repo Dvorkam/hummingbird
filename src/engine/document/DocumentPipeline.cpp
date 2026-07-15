@@ -123,6 +123,10 @@ std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext&
     return interaction_->hit_test_link({context.point, context.viewport, context.base_url, context.scroll_y});
 }
 
+std::optional<std::string> DocumentPipeline::inspect_at(const HitTestContext& context) const {
+    return interaction_->inspect_at({context.point, context.viewport, context.base_url, context.scroll_y});
+}
+
 std::optional<FormSubmission> DocumentPipeline::submit_form_at(const HitTestContext& context) const {
     return interaction_->submit_form_at({context.point, context.viewport, context.base_url, context.scroll_y});
 }

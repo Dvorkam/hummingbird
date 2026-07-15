@@ -67,6 +67,9 @@ public:
     // --- document interaction ---
     // Returns a resolved link URL for the render node under the window-space point.
     std::optional<std::string> hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const;
+    // F1 debug inspection: describe the topmost element under the point
+    // (T-DEBUG-INSPECT-1).
+    std::optional<std::string> inspect_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics);
     std::optional<FormSubmission> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport);

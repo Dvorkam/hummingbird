@@ -411,6 +411,39 @@ TEST(EngineTabTest, HitTestResolvesLink) {
     EXPECT_EQ(*link, "https://example.dev/next");
 }
 
+TEST(EngineTabTest, InspectAtDescribesElementUnderPoint) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>body { margin: 0; } #box { display: block; width: 100px; height: 40px; margin: 10px; padding: 5px; }</style></head>
+  <body>
+    <div id="box" class="panel">hi</div>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 200, 200});
+    harness.navigate("https://example.dev");
+    EXPECT_TRUE(harness.tick());
+
+    // A point inside the #box border area (origin ~10,10; 110x50 border box).
+    auto info = harness.tab().inspect_at({30.0f, 30.0f}, harness.viewport());
+    ASSERT_TRUE(info.has_value());
+    EXPECT_NE(info->find("<div>"), std::string::npos);
+    EXPECT_NE(info->find("#box"), std::string::npos);
+    EXPECT_NE(info->find("panel"), std::string::npos);
+    EXPECT_NE(info->find("display=block"), std::string::npos);
+    EXPECT_NE(info->find("rect="), std::string::npos);
+
+    // A point outside any element returns nothing.
+    EXPECT_FALSE(harness.tab().inspect_at({190.0f, 190.0f}, harness.viewport()).has_value());
+}
+
 TEST(EngineTabTest, HitTestSkipsPointerEventsNone) {
     const std::string html = R"HTML(
 <!doctype html>

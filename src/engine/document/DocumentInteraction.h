@@ -43,6 +43,10 @@ public:
 
     std::optional<std::string> hit_test_link(const HitTestContext& context) const;
     std::optional<FormSubmission> submit_form_at(const HitTestContext& context) const;
+    // Returns a human-readable description (tag/id/classes, geometry, key computed
+    // style) of the topmost element under the point, for F1 debug inspection
+    // (T-DEBUG-INSPECT-1). nullopt when no element is hit.
+    std::optional<std::string> inspect_at(const HitTestContext& context) const;
 
     bool focus_input_at(const Layout::RenderObject* render_tree, const HitTestContext& context);
     bool focus_autofocus_input(const Layout::RenderObject* render_tree);
