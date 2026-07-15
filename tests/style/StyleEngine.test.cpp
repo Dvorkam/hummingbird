@@ -1421,6 +1421,44 @@ TEST(StyleEngineTest, AppliesBoxShadowProperty) {
     EXPECT_EQ(style->box_shadow->color.b, 0x33);
 }
 
+TEST(StyleEngineTest, ResolvesCalcWidthAgainstReference) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { width: calc(100% - 20px); }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->width.has_value());
+    EXPECT_TRUE(style->width->has_percent);
+    EXPECT_FLOAT_EQ(style->width->percent, 100.0f);
+    EXPECT_FLOAT_EQ(style->width->px, -20.0f);
+    // Resolved against a 200px containing block: 100% - 20px = 180px.
+    EXPECT_FLOAT_EQ(style->width->resolve(200.0f), 180.0f);
+}
+
+TEST(StyleEngineTest, UnsupportedCalcLeavesLengthUnset) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { width: calc(100% - 2*6px); }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    // Multiplication is unsupported, so the width declaration is dropped.
+    EXPECT_FALSE(style->width.has_value());
+}
+
 TEST(StyleEngineTest, LegacyClipRectHidesContentWhenEmpty) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

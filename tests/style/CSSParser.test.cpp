@@ -303,6 +303,39 @@ TEST(CSSParserTest, ParsesVerticalAlignProperty) {
     EXPECT_EQ(decls[0].value.ident, "middle");
 }
 
+TEST(CSSParserTest, ParsesCalcPercentMinusPx) {
+    Parser parser("div { width: calc(100% - 14px); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+    EXPECT_EQ(decls[0].property, Property::Width);
+    ASSERT_EQ(decls[0].value.type, Value::Type::Calc);
+    EXPECT_FLOAT_EQ(decls[0].value.calc.percent, 100.0f);
+    EXPECT_FLOAT_EQ(decls[0].value.calc.px, -14.0f);
+    EXPECT_TRUE(decls[0].value.calc.has_percent);
+}
+
+TEST(CSSParserTest, ParsesCalcPercentPlusPx) {
+    Parser parser("div { max-width: calc(50% + 8px); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& value = sheet.rules[0].declarations[0].value;
+    ASSERT_EQ(value.type, Value::Type::Calc);
+    EXPECT_FLOAT_EQ(value.calc.percent, 50.0f);
+    EXPECT_FLOAT_EQ(value.calc.px, 8.0f);
+}
+
+TEST(CSSParserTest, DropsUnsupportedCalcMultiplication) {
+    Parser parser("div { width: calc(100% - 2*6px); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    // Multiplication is outside the supported subset, so no calc value is emitted.
+    for (const auto& decl : sheet.rules[0].declarations) {
+        EXPECT_NE(decl.value.type, Value::Type::Calc);
+    }
+}
+
 TEST(CSSParserTest, ParsesLegacyClipRect) {
     // Comma- and space-separated forms both arrive without parens/commas.
     Parser parser("span { clip: rect(1px, 2px, 3px, 4px); }");

@@ -166,6 +166,12 @@ void apply_optional_length(std::optional<ComputedStyle::LengthValue>& target, co
         }
     } else if (value.type == Value::Type::Number) {
         target = ComputedStyle::LengthValue::from_px(value.number);
+    } else if (value.type == Value::Type::Calc) {
+        ComputedStyle::LengthValue length;
+        length.px = value.calc.px;
+        length.percent = value.calc.percent;
+        length.has_percent = value.calc.has_percent;
+        target = length;
     }
 }
 

@@ -138,7 +138,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [x] T-CSS-MISC-LEGACY-1: Legacy Property Compatibility Slice (visibility + pointer-events inherited, paint/hit-test aware; text-shadow painted as offset glyph copy; legacy `clip: rect()` parsed, degenerate a11y-hide rect suppresses paint + hit-test)
 - [x] T-CSS-INHERIT-1: `inherit` Keyword Support (winning `inherit` declaration defers to the parent pass; `font-family: inherit` no longer warns; non-inherited props fall to initial)
 - [x] T-CSS-BG-SHORTHAND-SIZE-1: `background` Shorthand `position/size` Syntax (slash token + shorthand split; DDG logo centers)
-- [ ] T-CSS-CALC-1: `calc()` Length Expressions
+- [x] T-CSS-CALC-1: `calc()` Length Expressions (additive percent ± px on width/height/min/max/insets via unified ComputedStyle::LengthValue; multiplication/nesting/var() deferred)
 - [ ] T-PERF-5: Batch Resource Updates
 - [ ] T-PERF-4: Offscreen Raster Cache + Layer Invalidation
 - [ ] T-CACHE-1: Tab Resource Eviction + Rehydrate

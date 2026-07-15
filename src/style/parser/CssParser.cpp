@@ -273,6 +273,14 @@ Value Parser::parse_identifier_value() {
         }
         return Value::identifier(std::move(ident));
     }
+    if (ident == "calc") {
+        if (auto calc = parse_calc()) {
+            return Value::calc_value(*calc);
+        }
+        // Unsupported calc() form: emit a placeholder that no applier accepts, so
+        // the declaration is dropped rather than misapplied.
+        return Value::identifier("calc");
+    }
     if (auto color = parse_named_color(ident)) {
         return Value::color_value(*color);
     }
@@ -334,6 +342,76 @@ std::optional<Color> Parser::parse_color_function() {
     if (alpha > 1.0f) alpha = 1.0f;
     color.a = static_cast<uint8_t>(alpha * 255.0f + 0.5f);
     return color;
+}
+
+// Parses the additive subset of calc(): px and % terms joined by +/- (CSS
+// requires whitespace around the operators, so `-` arrives as its own token).
+// The tokenizer drops parentheses, so the expression simply runs to the end of
+// the value. Anything outside the subset (multiplication, nested calc, other
+// units, var()) fails and returns nullopt so the declaration is dropped. Called
+// with the leading `calc` identifier already consumed.
+std::optional<Value::Calc> Parser::parse_calc() {
+    Value::Calc sum;
+    float sign = 1.0f;
+    bool expect_term = true;
+    bool ok = true;
+    bool any_term = false;
+    while (!eof()) {
+        TokenType type = peek().type;
+        if (type == TokenType::Semicolon || type == TokenType::RBrace || type == TokenType::Bang ||
+            type == TokenType::End) {
+            break;
+        }
+        if (type == TokenType::Whitespace) {
+            advance();
+            continue;
+        }
+        if (expect_term) {
+            if (type != TokenType::Number) {
+                ok = false;
+                advance();
+                continue;
+            }
+            float number = Core::Utils::parse_float(std::string(advance().lexeme)).value_or(0.0f);
+            if (match(TokenType::Percent)) {
+                sum.percent += sign * number;
+                sum.has_percent = true;
+            } else if (peek().type == TokenType::Identifier) {
+                auto unit = StyleValueUtils::parse_unit_token(peek().lexeme);
+                if (unit == Unit::Px) {
+                    advance();
+                    sum.px += sign * number;
+                } else {
+                    ok = false;  // em/other units unsupported in calc for now
+                    advance();
+                }
+            } else {
+                ok = false;  // a bare number is only valid as a multiplier
+            }
+            any_term = true;
+            expect_term = false;
+            continue;
+        }
+        if (type == TokenType::Plus) {
+            advance();
+            sign = 1.0f;
+            expect_term = true;
+            continue;
+        }
+        if (type == TokenType::Identifier && peek().lexeme == "-") {
+            advance();
+            sign = -1.0f;
+            expect_term = true;
+            continue;
+        }
+        // Any other operator (*, /) or stray token is outside the subset.
+        ok = false;
+        advance();
+    }
+    if (!ok || !any_term || expect_term) {
+        return std::nullopt;
+    }
+    return sum;
 }
 
 Value Parser::parse_number_value() {

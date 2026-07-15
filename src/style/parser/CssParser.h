@@ -37,6 +37,7 @@ private:
     Value parse_hash_value();
     Value parse_identifier_value();
     std::optional<Color> parse_color_function();
+    std::optional<Value::Calc> parse_calc();
     Value parse_number_value();
     std::string parse_font_family_list(bool* important = nullptr);
     std::string parse_custom_property_value(bool* important = nullptr);

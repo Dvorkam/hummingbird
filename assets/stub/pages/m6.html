@@ -121,6 +121,13 @@
                     opacity: 0.55; border-radius: 6px; pointer-events: none; }
       /* The accessibility "visually hidden" pattern: an empty clip rect. */
       .sr-only { position: absolute; clip: rect(0 0 0 0); }
+
+      /* T-CSS-CALC-1: calc() length expressions (percent +/- px). */
+      .calc-track { background-color: #eef2fb; border: 1px solid #dde3ee; padding: 8px; }
+      .calc-bar { height: 26px; background-color: #14213d; color: #ffffff; border-radius: 6px; padding: 4px 8px;
+                  margin-bottom: 8px; box-sizing: border-box; }
+      .calc-full { width: calc(100% - 40px); }
+      .calc-half { width: calc(50% + 40px); background-color: #5b9e4d; }
     </style>
   </head>
   <body>
@@ -139,6 +146,7 @@
         Also a legacy compatibility slice &mdash; <code>visibility</code>, <code>pointer-events</code>,
         <code>text-shadow</code>, and legacy <code>clip: rect(...)</code> &mdash; and vendor-prefixed
         properties we do not implement are now dropped silently instead of warning.
+        Additive <code>calc()</code> (percentage &plusmn; px) resolves at layout time.
       </p>
 
       <div class="section">
@@ -322,6 +330,18 @@
         link beneath it instead of hitting the overlay.</p>
         <p>Accessibility-hidden text follows:<span class="sr-only">you should not see this</span> (a
         <code>clip: rect(0 0 0 0)</code> span renders nothing and is not hit-testable).</p>
+      </div>
+
+      <div class="section">
+        <h2>calc() length expressions</h2>
+        <div class="calc-track">
+          <div class="calc-bar calc-full">width: calc(100% - 40px)</div>
+          <div class="calc-bar calc-half">width: calc(50% + 40px)</div>
+        </div>
+        <p class="note">Widths mix a percentage of the container with a px offset, resolved at layout time. The
+        dark bar stops 40px short of the track's right edge; the green bar is half the track plus 40px.
+        Multiplication, nested <code>calc()</code>, and <code>calc()</code> with <code>var()</code> are not yet
+        supported (those declarations are dropped).</p>
       </div>
     </div>
   </body>

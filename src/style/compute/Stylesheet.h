@@ -41,6 +41,16 @@ struct Value {
         Number,
         Shadow,
         Clip,
+        Calc,
+    };
+
+    // A resolved additive calc() expression: an absolute px part plus a
+    // percentage part (e.g. calc(100% - 20px) => {px:-20, percent:100}). Only the
+    // subset px/% with +/- is supported; anything else fails to parse.
+    struct Calc {
+        float px = 0.0f;
+        float percent = 0.0f;
+        bool has_percent = false;
     };
 
     struct Shadow {
@@ -66,6 +76,7 @@ struct Value {
     float number = 0.0f;
     Shadow shadow;
     Clip clip;
+    Calc calc;
 
     static Value identifier(std::string text) {
         Value v;
@@ -113,6 +124,13 @@ struct Value {
         Value v;
         v.type = Type::Clip;
         v.clip = clip;
+        return v;
+    }
+
+    static Value calc_value(Calc calc) {
+        Value v;
+        v.type = Type::Calc;
+        v.calc = calc;
         return v;
     }
 };
