@@ -478,7 +478,11 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
     }
 
     if (property == Property::Unknown && !property_name.empty()) {
-        if (m_unknown_properties.should_log(property_name)) {
+        // Unrecognized vendor-prefixed properties are non-standard; drop them
+        // silently (T-CSS-COMPAT-ALIAS-1) so legacy CSS does not flood the log.
+        // Unknown standard properties still warn, keeping real gaps visible.
+        if (!PropertyRegistry::is_vendor_prefixed_name(property_name) &&
+            m_unknown_properties.should_log(property_name)) {
             HB_LOG_WARN("[parser] Unsupported CSS property encountered: " << property_name);
         }
         return true;

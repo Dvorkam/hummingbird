@@ -237,3 +237,10 @@ HB_CSS_PROPERTY_ALIAS(BorderBottomRightRadius, MozBorderRadiusBottomright, "-moz
 HB_CSS_PROPERTY_ALIAS(BorderBottomLeftRadius, MozBorderRadiusBottomleft, "-moz-border-radius-bottomleft",
                       "border-bottom-left-radius", ParserHook::parse_length, ApplyHook::apply_border_radius,
                       PropertyFlags::LayoutAffecting)
+
+// Vendor-prefixed text-overflow: Opera and IE shipped this before it was
+// unprefixed. Behavior-equivalent, so alias to the standard property.
+HB_CSS_PROPERTY_ALIAS(TextOverflow, OTextOverflow, "-o-text-overflow", "text-overflow",
+                      ParserHook::parse_identifier, ApplyHook::apply_text_overflow, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(TextOverflow, MsTextOverflow, "-ms-text-overflow", "text-overflow",
+                      ParserHook::parse_identifier, ApplyHook::apply_text_overflow, PropertyFlags::LayoutAffecting)

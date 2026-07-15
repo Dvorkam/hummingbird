@@ -14,6 +14,12 @@ struct PropertyEntry {
 
 Property parse_property_name(std::string_view name);
 bool is_supported_property(std::string_view name);
+
+// True for a property name carrying a browser vendor prefix (`-webkit-`, `-moz-`,
+// `-ms-`, `-o-`, `-khtml-`). Used by the parser to silently drop unrecognized prefixed
+// properties (T-CSS-COMPAT-ALIAS-1): they are non-standard, so warning about them
+// is pure noise, while unknown *standard* properties still warn.
+bool is_vendor_prefixed_name(std::string_view name);
 std::span<const PropertyEntry> entries();
 std::string_view canonical_property_name(Property property);
 ParserHook parser_hook(Property property);

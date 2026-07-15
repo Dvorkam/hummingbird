@@ -552,6 +552,35 @@ TEST(CSSParserTest, DedupesUnsupportedPropertyWarnings) {
     EXPECT_TRUE(sheet.unknown_properties.count("bogus"));
 }
 
+TEST(CSSParserTest, SilentlyIgnoresUnknownVendorPrefixedProperties) {
+    Parser parser(
+        "div { -webkit-user-select: none; -moz-appearance: none; -webkit-tap-highlight-color: transparent; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    // Non-standard prefixed properties are dropped without producing warnings.
+    EXPECT_TRUE(sheet.unknown_properties.empty());
+    EXPECT_TRUE(sheet.rules[0].declarations.empty());
+}
+
+TEST(CSSParserTest, StandardUnknownStillWarnsAlongsidePrefixedNoise) {
+    Parser parser("div { -webkit-user-select: none; gagootz: 1; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    // Only the standard unknown property is recorded; the prefixed one is silent.
+    EXPECT_EQ(sheet.unknown_properties.size(), 1u);
+    EXPECT_TRUE(sheet.unknown_properties.count("gagootz"));
+}
+
+TEST(CSSParserTest, AliasesPrefixedTextOverflowToStandard) {
+    Parser parser("div { -o-text-overflow: ellipsis; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    const auto& decls = sheet.rules[0].declarations;
+    ASSERT_EQ(decls.size(), 1u);
+    EXPECT_EQ(decls[0].property, Property::TextOverflow);
+    EXPECT_TRUE(sheet.unknown_properties.empty());
+}
+
 TEST(CSSParserTest, RecoversMissingSemicolonBetweenDeclarations) {
     Parser parser("div { color: red background-color: blue; }");
     auto sheet = parser.parse();

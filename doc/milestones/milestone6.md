@@ -134,7 +134,7 @@ P0: Guardrails (North Star)
 - [x] T-ARCH-GUARD-1: Dependency Guardrails in CI (package-cycle detection in DependencyFirewall test, runs via ctest on Linux+Windows)
 
 P1: Compatibility + Hygiene (pull in as needed)
-- [ ] T-CSS-COMPAT-ALIAS-1: Vendor Prefix Alias Layer
+- [x] T-CSS-COMPAT-ALIAS-1: Vendor Prefix Alias Layer (unknown `-webkit-`/`-moz-`/`-ms-`/`-o-` properties dropped silently instead of warning; `-o-`/`-ms-text-overflow` aliased to the standard property)
 - [ ] T-CSS-MISC-LEGACY-1: Legacy Property Compatibility Slice
 - [x] T-CSS-INHERIT-1: `inherit` Keyword Support (winning `inherit` declaration defers to the parent pass; `font-family: inherit` no longer warns; non-inherited props fall to initial)
 - [x] T-CSS-BG-SHORTHAND-SIZE-1: `background` Shorthand `position/size` Syntax (slash token + shorthand split; DDG logo centers)

@@ -31,6 +31,22 @@ TEST(CssPropertyRegistryTest, MapsCanonicalAndAliasNames) {
     EXPECT_TRUE(PropertyRegistry::canonical_property_name(Property::Unknown).empty());
 }
 
+TEST(CssPropertyRegistryTest, IdentifiesVendorPrefixedNames) {
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-webkit-user-select"));
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-moz-appearance"));
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-ms-overflow-style"));
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-o-transition"));
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-khtml-user-select"));
+    EXPECT_FALSE(PropertyRegistry::is_vendor_prefixed_name("margin"));
+    EXPECT_FALSE(PropertyRegistry::is_vendor_prefixed_name("--custom-prop"));
+    EXPECT_FALSE(PropertyRegistry::is_vendor_prefixed_name("bogus"));
+}
+
+TEST(CssPropertyRegistryTest, AliasesPrefixedTextOverflow) {
+    EXPECT_EQ(PropertyRegistry::parse_property_name("-o-text-overflow"), Property::TextOverflow);
+    EXPECT_EQ(PropertyRegistry::parse_property_name("-ms-text-overflow"), Property::TextOverflow);
+}
+
 TEST(CssPropertyRegistryTest, EntriesRoundTripAndHooksExist) {
     for (const auto& entry : PropertyRegistry::entries()) {
         EXPECT_EQ(PropertyRegistry::parse_property_name(entry.name), entry.property);
