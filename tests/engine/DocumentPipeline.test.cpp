@@ -117,6 +117,39 @@ TEST(DocumentModelTest, MarksAnchorsVisitedByResolvedHref) {
     EXPECT_FALSE(anchors[1]->has_pseudo_state(Element::PseudoState::Visited));
 }
 
+TEST(DocumentModelTest, BudgetExhaustionShowsErrorPage) {
+    using Hummingbird::DOM::Element;
+    using Hummingbird::DOM::Node;
+    using Hummingbird::Engine::DocumentModel;
+
+    // A tiny single-block arena: big enough for the built-in error page, far too
+    // small for a large document.
+    DocumentModel model(8192, 1);
+    std::string big = "<html><body>";
+    for (int i = 0; i < 4000; ++i) {
+        big += "<div>x</div>";
+    }
+    big += "</body></html>";
+
+    auto result = model.parse_html(big);
+    // The over-budget parse recovers into the error page rather than a blank tab.
+    EXPECT_TRUE(result.ok);
+    EXPECT_FALSE(result.arena_failed);
+    ASSERT_NE(model.dom_root(), nullptr);
+
+    // The rendered DOM is the built-in "too large" page: locate its <h1>.
+    std::function<Element*(Node*)> find_h1 = [&](Node* node) -> Element* {
+        if (auto* element = dynamic_cast<Element*>(node)) {
+            if (element->get_tag_name() == "h1") return element;
+        }
+        for (const auto& child : node->get_children()) {
+            if (auto* found = find_h1(child.get())) return found;
+        }
+        return nullptr;
+    };
+    EXPECT_NE(find_h1(model.dom_root()), nullptr);
+}
+
 TEST(DocumentPipelineTest, DetectsMediaBreakpointCrossOnResize) {
     // DDG gates its desktop layout behind (min-width: 864px)-style rules;
     // resizing across such a bound must trigger a restyle (T-MEDIA-RESIZE-1).

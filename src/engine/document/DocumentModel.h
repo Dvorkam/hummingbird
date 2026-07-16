@@ -30,6 +30,11 @@ public:
         bool arena_failed = false;
     };
 
+    DocumentModel() = default;
+    // Test/advanced hook: override the DOM arena budget (default is the shipping
+    // 32 MB) so budget-exhaustion handling can be exercised (T-DOM-2).
+    DocumentModel(size_t arena_block_size, size_t arena_max_blocks) : dom_arena_(arena_block_size, arena_max_blocks) {}
+
     void reset();
     ParseResult parse_html(std::string_view html);
     void apply_styles(const std::string& css, const Css::MediaContext& media = {});
@@ -59,6 +64,10 @@ public:
 private:
     static constexpr size_t kDomArenaBlockSize = 2 * 1024 * 1024;
     static constexpr size_t kDomArenaMaxBlocks = 16;
+
+    // Reset the arena and parse the built-in "document too large" page so a
+    // budget failure shows a user-facing page instead of a blank tab (T-DOM-2).
+    bool load_budget_error_page();
 
     Css::StyleEngine style_engine_;
     Layout::TreeBuilder tree_builder_;

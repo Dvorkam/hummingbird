@@ -143,7 +143,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-PERF-4: Offscreen Raster Cache + Layer Invalidation
 - [ ] T-CACHE-1: Tab Resource Eviction + Rehydrate
 - [ ] T-DOM-1: Infinite Scroll DOM Virtualization
-- [ ] T-DOM-2: DOM Budget Failure UX
+- [x] T-DOM-2: DOM Budget Failure UX (on DOM arena budget exhaustion the model resets and renders a built-in "page too large" error page instead of a blank tab; arena budget made injectable to test the path)
 - [x] T-SEC-URL-1: Resource/Asset Origin Firewall (asset loader refuses absolute/UNC/drive/traversal/URL ids; ResourceLoader guards BOTH provider probes — raw and resolved — so origin-relative `//host/x`, `/x`, `\\host\x` never reach the filesystem)
 - [x] T-HTML-RAWTEXT-1: Script/Style Raw-Text Parsing (RawText tokenizer state consumes `<script>`/`<style>` bodies to the matching case-insensitive end tag; `<` in JS/CSS strings no longer spawns fake tags or garbage resource requests)
 - [x] T-PERF-STYLE-1: Selector Match Acceleration (rules bucketed by key selector into id/class/tag/universal; each element tests only candidate buckets, re-sorted into document order so the cascade is unchanged)

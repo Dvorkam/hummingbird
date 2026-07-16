@@ -67,7 +67,10 @@ DocumentModel::ParseResult DocumentModel::parse_html(std::string_view html) {
     if (!dom_tree_) {
         const bool arena_failed = dom_arena_.failed();
         if (arena_failed) {
-            HB_LOG_ERROR("[pipeline] DOM arena budget exceeded, resetting document");
+            HB_LOG_ERROR("[pipeline] DOM arena budget exceeded, showing budget error page");
+            if (load_budget_error_page()) {
+                return {true, false};  // recovered with a user-facing error page
+            }
         }
         HB_LOG_WARN("[pipeline] parsed empty DOM");
         return {false, arena_failed};
@@ -81,6 +84,19 @@ DocumentModel::ParseResult DocumentModel::parse_html(std::string_view html) {
 }
 
 namespace {
+constexpr std::string_view kDomBudgetExceededPage = R"HTML(<!doctype html>
+<html>
+  <head><style>
+    body { margin: 40px; color: #1d2433; background-color: #f4f6fb; font-family: sans-serif; }
+    h1 { color: #14213d; }
+  </style></head>
+  <body>
+    <h1>This page is too large to display</h1>
+    <p>Hummingbird stopped loading this document because it exceeded the memory budget for a single page.</p>
+    <p>Try opening a different page from the address bar.</p>
+  </body>
+</html>)HTML";
+
 void mark_visited_recursive(DOM::Node* node, const std::unordered_set<std::string>& visited_urls,
                             std::string_view base_url) {
     if (auto* element = dynamic_cast<DOM::Element*>(node)) {
@@ -102,6 +118,22 @@ void mark_visited_recursive(DOM::Node* node, const std::unordered_set<std::strin
     }
 }
 }  // namespace
+
+bool DocumentModel::load_budget_error_page() {
+    // The over-budget parse left the arena in a failed state; reset frees the
+    // partial DOM and clears the failure flag so the small error page fits.
+    dom_arena_.reset();
+    style_blocks_.clear();
+    stylesheet_links_.clear();
+    image_links_.clear();
+    script_blocks_.clear();
+
+    Html::Parser parser(dom_arena_, kDomBudgetExceededPage);
+    auto parsed = parser.parse();
+    dom_tree_ = std::move(parsed.dom);
+    style_blocks_ = std::move(parsed.style_blocks);
+    return static_cast<bool>(dom_tree_);
+}
 
 void DocumentModel::mark_visited_links(const std::unordered_set<std::string>& visited_urls, std::string_view base_url) {
     if (!dom_tree_ || visited_urls.empty()) {
