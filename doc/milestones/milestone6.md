@@ -154,7 +154,7 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [x] T-POS-ABS-1: Absolute Centering With Opposing Insets (auto-margin centering AND auto-size stretch between top+bottom / left+right; DDG magnifier fills the search box)
 - [x] T-MEDIA-RESIZE-1: Re-Evaluate Media Conditions On Resize (model tracks applied media conditions; resize across any rule's bounds triggers a full restyle instead of plain relayout)
 - [ ] T-FONT-FACE-1: @font-face Web Font Loading
-- [ ] T-SVG-RASTER-1: Rasterize SVG At Display Size (deferred; DDG logo wordmark scaling artifacts)
+- [x] T-SVG-RASTER-1: Rasterize SVG At Display Size (interim: linear SDL_HINT_RENDER_SCALE_QUALITY smooths upscaled SVG/images, removing nearest-neighbor stair-steps; true rasterize-at-display-size still a future refinement)
 - [x] T-HIST-1: Visited Link State (:visited pseudo-class + Visited pseudo-state; anchors marked from a per-tab visited-URL set before styling; visited links take vlink/UA-purple)
 - [x] T-DEBUG-INSPECT-1: Debug Hit-Inspect To Console (with F1 outlines active, clicking logs the topmost element under the cursor  14 tag/id/classes, absolute rect, display/position/size/margin/padding  14 to the console)
 - [ ] T-ARCH-GUARD-2: Clang-UML Diagram Signal Cleanup
