@@ -314,6 +314,8 @@ bool apply_display_value(ComputedStyle& style, const Value& value) {
         style.display = ComputedStyle::Display::Block;
     } else if (ident == ValueNames::Flex) {
         style.display = ComputedStyle::Display::Flex;
+    } else if (ident == ValueNames::Grid) {
+        style.display = ComputedStyle::Display::Grid;
     }
     return true;
 }
@@ -397,6 +399,96 @@ void apply_flex_factor_value(float& target, const Value& value, float fallback) 
 void apply_order_value(ComputedStyle& style, const Value& value) {
     if (value.type == Value::Type::Number) {
         style.order = static_cast<int>(value.number);
+    }
+}
+
+// Decodes one canonical grid track token ("Npx"/"Nem"/"N%"/"Nfr"/"auto") that
+// the parser produced (see Parser::read_one_grid_track).
+ComputedStyle::GridTrack parse_grid_track_token(std::string_view text, float font_size) {
+    using GridTrack = ComputedStyle::GridTrack;
+    if (text.empty() || text == ValueNames::Auto) {
+        return GridTrack::automatic();
+    }
+    auto ends_with = [&](std::string_view suffix) {
+        return text.size() > suffix.size() && text.substr(text.size() - suffix.size()) == suffix;
+    };
+    if (ends_with("fr")) {
+        return GridTrack::fr(Core::Utils::parse_float(text.substr(0, text.size() - 2)).value_or(0.0f));
+    }
+    if (ends_with("px")) {
+        return GridTrack::fixed(Core::Utils::parse_float(text.substr(0, text.size() - 2)).value_or(0.0f));
+    }
+    if (ends_with("em")) {
+        return GridTrack::fixed(Core::Utils::parse_float(text.substr(0, text.size() - 2)).value_or(0.0f) * font_size);
+    }
+    if (text.back() == '%') {
+        return GridTrack::percent(Core::Utils::parse_float(text.substr(0, text.size() - 1)).value_or(0.0f));
+    }
+    return GridTrack::automatic();
+}
+
+std::vector<ComputedStyle::GridTrack> parse_grid_track_list(std::string_view text, float font_size) {
+    std::vector<ComputedStyle::GridTrack> tracks;
+    size_t pos = 0;
+    while (pos < text.size()) {
+        size_t space = text.find(' ', pos);
+        std::string_view token = space == std::string_view::npos ? text.substr(pos) : text.substr(pos, space - pos);
+        if (!token.empty()) {
+            tracks.push_back(parse_grid_track_token(token, font_size));
+        }
+        if (space == std::string_view::npos) break;
+        pos = space + 1;
+    }
+    return tracks;
+}
+
+void apply_grid_property(Property property, ComputedStyle& style, const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return;
+    }
+    const std::string& text = value.ident;
+    switch (property) {
+        case Property::GridTemplateColumns:
+            style.grid_template_columns = parse_grid_track_list(text, style.font_size);
+            return;
+        case Property::GridTemplateRows:
+            style.grid_template_rows = parse_grid_track_list(text, style.font_size);
+            return;
+        case Property::GridAutoRows: {
+            auto tracks = parse_grid_track_list(text, style.font_size);
+            if (!tracks.empty()) style.grid_auto_rows = tracks.front();
+            return;
+        }
+        case Property::GridColumn:
+        case Property::GridRow: {
+            ComputedStyle::GridPlacement placement;
+            size_t slash = text.find('/');
+            if (slash != std::string::npos) {
+                placement.line = static_cast<int>(Core::Utils::parse_float(text.substr(0, slash)).value_or(0.0f));
+                placement.span =
+                    std::max(1, static_cast<int>(Core::Utils::parse_float(text.substr(slash + 1)).value_or(1.0f)));
+            }
+            if (property == Property::GridColumn) {
+                style.grid_column = placement;
+            } else {
+                style.grid_row = placement;
+            }
+            return;
+        }
+        case Property::Gap: {
+            // Canonical "<row> <col>" (px/em tracks; non-length -> 0).
+            auto tracks = parse_grid_track_list(text, style.font_size);
+            auto to_px = [](const ComputedStyle::GridTrack& t) {
+                return t.kind == ComputedStyle::GridTrack::Kind::Fixed ? std::max(0.0f, t.value) : 0.0f;
+            };
+            if (!tracks.empty()) {
+                style.row_gap = to_px(tracks[0]);
+                style.column_gap = to_px(tracks.size() > 1 ? tracks[1] : tracks[0]);
+            }
+            return;
+        }
+        default:
+            return;
     }
 }
 
@@ -621,6 +713,21 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             return true;
         case Property::Flex:
             // Shorthand is expanded at parse time; nothing to apply directly.
+            return true;
+        case Property::GridTemplateColumns:
+        case Property::GridTemplateRows:
+        case Property::GridAutoRows:
+        case Property::GridColumn:
+        case Property::GridRow:
+        case Property::Gap:
+            apply_grid_property(property, style, value);
+            return true;
+        case Property::RowGap:
+            style.row_gap = std::max(0.0f, StyleValueUtils::value_to_length(value, style.row_gap, style.font_size));
+            return true;
+        case Property::ColumnGap:
+            style.column_gap =
+                std::max(0.0f, StyleValueUtils::value_to_length(value, style.column_gap, style.font_size));
             return true;
         case Property::Border:
             return true;

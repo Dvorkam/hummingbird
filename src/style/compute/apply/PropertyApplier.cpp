@@ -225,6 +225,11 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_clip:
             (void)apply_layout_property(Property::Clip, value, style, overrides, context);
             return;
+        case ApplyHook::apply_grid:
+            // grid-template-*/gap/grid-column/grid-row share one hook; dispatch on
+            // the actual property (like apply_overflow).
+            (void)apply_layout_property(property, value, style, overrides, context);
+            return;
         case ApplyHook::apply_flex_direction:
             (void)apply_layout_property(Property::FlexDirection, value, style, overrides, context);
             return;

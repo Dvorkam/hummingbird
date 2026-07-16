@@ -140,6 +140,17 @@
          fall back to the sans body font; the src makes it render as RobotoMono. */
       @font-face { font-family: "Webfont Demo"; src: url(assets/fonts/RobotoMono-Regular.ttf) format("truetype"); }
       .webfont-demo { font-family: "Webfont Demo"; font-size: 17px; color: #14213d; margin: 6px 0; }
+
+      /* T-LAYOUT-GRID-1: CSS Grid MVP (tracks + fr/repeat + gap + line/span). */
+      .grid-cell { background-color: #dfe9ff; border: 1px solid #7aa7e3; border-radius: 6px; padding: 10px;
+                   text-align: center; color: #14213d; }
+      .grid-cell-b { background-color: #ffe8cc; border-color: #e3a35f; }
+      .grid-cell-c { background-color: #d9f2d9; border-color: #6fbf6f; }
+      .grid-equal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .grid-sidebar { display: grid; grid-template-columns: 160px 1fr; gap: 12px; margin-top: 12px; }
+      .grid-areas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+      .grid-areas .span-2 { grid-column: span 2; }
+      .grid-areas .span-all { grid-column: 1 / 5; background-color: #14213d; color: #ffffff; border-color: #14213d; }
     </style>
   </head>
   <body>
@@ -159,7 +170,9 @@
         <code>text-shadow</code>, and legacy <code>clip: rect(...)</code> &mdash; and vendor-prefixed
         properties we do not implement are now dropped silently instead of warning.
         Additive <code>calc()</code> (percentage &plusmn; px) resolves at layout time, and visited links
-        (<code>:visited</code> / <code>vlink</code>) style from navigation history.
+        (<code>:visited</code> / <code>vlink</code>) style from navigation history. Rounding out the milestone:
+        <code>@font-face</code> web fonts (local + remote TTF/OTF) and a <code>display: grid</code> MVP
+        (tracks, <code>fr</code>/<code>repeat()</code>, gaps, and line/span placement).
       </p>
 
       <div class="section">
@@ -377,6 +390,34 @@
         the text renders in that (monospaced) font instead of falling back to the sans body font. Local
         <code>url()</code> sources load synchronously; remote <code>src</code> urls are fetched through the
         resource pipeline (raw TTF/OTF only &mdash; WOFF2 needs a decoder, filed as T-FONT-WOFF2-1).</p>
+      </div>
+
+      <div class="section">
+        <h2>CSS Grid</h2>
+        <div class="grid-equal">
+          <div class="grid-cell">1fr</div>
+          <div class="grid-cell grid-cell-b">1fr</div>
+          <div class="grid-cell grid-cell-c">1fr</div>
+        </div>
+        <p class="note"><code>grid-template-columns: repeat(3, 1fr); gap: 10px</code> &mdash; three equal columns.</p>
+
+        <div class="grid-sidebar">
+          <div class="grid-cell">160px</div>
+          <div class="grid-cell grid-cell-b">1fr (fills the rest)</div>
+        </div>
+        <p class="note"><code>grid-template-columns: 160px 1fr</code> &mdash; a fixed sidebar plus a flexible column.</p>
+
+        <div class="grid-areas">
+          <div class="grid-cell span-all">grid-column: 1 / 5 (spans all four)</div>
+          <div class="grid-cell grid-cell-b span-2">span 2</div>
+          <div class="grid-cell grid-cell-c">3</div>
+          <div class="grid-cell">4</div>
+          <div class="grid-cell grid-cell-b">5</div>
+          <div class="grid-cell grid-cell-c">6</div>
+        </div>
+        <p class="note">Line/span placement over a 4-column grid: the header uses <code>grid-column: 1 / 5</code>,
+        the amber cell <code>grid-column: span 2</code>; the rest auto-place row by row and wrap. Not in this MVP:
+        <code>minmax()</code>, <code>auto-fill/fit</code>, named areas, and column-direction auto-flow.</p>
       </div>
     </div>
   </body>

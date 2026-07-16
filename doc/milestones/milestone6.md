@@ -157,5 +157,5 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [ ] T-ARCH-GUARD-2: Clang-UML Diagram Signal Cleanup
 
 P2: Only if Schedule Allows
-- [ ] T-LAYOUT-GRID-1: Grid Layout MVP
+- [x] T-LAYOUT-GRID-1: Grid Layout MVP (display:grid via GridBox; grid-template-columns/rows with px/em/%/fr and repeat() (expanded at parse, must be the last track-list component); gap/row-gap/column-gap (+ grid-*-gap aliases); grid-auto-rows; row-major auto-placement with line/span placement via grid-column/grid-row; items stretch to their cell. fr shares free space; auto tracks approximated as 1fr. Deferred: minmax(), auto-fill/fit, named lines/areas, grid-auto-flow:column, content-sized auto tracks.)
 - [x] T-ANIM-1: transition + transform (static) (transform translate applies to the paint offset; transition/transition-*/transform-origin recognized as static no-ops, clearing their unsupported-property warnings; scale/rotate deferred pending a graphics matrix API)

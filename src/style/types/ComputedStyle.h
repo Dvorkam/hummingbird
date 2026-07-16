@@ -3,6 +3,7 @@
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
 
@@ -68,7 +69,7 @@ struct ComputedStyle {
         float resolve(float reference) const { return px + (has_percent ? percent * 0.01f * reference : 0.0f); }
     };
 
-    enum class Display { Block, Inline, InlineBlock, ListItem, Flex, None };
+    enum class Display { Block, Inline, InlineBlock, ListItem, Flex, Grid, None };
     Display display = Display::Block;
     enum class FlexDirection { Row, RowReverse, Column, ColumnReverse };
     FlexDirection flex_direction = FlexDirection::Row;
@@ -82,6 +83,33 @@ struct ComputedStyle {
     float flex_shrink = 1.0f;
     std::optional<LengthValue> flex_basis;
     int order = 0;
+
+    // --- CSS Grid (display: grid). Fixed/fr/%/auto tracks, gaps, row-major
+    // auto-placement, and line/span item placement (T-LAYOUT-GRID-1). ---
+    struct GridTrack {
+        enum class Kind { Fixed, Fr, Percent, Auto };
+        Kind kind = Kind::Auto;
+        float value = 0.0f;  // px (Fixed), fraction (Fr), percent (Percent); ignored for Auto
+
+        static GridTrack fixed(float px) { return {Kind::Fixed, px}; }
+        static GridTrack fr(float f) { return {Kind::Fr, f}; }
+        static GridTrack percent(float p) { return {Kind::Percent, p}; }
+        static GridTrack automatic() { return {Kind::Auto, 0.0f}; }
+    };
+    // Item placement on one axis. `line == 0` means auto-place; `line >= 1` is a
+    // 1-based explicit grid line; `span` is the track count (>= 1).
+    struct GridPlacement {
+        int line = 0;
+        int span = 1;
+    };
+
+    std::vector<GridTrack> grid_template_columns;
+    std::vector<GridTrack> grid_template_rows;
+    GridTrack grid_auto_rows{GridTrack::Kind::Auto, 0.0f};  // implicit-row sizing
+    float row_gap = 0.0f;
+    float column_gap = 0.0f;
+    GridPlacement grid_column;
+    GridPlacement grid_row;
     enum class Float { None, Left, Right };
     Float float_type = Float::None;
     enum class Clear { None, Left, Right, Both };

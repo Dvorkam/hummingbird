@@ -475,6 +475,192 @@ std::string Parser::parse_font_family_list(bool* important) {
     return list;
 }
 
+// Reads one grid track (a `<track-size>`) from the token stream and returns its
+// canonical text: "Npx" | "Nem" | "N%" | "Nfr" | "auto". The tokenizer splits
+// "100px" into Number + Identifier and "50%" into Number + Percent, so we peek
+// the unit that follows a number. Unknown/unsupported sizes collapse to "auto".
+std::string Parser::read_one_grid_track() {
+    skip_whitespace_tokens();
+    if (peek().type == TokenType::Identifier) {
+        std::string id = Core::Utils::to_lower(std::string(advance().lexeme));
+        if (id == ValueNames::Auto || id == "min-content" || id == "max-content") {
+            return "auto";
+        }
+        return {};  // unsupported keyword (minmax/fit-content/etc.) -> skip
+    }
+    if (peek().type == TokenType::Number) {
+        std::string num(advance().lexeme);
+        if (peek().type == TokenType::Percent) {
+            advance();
+            return num + "%";
+        }
+        if (peek().type == TokenType::Identifier) {
+            std::string unit = Core::Utils::to_lower(std::string(peek().lexeme));
+            if (unit == "fr" || unit == ValueNames::Px || unit == ValueNames::Em) {
+                advance();
+                return num + unit;
+            }
+            advance();          // unknown unit
+            return num + "px";  // lenient: treat as px
+        }
+        return num + "px";  // unitless -> px
+    }
+    advance();  // slash/comma/other -> skip
+    return {};
+}
+
+std::string Parser::parse_grid_track_list_text(bool* important) {
+    std::vector<std::string> tracks;
+    while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+        if (peek().type == TokenType::Whitespace || peek().type == TokenType::Comma) {
+            advance();
+            continue;
+        }
+        if (peek().type == TokenType::Bang) {
+            bool flagged = consume_important_flag();
+            if (important) *important |= flagged;
+            continue;
+        }
+        if (peek().type == TokenType::Identifier &&
+            Core::Utils::to_lower(std::string(peek().lexeme)) == ValueNames::Repeat) {
+            // repeat(<count>, <track-list>). The tokenizer drops the parentheses,
+            // so we cannot see where the group ends: MVP treats the repeat as
+            // consuming the remainder of the track list (repeat() must be the last
+            // component). Common forms — `repeat(3, 1fr)`, `100px repeat(2, 1fr)` —
+            // work; `repeat(...) 100px` (trailing tracks) does not.
+            advance();  // "repeat"
+            skip_whitespace_tokens();
+            int count = 0;
+            if (peek().type == TokenType::Number) {
+                count = static_cast<int>(Core::Utils::parse_float(advance().lexeme).value_or(0.0f));
+            }
+            skip_whitespace_tokens();
+            if (peek().type == TokenType::Comma) advance();
+            std::vector<std::string> repeated;
+            while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+                if (peek().type == TokenType::Whitespace || peek().type == TokenType::Comma) {
+                    advance();
+                    continue;
+                }
+                if (peek().type == TokenType::Bang) {
+                    bool flagged = consume_important_flag();
+                    if (important) *important |= flagged;
+                    continue;
+                }
+                std::string track = read_one_grid_track();
+                if (!track.empty()) repeated.push_back(std::move(track));
+            }
+            if (count > 0 && count <= 1000) {
+                for (int i = 0; i < count; ++i) {
+                    tracks.insert(tracks.end(), repeated.begin(), repeated.end());
+                }
+            }
+            break;  // repeat consumed the remainder
+        }
+        std::string track = read_one_grid_track();
+        if (!track.empty()) tracks.push_back(std::move(track));
+    }
+    std::string out;
+    for (const auto& track : tracks) {
+        if (!out.empty()) out.push_back(' ');
+        out += track;
+    }
+    return out;
+}
+
+std::string Parser::parse_grid_placement_text(bool* important) {
+    // Reads `<start> [ / <end> ]`, where each side is a line number, `span N`, or
+    // `auto`. Canonicalized to "line/span" (line 0 = auto-place, span >= 1).
+    struct Side {
+        bool is_span = false;
+        bool is_auto = false;
+        int value = 0;  // line number, or span count when is_span
+    };
+    auto read_side = [&]() -> Side {
+        Side side;
+        while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace &&
+               peek().type != TokenType::Slash) {
+            if (peek().type == TokenType::Whitespace) {
+                advance();
+                continue;
+            }
+            if (peek().type == TokenType::Bang) {
+                bool flagged = consume_important_flag();
+                if (important) *important |= flagged;
+                continue;
+            }
+            if (peek().type == TokenType::Identifier) {
+                std::string id = Core::Utils::to_lower(std::string(advance().lexeme));
+                if (id == ValueNames::Span) {
+                    side.is_span = true;
+                } else if (id == ValueNames::Auto) {
+                    side.is_auto = true;
+                }
+                continue;
+            }
+            if (peek().type == TokenType::Number) {
+                side.value = static_cast<int>(Core::Utils::parse_float(advance().lexeme).value_or(0.0f));
+                continue;
+            }
+            advance();
+        }
+        return side;
+    };
+
+    Side start = read_side();
+    Side end;
+    bool has_end = false;
+    if (peek().type == TokenType::Slash) {
+        advance();
+        end = read_side();
+        has_end = true;
+    }
+
+    int line = 0;  // 0 = auto
+    int span = 1;
+    if (start.is_span) {
+        span = std::max(1, start.value);
+        if (has_end && !end.is_span && !end.is_auto && end.value != 0) {
+            line = end.value - span;  // `span S / M`
+        }
+    } else if (!start.is_auto && start.value != 0) {
+        line = start.value;
+        if (has_end) {
+            if (end.is_span) {
+                span = std::max(1, end.value);
+            } else if (!end.is_auto && end.value != 0) {
+                span = std::max(1, end.value - start.value);  // `N / M`
+            }
+        }
+    } else if (has_end && end.is_span) {
+        span = std::max(1, end.value);  // `auto / span S`
+    }
+    if (line < 0) line = 0;
+    return std::to_string(line) + "/" + std::to_string(span);
+}
+
+std::string Parser::parse_gap_text(bool* important) {
+    // gap: <row-gap> [<column-gap>]. Each is a length; canonicalized to
+    // "<row> <col>" (one value applies to both). % is unsupported (dropped).
+    std::vector<std::string> parts;
+    while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace && parts.size() < 2) {
+        if (peek().type == TokenType::Whitespace) {
+            advance();
+            continue;
+        }
+        if (peek().type == TokenType::Bang) {
+            bool flagged = consume_important_flag();
+            if (important) *important |= flagged;
+            continue;
+        }
+        std::string track = read_one_grid_track();  // reuses the length reader
+        if (!track.empty()) parts.push_back(std::move(track));
+    }
+    if (parts.empty()) return {};
+    if (parts.size() == 1) return parts[0] + " " + parts[0];
+    return parts[0] + " " + parts[1];
+}
+
 std::string Parser::parse_custom_property_value(bool* important) {
     std::string raw;
     while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
@@ -536,6 +722,25 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         match(TokenType::Semicolon);  // consume if present
         if (!list.empty()) {
             push_decl(property, Value::identifier(std::move(list)));
+        }
+        return true;
+    }
+    // Grid values read raw tokens (repeat()/fr/spans need control the generic
+    // value list can't give) and canonicalize to a string the apply hook decodes.
+    if (parser_hook == PropertyRegistry::ParserHook::parse_grid_track_list ||
+        parser_hook == PropertyRegistry::ParserHook::parse_grid_placement ||
+        parser_hook == PropertyRegistry::ParserHook::parse_gap) {
+        std::string canonical;
+        if (parser_hook == PropertyRegistry::ParserHook::parse_grid_track_list) {
+            canonical = parse_grid_track_list_text(&important);
+        } else if (parser_hook == PropertyRegistry::ParserHook::parse_grid_placement) {
+            canonical = parse_grid_placement_text(&important);
+        } else {
+            canonical = parse_gap_text(&important);
+        }
+        match(TokenType::Semicolon);  // consume if present
+        if (!canonical.empty()) {
+            push_decl(property, Value::identifier(std::move(canonical)));
         }
         return true;
     }

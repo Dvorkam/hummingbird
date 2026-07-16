@@ -21,6 +21,27 @@ HB_CSS_PROPERTY(Flex, Flex, "flex", "flex", ParserHook::parse_flex_shorthand, Ap
                 PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Order, Order, "order", "order", ParserHook::parse_length_number, ApplyHook::apply_order,
                 PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(GridTemplateColumns, GridTemplateColumns, "grid-template-columns", "grid-template-columns",
+                ParserHook::parse_grid_track_list, ApplyHook::apply_grid, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(GridTemplateRows, GridTemplateRows, "grid-template-rows", "grid-template-rows",
+                ParserHook::parse_grid_track_list, ApplyHook::apply_grid, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(GridAutoRows, GridAutoRows, "grid-auto-rows", "grid-auto-rows", ParserHook::parse_grid_track_list,
+                ApplyHook::apply_grid, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(GridColumn, GridColumn, "grid-column", "grid-column", ParserHook::parse_grid_placement,
+                ApplyHook::apply_grid, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(GridRow, GridRow, "grid-row", "grid-row", ParserHook::parse_grid_placement, ApplyHook::apply_grid,
+                PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(Gap, Gap, "gap", "gap", ParserHook::parse_gap, ApplyHook::apply_grid, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(Gap, GridGap, "grid-gap", "gap", ParserHook::parse_gap, ApplyHook::apply_grid,
+                      PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(RowGap, RowGap, "row-gap", "row-gap", ParserHook::parse_length, ApplyHook::apply_grid,
+                PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(RowGap, GridRowGap, "grid-row-gap", "row-gap", ParserHook::parse_length, ApplyHook::apply_grid,
+                      PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(ColumnGap, ColumnGap, "column-gap", "column-gap", ParserHook::parse_length, ApplyHook::apply_grid,
+                PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY_ALIAS(ColumnGap, GridColumnGap, "grid-column-gap", "column-gap", ParserHook::parse_length,
+                      ApplyHook::apply_grid, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Overflow, Overflow, "overflow", "overflow", ParserHook::parse_identifier, ApplyHook::apply_overflow,
                 PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(OverflowY, OverflowY, "overflow-y", "overflow-y", ParserHook::parse_identifier,

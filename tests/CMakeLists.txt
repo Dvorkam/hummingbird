@@ -43,6 +43,7 @@ add_executable(HummingbirdTests
     layout/TableColumnLayout.test.cpp
     layout/Positioning.test.cpp
     layout/FlexLayout.test.cpp
+    layout/GridLayout.test.cpp
     layout/TextStyleUtils.test.cpp
     renderer/DisplayList.test.cpp
     renderer/Painter.test.cpp

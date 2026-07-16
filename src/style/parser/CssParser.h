@@ -40,6 +40,13 @@ private:
     std::optional<Value::Calc> parse_calc();
     Value parse_number_value();
     std::string parse_font_family_list(bool* important = nullptr);
+    // Grid values are captured as a canonical whitespace-separated string (with
+    // repeat() expanded and units normalized) that the apply hook re-parses into
+    // ComputedStyle grid structures, so Value/Stylesheet stay grid-agnostic.
+    std::string parse_grid_track_list_text(bool* important = nullptr);
+    std::string parse_grid_placement_text(bool* important = nullptr);
+    std::string parse_gap_text(bool* important = nullptr);
+    std::string read_one_grid_track();
     std::string parse_custom_property_value(bool* important = nullptr);
     bool consume_declaration(std::vector<Declaration>& decls);
     void handle_at_rule(Stylesheet& sheet, const std::optional<MediaCondition>& enclosing_media);

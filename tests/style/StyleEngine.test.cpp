@@ -103,6 +103,42 @@ TEST(StyleEngineTest, FontSrcInheritsThroughFontFamilyInheritance) {
     EXPECT_EQ(child->font_src, "fonts/icons.ttf");
 }
 
+TEST(StyleEngineTest, GridTemplateAndPlacementComputed) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "grid");
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    child->set_attribute(Attr::Class, "cell");
+    root->append_child(std::move(child));
+
+    // repeat() must be the last track-list component in this MVP (the tokenizer
+    // drops the parens, so a trailing track can't be told apart from the repeat).
+    Parser parser(
+        ".grid { display: grid; grid-template-columns: 100px repeat(2, 1fr); gap: 12px 8px; } "
+        ".cell { grid-column: 1 / 3; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->display, ComputedStyle::Display::Grid);
+    // 100px repeat(2, 1fr) -> 100px, 1fr, 1fr.
+    ASSERT_EQ(style->grid_template_columns.size(), 3u);
+    EXPECT_EQ(style->grid_template_columns[0].kind, ComputedStyle::GridTrack::Kind::Fixed);
+    EXPECT_FLOAT_EQ(style->grid_template_columns[0].value, 100.0f);
+    EXPECT_EQ(style->grid_template_columns[2].kind, ComputedStyle::GridTrack::Kind::Fr);
+    EXPECT_FLOAT_EQ(style->grid_template_columns[2].value, 1.0f);
+    // gap: 12px 8px -> row 12, column 8.
+    EXPECT_FLOAT_EQ(style->row_gap, 12.0f);
+    EXPECT_FLOAT_EQ(style->column_gap, 8.0f);
+
+    auto cell = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(cell);
+    EXPECT_EQ(cell->grid_column.line, 1);
+    EXPECT_EQ(cell->grid_column.span, 2);  // 1 / 3 -> span 2
+}
+
 TEST(StyleEngineTest, VisitedAnchorUsesVlinkColor) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
