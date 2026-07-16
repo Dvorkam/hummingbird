@@ -75,6 +75,8 @@
       .bs-stretch { background-size: 100% 100%; }
       /* Shorthand position/size syntax: `center/100%` (should match the 100% box). */
       .bs-shorthand { background: url(assets/logos/hummingbird.svg) no-repeat center/100%; }
+      /* Fixed height, auto (aspect-preserved) width — the DDG results-page logo form. */
+      .bs-auto-h { background-size: auto 40px; }
       .chrome-row { display: flex; flex-direction: row; align-items: center; }
       .swatch { width: 96px; height: 64px; margin: 6px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
                 color: #1d2433; font-size: 12px; text-align: center; }
@@ -265,6 +267,7 @@
           <div class="bgsize-cell"><div class="bgsize-box bs-100"></div><span class="bgsize-cap">100%</span></div>
           <div class="bgsize-cell"><div class="bgsize-box bs-stretch"></div><span class="bgsize-cap">100% 100%</span></div>
           <div class="bgsize-cell"><div class="bgsize-box bs-shorthand"></div><span class="bgsize-cap">center/100% (shorthand)</span></div>
+          <div class="bgsize-cell"><div class="bgsize-box bs-auto-h"></div><span class="bgsize-cap">auto 40px</span></div>
         </div>
         <p class="note">In a wide box the modes render distinctly: <code>contain</code> fits the whole logo inside
         (small, letterboxed); <code>100%</code> scales it to the box <em>width</em> keeping aspect ratio (larger,

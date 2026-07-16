@@ -1693,6 +1693,46 @@ TEST(StyleEngineTest, ParsesPercentBackgroundSize) {
     EXPECT_FALSE(style->background_size.height.has_value());  // auto -> aspect-preserved
 }
 
+TEST(StyleEngineTest, ParsesAutoLengthBackgroundSize) {
+    // DDG results-page logo: `background-size: auto 36px` fixes the height and
+    // derives the width from the image aspect. The `auto` first token must NOT
+    // short-circuit to intrinsic-size "auto".
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background-size: auto 36px; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Length);
+    EXPECT_FALSE(style->background_size.width.has_value());  // auto -> aspect-preserved
+    ASSERT_TRUE(style->background_size.height.has_value());
+    EXPECT_FLOAT_EQ(*style->background_size.height, 36.0f);
+    EXPECT_FALSE(style->background_size.height_is_percent);
+}
+
+TEST(StyleEngineTest, SingleAutoBackgroundSizeStaysIntrinsic) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background-size: auto; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    // The single-token form remains intrinsic-size Auto.
+    EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Auto);
+    EXPECT_FALSE(style->background_size.width.has_value());
+    EXPECT_FALSE(style->background_size.height.has_value());
+}
+
 TEST(StyleEngineTest, ParsesPercentBackgroundPosition) {
     // DDG magnifier: `background-position: 50% 50%` must keep the percentage so
     // the painter centers it, rather than treating 50 as a pixel offset.

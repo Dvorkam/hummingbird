@@ -187,7 +187,11 @@ void apply_background_size_value(const Value& value, ComputedStyle& style) {
         style.background_size.height.reset();
         return;
     }
-    if (tokens[0] == ValueNames::Auto) {
+    // Only the single-token form `background-size: auto` means "intrinsic size".
+    // The two-value `auto <length>` (e.g. DDG's logo `auto 36px`) must fall
+    // through to the per-axis path so the fixed axis and aspect-preserved auto
+    // axis are both honored.
+    if (tokens.size() == 1 && tokens[0] == ValueNames::Auto) {
         style.background_size.type = ComputedStyle::BackgroundSize::Type::Auto;
         style.background_size.width.reset();
         style.background_size.height.reset();
