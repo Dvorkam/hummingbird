@@ -43,6 +43,13 @@ Value parse_substituted_value(std::string_view text) {
 }
 
 float value_to_length(const Value& value, float fallback, float font_size) {
+    // A unitless number is a valid length only for 0, but treat any unitless
+    // value as px (lenient, matches apply_optional_length). Without this,
+    // `padding: 0` — a unitless Number — returned the fallback (the current
+    // value), so it silently failed to override a UA default.
+    if (value.type == Value::Type::Number) {
+        return value.number;
+    }
     if (value.type != Value::Type::Length) {
         return fallback;
     }

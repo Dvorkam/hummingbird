@@ -156,6 +156,13 @@ CornerRadius value_to_corner_radius(const Value& value, float font_size) {
 }
 
 void apply_optional_length(std::optional<ComputedStyle::LengthValue>& target, const Value& value, float font_size) {
+    // `auto` unsets the length. This matters when it overrides an earlier value
+    // such as a UA default (e.g. an <input> submit button whose author CSS says
+    // `height:auto` must drop our default 24px height so it can size/stretch).
+    if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
+        target.reset();
+        return;
+    }
     if (value.type == Value::Type::Length) {
         if (value.length.unit == Unit::Px) {
             target = ComputedStyle::LengthValue::from_px(value.length.value);

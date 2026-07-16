@@ -1693,6 +1693,46 @@ TEST(StyleEngineTest, ParsesPercentBackgroundSize) {
     EXPECT_FALSE(style->background_size.height.has_value());  // auto -> aspect-preserved
 }
 
+TEST(StyleEngineTest, AuthorPaddingZeroOverridesInputUaDefault) {
+    // DDG search input: `.search__input { padding: 0 }` must override the UA
+    // default input padding so the input isn't taller than its search box.
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto input = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    input->set_attribute(Attr::Class, "search__input");
+
+    std::string css = ".search__input { padding: 0; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, input.get());
+
+    auto style = input->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->padding.top, 0.0f);
+    EXPECT_FLOAT_EQ(style->padding.right, 0.0f);
+    EXPECT_FLOAT_EQ(style->padding.bottom, 0.0f);
+    EXPECT_FLOAT_EQ(style->padding.left, 0.0f);
+}
+
+TEST(StyleEngineTest, AuthorHeightAutoOverridesInputUaDefault) {
+    // The submit button's `height:auto` must drop the UA default height so it can
+    // stretch between top:0/bottom:0 (DDG results-page green button had a gap).
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto input = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    input->set_attribute(Attr::Type, "submit");
+
+    std::string css = "input { height: auto; width: auto; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, input.get());
+
+    auto style = input->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FALSE(style->height.has_value());  // auto cleared the UA default
+    EXPECT_FALSE(style->width.has_value());
+}
+
 TEST(StyleEngineTest, ParsesAutoLengthBackgroundSize) {
     // DDG results-page logo: `background-size: auto 36px` fixes the height and
     // derives the width from the image aspect. The `auto` first token must NOT
