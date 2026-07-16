@@ -40,6 +40,14 @@ rules; keep this file thin — detailed rules live in the linked docs.
     is fixed rather than building on top of it.
   - If it has no bearing on the current task: note it (add to `doc/TODOs.md`) and
     keep working on the task — do not derail, and do not paper over it.
+- **Note code smells you notice.** The codebase should get healthier over time,
+  not worse. When work surfaces a design smell — shotgun surgery (one feature
+  forces the same mechanical edit across many files/layers), duplicated logic,
+  a leaky abstraction, a boilerplate-heavy extension point — file it in
+  `doc/TODOs.md` as a `refactor`/tech-debt `T-*` story, even if you don't act on
+  it now. Don't refactor mid-feature (keep the diff focused and mirror the
+  established pattern), but don't let the observation evaporate either. Prefer
+  paying the debt down at the next natural touch point.
 - Make a git commit after every self-contained change, in conventional format:
   `feat|fix|chore|docs|refactor|test: message`.
 
