@@ -29,6 +29,15 @@ TEST(TextStyleUtilsTest, ResolvesRobotoForSansFamily) {
     EXPECT_EQ(path.find("RobotoMono-"), std::string::npos);
 }
 
+TEST(TextStyleUtilsTest, FontSrcOverridesBuiltInFamilyMapping) {
+    // A resolved @font-face src (font_src) wins over the family-name mapping.
+    ComputedStyle style;
+    style.font_face = "sans-serif";
+    style.font_src = "assets/fonts/RobotoMono-Regular.ttf";
+    auto path = resolve_text_font_path(&style);
+    EXPECT_NE(path.find("RobotoMono-Regular"), std::string::npos);
+}
+
 TEST(TextStyleUtilsTest, ResolvesRobotoMonoForShorthandFamilyListWithoutCommaToken) {
     ComputedStyle style;
     style.font_face = "Roboto Mono monospace";

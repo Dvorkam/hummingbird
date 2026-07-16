@@ -53,6 +53,13 @@ void handle_image_update(ResourceLoader::PendingResourceUpdate& update, Resource
     stats.image_ready = true;
 }
 
+void handle_font_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store, ProcessingStats& stats) {
+    // Fonts are opaque binary blobs; store the raw bytes for the font resolver
+    // to write to its on-disk cache (no decode step here).
+    store.mark_ready(update.url, update.type, std::move(update.body));
+    stats.font_ready = true;
+}
+
 void handle_failed_update(const ResourceLoader::PendingResourceUpdate& update, ResourceStore& store) {
     store.mark_failed(update.url, update.type);
     if (update.type == ResourceType::Document) {
@@ -74,6 +81,8 @@ void process_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore
         handle_stylesheet_update(update, store, stats);
     } else if (update.type == ResourceType::Image) {
         handle_image_update(update, store, image_decoder, stats);
+    } else if (update.type == ResourceType::Font) {
+        handle_font_update(update, store, stats);
     }
 }
 

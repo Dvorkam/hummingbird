@@ -273,14 +273,21 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
         handle_document_ready(result.document_url, result.effective_url, result.document_error, graphics, viewport);
         return;
     }
-    process_incremental_resource_updates(result.stylesheet_ready, result.image_ready, graphics, viewport);
+    process_incremental_resource_updates(result.stylesheet_ready, result.image_ready, result.font_ready, graphics,
+                                         viewport);
 }
 
-void Tab::process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, IGraphicsContext& graphics,
-                                               const Layout::Rect& viewport) {
+void Tab::process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, bool font_ready,
+                                               IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (stylesheet_ready && document_pipeline_->has_dom_tree()) {
         sync_extension_styles_before_stylesheet_update();
         handle_stylesheet_ready(graphics, viewport);
+    }
+    // A newly-arrived web font changes text metrics/rendering: re-apply styles so
+    // the font resolver picks up the now-cached bytes, then relayout (FOUT).
+    if (font_ready && !stylesheet_ready && document_pipeline_->has_dom_tree()) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "font_ready");
+        mark_dirty("font_ready");
     }
     if (image_ready && document_pipeline_->has_render_tree()) {
         handle_image_ready(graphics, viewport);
@@ -423,6 +430,9 @@ bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Lay
     // resource store dedupes, so re-requesting known URLs is a no-op.
     resource_loader_->request_images(document_pipeline_->background_image_links(),
                                      navigation_lifecycle_.requested_url());
+    // @font-face web fonts the just-applied styles reference; the store dedupes,
+    // so re-requesting known urls each rebuild is a no-op (T-FONT-FACE-1).
+    resource_loader_->request_fonts(document_pipeline_->font_requests(), navigation_lifecycle_.requested_url());
     if (has_render_tree) {
         update_layout_state(viewport, reason);
     }

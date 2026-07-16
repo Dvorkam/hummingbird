@@ -164,6 +164,10 @@ void ResourceLoader::request_images(const std::vector<std::string>& links, std::
     request_resources(links, base_url, ResourceRequestPlanning::image_request_options());
 }
 
+void ResourceLoader::request_fonts(const std::vector<std::string>& links, std::string_view base_url) {
+    request_resources(links, base_url, ResourceRequestPlanning::font_request_options());
+}
+
 ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
     auto pending = take_pending_resources();
 
@@ -189,6 +193,7 @@ ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
     result.document_ready = stats.document_ready;
     result.stylesheet_ready = stats.stylesheet_ready;
     result.image_ready = stats.image_ready;
+    result.font_ready = stats.font_ready;
     return result;
 }
 

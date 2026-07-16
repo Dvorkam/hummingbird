@@ -25,6 +25,40 @@ TEST(CSSParserTest, ParsesSingleRule) {
     EXPECT_EQ(rule.declarations[0].value.color.b, 0);
 }
 
+TEST(CSSParserTest, ParsesFontFaceRule) {
+    Parser parser(
+        "@font-face { font-family: \"My Icons\"; "
+        "src: url(fonts/icons.woff2) format(\"woff2\"), url(fonts/icons.ttf) format(\"truetype\"); }");
+    auto sheet = parser.parse();
+    // The @font-face must not leak as a style rule.
+    EXPECT_TRUE(sheet.rules.empty());
+    ASSERT_EQ(sheet.font_faces.size(), 1u);
+    const auto& face = sheet.font_faces[0];
+    EXPECT_EQ(face.family, "my icons");
+    ASSERT_EQ(face.sources.size(), 2u);
+    EXPECT_EQ(face.sources[0].url, "fonts/icons.woff2");
+    EXPECT_EQ(face.sources[0].format, "woff2");
+    EXPECT_EQ(face.sources[1].url, "fonts/icons.ttf");
+    EXPECT_EQ(face.sources[1].format, "truetype");
+}
+
+TEST(CSSParserTest, FontFaceFormatInferredFromExtension) {
+    Parser parser("@font-face { font-family: myfont; src: url(a/b/thing.otf); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.font_faces.size(), 1u);
+    EXPECT_EQ(sheet.font_faces[0].family, "myfont");
+    ASSERT_EQ(sheet.font_faces[0].sources.size(), 1u);
+    EXPECT_EQ(sheet.font_faces[0].sources[0].format, "opentype");
+}
+
+TEST(CSSParserTest, FollowingRuleStillParsesAfterFontFace) {
+    Parser parser("@font-face { font-family: f; src: url(f.ttf); } div { color: red; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.font_faces.size(), 1u);
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    EXPECT_EQ(sheet.rules[0].declarations[0].property, Property::Color);
+}
+
 TEST(CSSParserTest, ParsesSelectorList) {
     Parser parser("h1, h2, .title { margin: 10px; }");
     auto sheet = parser.parse();

@@ -200,4 +200,8 @@ const std::vector<std::string>& DocumentPipeline::background_image_links() const
     return model_->background_image_links();
 }
 
+const std::vector<std::string>& DocumentPipeline::font_requests() const {
+    return model_->font_requests();
+}
+
 }  // namespace Hummingbird::Engine

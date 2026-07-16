@@ -149,6 +149,13 @@ inline FontFamily resolve_font_family(const Css::ComputedStyle* style) {
 }
 
 inline std::string resolve_text_font_path(const Css::ComputedStyle* style) {
+    // A resolved @font-face wins over the built-in family mapping. The single
+    // declared face is used regardless of weight/style for now (MVP: icon fonts
+    // and single-weight web fonts); synthetic bold/italic selection across
+    // multiple @font-face faces is a later refinement.
+    if (style && !style->font_src.empty()) {
+        return Hummingbird::Core::Utils::resolve_asset_path_string(style->font_src);
+    }
     bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
     bool italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
     FontFamily family = resolve_font_family(style);

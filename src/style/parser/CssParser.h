@@ -43,6 +43,7 @@ private:
     std::string parse_custom_property_value(bool* important = nullptr);
     bool consume_declaration(std::vector<Declaration>& decls);
     void handle_at_rule(Stylesheet& sheet, const std::optional<MediaCondition>& enclosing_media);
+    void parse_font_face(Stylesheet& sheet);
     void skip_at_rule_block();
     std::optional<MediaCondition> parse_media_prelude();
     bool parse_one_rule(Stylesheet& sheet, const std::optional<MediaCondition>& media);

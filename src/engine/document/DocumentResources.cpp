@@ -1,5 +1,10 @@
 #include "engine/document/DocumentResources.h"
 
+#include <cstdint>
+#include <cstdio>
+#include <filesystem>
+#include <fstream>
+#include <functional>
 #include <ostream>
 
 #include "core/dom/Element.h"
@@ -55,6 +60,59 @@ void append_escaped(std::string& out, std::string_view text, bool attribute) {
                 break;
         }
     }
+}
+
+// Blend2D decodes raw TrueType/OpenType only; WOFF/WOFF2/SVG/EOT need a
+// decompressor we do not bundle yet (T-FONT-WOFF2-1). An empty format hint
+// (extension-less url with no format()) is treated as loadable and left to the
+// font cache to accept or reject.
+bool is_loadable_font_format(const std::string& format) {
+    return format.empty() || format == "truetype" || format == "opentype";
+}
+
+// A remote src that must be fetched over the network (has an explicit scheme).
+// Everything else is treated as a bundled-asset-relative path resolved at paint
+// time; root-relative ("/x") and protocol-relative ("//host/x") document-origin
+// urls are not supported without a document base and are skipped by the caller.
+bool is_remote_font_url(const std::string& url) {
+    return url.find("://") != std::string::npos;
+}
+
+bool is_asset_relative_font_url(const std::string& url) {
+    return !url.empty() && url.front() != '/' && url.front() != '\\' && url.find("://") == std::string::npos;
+}
+
+// Writes fetched font bytes to a stable per-url file under the OS temp dir and
+// returns its path, so the existing file-based font cache can load it via
+// createFromFile (remote and local sources converge on a filesystem path). The
+// cache is content-addressed by url hash and written once; concurrent tabs and
+// repeat navigations reuse it.
+std::string write_font_cache_file(const std::string& url, std::string_view bytes) {
+    std::error_code ec;
+    std::filesystem::path dir = std::filesystem::temp_directory_path(ec) / "hummingbird" / "fonts";
+    if (ec) {
+        return {};
+    }
+    std::filesystem::create_directories(dir, ec);
+    if (ec) {
+        return {};
+    }
+    const std::uint64_t hash = std::hash<std::string>{}(url);
+    char name[32];
+    std::snprintf(name, sizeof(name), "%016llx.font", static_cast<unsigned long long>(hash));
+    std::filesystem::path file = dir / name;
+
+    if (!std::filesystem::exists(file)) {
+        std::ofstream out(file, std::ios::binary | std::ios::trunc);
+        if (!out) {
+            return {};
+        }
+        out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+        if (!out) {
+            return {};
+        }
+    }
+    return file.string();
 }
 
 void serialize_svg_node(const DOM::Node* node, std::string& out, bool is_root) {
@@ -201,6 +259,55 @@ bool DocumentResources::update_image_resources(Layout::RenderObject* render_tree
         });
 
     return changed;
+}
+
+Css::FontFaceRegistry DocumentResources::resolve_font_faces(const std::vector<Css::FontFaceRule>& faces,
+                                                           std::vector<std::string>& out_pending_remote) const {
+    Css::FontFaceRegistry registry;
+    for (const auto& face : faces) {
+        if (face.family.empty() || face.sources.empty()) {
+            continue;
+        }
+        // Prefer the first source we can actually decode.
+        const Css::FontFaceSource* chosen = nullptr;
+        for (const auto& source : face.sources) {
+            if (is_loadable_font_format(source.format)) {
+                chosen = &source;
+                break;
+            }
+        }
+        if (!chosen) {
+            HB_LOG_DEBUG("[font] @font-face '" << face.family << "' has no decodable source (WOFF2 needs "
+                                               << "T-FONT-WOFF2-1); falling back");
+            continue;
+        }
+        const std::string& url = chosen->url;
+
+        if (is_remote_font_url(url)) {
+            if (resource_store_) {
+                auto view = resource_store_->view(url, ResourceType::Font);
+                if (view && view->state == ResourceState::Ready && !view->body.empty()) {
+                    std::string path = write_font_cache_file(url, view->body);
+                    if (!path.empty()) {
+                        registry.register_family(face.family, std::move(path));
+                    }
+                    continue;
+                }
+                if (view && view->state == ResourceState::Failed) {
+                    continue;  // Already tried and failed; do not re-request.
+                }
+            }
+            // Not fetched yet: ask the caller to request it, then re-resolve on
+            // the rebuild triggered when the bytes arrive.
+            out_pending_remote.push_back(url);
+        } else if (is_asset_relative_font_url(url)) {
+            // Bundled asset: resolve_asset_path_string finds the file at paint.
+            registry.register_family(face.family, url);
+        }
+        // else: document-origin (root/protocol-relative) url without a base;
+        // unsupported for now — leave the family unregistered (text falls back).
+    }
+    return registry;
 }
 
 bool DocumentResources::update_svg_resources(Layout::RenderObject* render_tree) const {

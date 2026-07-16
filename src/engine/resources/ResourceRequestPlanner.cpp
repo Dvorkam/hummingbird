@@ -30,6 +30,20 @@ ResourceRequestOptions image_request_options() {
     return options;
 }
 
+ResourceRequestOptions font_request_options() {
+    ResourceRequestOptions options{};
+    options.type = ResourceType::Font;
+    options.type_label = "font";
+    options.attr_label = "src";
+    options.allow_fallback_network = true;
+    options.log_duplicates = false;
+    options.log_asset_load = true;
+    // Fonts are opaque binary blobs (TTF/OTF); store them as raw bytes, no decode.
+    options.mark_ready_on_asset = true;
+    options.use_binary = true;
+    return options;
+}
+
 ResolvedRequestUrl resolve_request_url(std::string_view base_url, std::string_view raw_url) {
     auto resolved = resolve_resource_url(base_url, raw_url);
     return {resolved.key, resolved.resolved};

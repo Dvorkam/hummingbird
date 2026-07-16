@@ -90,6 +90,7 @@ public:
     const std::vector<std::string>& stylesheet_links() const;
     const std::vector<std::string>& image_links() const;
     const std::vector<std::string>& background_image_links() const;
+    const std::vector<std::string>& font_requests() const;
 
     // --- interaction ---
     ScriptDispatchResult dispatch_click(const HitTestContext& context);

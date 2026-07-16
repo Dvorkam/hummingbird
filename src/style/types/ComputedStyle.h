@@ -161,6 +161,12 @@ struct ComputedStyle {
     float font_size = 16.0f;   // px
     float line_height = 0.0f;  // px, 0 means use font metrics
     std::string font_face;
+    // Resolved @font-face key for the active family (a loadable asset path or a
+    // remote font url whose bytes are registered with the font cache). Empty
+    // means "no web font matched"; fall back to the built-in family mapping.
+    // Derived from font_face after cascade + inheritance, so it is not itself an
+    // independently inherited/overridable property.
+    std::string font_src;
     std::optional<Color> background;
     std::optional<std::string> background_image;
     struct BoxShadow {

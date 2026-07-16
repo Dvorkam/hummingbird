@@ -11,6 +11,7 @@ struct ProcessingStats {
     bool document_ready = false;
     bool stylesheet_ready = false;
     bool image_ready = false;
+    bool font_ready = false;
     size_t image_decode_count = 0;
     double image_decode_ms = 0.0;
 };

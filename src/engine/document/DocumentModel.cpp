@@ -8,11 +8,13 @@
 #include "core/utils/Timing.h"
 #include "core/utils/Url.h"
 #include "engine/document/DocumentLinkDiscovery.h"
+#include "engine/document/FontFaceResolver.h"
 #include "engine/document/FormSubmissionBuilder.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
+#include "style/compute/FontFaceRegistry.h"
 #include "style/compute/Stylesheet.h"
 #include "style/parser/CssParser.h"
 
@@ -142,7 +144,8 @@ void DocumentModel::mark_visited_links(const std::unordered_set<std::string>& vi
     mark_visited_recursive(dom_tree_.get(), visited_urls, base_url);
 }
 
-void DocumentModel::apply_styles(const std::string& css, const Css::MediaContext& media) {
+void DocumentModel::apply_styles(const std::string& css, const Css::MediaContext& media,
+                                 const IFontFaceResolver* font_resolver) {
     const auto css_parse_start = Core::Clock::now();
     Css::Parser css_parser(css);
     auto stylesheet = css_parser.parse();
@@ -161,8 +164,17 @@ void DocumentModel::apply_styles(const std::string& css, const Css::MediaContext
     }
     applied_media_ = media;
 
+    // Resolve @font-face rules to loadable font keys so style compute can stamp
+    // ComputedStyle::font_src; remote fonts still needing a fetch are exposed via
+    // font_requests() (T-FONT-FACE-1).
+    Css::FontFaceRegistry font_registry;
+    font_requests_.clear();
+    if (font_resolver && !stylesheet.font_faces.empty()) {
+        font_registry = font_resolver->resolve_font_faces(stylesheet.font_faces, font_requests_);
+    }
+
     const auto style_start = Core::Clock::now();
-    style_engine_.apply(stylesheet, dom_tree_.get(), media);
+    style_engine_.apply(stylesheet, dom_tree_.get(), media, &font_registry);
     const auto style_end = Core::Clock::now();
     HB_LOG_INFO("[pipeline] applied stylesheet rules: " << stylesheet.rules.size());
     HB_LOG_INFO("[perf] style apply ms=" << Core::duration_ms(style_start, style_end));

@@ -216,9 +216,26 @@ struct Rule {
     std::optional<MediaCondition> media;
 };
 
+// One `src` entry of an @font-face rule: a url plus an optional lowercased
+// format hint ("truetype", "opentype", "woff", "woff2", ...). The format is
+// taken from an explicit `format(...)` when present, otherwise inferred from
+// the url's file extension.
+struct FontFaceSource {
+    std::string url;
+    std::string format;
+};
+
+// A parsed @font-face rule. `family` is normalized (lowercased, unquoted) to
+// match how font-family names are compared during font resolution.
+struct FontFaceRule {
+    std::string family;
+    std::vector<FontFaceSource> sources;
+};
+
 struct Stylesheet {
     std::vector<Rule> rules;
     std::unordered_set<std::string> unknown_properties;
+    std::vector<FontFaceRule> font_faces;
 };
 
 }  // namespace Hummingbird::Css

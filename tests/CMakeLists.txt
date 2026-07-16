@@ -20,6 +20,7 @@ add_executable(HummingbirdTests
     engine/ExtensionLoader.test.cpp
     engine/ExtensionHost.test.cpp
     engine/ResourceStore.test.cpp
+    engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp
     core/AssetLoader.test.cpp

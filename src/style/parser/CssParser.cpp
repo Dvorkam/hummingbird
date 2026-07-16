@@ -1121,6 +1121,17 @@ void Parser::handle_at_rule(Stylesheet& sheet, const std::optional<MediaConditio
         return;
     }
 
+    if (name == "font-face") {
+        advance();  // consume "font-face"
+        skip_whitespace_tokens();
+        if (match(TokenType::LBrace)) {
+            parse_font_face(sheet);
+        } else {
+            skip_at_rule_block();
+        }
+        return;
+    }
+
     // Deduped process-wide; kept separate from m_unknown_properties so at-rule
     // names do not pollute the stylesheet's unknown-property diagnostics.
     static Core::Utils::WarnOnce skipped_at_rules;
@@ -1128,6 +1139,99 @@ void Parser::handle_at_rule(Stylesheet& sheet, const std::optional<MediaConditio
         HB_LOG_WARN("[parser] Skipping unsupported at-rule: @" << name);
     }
     skip_at_rule_block();
+}
+
+namespace {
+// Lowercased format hint inferred from a font url's file extension. Mirrors the
+// `format(...)` keywords so both paths feed the same loadability check.
+std::string infer_font_format(std::string_view url) {
+    // Trim query/fragment before looking at the extension.
+    size_t cut = url.find_first_of("?#");
+    if (cut != std::string_view::npos) {
+        url = url.substr(0, cut);
+    }
+    size_t dot = url.rfind('.');
+    if (dot == std::string_view::npos) {
+        return {};
+    }
+    std::string ext = Core::Utils::to_lower(std::string(url.substr(dot + 1)));
+    if (ext == "ttf" || ext == "ttc") return "truetype";
+    if (ext == "otf") return "opentype";
+    if (ext == "woff") return "woff";
+    if (ext == "woff2") return "woff2";
+    return ext;
+}
+}  // namespace
+
+// Parses the body of an `@font-face { ... }` block (the opening brace is already
+// consumed) and appends a FontFaceRule to the sheet. Only `font-family` and
+// `src` are captured; other descriptors are skipped. `src` collects each url()
+// with its format hint (explicit `format(...)` preferred, else inferred from the
+// extension) so a later loadability check can pick a raw TTF/OTF over WOFF2.
+void Parser::parse_font_face(Stylesheet& sheet) {
+    FontFaceRule rule;
+    while (!eof() && peek().type != TokenType::RBrace) {
+        skip_whitespace_tokens();
+        if (eof() || peek().type == TokenType::RBrace) {
+            break;
+        }
+        if (peek().type != TokenType::Identifier) {
+            advance();
+            continue;
+        }
+        std::string descriptor = Core::Utils::to_lower(std::string(advance().lexeme));
+        skip_whitespace_tokens();
+        if (!match(TokenType::Colon)) {
+            while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+                advance();
+            }
+            match(TokenType::Semicolon);
+            continue;
+        }
+        if (descriptor == "font-family") {
+            // The tokenizer strips quotes, so a quoted family arrives as plain
+            // identifiers; join multi-word names with single spaces, lowercased.
+            std::string family;
+            while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+                if (peek().type == TokenType::Identifier) {
+                    if (!family.empty()) family.push_back(' ');
+                    family += Core::Utils::to_lower(std::string(advance().lexeme));
+                } else {
+                    advance();
+                }
+            }
+            rule.family = std::move(family);
+        } else if (descriptor == "src") {
+            while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+                if (peek().type == TokenType::Url) {
+                    FontFaceSource source;
+                    source.url = std::string(advance().lexeme);
+                    source.format = infer_font_format(source.url);
+                    rule.sources.push_back(std::move(source));
+                } else if (peek().type == TokenType::Identifier &&
+                           Core::Utils::to_lower(std::string(peek().lexeme)) == "format") {
+                    advance();  // consume "format"
+                    skip_whitespace_tokens();
+                    // The parenthesized string tokenizes as a bare identifier
+                    // (parens/quotes are dropped); attribute it to the last url.
+                    if (peek().type == TokenType::Identifier && !rule.sources.empty()) {
+                        rule.sources.back().format = Core::Utils::to_lower(std::string(advance().lexeme));
+                    }
+                } else {
+                    advance();
+                }
+            }
+        } else {
+            while (!eof() && peek().type != TokenType::Semicolon && peek().type != TokenType::RBrace) {
+                advance();
+            }
+        }
+        match(TokenType::Semicolon);
+    }
+    match(TokenType::RBrace);
+    if (!rule.family.empty() && !rule.sources.empty()) {
+        sheet.font_faces.push_back(std::move(rule));
+    }
 }
 
 bool Parser::parse_one_rule(Stylesheet& sheet, const std::optional<MediaCondition>& media) {

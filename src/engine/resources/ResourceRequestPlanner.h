@@ -25,6 +25,7 @@ struct ResolvedRequestUrl {
 
 ResourceRequestOptions stylesheet_request_options();
 ResourceRequestOptions image_request_options();
+ResourceRequestOptions font_request_options();
 ResolvedRequestUrl resolve_request_url(std::string_view base_url, std::string_view raw_url);
 
 }  // namespace Hummingbird::Engine::ResourceRequestPlanning

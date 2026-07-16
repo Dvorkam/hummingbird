@@ -97,7 +97,8 @@ public:
 
 private:
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
-    void process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, IGraphicsContext& graphics,
+    void process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, bool font_ready,
+                                              IGraphicsContext& graphics,
                                               const Layout::Rect& viewport);
     void sync_extension_styles_before_stylesheet_update();
     void handle_document_ready(std::string_view document_url, std::string_view effective_url,

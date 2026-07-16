@@ -134,6 +134,12 @@
                   margin-bottom: 8px; box-sizing: border-box; }
       .calc-full { width: calc(100% - 40px); }
       .calc-half { width: calc(50% + 40px); background-color: #5b9e4d; }
+
+      /* T-FONT-FACE-1: @font-face maps a custom family to a bundled font file.
+         "Webfont Demo" is not a built-in family, so without @font-face it would
+         fall back to the sans body font; the src makes it render as RobotoMono. */
+      @font-face { font-family: "Webfont Demo"; src: url(assets/fonts/RobotoMono-Regular.ttf) format("truetype"); }
+      .webfont-demo { font-family: "Webfont Demo"; font-size: 17px; color: #14213d; margin: 6px 0; }
     </style>
   </head>
   <body>
@@ -361,6 +367,16 @@
         dark bar stops 40px short of the track's right edge; the green bar is half the track plus 40px.
         Multiplication, nested <code>calc()</code>, and <code>calc()</code> with <code>var()</code> are not yet
         supported (those declarations are dropped).</p>
+      </div>
+
+      <div class="section">
+        <h2>@font-face web font</h2>
+        <p class="webfont-demo">The quick brown fox jumps over 1234567890.</p>
+        <p class="note">This line uses <code>font-family: "Webfont Demo"</code>, a name with no built-in
+        mapping. An <code>@font-face</code> rule points that family at a bundled <code>RobotoMono</code> file, so
+        the text renders in that (monospaced) font instead of falling back to the sans body font. Local
+        <code>url()</code> sources load synchronously; remote <code>src</code> urls are fetched through the
+        resource pipeline (raw TTF/OTF only &mdash; WOFF2 needs a decoder, filed as T-FONT-WOFF2-1).</p>
       </div>
     </div>
   </body>

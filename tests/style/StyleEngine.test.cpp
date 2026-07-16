@@ -8,6 +8,7 @@
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
+#include "style/compute/FontFaceRegistry.h"
 #include "style/compute/StylesheetSource.h"
 #include "style/parser/CssParser.h"
 
@@ -41,6 +42,65 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
     // Child span should at least have a computed style object (even if empty).
     auto style_child = root->get_children()[0]->get_computed_style();
     ASSERT_TRUE(style_child);
+}
+
+TEST(StyleEngineTest, FontSrcResolvedFromFontFaceRegistry) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "icon");
+
+    Parser parser(".icon { font-family: \"My Icons\", sans-serif; }");
+    auto sheet = parser.parse();
+
+    FontFaceRegistry fonts;
+    fonts.register_family("my icons", "fonts/icons.ttf");
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get(), {}, &fonts);
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->font_src, "fonts/icons.ttf");
+}
+
+TEST(StyleEngineTest, FontSrcEmptyWhenNoFontFaceMatches) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    Parser parser("div { font-family: sans-serif; }");
+    auto sheet = parser.parse();
+
+    FontFaceRegistry fonts;
+    fonts.register_family("my icons", "fonts/icons.ttf");
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get(), {}, &fonts);
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_TRUE(style->font_src.empty());
+}
+
+TEST(StyleEngineTest, FontSrcInheritsThroughFontFamilyInheritance) {
+    // A child with no font-family of its own inherits the parent's, so the web
+    // font must resolve on the child too.
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "icon");
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
+
+    Parser parser(".icon { font-family: myicons; }");
+    auto sheet = parser.parse();
+
+    FontFaceRegistry fonts;
+    fonts.register_family("myicons", "fonts/icons.ttf");
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get(), {}, &fonts);
+
+    auto child = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child);
+    EXPECT_EQ(child->font_src, "fonts/icons.ttf");
 }
 
 TEST(StyleEngineTest, VisitedAnchorUsesVlinkColor) {
