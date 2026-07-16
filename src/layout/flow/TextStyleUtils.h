@@ -142,7 +142,11 @@ inline FontFamily resolve_font_family(const Css::ComputedStyle* style) {
             return FontFamily::Sans;
         }
     }
-    if (!families.empty()) {
+    // A resolved @font-face (font_src) means the family WAS matched — just not by
+    // the built-in mapping — so don't warn about it being "unsupported". This
+    // return only picks the built-in fallback family / monospace cache-key bit;
+    // the actual font path comes from font_src (resolve_text_font_path).
+    if (!families.empty() && !(style && !style->font_src.empty())) {
         HB_LOG_WARN("[style] Unsupported font family list '" << raw << "', falling back to Roboto");
     }
     return prefers_monospace ? FontFamily::Monospace : FontFamily::Sans;
