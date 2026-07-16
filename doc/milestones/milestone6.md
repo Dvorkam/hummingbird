@@ -97,10 +97,9 @@ Milestone 6 is complete when all items below are true:
 ### 6.5 - Performance & Memory Hygiene (bounded)
 
 * **[M6 P1] T-PERF-5: Batch Resource Updates**; Goal: coalesce resource arrivals into fewer style/layout passes; Scope: ResourceLoader + DocumentPipeline; Acceptance: heavy pages avoid repeated full rebuilds; Tests: engine perf tests.
-* **[M6 P1] T-PERF-4: Offscreen Raster Cache + Layer Invalidation**; Goal: repaint only dirty regions; Scope: renderer + engine invalidation; Acceptance: cached layers reused across frames; Tests: renderer perf tests.
-* **[M6 P1] T-CACHE-1: Tab Resource Eviction + Rehydrate**; Goal: evict resources/render tree for background tabs and restore on focus; Scope: Tab + ResourceStore; Acceptance: inactive tabs drop memory and reload on activation; Tests: engine tests.
-* **[M6 P1] T-DOM-1: Infinite Scroll DOM Virtualization**; Goal: cap live DOM/resources for unbounded feeds; Scope: DOM/layout + resource eviction; Acceptance: long feeds do not grow memory unbounded and can rehydrate when revisiting content; Tests: engine perf tests.
 * **[M6 P1] T-DOM-2: DOM Budget Failure UX**; Goal: show a stable error page and recovery action when DOM budget is exceeded; Scope: DocumentPipeline + ResourceLoader; Acceptance: budget failure shows user-facing page instead of blank reset; Tests: engine tests.
+
+> **Moved out of M6 (2026-07-16):** the speculative perf/memory *architecture* — **T-PERF-4** (offscreen raster cache + layer invalidation → M14 The Compositor), **T-CACHE-1** (tab resource eviction + rehydrate → M14 perf track), and **T-DOM-1** (infinite-scroll DOM virtualization → M12 Framework Gauntlet). They were always "pull in only if real pages force it"; nothing forced them, and each belongs where the workload that validates it lives. See `doc/TODOs.md`. The bounded hygiene M6 *did* deliver — batch resource updates (T-PERF-5), selector-match acceleration (T-PERF-STYLE-1), and DOM budget failure UX (T-DOM-2) — stays here.
 
 ### 6.6 - Polish
 
@@ -140,10 +139,8 @@ P1: Compatibility + Hygiene (pull in as needed)
 - [x] T-CSS-BG-SHORTHAND-SIZE-1: `background` Shorthand `position/size` Syntax (slash token + shorthand split; DDG logo centers)
 - [x] T-CSS-CALC-1: `calc()` Length Expressions (additive percent ± px on width/height/min/max/insets via unified ComputedStyle::LengthValue; multiplication/nesting/var() deferred)
 - [x] T-PERF-5: Batch Resource Updates (already realized: enqueue_resource_update -> single consume_pending_updates per tick -> aggregate ready flags -> one restyle + one image pass; added a regression test locking the coalescing)
-- [ ] T-PERF-4: Offscreen Raster Cache + Layer Invalidation
-- [ ] T-CACHE-1: Tab Resource Eviction + Rehydrate
-- [ ] T-DOM-1: Infinite Scroll DOM Virtualization
 - [x] T-DOM-2: DOM Budget Failure UX (on DOM arena budget exhaustion the model resets and renders a built-in "page too large" error page instead of a blank tab; arena budget made injectable to test the path)
+- [→] T-PERF-4 / T-CACHE-1 / T-DOM-1: moved out of M6 (speculative perf/memory architecture, unforced) — see `doc/TODOs.md` (M14/M12)
 - [x] T-SEC-URL-1: Resource/Asset Origin Firewall (asset loader refuses absolute/UNC/drive/traversal/URL ids; ResourceLoader guards BOTH provider probes — raw and resolved — so origin-relative `//host/x`, `/x`, `\\host\x` never reach the filesystem)
 - [x] T-HTML-RAWTEXT-1: Script/Style Raw-Text Parsing (RawText tokenizer state consumes `<script>`/`<style>` bodies to the matching case-insensitive end tag; `<` in JS/CSS strings no longer spawns fake tags or garbage resource requests)
 - [x] T-PERF-STYLE-1: Selector Match Acceleration (rules bucketed by key selector into id/class/tag/universal; each element tests only candidate buckets, re-sorted into document order so the cascade is unchanged)
