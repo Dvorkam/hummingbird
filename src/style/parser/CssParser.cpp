@@ -528,6 +528,7 @@ std::string Parser::parse_grid_track_list_text(bool* important) {
             // consuming the remainder of the track list (repeat() must be the last
             // component). Common forms — `repeat(3, 1fr)`, `100px repeat(2, 1fr)` —
             // work; `repeat(...) 100px` (trailing tracks) does not.
+            // Fixed centrally by T-CSS-PAREN-TOKENS-1 (tokenize parens).
             advance();  // "repeat"
             skip_whitespace_tokens();
             int count = 0;
