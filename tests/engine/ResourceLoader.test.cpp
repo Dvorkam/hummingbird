@@ -7,6 +7,7 @@
 #include <string_view>
 #include <unordered_map>
 
+#include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/resources/ResourceUrl.h"
 #include "platform/decoders/CompositeImageDecoder.h"
 #include "test_utils/TestFakes.h"
@@ -104,6 +105,23 @@ public:
 };
 }  // namespace
 
+TEST(ResourceTypeTableTest, EveryTypeHasAConsistentDescriptor) {
+    // The descriptor table is what makes adding a resource type a one-entry
+    // change (T-RESOURCE-TYPE-TABLE-1): the loader's request path and the
+    // update processor's ready path both dispatch off it, so every enum value
+    // must have a well-formed entry.
+    using Hummingbird::Engine::kResourceTypeCount;
+    using Hummingbird::Engine::ResourceRequestPlanning::request_options_for;
+
+    for (size_t i = 0; i < kResourceTypeCount; ++i) {
+        const auto type = static_cast<ResourceType>(i);
+        const auto& options = request_options_for(type);
+        EXPECT_EQ(options.type, type) << "table entry " << i << " maps to the wrong type";
+        EXPECT_FALSE(options.type_label.empty()) << "table entry " << i << " needs a label";
+        EXPECT_FALSE(options.attr_label.empty()) << "table entry " << i << " needs an attr label";
+    }
+}
+
 TEST(ResourceLoaderTest, StylesheetAssetsMarkReadyWithoutNetwork) {
     auto provider = std::make_unique<FakeResourceProvider>();
     provider->text_["styles/site.css"] = "body { color: #111; }";
@@ -170,12 +188,12 @@ TEST(ResourceLoaderTest, CoalescesMultipleArrivalsIntoOneBatch) {
     // consume drains them together.
     auto batch = loader.consume_pending_updates();
     EXPECT_EQ(batch.pending_count, 3u);
-    EXPECT_TRUE(batch.image_ready);
+    EXPECT_TRUE(batch.is_ready(ResourceType::Image));
 
     // The queue is now empty: no second rebuild is triggered.
     auto empty = loader.consume_pending_updates();
     EXPECT_EQ(empty.pending_count, 0u);
-    EXPECT_FALSE(empty.image_ready);
+    EXPECT_FALSE(empty.is_ready(ResourceType::Image));
 }
 
 TEST(ResourceLoaderTest, ImageUsesFallbackNetworkAndDecoder) {
@@ -194,7 +212,7 @@ TEST(ResourceLoaderTest, ImageUsesFallbackNetworkAndDecoder) {
     EXPECT_TRUE(fallback_ptr->requests[0].options.allow_insecure);
 
     auto batch = loader.consume_pending_updates();
-    EXPECT_TRUE(batch.image_ready);
+    EXPECT_TRUE(batch.is_ready(ResourceType::Image));
 
     auto resolved = resolve_resource_url(base_url, "/img/logo.png");
     auto view = loader.view(resolved.key, ResourceType::Image);
@@ -220,7 +238,7 @@ TEST(ResourceLoaderTest, SvgImagesDecodeThroughCompositeDecoder) {
     loader.request_images({"/img/logo.svg"}, base_url);
 
     auto batch = loader.consume_pending_updates();
-    EXPECT_TRUE(batch.image_ready);
+    EXPECT_TRUE(batch.is_ready(ResourceType::Image));
 
     auto resolved = resolve_resource_url(base_url, "/img/logo.svg");
     auto view = loader.view(resolved.key, ResourceType::Image);
@@ -250,7 +268,7 @@ TEST(ResourceLoaderTest, NavigatePostUsesNetworkPostWithBodyAndContentType) {
     EXPECT_EQ(network_ptr->requests[0].options.content_type, "application/x-www-form-urlencoded");
 
     auto batch = loader.consume_pending_updates();
-    EXPECT_TRUE(batch.document_ready);
+    EXPECT_TRUE(batch.is_ready(ResourceType::Document));
     EXPECT_EQ(batch.document_url, "https://example.dev/html/");
 }
 
@@ -264,7 +282,7 @@ TEST(ResourceLoaderTest, StoresAnimatedImagesWhenDecoderProvidesFrames) {
     loader.request_images({"/img/anim.gif"}, base_url);
 
     auto batch = loader.consume_pending_updates();
-    EXPECT_TRUE(batch.image_ready);
+    EXPECT_TRUE(batch.is_ready(ResourceType::Image));
 
     auto resolved = resolve_resource_url(base_url, "/img/anim.gif");
     auto first = loader.view(resolved.key, ResourceType::Image);

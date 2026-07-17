@@ -18,7 +18,10 @@ enum class ResourceType : uint8_t {
     Stylesheet,
     Image,
     Font,
+    Count,  // sentinel — keep last; sizes the per-type descriptor table
 };
+
+inline constexpr size_t kResourceTypeCount = static_cast<size_t>(ResourceType::Count);
 
 enum class ResourceState : uint8_t {
     Requested,

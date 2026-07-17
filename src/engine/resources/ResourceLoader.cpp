@@ -157,15 +157,15 @@ void ResourceLoader::allow_insecure_host(std::string_view host) {
 }
 
 void ResourceLoader::request_stylesheets(const std::vector<std::string>& links, std::string_view base_url) {
-    request_resources(links, base_url, ResourceRequestPlanning::stylesheet_request_options());
+    request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Stylesheet));
 }
 
 void ResourceLoader::request_images(const std::vector<std::string>& links, std::string_view base_url) {
-    request_resources(links, base_url, ResourceRequestPlanning::image_request_options());
+    request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Image));
 }
 
 void ResourceLoader::request_fonts(const std::vector<std::string>& links, std::string_view base_url) {
-    request_resources(links, base_url, ResourceRequestPlanning::font_request_options());
+    request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Font));
 }
 
 ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
@@ -184,16 +184,18 @@ ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
     }
 
     const auto process_end = Core::Clock::now();
-    HB_LOG_INFO("[perf] resource batch ms="
-                << Core::duration_ms(process_start, process_end) << " pending=" << pending_count << " doc="
-                << static_cast<int>(stats.document_ready) << " styles=" << static_cast<int>(stats.stylesheet_ready)
-                << " images=" << static_cast<int>(stats.image_ready) << " decode_ms=" << stats.image_decode_ms
-                << " decoded_images=" << stats.image_decode_count);
+    std::string ready_summary;
+    for (size_t i = 0; i < kResourceTypeCount; ++i) {
+        if (!stats.ready[i]) continue;
+        if (!ready_summary.empty()) ready_summary += ',';
+        ready_summary += ResourceRequestPlanning::request_options_for(static_cast<ResourceType>(i)).type_label;
+    }
+    HB_LOG_INFO("[perf] resource batch ms=" << Core::duration_ms(process_start, process_end)
+                                            << " pending=" << pending_count << " ready=[" << ready_summary
+                                            << "] decode_ms=" << stats.image_decode_ms
+                                            << " decoded_images=" << stats.image_decode_count);
 
-    result.document_ready = stats.document_ready;
-    result.stylesheet_ready = stats.stylesheet_ready;
-    result.image_ready = stats.image_ready;
-    result.font_ready = stats.font_ready;
+    result.ready = stats.ready;
     return result;
 }
 

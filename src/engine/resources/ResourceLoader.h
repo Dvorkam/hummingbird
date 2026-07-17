@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include <array>
 #include <atomic>
 #include <cstdint>
 #include <mutex>
@@ -44,14 +45,13 @@ public:
     };
 
     struct BatchResult {
-        bool document_ready = false;
-        bool stylesheet_ready = false;
-        bool image_ready = false;
-        bool font_ready = false;
+        std::array<bool, kResourceTypeCount> ready{};
         size_t pending_count = 0;
         std::string document_url;
         std::string effective_url;
         NetworkError document_error = NetworkError::None;
+
+        bool is_ready(ResourceType type) const { return ready[static_cast<size_t>(type)]; }
     };
 
     ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,

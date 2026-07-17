@@ -2,6 +2,7 @@
 
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
+#include "engine/resources/ResourceRequestPlanner.h"
 
 namespace Hummingbird::Engine::ResourceUpdateProcessor {
 
@@ -9,24 +10,18 @@ namespace {
 void handle_document_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store,
                             ResourceLoader::BatchResult& result, ProcessingStats& stats) {
     store.mark_ready(update.url, update.type, std::move(update.body));
-    stats.document_ready = true;
+    stats.mark_ready(ResourceType::Document);
     result.document_url = update.url;
     result.effective_url = update.effective_url;
     result.document_error = update.error;
 }
 
-void handle_stylesheet_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store,
-                              ProcessingStats& stats) {
-    store.mark_ready(update.url, update.type, std::move(update.body));
-    stats.stylesheet_ready = true;
-}
-
-void handle_image_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store,
+bool handle_image_decode(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store,
                          IImageDecoder* image_decoder, ProcessingStats& stats) {
     if (!image_decoder) {
         HB_LOG_WARN("[image] decode skipped (no decoder): " << update.url);
         store.mark_failed(update.url, update.type);
-        return;
+        return false;
     }
     const auto decode_start = Core::Clock::now();
     auto animated = image_decoder->decode_animation(update.body);
@@ -36,8 +31,7 @@ void handle_image_update(ResourceLoader::PendingResourceUpdate& update, Resource
         const auto decode_end = Core::Clock::now();
         stats.image_decode_ms += Core::duration_ms(decode_start, decode_end);
         ++stats.image_decode_count;
-        stats.image_ready = true;
-        return;
+        return true;
     }
     auto decoded = image_decoder->decode(update.body);
     const auto decode_end = Core::Clock::now();
@@ -46,18 +40,11 @@ void handle_image_update(ResourceLoader::PendingResourceUpdate& update, Resource
     if (!decoded) {
         HB_LOG_WARN("[image] decode failed: " << update.url);
         store.mark_failed(update.url, update.type);
-        return;
+        return false;
     }
     store.mark_ready(update.url, update.type, std::move(update.body));
     store.set_image(update.url, update.type, std::move(*decoded));
-    stats.image_ready = true;
-}
-
-void handle_font_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore& store, ProcessingStats& stats) {
-    // Fonts are opaque binary blobs; store the raw bytes for the font resolver
-    // to write to its on-disk cache (no decode step here).
-    store.mark_ready(update.url, update.type, std::move(update.body));
-    stats.font_ready = true;
+    return true;
 }
 
 void handle_failed_update(const ResourceLoader::PendingResourceUpdate& update, ResourceStore& store) {
@@ -75,14 +62,26 @@ void process_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore
         return;
     }
 
+    // Document stays hand-handled: it carries navigation results (url,
+    // effective url, error) that no other resource type has.
     if (update.type == ResourceType::Document) {
         handle_document_update(update, store, result, stats);
-    } else if (update.type == ResourceType::Stylesheet) {
-        handle_stylesheet_update(update, store, stats);
-    } else if (update.type == ResourceType::Image) {
-        handle_image_update(update, store, image_decoder, stats);
-    } else if (update.type == ResourceType::Font) {
-        handle_font_update(update, store, stats);
+        return;
+    }
+
+    const auto& options = ResourceRequestPlanning::request_options_for(update.type);
+    bool ready = false;
+    switch (options.decode) {
+        case ResourceRequestPlanning::ResourceDecode::Image:
+            ready = handle_image_decode(update, store, image_decoder, stats);
+            break;
+        case ResourceRequestPlanning::ResourceDecode::None:
+            store.mark_ready(update.url, update.type, std::move(update.body));
+            ready = true;
+            break;
+    }
+    if (ready) {
+        stats.mark_ready(update.type);
     }
 }
 

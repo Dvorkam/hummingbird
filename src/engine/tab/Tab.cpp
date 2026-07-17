@@ -269,16 +269,18 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     auto result = resource_loader_->consume_pending_updates();
     if (result.pending_count == 0) return;
 
-    if (result.document_ready) {
+    if (result.is_ready(ResourceType::Document)) {
         handle_document_ready(result.document_url, result.effective_url, result.document_error, graphics, viewport);
         return;
     }
-    process_incremental_resource_updates(result.stylesheet_ready, result.image_ready, result.font_ready, graphics,
-                                         viewport);
+    process_incremental_resource_updates(result, graphics, viewport);
 }
 
-void Tab::process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, bool font_ready,
-                                               IGraphicsContext& graphics, const Layout::Rect& viewport) {
+void Tab::process_incremental_resource_updates(const ResourceLoader::BatchResult& batch, IGraphicsContext& graphics,
+                                               const Layout::Rect& viewport) {
+    const bool stylesheet_ready = batch.is_ready(ResourceType::Stylesheet);
+    const bool font_ready = batch.is_ready(ResourceType::Font);
+    const bool image_ready = batch.is_ready(ResourceType::Image);
     if (stylesheet_ready && document_pipeline_->has_dom_tree()) {
         sync_extension_styles_before_stylesheet_update();
         handle_stylesheet_ready(graphics, viewport);
