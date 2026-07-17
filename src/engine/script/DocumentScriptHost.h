@@ -40,6 +40,9 @@ public:
     bool get_dataset(DOM::Node* node, std::string_view key, std::string& out) override;
     void set_dataset(DOM::Node* node, std::string_view key, std::string_view value) override;
 
+    void set_inner_html(DOM::Node* node, std::string_view html) override;
+    std::string get_inner_html(DOM::Node* node) override;
+
     DOM::Node* query_selector(DOM::Node* scope, std::string_view selector) override;
     std::vector<DOM::Node*> query_selector_all(DOM::Node* scope, std::string_view selector) override;
     bool matches(DOM::Node* node, std::string_view selector) override;

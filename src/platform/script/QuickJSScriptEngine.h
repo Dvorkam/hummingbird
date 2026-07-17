@@ -57,6 +57,8 @@ private:
 
     static JSValue js_node_get_class_name(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_set_class_name(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_get_inner_html(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_set_inner_html(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_get_class_list(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_get_dataset(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 

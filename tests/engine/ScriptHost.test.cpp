@@ -235,6 +235,48 @@ TEST(DocumentScriptHostTest, DatasetMapsCamelCaseToDataAttr) {
     EXPECT_FALSE(host.get_dataset(el, "missing", out));
 }
 
+TEST(DocumentScriptHostTest, InnerHtmlParsesFragmentReplacesAndSerializes) {
+    ArenaAllocator arena(8192, 8);
+    auto root = Element::create(arena, "div");
+    DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto* ul = host.create_element("ul");
+    host.append_child(ul, host.create_text_node("stale"));  // existing content to replace
+    host.append_child(root.get(), ul);
+
+    host.set_inner_html(ul, "<li class=\"a\">one</li><li>two</li>");
+    auto kids = host.child_elements(ul);
+    ASSERT_EQ(kids.size(), 2u);
+    EXPECT_EQ(host.get_attribute(kids[0], "class"), "a");
+    EXPECT_EQ(host.get_text_content(kids[0]), "one");
+    EXPECT_EQ(host.get_text_content(kids[1]), "two");
+    EXPECT_EQ(host.parent_node(kids[0]), ul);
+    EXPECT_TRUE(host.consume_mutations());
+
+    // Round-trips through serialization (single attribute -> deterministic order).
+    EXPECT_EQ(host.get_inner_html(ul), "<li class=\"a\">one</li><li>two</li>");
+}
+
+TEST(DocumentScriptHostTest, InnerHtmlRecoversFromMalformedAndEscapesText) {
+    ArenaAllocator arena(8192, 8);
+    auto root = Element::create(arena, "div");
+    DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto* ul = host.create_element("ul");
+    host.append_child(root.get(), ul);
+
+    // Unclosed <li>s recover into siblings, matching document parsing.
+    host.set_inner_html(ul, "<li>a<li>b");
+    EXPECT_EQ(host.child_elements(ul).size(), 2u);
+
+    // Text is escaped on the way out; void elements emit no end tag.
+    auto* p = host.create_element("p");
+    host.append_child(root.get(), p);
+    host.set_inner_html(p, "x &amp; y<br>z");
+    EXPECT_EQ(host.get_inner_html(p), "x &amp; y<br>z");
+}
+
 TEST(DocumentScriptHostTest, SelectorQueriesMatchLikeTheStyleEngine) {
     ArenaAllocator arena(8192, 8);
     DocumentScriptHost host;

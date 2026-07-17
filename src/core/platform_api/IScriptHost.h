@@ -49,6 +49,13 @@ public:
     virtual bool get_dataset(DOM::Node* node, std::string_view key, std::string& out) = 0;
     virtual void set_dataset(DOM::Node* node, std::string_view key, std::string_view value) = 0;
 
+    // --- innerHTML (7.1.4) ---
+    // Replaces node's children with the fragment parsed from `html` (reuses the
+    // document HTML parser in a recovery-oriented fragment mode).
+    virtual void set_inner_html(DOM::Node* node, std::string_view html) = 0;
+    // Serializes node's children back to HTML.
+    virtual std::string get_inner_html(DOM::Node* node) = 0;
+
     // --- Selector queries (7.1.3) ---
     // `scope` is the element to search within; nullptr means the document root.
     // Queries reuse the style engine's selector parser + matcher, so the

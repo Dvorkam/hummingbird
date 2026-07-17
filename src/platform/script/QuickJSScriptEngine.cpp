@@ -339,6 +339,29 @@ JSValue QuickJSScriptEngine::js_node_set_class_name(JSContext* ctx, JSValueConst
     return JS_UNDEFINED;
 }
 
+JSValue QuickJSScriptEngine::js_node_get_inner_html(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                    JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NewString(ctx, "");
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_NewString(ctx, "");
+    return JS_NewString(ctx, engine->host_->get_inner_html(node).c_str());
+}
+
+JSValue QuickJSScriptEngine::js_node_set_inner_html(JSContext* ctx, JSValueConst this_val, int argc,
+                                                    JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_UNDEFINED;
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_UNDEFINED;
+    const char* html = JS_ToCString(ctx, argv[0]);
+    if (html) {
+        engine->host_->set_inner_html(node, html);
+        JS_FreeCString(ctx, html);
+    }
+    return JS_UNDEFINED;
+}
+
 JSValue QuickJSScriptEngine::js_node_get_class_list(JSContext* ctx, JSValueConst this_val, int /*argc*/,
                                                     JSValueConst* /*argv*/) {
     auto* engine = engine_from_context(ctx);
@@ -684,6 +707,7 @@ void QuickJSScriptEngine::install_node_prototype() {
     define_getter(proto, "childNodes", js_node_get_child_nodes);
     define_getter(proto, "children", js_node_get_children);
     define_accessor(proto, "className", js_node_get_class_name, js_node_set_class_name);
+    define_accessor(proto, "innerHTML", js_node_get_inner_html, js_node_set_inner_html);
     define_getter(proto, "classList", js_node_get_class_list);
     define_getter(proto, "dataset", js_node_get_dataset);
 

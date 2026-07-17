@@ -337,7 +337,10 @@ P0: DOM + Events (North Star)
       (reuses the CssParser + SelectorMatcher so the supported selector subset is
       identical to CSS; static document-order snapshots; document- and element-scoped;
       matches/closest + legacy getElementsByClassName/getElementsByTagName)
-- [ ] 7.1.4: innerHTML (fragment parse)
+- [x] 7.1.4: innerHTML (fragment parse) — 2026-07-17
+      (setter reuses the document HtmlParser in fragment mode — recovery matches
+      document parsing; getter serializes children with text/attr escaping and
+      void-element handling)
 - [ ] 7.1.5: Form Control JS Surface + Checkbox MVP
 - [ ] 7.2.1: EventTarget + Listener Registry
 - [ ] 7.2.2: Event Objects

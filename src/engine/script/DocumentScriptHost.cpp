@@ -8,6 +8,8 @@
 #include "core/dom/Text.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlParser.h"
+#include "html/HtmlTagMetadata.h"
 #include "style/compute/Stylesheet.h"
 #include "style/parser/CssParser.h"
 #include "style/selector/SelectorMatcher.h"
@@ -59,6 +61,64 @@ std::string dataset_key_to_attr(std::string_view key) {
         }
     }
     return attr;
+}
+
+// Appends `text` to `out`, escaping the characters that are unsafe in HTML text
+// (or, when `in_attribute`, in a double-quoted attribute value).
+void append_escaped(std::string& out, std::string_view text, bool in_attribute) {
+    for (char c : text) {
+        switch (c) {
+            case '&':
+                out += "&amp;";
+                break;
+            case '<':
+                out += "&lt;";
+                break;
+            case '>':
+                out += "&gt;";
+                break;
+            case '"':
+                if (in_attribute) {
+                    out += "&quot;";
+                } else {
+                    out.push_back(c);
+                }
+                break;
+            default:
+                out.push_back(c);
+        }
+    }
+}
+
+void serialize_node(const DOM::Node* node, std::string& out) {
+    if (const auto* text = dynamic_cast<const DOM::Text*>(node)) {
+        append_escaped(out, text->get_text(), /*in_attribute=*/false);
+        return;
+    }
+    const auto* element = dynamic_cast<const DOM::Element*>(node);
+    if (!element) {
+        return;
+    }
+    const std::string& tag = element->get_tag_name();
+    out.push_back('<');
+    out += tag;
+    for (const auto& [name, value] : element->get_attributes()) {
+        out.push_back(' ');
+        out += name;
+        out += "=\"";
+        append_escaped(out, value, /*in_attribute=*/true);
+        out.push_back('"');
+    }
+    out.push_back('>');
+    if (Html::TagMetadata::is_void_tag(tag)) {
+        return;  // void elements have no children and no end tag
+    }
+    for (const auto& child : element->get_children()) {
+        serialize_node(child.get(), out);
+    }
+    out += "</";
+    out += tag;
+    out.push_back('>');
 }
 
 // Parses a selector string into the style engine's selector list by reusing the
@@ -260,6 +320,39 @@ void DocumentScriptHost::set_dataset(DOM::Node* node, std::string_view key, std:
     if (!element) return;
     element->set_attribute(dataset_key_to_attr(key), value);
     mutated_ = true;
+}
+
+void DocumentScriptHost::set_inner_html(DOM::Node* node, std::string_view html) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element || !arena_) return;
+
+    // Reuse the document parser on the fragment: it appends top-level tags under
+    // a synthetic root without synthesizing <html>/<body>, so the root's children
+    // are exactly the fragment's nodes.
+    Html::Parser parser(*arena_, html);
+    auto parsed = parser.parse();
+
+    node->clear_children();
+    if (parsed.dom) {
+        // Transfer parsed nodes in order; the synthetic root is left empty and
+        // reclaimed with the arena.
+        while (DOM::Node* first = parsed.dom->first_child()) {
+            Core::ArenaPtr<DOM::Node> child = parsed.dom->remove_child_node(first);
+            if (child) {
+                node->append_child_node(std::move(child));
+            }
+        }
+    }
+    mutated_ = true;
+}
+
+std::string DocumentScriptHost::get_inner_html(DOM::Node* node) {
+    if (!node) return {};
+    std::string out;
+    for (const auto& child : node->get_children()) {
+        serialize_node(child.get(), out);
+    }
+    return out;
 }
 
 DOM::Node* DocumentScriptHost::query_selector(DOM::Node* scope, std::string_view selector) {

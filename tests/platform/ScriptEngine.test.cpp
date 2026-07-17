@@ -137,6 +137,38 @@ TEST(ScriptEngineTest, ClassListDatasetAndAttributesThroughBindings) {
     EXPECT_TRUE(host.consume_mutations());
 }
 
+TEST(ScriptEngineTest, InnerHtmlThroughBindings) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 8);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto ul = Hummingbird::DOM::Element::create(arena, "ul");
+    ul->set_attribute("id", "list");
+    root->append_child(std::move(ul));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "var l = document.getElementById('list');"
+        "l.innerHTML = '<li>a</li><li class=\"done\">b</li>';"
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "check('count', l.children.length === 2);"
+        "check('class', l.children[1].className === 'done');"
+        "check('query', l.querySelector('.done').textContent === 'b');"
+        "check('serialize', l.innerHTML.indexOf('<li class=\"done\">b</li>') >= 0);"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+
+    auto* list = host.get_element_by_id("list");
+    ASSERT_NE(list, nullptr);
+    EXPECT_EQ(host.child_elements(list).size(), 2u);
+    EXPECT_TRUE(host.consume_mutations());
+}
+
 TEST(ScriptEngineTest, SelectorQueriesThroughBindings) {
     Hummingbird::Core::ArenaAllocator arena(8192, 8);
     auto root = Hummingbird::DOM::Element::create(arena, "div");
