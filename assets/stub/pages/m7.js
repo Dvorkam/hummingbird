@@ -4,7 +4,7 @@
 (function () {
     var step = document.getElementById("step-external");
     if (step) {
-        step.textContent = "2. external m7.js: fetched as a separate file and executed ✓";
+        step.textContent = "2. external m7.js: fetched as a separate file and executed [OK]";
     }
     var last = document.getElementById("last-writer");
     if (last) {

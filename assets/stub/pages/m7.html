@@ -17,14 +17,14 @@
       .hint { color: #5a6478; font-size: 14px; }
     </style>
   </head>
-  <body onload="const status = document.getElementById('load-status'); if (status) { status.textContent = 'load event: fired after every script had run ✓'; }">
+  <body onload="const status = document.getElementById('load-status'); if (status) { status.textContent = 'load event: fired after every script had run [OK]'; }">
     <div class="top">
       <p class="top-title">M7: External Script Loading (7.0.1)</p>
       <a href="https://example.dev">&laquo; back to example.dev</a>
     </div>
     <div class="page">
       <div class="section">
-        <h2>Document-order execution: inline &rarr; external &rarr; inline</h2>
+        <h2>Document-order execution: inline -&gt; external -&gt; inline</h2>
         <p class="hint">Three <code>&lt;script&gt;</code>s run in the order they appear in the HTML.
         The middle one is a separate file (<code>m7.js</code>) fetched through the resource
         pipeline before any script runs.</p>
@@ -35,7 +35,7 @@
           <p id="last-writer" class="verdict">Last script to run: none yet</p>
           <p id="load-status">load event: pending&hellip;</p>
         </div>
-        <p class="hint">Expected when everything works: all three steps show a check mark, the
+        <p class="hint">Expected when everything works: all three steps show [OK], the
         &ldquo;last script&rdquo; line says <code>inline #2</code> (it runs after m7.js in document
         order &mdash; if it said <code>external m7.js</code>, ordering would be broken), and the
         load event fired last.</p>
@@ -45,7 +45,7 @@
         (function () {
           var step = document.getElementById("step-inline-1");
           if (step) {
-            step.textContent = "1. inline script before the external one: ran ✓";
+            step.textContent = "1. inline script before the external one: ran [OK]";
           }
           var last = document.getElementById("last-writer");
           if (last) {
@@ -58,11 +58,11 @@
         (function () {
           var step = document.getElementById("step-inline-2");
           if (step) {
-            step.textContent = "3. inline script after the external one: ran ✓";
+            step.textContent = "3. inline script after the external one: ran [OK]";
           }
           var last = document.getElementById("last-writer");
           if (last) {
-            last.textContent = "Last script to run: inline #2 ✓";
+            last.textContent = "Last script to run: inline #2 [OK]";
           }
         })();
       </script>

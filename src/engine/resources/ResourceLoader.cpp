@@ -11,6 +11,21 @@
 
 namespace Hummingbird::Engine {
 
+namespace {
+// The built-in demo site: example.dev and every subpage under it are served by
+// the stub network. Routing them straight there keeps startup deterministic
+// and avoids a doomed DNS lookup (and its scary warning) per demo navigation.
+bool is_builtin_demo_url(std::string_view url) {
+    for (std::string_view prefix : {"http://example.dev", "https://example.dev"}) {
+        if (url.rfind(prefix, 0) != 0) continue;
+        if (url.size() == prefix.size()) return true;
+        const char next = url[prefix.size()];
+        if (next == '/' || next == '?') return true;
+    }
+    return false;
+}
+}  // namespace
+
 ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
                                ImageDecoderPtr image_decoder)
     : network_(std::move(network)),
@@ -59,8 +74,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         HB_LOG_WARN("[resource] failed to register document request: " << url_copy);
     }
 
-    // Built-in demo URL: keep startup deterministic and avoid network timeouts.
-    if ((url_copy == "http://example.dev" || url_copy == "https://example.dev") && fallback_network_) {
+    if (is_builtin_demo_url(url_copy) && fallback_network_) {
         auto callback = [this, id, url_copy](NetworkResponse response) {
             if (id != active_nav_.load(std::memory_order_acquire)) return;
             bool success = !response.body.empty();

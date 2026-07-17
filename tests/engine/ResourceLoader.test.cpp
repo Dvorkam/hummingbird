@@ -290,6 +290,26 @@ TEST(ResourceLoaderTest, ScriptAssetsMarkReadyWithoutNetwork) {
     EXPECT_TRUE(network_ptr->requests.empty());
 }
 
+TEST(ResourceLoaderTest, DemoSubpagesRouteToFallbackNetworkDirectly) {
+    // example.dev and all its subpages are the built-in demo site: they must go
+    // straight to the stub network instead of failing a real DNS lookup first.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    auto fallback = std::make_unique<CapturingNetwork>();
+    auto* fallback_ptr = fallback.get();
+    fallback_ptr->body = "<html><body>demo</body></html>";
+
+    ResourceLoader loader(std::move(network), std::move(fallback), nullptr, nullptr);
+    loader.navigate("https://example.dev/m7");
+
+    EXPECT_TRUE(network_ptr->requests.empty());
+    ASSERT_EQ(fallback_ptr->requests.size(), 1u);
+    EXPECT_EQ(fallback_ptr->requests[0].url, "https://example.dev/m7");
+
+    auto batch = loader.consume_pending_updates();
+    EXPECT_TRUE(batch.is_ready(ResourceType::Document));
+}
+
 TEST(ResourceLoaderTest, NavigatePostUsesNetworkPostWithBodyAndContentType) {
     auto network = std::make_unique<CapturingNetwork>();
     auto* network_ptr = network.get();
@@ -301,17 +321,17 @@ TEST(ResourceLoaderTest, NavigatePostUsesNetworkPostWithBodyAndContentType) {
     request.body = "q=duck%20duck%20go";
     request.content_type = "application/x-www-form-urlencoded";
 
-    loader.navigate("https://example.dev/html/", request);
+    loader.navigate("https://acme.test/html/", request);
 
     ASSERT_EQ(network_ptr->requests.size(), 1u);
     EXPECT_EQ(network_ptr->requests[0].method, "POST");
-    EXPECT_EQ(network_ptr->requests[0].url, "https://example.dev/html/");
+    EXPECT_EQ(network_ptr->requests[0].url, "https://acme.test/html/");
     EXPECT_EQ(network_ptr->requests[0].body, "q=duck%20duck%20go");
     EXPECT_EQ(network_ptr->requests[0].options.content_type, "application/x-www-form-urlencoded");
 
     auto batch = loader.consume_pending_updates();
     EXPECT_TRUE(batch.is_ready(ResourceType::Document));
-    EXPECT_EQ(batch.document_url, "https://example.dev/html/");
+    EXPECT_EQ(batch.document_url, "https://acme.test/html/");
 }
 
 TEST(ResourceLoaderTest, StoresAnimatedImagesWhenDecoderProvidesFrames) {
