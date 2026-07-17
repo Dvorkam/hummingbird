@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Hummingbird VERSION 0.5.0)
+project(Hummingbird VERSION 0.6.0)
 
 # Set C++ standard to C++20
 set(CMAKE_CXX_STANDARD 20)

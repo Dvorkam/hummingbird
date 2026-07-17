@@ -6,7 +6,7 @@ Hummingbird is an experimental browser engine built from scratch in C++20 (HTML 
 
 Stub site + navigation demo:
 
-![Stub site and navigation demo](https://github.com/user-attachments/assets/98e01801-d678-40fd-ab7c-190b68502075)
+![Stub site and navigation demo](https://github.com/user-attachments/assets/92abcdc5-51d3-4af6-9a8f-bd78394fba68)
 
 ## Status / expectations
 
@@ -24,9 +24,10 @@ This is an early prototype:
 - CSS parsing for a subset of selectors/properties, including `<style>` blocks and external stylesheets.
 - Resource pipeline for HTML/CSS/images/SVG with incremental restyles as data arrives.
 - URL normalization + relative URL resolution for linked resources.
-- Block + inline layout, list markers, table layout, and key positioning/box-model features (including percent sizing/positioning and table width-hint balancing).
+- Block, inline, **flexbox**, and **CSS grid** layout, list markers, table layout, and key positioning/box-model features (including percent sizing/positioning, `calc()` lengths, absolute-centering, and table width-hint balancing).
 - Form controls (`<form>`, `<input>`, `<button>`), focus/editing, `autofocus`, GET+POST submit flows, and external submit controls.
-- Real-page CSS polish coverage including border-radius/outline/box-shadow, text effects, overflow handling, cursor, and vertical-align.
+- Real-page CSS polish coverage including border-radius/outline/box-shadow, text effects, overflow handling, cursor, and vertical-align, plus `visibility`, `pointer-events`, `text-shadow`, legacy `clip`, `!important`, `var()`, `inherit`, sibling combinators (`~`/`+`), and `:visited` link styling.
+- **Web fonts** via `@font-face` (local and remote TrueType/OpenType; WOFF2 not yet).
 - Background images and basic transforms used by real-world pages.
 - QuickJS integration with `onclick`/`load` dispatch and basic DOM mutation bindings.
 - Painting via Blend2D into an SDL2 window.
