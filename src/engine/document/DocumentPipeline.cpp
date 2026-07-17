@@ -68,9 +68,19 @@ DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {
     return {result.handled, result.mutated};
 }
 
+void DocumentPipeline::mark_url_visited(std::string_view url) {
+    if (!url.empty()) {
+        visited_urls_.emplace(url);
+    }
+}
+
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
-    if (!style_coordinator_->apply_styles_and_build(base_url)) {
+    const Css::MediaContext media{viewport.width, viewport.height};
+    // Flag anchors whose target has been visited before styling, so `:visited`
+    // and the vlink color resolve during this apply (T-HIST-1).
+    model_->mark_visited_links(visited_urls_, base_url);
+    if (!style_coordinator_->apply_styles_and_build(base_url, media)) {
         return;
     }
 
@@ -86,6 +96,10 @@ bool DocumentPipeline::rebuild_and_layout(IGraphicsContext& graphics, const Layo
 
 bool DocumentPipeline::update_image_resources(std::string_view base_url) {
     return style_coordinator_->update_image_resources(base_url);
+}
+
+bool DocumentPipeline::needs_restyle_for_viewport(const Layout::Rect& viewport) const {
+    return model_->media_conditions_change({viewport.width, viewport.height});
 }
 
 void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -107,6 +121,10 @@ void DocumentPipeline::paint_controls(IGraphicsContext& graphics, const PaintCon
 
 std::optional<std::string> DocumentPipeline::hit_test_link(const HitTestContext& context) const {
     return interaction_->hit_test_link({context.point, context.viewport, context.base_url, context.scroll_y});
+}
+
+std::optional<std::string> DocumentPipeline::inspect_at(const HitTestContext& context) const {
+    return interaction_->inspect_at({context.point, context.viewport, context.base_url, context.scroll_y});
 }
 
 std::optional<FormSubmission> DocumentPipeline::submit_form_at(const HitTestContext& context) const {
@@ -180,6 +198,10 @@ const std::vector<std::string>& DocumentPipeline::image_links() const {
 
 const std::vector<std::string>& DocumentPipeline::background_image_links() const {
     return model_->background_image_links();
+}
+
+const std::vector<std::string>& DocumentPipeline::font_requests() const {
+    return model_->font_requests();
 }
 
 }  // namespace Hummingbird::Engine

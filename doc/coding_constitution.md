@@ -6,7 +6,7 @@ This document outlines the architectural principles, coding standards, and best 
 
 ### 1.1. The "Ports & Adapters" Rule (Strict Modularity)
 
-* **Core Logic is Sacred:** Every module except `src/platform` and `src/app` (`src/core`, `src/html`, `src/style`, `src/layout`, `src/renderer`, `src/engine`) **must never** depend on `src/platform`. This is enforced by `tests/core/DependencyFirewall.test.cpp`.
+* **Core Logic is Sacred:** Every module except `src/platform` and `src/app` (`src/core`, `src/html`, `src/style`, `src/layout`, `src/renderer`, `src/engine`) **must never** depend on `src/platform`. This is enforced by `tests/core/DependencyFirewall.test.cpp`, which also fails CI on any **package-level dependency cycle** (e.g. `style/` ↔ `layout/`) — cycles the layer rules permit but the architecture forbids. Break a reported cycle by inverting a dependency behind an interface or moving the shared type down a layer.
 * **Inversion of Control:** If the Core needs to draw pixels or fetch data, it must define an **Interface** (e.g., `IGraphicsContext`, `INetwork`). The Platform layer implements these interfaces.
 * **Dependency Injection:** Do not instantiate concrete platform classes inside the core. Pass them in during initialization.
 

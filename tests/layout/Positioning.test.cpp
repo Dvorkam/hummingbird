@@ -80,6 +80,162 @@ TEST(PositioningLayoutTest, PositionsAbsoluteChildrenRelativeToContainingBlock) 
     EXPECT_FLOAT_EQ(container_render->get_rect().height, flow_render->get_rect().height);
 }
 
+TEST(PositioningLayoutTest, ExplicitMarginsShiftAbsoluteBoxFromInsets) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto container = DomFactory::create_element(arena, "div");
+    container->set_attribute("id", "container");
+    auto abs = DomFactory::create_element(arena, "div");
+    abs->set_attribute("id", "abs");
+    container->append_child(std::move(abs));
+    body->append_child(std::move(container));
+
+    // DDG search button shape: `right:2px; margin-right:-3px` pulls the box
+    // 3px past its inset, and the containing block is the padding box (inside
+    // the 1px border), so the button lands flush against the border.
+    std::string css = R"(
+        #container { position: relative; width: 200px; height: 100px; margin: 0; padding: 0;
+                     border: 1px solid black; }
+        #abs { position: absolute; top: 10px; right: 2px; margin-right: -3px; margin-top: 4px;
+               width: 50px; height: 10px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 300, 200};
+    render_root->layout(context, viewport);
+    Positioning::apply_positioning(*render_root, context, viewport);
+
+    auto* container_render = find_by_id(render_root.get(), "container");
+    auto* abs_render = find_by_id(render_root.get(), "abs");
+    ASSERT_NE(container_render, nullptr);
+    ASSERT_NE(abs_render, nullptr);
+
+    const Rect container_rect = container_render->get_rect();
+    // The abs child's rect is container-relative. Padding box right edge in
+    // that space: container width minus the 1px right border. right:2px puts
+    // the box 2px inside it; margin-right:-3px pulls it 3px back out; net:
+    // 1px past the padding edge = flush with the container's outer edge.
+    const Rect abs_rect = abs_render->get_rect();
+    EXPECT_FLOAT_EQ(abs_rect.x + abs_rect.width, container_rect.width);
+    // top:10px from the padding box (1px border) plus margin-top:4px.
+    EXPECT_FLOAT_EQ(abs_rect.y, 1.0f + 10.0f + 4.0f);
+}
+
+TEST(PositioningLayoutTest, AutoMarginsCenterBoxBetweenOpposingInsets) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto container = DomFactory::create_element(arena, "div");
+    container->set_attribute("id", "container");
+    auto dot = DomFactory::create_element(arena, "div");
+    dot->set_attribute("id", "dot");
+    container->append_child(std::move(dot));
+    body->append_child(std::move(container));
+
+    // top:0;bottom:0;left:0;right:0;margin:auto centers in both axes.
+    std::string css = R"(
+        #container { position: relative; width: 200px; height: 100px; margin: 0; padding: 0; }
+        #dot { position: absolute; top: 0; bottom: 0; left: 0; right: 0; margin: auto;
+               width: 40px; height: 20px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 300, 200};
+    render_root->layout(context, viewport);
+    Positioning::apply_positioning(*render_root, context, viewport);
+
+    auto* dot_render = find_by_id(render_root.get(), "dot");
+    ASSERT_NE(dot_render, nullptr);
+    EXPECT_FLOAT_EQ(dot_render->get_rect().x, 80.0f);  // (200 - 40) / 2
+    EXPECT_FLOAT_EQ(dot_render->get_rect().y, 40.0f);  // (100 - 20) / 2
+}
+
+TEST(PositioningLayoutTest, AutoMarginVerticallyCentersRightAlignedButton) {
+    // DDG search button: top:0;bottom:0;right:2px;left:auto;margin:auto ->
+    // vertically centered, pinned near the right edge.
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto container = DomFactory::create_element(arena, "div");
+    container->set_attribute("id", "container");
+    auto btn = DomFactory::create_element(arena, "div");
+    btn->set_attribute("id", "btn");
+    container->append_child(std::move(btn));
+    body->append_child(std::move(container));
+
+    std::string css = R"(
+        #container { position: relative; width: 200px; height: 40px; margin: 0; padding: 0; }
+        #btn { position: absolute; top: 0; bottom: 0; right: 2px; left: auto; margin: auto;
+               width: 24px; height: 20px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 300, 200};
+    render_root->layout(context, viewport);
+    Positioning::apply_positioning(*render_root, context, viewport);
+
+    auto* btn_render = find_by_id(render_root.get(), "btn");
+    ASSERT_NE(btn_render, nullptr);
+    EXPECT_FLOAT_EQ(btn_render->get_rect().x, 174.0f);  // 200 - 2 - 24 (right-aligned, left:auto)
+    EXPECT_FLOAT_EQ(btn_render->get_rect().y, 10.0f);   // (40 - 20) / 2 (vertically centered)
+}
+
+TEST(PositioningLayoutTest, AutoHeightStretchesAbsoluteBoxBetweenOpposingInsets) {
+    // DDG magnifier: top:0;bottom:0;height:auto -> the button fills the search
+    // box's height (rather than sitting at the top with its content height).
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto container = DomFactory::create_element(arena, "div");
+    container->set_attribute("id", "container");
+    auto btn = DomFactory::create_element(arena, "div");
+    btn->set_attribute("id", "btn");
+    container->append_child(std::move(btn));
+    body->append_child(std::move(container));
+
+    std::string css = R"(
+        #container { position: relative; width: 200px; height: 44px; margin: 0; padding: 0; }
+        #btn { position: absolute; top: 0; bottom: 0; right: 2px; left: auto; width: 24px; margin: 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 300, 200};
+    render_root->layout(context, viewport);
+    Positioning::apply_positioning(*render_root, context, viewport);
+
+    auto* btn_render = find_by_id(render_root.get(), "btn");
+    ASSERT_NE(btn_render, nullptr);
+    EXPECT_FLOAT_EQ(btn_render->get_rect().height, 44.0f);  // stretched to fill the container height
+    EXPECT_FLOAT_EQ(btn_render->get_rect().y, 0.0f);        // top:0
+    EXPECT_FLOAT_EQ(btn_render->get_rect().x, 174.0f);      // 200 - 2 - 24
+}
+
 TEST(PositioningLayoutTest, RelativeOffsetsShiftVisualRectWithoutAffectingFlow) {
     Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, "body");

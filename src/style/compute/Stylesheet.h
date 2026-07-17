@@ -1,11 +1,12 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_set>
 #include <vector>
 
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/GraphicsTypes.h"
 
 namespace Hummingbird::Css {
 
@@ -39,6 +40,17 @@ struct Value {
         Url,
         Number,
         Shadow,
+        Clip,
+        Calc,
+    };
+
+    // A resolved additive calc() expression: an absolute px part plus a
+    // percentage part (e.g. calc(100% - 20px) => {px:-20, percent:100}). Only the
+    // subset px/% with +/- is supported; anything else fails to parse.
+    struct Calc {
+        float px = 0.0f;
+        float percent = 0.0f;
+        bool has_percent = false;
     };
 
     struct Shadow {
@@ -48,12 +60,23 @@ struct Value {
         Color color{0, 0, 0, 255};
     };
 
+    // Legacy `clip: rect(top, right, bottom, left)`. Each edge is a length
+    // offset from the box's top-left, or nullopt for `auto` (the box edge).
+    struct Clip {
+        std::optional<Length> top;
+        std::optional<Length> right;
+        std::optional<Length> bottom;
+        std::optional<Length> left;
+    };
+
     Type type = Type::Identifier;
     std::string ident;
     Length length;
     Color color{0, 0, 0, 255};
     float number = 0.0f;
     Shadow shadow;
+    Clip clip;
+    Calc calc;
 
     static Value identifier(std::string text) {
         Value v;
@@ -96,6 +119,20 @@ struct Value {
         v.shadow = shadow;
         return v;
     }
+
+    static Value clip_value(Clip clip) {
+        Value v;
+        v.type = Type::Clip;
+        v.clip = clip;
+        return v;
+    }
+
+    static Value calc_value(Calc calc) {
+        Value v;
+        v.type = Type::Calc;
+        v.calc = calc;
+        return v;
+    }
 };
 
 struct SelectorPart {
@@ -103,6 +140,7 @@ struct SelectorPart {
         Hover,
         Active,
         Focus,
+        Visited,
     };
 
     std::string tag;
@@ -124,6 +162,8 @@ struct Selector {
     enum class Combinator {
         Descendant,
         Child,
+        NextSibling,        // '+'
+        SubsequentSibling,  // '~'
     };
 
     std::vector<SelectorPart> parts;
@@ -142,16 +182,60 @@ struct Declaration {
     Property property = Property::Unknown;
     std::string custom_property;
     Value value;
+    bool important = false;
 };
+
+// Width/height constraints from a parsed @media prelude (px only). Absent
+// fields are unconstrained. Rules without a condition always apply.
+struct MediaCondition {
+    std::optional<float> min_width;
+    std::optional<float> max_width;
+    std::optional<float> min_height;
+    std::optional<float> max_height;
+};
+
+// Viewport context media conditions are evaluated against. The zero default
+// means "no viewport known": conditioned rules with min-* requirements fail,
+// which matches the previous behavior of skipping @media blocks entirely.
+struct MediaContext {
+    float viewport_width = 0.0f;
+    float viewport_height = 0.0f;
+};
+
+inline bool media_condition_matches(const MediaCondition& condition, const MediaContext& context) {
+    if (condition.min_width && context.viewport_width < *condition.min_width) return false;
+    if (condition.max_width && context.viewport_width > *condition.max_width) return false;
+    if (condition.min_height && context.viewport_height < *condition.min_height) return false;
+    if (condition.max_height && context.viewport_height > *condition.max_height) return false;
+    return true;
+}
 
 struct Rule {
     std::vector<Selector> selectors;
     std::vector<Declaration> declarations;
+    std::optional<MediaCondition> media;
+};
+
+// One `src` entry of an @font-face rule: a url plus an optional lowercased
+// format hint ("truetype", "opentype", "woff", "woff2", ...). The format is
+// taken from an explicit `format(...)` when present, otherwise inferred from
+// the url's file extension.
+struct FontFaceSource {
+    std::string url;
+    std::string format;
+};
+
+// A parsed @font-face rule. `family` is normalized (lowercased, unquoted) to
+// match how font-family names are compared during font resolution.
+struct FontFaceRule {
+    std::string family;
+    std::vector<FontFaceSource> sources;
 };
 
 struct Stylesheet {
     std::vector<Rule> rules;
     std::unordered_set<std::string> unknown_properties;
+    std::vector<FontFaceRule> font_faces;
 };
 
 }  // namespace Hummingbird::Css

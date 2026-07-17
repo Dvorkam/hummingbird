@@ -6,7 +6,7 @@
 #include <string_view>
 #include <vector>
 
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/GraphicsTypes.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
@@ -142,13 +142,24 @@ inline FontFamily resolve_font_family(const Css::ComputedStyle* style) {
             return FontFamily::Sans;
         }
     }
-    if (!families.empty()) {
+    // A resolved @font-face (font_src) means the family WAS matched — just not by
+    // the built-in mapping — so don't warn about it being "unsupported". This
+    // return only picks the built-in fallback family / monospace cache-key bit;
+    // the actual font path comes from font_src (resolve_text_font_path).
+    if (!families.empty() && !(style && !style->font_src.empty())) {
         HB_LOG_WARN("[style] Unsupported font family list '" << raw << "', falling back to Roboto");
     }
     return prefers_monospace ? FontFamily::Monospace : FontFamily::Sans;
 }
 
 inline std::string resolve_text_font_path(const Css::ComputedStyle* style) {
+    // A resolved @font-face wins over the built-in family mapping. The single
+    // declared face is used regardless of weight/style for now (MVP: icon fonts
+    // and single-weight web fonts); synthetic bold/italic selection across
+    // multiple @font-face faces is a later refinement.
+    if (style && !style->font_src.empty()) {
+        return Hummingbird::Core::Utils::resolve_asset_path_string(style->font_src);
+    }
     bool bold = style && style->weight == Css::ComputedStyle::FontWeight::Bold;
     bool italic = style && style->style == Css::ComputedStyle::FontStyle::Italic;
     FontFamily family = resolve_font_family(style);

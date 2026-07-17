@@ -59,7 +59,8 @@ std::optional<ParsedWidth> parse_width_value(std::string_view value) {
 
 float resolve_table_target_width(const DOM::Element& element, const Css::ComputedStyle* style, float available_width) {
     if (style && style->width.has_value()) {
-        return std::max(0.0f, *style->width);
+        // No percentage resolution here yet (matches prior single-float behavior).
+        return std::max(0.0f, style->width->has_percent ? style->width->percent : style->width->px);
     }
     auto attr = DOM::find_attribute_value(element, Hummingbird::Html::AttributeNames::Width);
     if (!attr) {
@@ -103,8 +104,8 @@ float sum_widths(const std::vector<float>& widths) {
 
 std::optional<float> cell_width_percent_hint(const RenderTableCell& cell) {
     const auto* style = cell.get_computed_style();
-    if (style && style->width.has_value() && style->width_is_percent) {
-        return std::max(0.0f, *style->width);
+    if (style && style->width.has_value() && style->width->has_percent) {
+        return std::max(0.0f, style->width->percent);
     }
 
     auto* element = dynamic_cast<const DOM::Element*>(cell.get_dom_node());
@@ -130,8 +131,8 @@ struct ColumnWidthHints {
 std::optional<float> cell_width_absolute_hint(const RenderTableCell& cell) {
     const auto* style = cell.get_computed_style();
     Metrics::Insets insets = Metrics::compute_insets(style);
-    if (style && style->width.has_value() && !style->width_is_percent) {
-        float width = std::max(0.0f, *style->width);
+    if (style && style->width.has_value() && !style->width->has_percent) {
+        float width = std::max(0.0f, style->width->px);
         return Metrics::resolve_border_box_width(style, width, insets);
     }
 

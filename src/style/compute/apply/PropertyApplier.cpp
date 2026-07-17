@@ -70,10 +70,13 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
             (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::apply_border_radius:
-            (void)apply_layout_property(Property::BorderRadius, value, style, overrides, context);
+            // property carries the specific corner (or the shorthand) so the
+            // layout applier can target one corner or all four.
+            (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::apply_border_color:
-            (void)apply_layout_property(Property::BorderColor, value, style, overrides, context);
+            // property carries the specific side (or the shorthand).
+            (void)apply_layout_property(property, value, style, overrides, context);
             return;
         case ApplyHook::apply_outline:
             (void)apply_layout_property(Property::Outline, value, style, overrides, context);
@@ -135,6 +138,12 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_cursor:
             (void)apply_text_property(property, value, style, overrides, context);
             return;
+        case ApplyHook::apply_visibility:
+            (void)apply_text_property(Property::Visibility, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_pointer_events:
+            (void)apply_text_property(Property::PointerEvents, value, style, overrides, context);
+            return;
         case ApplyHook::apply_vertical_align:
             (void)apply_text_property(property, value, style, overrides, context);
             return;
@@ -174,6 +183,9 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_float:
             (void)apply_text_property(Property::Float, value, style, overrides, context);
             return;
+        case ApplyHook::apply_clear:
+            (void)apply_text_property(Property::Clear, value, style, overrides, context);
+            return;
         case ApplyHook::apply_list_style:
             (void)apply_text_property(Property::ListStyle, value, style, overrides, context);
             return;
@@ -207,7 +219,44 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_box_shadow:
             (void)apply_layout_property(property, value, style, overrides, context);
             return;
+        case ApplyHook::apply_text_shadow:
+            (void)apply_layout_property(Property::TextShadow, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_clip:
+            (void)apply_layout_property(Property::Clip, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_grid:
+            // grid-template-*/gap/grid-column/grid-row share one hook; dispatch on
+            // the actual property (like apply_overflow).
+            (void)apply_layout_property(property, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_flex_direction:
+            (void)apply_layout_property(Property::FlexDirection, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_flex_wrap:
+            (void)apply_layout_property(Property::FlexWrap, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_justify_content:
+            (void)apply_layout_property(Property::JustifyContent, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_align_items:
+            (void)apply_layout_property(Property::AlignItems, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_flex_grow:
+            (void)apply_layout_property(property, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_flex_shrink:
+            (void)apply_layout_property(Property::FlexShrink, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_flex_basis:
+            (void)apply_layout_property(Property::FlexBasis, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_order:
+            (void)apply_layout_property(Property::Order, value, style, overrides, context);
+            return;
+        case ApplyHook::apply_noop:
         case ApplyHook::Unknown:
+        case ApplyHook::Count:
             return;
     }
 }

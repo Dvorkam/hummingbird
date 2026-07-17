@@ -20,20 +20,44 @@
 #include <bit>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <functional>
 #include <ostream>
-#include <span>
 #include <vector>
 
 #include "core/platform_api/IImageDecoder.h"
 #include "core/utils/AssetPath.h"
 #include "core/utils/Log.h"
+#include "core/utils/WarnOnce.h"
 #include "platform/graphics/Blend2DFontCache.h"
 #include "platform/graphics/CacheUtils.h"
 
 namespace Hummingbird::Platform {
 
 namespace {
+
+// Warns once per codepoint when the shaped text falls back to the missing
+// glyph (tofu), so font-coverage gaps surface in logs instead of only pixels.
+void log_missing_glyphs(const std::vector<uint32_t>& codepoints, const BLGlyphBuffer& buffer,
+                        const std::string& font_path) {
+    if (buffer.size() != codepoints.size()) {
+        return;  // Complex shaping changed cluster count; skip 1:1 mapping.
+    }
+    static Hummingbird::Core::Utils::WarnOnce warned;
+    const uint32_t* glyphs = buffer.content();
+    for (size_t i = 0; i < buffer.size(); ++i) {
+        if (glyphs[i] != 0) {
+            continue;
+        }
+        char key[16];
+        std::snprintf(key, sizeof(key), "U+%04X", codepoints[i]);
+        if (warned.should_log(key)) {
+            HB_LOG_WARN("[text] font '" << font_path << "' has no glyph for " << key
+                                        << "; rendering replacement box (no fallback chain yet)");
+        }
+    }
+}
 std::uint8_t apply_global_alpha(std::uint8_t alpha, float global_alpha) {
     const float clamped = std::clamp(global_alpha, 0.0f, 1.0f);
     return static_cast<std::uint8_t>(std::lround(static_cast<float>(alpha) * clamped));
@@ -76,11 +100,28 @@ SDL_Texture* build_text_texture(SDL_Renderer* renderer, const std::string& text,
 
     BLImageData imgData;
     img.getData(&imgData);
-    std::span<const uint8_t> pixels{static_cast<const uint8_t*>(imgData.pixelData),
-                                    static_cast<size_t>(imgData.stride) * static_cast<size_t>(target_height)};
 
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(
-        const_cast<uint8_t*>(pixels.data()), target_width, target_height, 32, imgData.stride, SDL_PIXELFORMAT_BGRA32);
+    // Blend2D renders premultiplied alpha (PRGB32), but SDL_BLENDMODE_BLEND
+    // expects straight alpha and multiplies by alpha again at composite time.
+    // That second multiply darkens every antialiased edge pixel, leaving a
+    // dark fringe around glyphs. Unpremultiply on the CPU: it works on every
+    // SDL backend (custom blend modes do not), and the resulting texture is
+    // cached, so this pass runs once per cache entry.
+    std::vector<uint8_t> pixels(static_cast<size_t>(imgData.stride) * static_cast<size_t>(target_height));
+    std::memcpy(pixels.data(), imgData.pixelData, pixels.size());
+    for (int row = 0; row < target_height; ++row) {
+        uint8_t* px = pixels.data() + static_cast<size_t>(row) * static_cast<size_t>(imgData.stride);
+        for (int col = 0; col < target_width; ++col, px += 4) {
+            const uint8_t alpha = px[3];
+            if (alpha == 0 || alpha == 255) continue;
+            px[0] = static_cast<uint8_t>((px[0] * 255 + alpha / 2) / alpha);
+            px[1] = static_cast<uint8_t>((px[1] * 255 + alpha / 2) / alpha);
+            px[2] = static_cast<uint8_t>((px[2] * 255 + alpha / 2) / alpha);
+        }
+    }
+
+    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(pixels.data(), target_width, target_height, 32,
+                                                              imgData.stride, SDL_PIXELFORMAT_BGRA32);
     if (!surface) {
         HB_LOG_ERROR("[platform] Failed to create SDL_Surface from BLImage");
         return nullptr;
@@ -175,6 +216,46 @@ void SDLGraphicsContext::fill_rect(const Hummingbird::Layout::Rect& rect, const 
 
 void SDLGraphicsContext::set_global_alpha(float alpha) {
     global_alpha_ = std::clamp(alpha, 0.0f, 1.0f);
+}
+
+namespace {
+Hummingbird::Layout::Rect intersect_rect(const Hummingbird::Layout::Rect& a, const Hummingbird::Layout::Rect& b) {
+    const float x1 = std::max(a.x, b.x);
+    const float y1 = std::max(a.y, b.y);
+    const float x2 = std::min(a.x + a.width, b.x + b.width);
+    const float y2 = std::min(a.y + a.height, b.y + b.height);
+    return {x1, y1, std::max(0.0f, x2 - x1), std::max(0.0f, y2 - y1)};
+}
+
+SDL_Rect to_sdl_rect(const Hummingbird::Layout::Rect& r) {
+    return SDL_Rect{static_cast<int>(std::floor(r.x)), static_cast<int>(std::floor(r.y)),
+                    std::max(0, static_cast<int>(std::ceil(r.width))),
+                    std::max(0, static_cast<int>(std::ceil(r.height)))};
+}
+}  // namespace
+
+void SDLGraphicsContext::push_clip(const Hummingbird::Layout::Rect& rect) {
+    Hummingbird::Layout::Rect clip = clip_stack_.empty() ? rect : intersect_rect(clip_stack_.back(), rect);
+    clip_stack_.push_back(clip);
+    if (m_renderer) {
+        SDL_Rect r = to_sdl_rect(clip);
+        SDL_RenderSetClipRect(m_renderer, &r);
+    }
+}
+
+void SDLGraphicsContext::pop_clip() {
+    if (clip_stack_.empty()) {
+        return;
+    }
+    clip_stack_.pop_back();
+    if (m_renderer) {
+        if (clip_stack_.empty()) {
+            SDL_RenderSetClipRect(m_renderer, nullptr);
+        } else {
+            SDL_Rect r = to_sdl_rect(clip_stack_.back());
+            SDL_RenderSetClipRect(m_renderer, &r);
+        }
+    }
 }
 
 size_t SDLGraphicsContext::TextCacheKeyHash::operator()(const TextCacheKey& key) const {
@@ -473,7 +554,9 @@ TextMetrics SDLGraphicsContext::measure_text(const std::string& text, const Text
 
     BLGlyphBuffer glyphBuffer;
     glyphBuffer.setUtf8Text(text.c_str());
+    std::vector<uint32_t> codepoints(glyphBuffer.content(), glyphBuffer.content() + glyphBuffer.size());
     font_setup->font.shape(glyphBuffer);
+    log_missing_glyphs(codepoints, glyphBuffer, resolved_font);
 
     BLTextMetrics tm;
     font_setup->font.getTextMetrics(glyphBuffer, tm);

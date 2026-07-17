@@ -16,11 +16,13 @@ void DocumentStyleCoordinator::set_extension_style_blocks(const std::vector<std:
     extension_style_blocks_ = style_blocks;
 }
 
-bool DocumentStyleCoordinator::apply_styles_and_build(std::string_view base_url) {
+bool DocumentStyleCoordinator::apply_styles_and_build(std::string_view base_url, const Css::MediaContext& media) {
     std::vector<std::string> style_blocks = model_.style_blocks();
     std::string css =
         resources_.build_css_source(base_url, style_blocks, model_.stylesheet_links(), extension_style_blocks_);
-    model_.apply_styles(css);
+    // resources_ implements IFontFaceResolver: it turns @font-face rules into a
+    // registry (and records remote fonts still needing a fetch) (T-FONT-FACE-1).
+    model_.apply_styles(css, media, &resources_);
     return model_.build_render_tree();
 }
 

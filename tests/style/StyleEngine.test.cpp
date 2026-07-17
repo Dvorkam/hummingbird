@@ -8,6 +8,7 @@
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
+#include "style/compute/FontFaceRegistry.h"
 #include "style/compute/StylesheetSource.h"
 #include "style/parser/CssParser.h"
 
@@ -36,11 +37,200 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
     EXPECT_EQ(style_root->margin.top, 5);
     EXPECT_EQ(style_root->padding.top, 3);
     ASSERT_TRUE(style_root->width.has_value());
-    EXPECT_FLOAT_EQ(style_root->width.value(), 80);
+    EXPECT_FLOAT_EQ(style_root->width->px, 80);
 
     // Child span should at least have a computed style object (even if empty).
     auto style_child = root->get_children()[0]->get_computed_style();
     ASSERT_TRUE(style_child);
+}
+
+TEST(StyleEngineTest, FontSrcResolvedFromFontFaceRegistry) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "icon");
+
+    Parser parser(".icon { font-family: \"My Icons\", sans-serif; }");
+    auto sheet = parser.parse();
+
+    FontFaceRegistry fonts;
+    fonts.register_family("my icons", "fonts/icons.ttf");
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get(), {}, &fonts);
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->font_src, "fonts/icons.ttf");
+}
+
+TEST(StyleEngineTest, FontSrcEmptyWhenNoFontFaceMatches) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    Parser parser("div { font-family: sans-serif; }");
+    auto sheet = parser.parse();
+
+    FontFaceRegistry fonts;
+    fonts.register_family("my icons", "fonts/icons.ttf");
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get(), {}, &fonts);
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_TRUE(style->font_src.empty());
+}
+
+TEST(StyleEngineTest, FontSrcInheritsThroughFontFamilyInheritance) {
+    // A child with no font-family of its own inherits the parent's, so the web
+    // font must resolve on the child too.
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "icon");
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
+
+    Parser parser(".icon { font-family: myicons; }");
+    auto sheet = parser.parse();
+
+    FontFaceRegistry fonts;
+    fonts.register_family("myicons", "fonts/icons.ttf");
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get(), {}, &fonts);
+
+    auto child = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child);
+    EXPECT_EQ(child->font_src, "fonts/icons.ttf");
+}
+
+TEST(StyleEngineTest, GridTemplateAndPlacementComputed) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "grid");
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    child->set_attribute(Attr::Class, "cell");
+    root->append_child(std::move(child));
+
+    // repeat() must be the last track-list component in this MVP (the tokenizer
+    // drops the parens, so a trailing track can't be told apart from the repeat).
+    Parser parser(
+        ".grid { display: grid; grid-template-columns: 100px repeat(2, 1fr); gap: 12px 8px; } "
+        ".cell { grid-column: 1 / 3; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->display, ComputedStyle::Display::Grid);
+    // 100px repeat(2, 1fr) -> 100px, 1fr, 1fr.
+    ASSERT_EQ(style->grid_template_columns.size(), 3u);
+    EXPECT_EQ(style->grid_template_columns[0].kind, ComputedStyle::GridTrack::Kind::Fixed);
+    EXPECT_FLOAT_EQ(style->grid_template_columns[0].value, 100.0f);
+    EXPECT_EQ(style->grid_template_columns[2].kind, ComputedStyle::GridTrack::Kind::Fr);
+    EXPECT_FLOAT_EQ(style->grid_template_columns[2].value, 1.0f);
+    // gap: 12px 8px -> row 12, column 8.
+    EXPECT_FLOAT_EQ(style->row_gap, 12.0f);
+    EXPECT_FLOAT_EQ(style->column_gap, 8.0f);
+
+    auto cell = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(cell);
+    EXPECT_EQ(cell->grid_column.line, 1);
+    EXPECT_EQ(cell->grid_column.span, 2);  // 1 / 3 -> span 2
+}
+
+TEST(StyleEngineTest, VisitedAnchorUsesVlinkColor) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto body = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Body);
+    body->set_attribute(Attr::Link, "#112233");
+    body->set_attribute(Attr::VLink, "#778899");
+
+    auto visited = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    visited->set_pseudo_state(Element::PseudoState::Visited, true);
+    auto fresh = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    body->append_child(std::move(visited));
+    body->append_child(std::move(fresh));
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, body.get());
+
+    auto visited_style = body->get_children()[0]->get_computed_style();
+    auto fresh_style = body->get_children()[1]->get_computed_style();
+    ASSERT_TRUE(visited_style && fresh_style);
+    // Visited -> vlink (#778899); unvisited -> link (#112233).
+    EXPECT_EQ(visited_style->color.r, 0x77);
+    EXPECT_EQ(visited_style->color.b, 0x99);
+    EXPECT_EQ(fresh_style->color.r, 0x11);
+    EXPECT_EQ(fresh_style->color.b, 0x33);
+}
+
+TEST(StyleEngineTest, VisitedPseudoClassMatchesOnlyVisitedAnchors) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto visited = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    visited->set_pseudo_state(Element::PseudoState::Visited, true);
+    auto fresh = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
+    root->append_child(std::move(visited));
+    root->append_child(std::move(fresh));
+
+    std::string css = "a:visited { color: #00ff00; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto visited_style = root->get_children()[0]->get_computed_style();
+    auto fresh_style = root->get_children()[1]->get_computed_style();
+    ASSERT_TRUE(visited_style && fresh_style);
+    EXPECT_EQ(visited_style->color.g, 0xff);  // :visited rule applied
+    // The unvisited anchor keeps the UA default link blue, not green.
+    EXPECT_NE(fresh_style->color.g, 0xff);
+    EXPECT_EQ(fresh_style->color.b, 0xff);
+}
+
+TEST(StyleEngineTest, CascadeOrderPreservedAcrossSelectorBuckets) {
+    // The key-selector index buckets these three rules separately (class, tag,
+    // class); the winner must still be decided by specificity then document
+    // order after they are re-merged (T-PERF-STYLE-1 must not reorder cascade).
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "a");
+
+    // .a (spec 10) beats div (spec 1); between the two equal-specificity .a
+    // rules, the later one wins -> green.
+    std::string css = R"(.a { color: #ff0000; } div { color: #0000ff; } .a { color: #00ff00; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.g, 0xff);
+    EXPECT_EQ(style->color.r, 0x00);
+    EXPECT_EQ(style->color.b, 0x00);
+}
+
+TEST(StyleEngineTest, UniversalAndIdBucketsBothConsidered) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    root->set_attribute(Attr::Id, "x");
+
+    // Universal rule applies, but the id rule (spec 100) wins the color.
+    std::string css = R"(* { color: #ff0000; letter-spacing: 2px; } #x { color: #0000ff; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.b, 0xff);               // from #x
+    EXPECT_FLOAT_EQ(style->letter_spacing, 2.0f);  // from *
 }
 
 TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
@@ -100,7 +290,7 @@ TEST(StyleEngineTest, AppliesDefaultStylesForUlPreAndAnchor) {
 
     EXPECT_FLOAT_EQ(blockquote_style->margin.left, 40.0f);
     EXPECT_TRUE(hr_style->height.has_value());
-    EXPECT_GT(hr_style->height.value(), 0.0f);
+    EXPECT_GT(hr_style->height->px, 0.0f);
 
     EXPECT_GT(h1_style->font_size, 16.0f);
     EXPECT_EQ(h1_style->weight, ComputedStyle::FontWeight::Bold);
@@ -126,9 +316,9 @@ TEST(StyleEngineTest, SubmitInputUsesCompactDefaultWidth) {
     ASSERT_TRUE(submit_style);
     ASSERT_TRUE(text_style);
     EXPECT_TRUE(submit_style->width.has_value());
-    EXPECT_FLOAT_EQ(*submit_style->width, 80.0f);
+    EXPECT_FLOAT_EQ(submit_style->width->px, 80.0f);
     EXPECT_TRUE(text_style->width.has_value());
-    EXPECT_FLOAT_EQ(*text_style->width, 180.0f);
+    EXPECT_FLOAT_EQ(text_style->width->px, 180.0f);
 }
 
 TEST(StyleEngineTest, TableCellsUseDefaultPaddingForReadability) {
@@ -158,6 +348,39 @@ TEST(StyleEngineTest, TableCellsUseDefaultPaddingForReadability) {
     EXPECT_FLOAT_EQ(th_style->padding.right, 2.0f);
     EXPECT_FLOAT_EQ(th_style->padding.top, 2.0f);
     EXPECT_FLOAT_EQ(th_style->padding.bottom, 2.0f);
+}
+
+TEST(StyleEngineTest, VisibilityAndPointerEventsInheritAndReEnable) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    auto grandchild = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    grandchild->set_attribute(Attr::Class, "show");
+
+    child->append_child(std::move(grandchild));
+    root->append_child(std::move(child));
+
+    std::string css = R"(div { visibility: hidden; pointer-events: none; }
+                         .show { visibility: visible; pointer-events: auto; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto root_style = root->get_computed_style();
+    auto child_style = root->get_children()[0]->get_computed_style();
+    auto grandchild_style = root->get_children()[0]->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(root_style && child_style && grandchild_style);
+
+    EXPECT_EQ(root_style->visibility, ComputedStyle::Visibility::Hidden);
+    EXPECT_EQ(root_style->pointer_events, ComputedStyle::PointerEvents::None);
+    // The <p> sets neither property, so it inherits hidden / none from <div>.
+    EXPECT_EQ(child_style->visibility, ComputedStyle::Visibility::Hidden);
+    EXPECT_EQ(child_style->pointer_events, ComputedStyle::PointerEvents::None);
+    // The .show <span> re-enables both.
+    EXPECT_EQ(grandchild_style->visibility, ComputedStyle::Visibility::Visible);
+    EXPECT_EQ(grandchild_style->pointer_events, ComputedStyle::PointerEvents::Auto);
 }
 
 TEST(StyleEngineTest, StoresAndInheritsCustomProperties) {
@@ -252,6 +475,23 @@ TEST(StyleEngineTest, AppliesFloatProperty) {
     EXPECT_EQ(style->float_type, ComputedStyle::Float::Right);
 }
 
+TEST(StyleEngineTest, AppliesClearProperty) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "cleared");
+
+    std::string css = R"(.cleared { clear: both; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->clear, ComputedStyle::Clear::Both);
+}
+
 TEST(StyleEngineTest, AppliesBoxSizingProperty) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
@@ -284,14 +524,14 @@ TEST(StyleEngineTest, PreservesPercentUnitsForLayoutProperties) {
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
     ASSERT_TRUE(style->width.has_value());
-    EXPECT_FLOAT_EQ(*style->width, 70.0f);
-    EXPECT_TRUE(style->width_is_percent);
+    EXPECT_FLOAT_EQ(style->width->percent, 70.0f);
+    EXPECT_TRUE(style->width->has_percent);
     ASSERT_TRUE(style->top.has_value());
-    EXPECT_FLOAT_EQ(*style->top, 24.0f);
-    EXPECT_TRUE(style->top_is_percent);
+    EXPECT_FLOAT_EQ(style->top->percent, 24.0f);
+    EXPECT_TRUE(style->top->has_percent);
     ASSERT_TRUE(style->left.has_value());
-    EXPECT_FLOAT_EQ(*style->left, 10.0f);
-    EXPECT_TRUE(style->left_is_percent);
+    EXPECT_FLOAT_EQ(style->left->percent, 10.0f);
+    EXPECT_TRUE(style->left->has_percent);
 }
 
 TEST(StyleEngineTest, AppliesTransformTranslate) {
@@ -361,6 +601,174 @@ TEST(StyleEngineTest, CascadesBySpecificityAndOrder) {
     EXPECT_EQ(style->color.g, 0);
     EXPECT_EQ(style->color.b, 0);
     EXPECT_FLOAT_EQ(style->margin.top, 3.0f);
+}
+
+TEST(StyleEngineTest, ImportantBeatsSpecificityAndOrder) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    root->set_attribute(Attr::Class, "text");
+    root->set_attribute(Attr::Id, "main");
+
+    // The dark-mode-extension shape: a low-specificity important rule must beat
+    // higher-specificity and later normal rules (T-CSS-IMPORTANT-1).
+    std::string css = R"(
+        p { color: blue !important; margin: 1px; }
+        .text { color: red; margin: 2px !important; }
+        #main { color: black; margin: 3px; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    // p!important beats .text and #main.
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 255);
+    // .text!important beats #main.
+    EXPECT_FLOAT_EQ(style->margin.top, 2.0f);
+}
+
+TEST(StyleEngineTest, LaterImportantWinsAmongImportant) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+
+    std::string css = R"(
+        p { color: blue !important; }
+        p { color: red !important; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 255);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 0);
+}
+
+TEST(StyleEngineTest, InheritKeywordCopiesParentValue) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    root->append_child(std::move(child));
+
+    // DDG: `.search__input { font-family: inherit }` must take the parent's
+    // font, not warn and fall back (T-CSS-INHERIT-1).
+    std::string css = R"(
+        div { font-family: Arial; color: red; }
+        input { font-family: inherit; color: inherit; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->font_face, "arial");
+    EXPECT_EQ(style->color.r, 255);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 0);
+}
+
+TEST(StyleEngineTest, InheritWinsCascadeOverConcreteValue) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    child->set_attribute(Attr::Class, "quiet");
+    root->append_child(std::move(child));
+
+    // `.quiet { color: inherit }` outranks `p { color: red }`; the winning
+    // declaration is `inherit`, so the parent's blue applies — not red.
+    std::string css = R"(
+        div { color: blue; }
+        p { color: red; }
+        .quiet { color: inherit; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->color.r, 0);
+    EXPECT_EQ(style->color.g, 0);
+    EXPECT_EQ(style->color.b, 255);
+}
+
+TEST(StyleEngineTest, ResolvesVarForLengthProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::P);
+    root->append_child(std::move(child));
+
+    // DDG: --default-border-radius / --max-content-width feed length props.
+    std::string css = R"(
+        div { --default-border-radius: 4px; --max-content-width: 590px; }
+        p { border-radius: var(--default-border-radius); max-width: var(--max-content-width); }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_right.value, 4.0f);
+    ASSERT_TRUE(style->max_width.has_value());
+    EXPECT_FLOAT_EQ(style->max_width->px, 590.0f);
+}
+
+TEST(StyleEngineTest, ResolvesVarInsideBorderRadiusList) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    // DDG button: `border-radius: 0 var(--r) var(--r) 0` — var terms mixed
+    // with plain lengths inside one shorthand.
+    std::string css = R"(
+        div { --r: 4px; border-radius: 0 var(--r) var(--r) 0; }
+    )";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 0.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.top_right.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_right.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_left.value, 0.0f);
+}
+
+TEST(StyleEngineTest, VarFallbackAppliesWhenUnset) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { max-width: var(--missing, 320px); }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->max_width.has_value());
+    EXPECT_FLOAT_EQ(style->max_width->px, 320.0f);
 }
 
 TEST(StyleEngineTest, AuthorColorOverridesAnchorDefaults) {
@@ -501,7 +909,7 @@ TEST(StyleEngineTest, SupportsMarginAutoAndMaxWidth) {
     EXPECT_TRUE(style->margin_left_auto);
     EXPECT_TRUE(style->margin_right_auto);
     ASSERT_TRUE(style->max_width.has_value());
-    EXPECT_FLOAT_EQ(style->max_width.value(), 200.0f);
+    EXPECT_FLOAT_EQ(style->max_width->px, 200.0f);
 }
 
 TEST(StyleEngineTest, AppliesMinMaxSizeProperties) {
@@ -519,13 +927,13 @@ TEST(StyleEngineTest, AppliesMinMaxSizeProperties) {
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
     ASSERT_TRUE(style->min_width.has_value());
-    EXPECT_FLOAT_EQ(style->min_width.value(), 80.0f);
+    EXPECT_FLOAT_EQ(style->min_width->px, 80.0f);
     ASSERT_TRUE(style->min_height.has_value());
-    EXPECT_FLOAT_EQ(style->min_height.value(), 20.0f);
+    EXPECT_FLOAT_EQ(style->min_height->px, 20.0f);
     ASSERT_TRUE(style->max_width.has_value());
-    EXPECT_FLOAT_EQ(style->max_width.value(), 160.0f);
+    EXPECT_FLOAT_EQ(style->max_width->px, 160.0f);
     ASSERT_TRUE(style->max_height.has_value());
-    EXPECT_FLOAT_EQ(style->max_height.value(), 40.0f);
+    EXPECT_FLOAT_EQ(style->max_height->px, 40.0f);
 }
 
 TEST(StyleEngineTest, InheritsListStyleFromParent) {
@@ -878,7 +1286,78 @@ TEST(StyleEngineTest, AppliesBorderRadiusProperty) {
 
     auto style = root->get_computed_style();
     ASSERT_TRUE(style);
-    EXPECT_FLOAT_EQ(style->border_radius, 12.0f);
+    EXPECT_TRUE(style->border_radius.uniform());
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 12.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_right.value, 12.0f);
+}
+
+TEST(StyleEngineTest, AppliesPerCornerAndVendorBorderRadius) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "corners");
+
+    // Right-side-only rounding, DDG search-button style, plus a vendor alias
+    // that must resolve to the standard property.
+    std::string css = R"(#corners {
+        border-radius: 0 4px 4px 0;
+        -webkit-border-top-left-radius: 9px;
+    })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 9.0f);  // vendor longhand wins by order
+    EXPECT_FLOAT_EQ(style->border_radius.top_right.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_right.value, 4.0f);
+    EXPECT_FLOAT_EQ(style->border_radius.bottom_left.value, 0.0f);
+    EXPECT_FALSE(style->border_radius.uniform());
+}
+
+TEST(StyleEngineTest, AppliesPercentBorderRadius) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "circle");
+
+    std::string css = R"(#circle { border-radius: 50%; })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_TRUE(style->border_radius.top_left.percent);
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.value, 50.0f);
+    // 50% of a 40px box (min side) resolves to a 20px corner radius.
+    EXPECT_FLOAT_EQ(style->border_radius.top_left.resolve(40.0f), 20.0f);
+}
+
+TEST(StyleEngineTest, AppliesPerSideBorderColor) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Id, "sides");
+
+    std::string css = R"(#sides {
+        border-color: #111111;
+        border-left-color: #3969ef;
+    })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->border_edge_color.top.r, 0x11);
+    EXPECT_EQ(style->border_edge_color.left.r, 0x39);
+    EXPECT_EQ(style->border_edge_color.left.g, 0x69);
+    EXPECT_EQ(style->border_edge_color.left.b, 0xef);
 }
 
 TEST(StyleEngineTest, AppliesOutlineAndOffsetProperties) {
@@ -937,8 +1416,8 @@ TEST(StyleEngineTest, AppliesPositionProperties) {
     EXPECT_EQ(style->position, ComputedStyle::Position::Absolute);
     ASSERT_TRUE(style->top.has_value());
     ASSERT_TRUE(style->left.has_value());
-    EXPECT_FLOAT_EQ(*style->top, 4.0f);
-    EXPECT_FLOAT_EQ(*style->left, 6.0f);
+    EXPECT_FLOAT_EQ(style->top->px, 4.0f);
+    EXPECT_FLOAT_EQ(style->left->px, 6.0f);
     ASSERT_TRUE(style->z_index.has_value());
     EXPECT_EQ(*style->z_index, 3);
 }
@@ -998,6 +1477,102 @@ TEST(StyleEngineTest, CursorIsInheritedToChildren) {
     EXPECT_EQ(child_style->cursor, ComputedStyle::Cursor::Text);
 }
 
+// Drift guard for inherit_from_parent (T-STYLE-FIELDCOPY-1): a child that sets
+// nothing must inherit every inherited text/font property from its parent. If a
+// new inherited property is added but not wired into inherit_from_parent, one of
+// these assertions fails instead of the bug surfacing silently at render time.
+TEST(StyleEngineTest, InheritsAllInheritedProperties) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "p");
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
+
+    std::string css = R"(.p {
+        color: #ff0000;
+        font-size: 20px;
+        font-weight: bold;
+        font-style: italic;
+        text-align: center;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+        text-indent: 7px;
+        white-space: nowrap;
+        line-height: 30px;
+        cursor: pointer;
+        list-style-type: decimal;
+        list-style-position: inside;
+        word-wrap: break-word;
+        text-decoration: underline;
+    })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto child = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child);
+    EXPECT_EQ(child->color.r, 255);
+    EXPECT_EQ(child->color.g, 0);
+    EXPECT_FLOAT_EQ(child->font_size, 20.0f);
+    EXPECT_EQ(child->weight, ComputedStyle::FontWeight::Bold);
+    EXPECT_EQ(child->style, ComputedStyle::FontStyle::Italic);
+    EXPECT_EQ(child->text_align, ComputedStyle::TextAlign::Center);
+    EXPECT_EQ(child->text_transform, ComputedStyle::TextTransform::Uppercase);
+    EXPECT_FLOAT_EQ(child->letter_spacing, 3.0f);
+    EXPECT_FLOAT_EQ(child->text_indent, 7.0f);
+    EXPECT_EQ(child->whitespace, ComputedStyle::WhiteSpace::NoWrap);
+    EXPECT_FLOAT_EQ(child->line_height, 30.0f);
+    EXPECT_EQ(child->cursor, ComputedStyle::Cursor::Pointer);
+    EXPECT_EQ(child->list_style_type, ComputedStyle::ListStyleType::Decimal);
+    EXPECT_EQ(child->list_style_position, ComputedStyle::ListStylePosition::Inside);
+    EXPECT_EQ(child->word_wrap, ComputedStyle::WordWrap::BreakWord);
+    EXPECT_TRUE(child->underline);
+}
+
+// Core invariant of the inverted merge: non-inherited box properties must NOT
+// leak from parent to child. This is what lets adding a new box property require
+// no field-copy wiring at all.
+TEST(StyleEngineTest, DoesNotInheritBoxPropertiesFromParent) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->set_attribute(Attr::Class, "p");
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span));
+
+    std::string css = R"(.p {
+        width: 100px;
+        margin: 5px;
+        padding: 4px;
+        border: 2px solid #ff0000;
+        border-radius: 6px;
+        float: left;
+        clear: both;
+        position: relative;
+        display: flex;
+        z-index: 3;
+    })";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto parent = root->get_computed_style();
+    ASSERT_TRUE(parent);
+    ASSERT_TRUE(parent->width.has_value());  // parent really did get the box props
+
+    auto child = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child);
+    EXPECT_FALSE(child->width.has_value());
+    EXPECT_FLOAT_EQ(child->margin.top, 0.0f);
+    EXPECT_FLOAT_EQ(child->padding.top, 0.0f);
+    EXPECT_EQ(child->border_style, ComputedStyle::BorderStyle::None);
+    EXPECT_FLOAT_EQ(child->border_radius.top_left.value, 0.0f);
+    EXPECT_EQ(child->float_type, ComputedStyle::Float::None);
+    EXPECT_EQ(child->clear, ComputedStyle::Clear::None);
+    EXPECT_EQ(child->position, ComputedStyle::Position::Static);
+    EXPECT_NE(child->display, ComputedStyle::Display::Flex);
+    EXPECT_FALSE(child->z_index.has_value());
+}
+
 TEST(StyleEngineTest, AppliesVerticalAlignProperty) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
@@ -1034,6 +1609,121 @@ TEST(StyleEngineTest, AppliesBoxShadowProperty) {
     EXPECT_EQ(style->box_shadow->color.r, 0x11);
     EXPECT_EQ(style->box_shadow->color.g, 0x22);
     EXPECT_EQ(style->box_shadow->color.b, 0x33);
+}
+
+TEST(StyleEngineTest, ResolvesCalcWidthAgainstReference) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { width: calc(100% - 20px); }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->width.has_value());
+    EXPECT_TRUE(style->width->has_percent);
+    EXPECT_FLOAT_EQ(style->width->percent, 100.0f);
+    EXPECT_FLOAT_EQ(style->width->px, -20.0f);
+    // Resolved against a 200px containing block: 100% - 20px = 180px.
+    EXPECT_FLOAT_EQ(style->width->resolve(200.0f), 180.0f);
+}
+
+TEST(StyleEngineTest, UnsupportedCalcLeavesLengthUnset) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { width: calc(100% - 2*6px); }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    // Multiplication is unsupported, so the width declaration is dropped.
+    EXPECT_FALSE(style->width.has_value());
+}
+
+TEST(StyleEngineTest, LegacyClipRectHidesContentWhenEmpty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto hidden = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    hidden->set_attribute(Attr::Class, "sr-only");
+    auto boxed = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    boxed->set_attribute(Attr::Class, "framed");
+    root->append_child(std::move(hidden));
+    root->append_child(std::move(boxed));
+
+    std::string css =
+        ".sr-only { position: absolute; clip: rect(0 0 0 0); }"
+        ".framed { position: absolute; clip: rect(0 20px 20px 0); }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto hidden_style = root->get_children()[0]->get_computed_style();
+    auto boxed_style = root->get_children()[1]->get_computed_style();
+    ASSERT_TRUE(hidden_style && hidden_style->clip.has_value());
+    ASSERT_TRUE(boxed_style && boxed_style->clip.has_value());
+    // rect(0 0 0 0) collapses to an empty region -> hides.
+    EXPECT_TRUE(hidden_style->clip->hides_content());
+    // rect(0 20px 20px 0) is a real 20x20 region -> does not hide.
+    EXPECT_FALSE(boxed_style->clip->hides_content());
+}
+
+TEST(StyleEngineTest, AppliesAndInheritsTextShadow) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    root->append_child(std::move(child));
+
+    std::string css = "div { text-shadow: 1px 2px 3px #112233; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->text_shadow.has_value());
+    EXPECT_FLOAT_EQ(style->text_shadow->offset_x, 1.0f);
+    EXPECT_FLOAT_EQ(style->text_shadow->offset_y, 2.0f);
+    EXPECT_FLOAT_EQ(style->text_shadow->blur, 3.0f);
+    EXPECT_EQ(style->text_shadow->color.r, 0x11);
+
+    // text-shadow is inherited, so the child picks it up.
+    auto child_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child_style);
+    ASSERT_TRUE(child_style->text_shadow.has_value());
+    EXPECT_FLOAT_EQ(child_style->text_shadow->offset_y, 2.0f);
+}
+
+TEST(StyleEngineTest, TextShadowNoneClearsInheritedShadow) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    auto child = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Span);
+    child->set_attribute(Attr::Class, "flat");
+    root->append_child(std::move(child));
+
+    std::string css = "div { text-shadow: 1px 1px 1px #000; } .flat { text-shadow: none; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto child_style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(child_style);
+    // `text-shadow: none` overrides the inherited shadow rather than keeping it.
+    EXPECT_FALSE(child_style->text_shadow.has_value());
 }
 
 TEST(StyleEngineTest, AppliesPseudoClassFocusForInput) {
@@ -1076,6 +1766,128 @@ TEST(StyleEngineTest, AppliesBackgroundImageProperties) {
     EXPECT_EQ(style->background_position.horizontal, ComputedStyle::BackgroundPosition::Horizontal::Center);
     EXPECT_EQ(style->background_position.vertical, ComputedStyle::BackgroundPosition::Vertical::Center);
     EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Contain);
+}
+
+TEST(StyleEngineTest, ParsesPercentBackgroundSize) {
+    // DDG logo: `background-size: 100%` must keep the percentage (resolved at
+    // paint time) rather than degrading to 100px, which squished the SVG.
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background-size: 100%; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Length);
+    ASSERT_TRUE(style->background_size.width.has_value());
+    EXPECT_FLOAT_EQ(*style->background_size.width, 100.0f);
+    EXPECT_TRUE(style->background_size.width_is_percent);
+    EXPECT_FALSE(style->background_size.height.has_value());  // auto -> aspect-preserved
+}
+
+TEST(StyleEngineTest, AuthorPaddingZeroOverridesInputUaDefault) {
+    // DDG search input: `.search__input { padding: 0 }` must override the UA
+    // default input padding so the input isn't taller than its search box.
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto input = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    input->set_attribute(Attr::Class, "search__input");
+
+    std::string css = ".search__input { padding: 0; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, input.get());
+
+    auto style = input->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->padding.top, 0.0f);
+    EXPECT_FLOAT_EQ(style->padding.right, 0.0f);
+    EXPECT_FLOAT_EQ(style->padding.bottom, 0.0f);
+    EXPECT_FLOAT_EQ(style->padding.left, 0.0f);
+}
+
+TEST(StyleEngineTest, AuthorHeightAutoOverridesInputUaDefault) {
+    // The submit button's `height:auto` must drop the UA default height so it can
+    // stretch between top:0/bottom:0 (DDG results-page green button had a gap).
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto input = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    input->set_attribute(Attr::Type, "submit");
+
+    std::string css = "input { height: auto; width: auto; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, input.get());
+
+    auto style = input->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FALSE(style->height.has_value());  // auto cleared the UA default
+    EXPECT_FALSE(style->width.has_value());
+}
+
+TEST(StyleEngineTest, ParsesAutoLengthBackgroundSize) {
+    // DDG results-page logo: `background-size: auto 36px` fixes the height and
+    // derives the width from the image aspect. The `auto` first token must NOT
+    // short-circuit to intrinsic-size "auto".
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background-size: auto 36px; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Length);
+    EXPECT_FALSE(style->background_size.width.has_value());  // auto -> aspect-preserved
+    ASSERT_TRUE(style->background_size.height.has_value());
+    EXPECT_FLOAT_EQ(*style->background_size.height, 36.0f);
+    EXPECT_FALSE(style->background_size.height_is_percent);
+}
+
+TEST(StyleEngineTest, SingleAutoBackgroundSizeStaysIntrinsic) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background-size: auto; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    // The single-token form remains intrinsic-size Auto.
+    EXPECT_EQ(style->background_size.type, ComputedStyle::BackgroundSize::Type::Auto);
+    EXPECT_FALSE(style->background_size.width.has_value());
+    EXPECT_FALSE(style->background_size.height.has_value());
+}
+
+TEST(StyleEngineTest, ParsesPercentBackgroundPosition) {
+    // DDG magnifier: `background-position: 50% 50%` must keep the percentage so
+    // the painter centers it, rather than treating 50 as a pixel offset.
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { background-position: 50% 50%; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->background_position.offset_x.has_value());
+    EXPECT_FLOAT_EQ(*style->background_position.offset_x, 50.0f);
+    EXPECT_TRUE(style->background_position.offset_x_is_percent);
+    ASSERT_TRUE(style->background_position.offset_y.has_value());
+    EXPECT_TRUE(style->background_position.offset_y_is_percent);
 }
 
 TEST(StyleEngineTest, AppliesInlineBlockDisplay) {
@@ -1226,8 +2038,8 @@ TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
     ASSERT_TRUE(img_style);
     ASSERT_TRUE(img_style->width.has_value());
     ASSERT_TRUE(img_style->height.has_value());
-    EXPECT_FLOAT_EQ(img_style->width.value(), 120.0f);
-    EXPECT_FLOAT_EQ(img_style->height.value(), 80.0f);
+    EXPECT_FLOAT_EQ(img_style->width->px, 120.0f);
+    EXPECT_FLOAT_EQ(img_style->height->px, 80.0f);
 }
 
 TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
@@ -1297,4 +2109,46 @@ TEST(StyleEngineTest, AuthorBackgroundOverridesCodeAndPreDefaults) {
     EXPECT_EQ(pre_style->background->r, 221);
     EXPECT_EQ(pre_style->background->g, 221);
     EXPECT_EQ(pre_style->background->b, 221);
+}
+
+TEST(StyleEngineTest, EvaluatesMediaConditionsAgainstViewport) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto body = Hummingbird::DOM::DomFactory::create_element(arena, "body");
+    auto div = Hummingbird::DOM::DomFactory::create_element(arena, "div");
+    div->set_attribute("id", "target");
+    body->append_child(std::move(div));
+
+    Hummingbird::Css::Parser parser(R"(
+        #target { width: 10px; }
+        @media (min-width: 800px) { #target { width: 500px; } }
+    )");
+    auto sheet = parser.parse();
+
+    // Wide viewport: the @media rule wins.
+    {
+        Hummingbird::Css::StyleEngine engine;
+        engine.apply(sheet, body.get(), {1024.0f, 768.0f});
+        auto style = body->get_children()[0]->get_computed_style();
+        ASSERT_NE(style, nullptr);
+        ASSERT_TRUE(style->width.has_value());
+        EXPECT_FLOAT_EQ(style->width->px, 500.0f);
+    }
+    // Narrow viewport: conditioned rule filtered out.
+    {
+        Hummingbird::Css::StyleEngine engine;
+        engine.apply(sheet, body.get(), {500.0f, 700.0f});
+        auto style = body->get_children()[0]->get_computed_style();
+        ASSERT_NE(style, nullptr);
+        ASSERT_TRUE(style->width.has_value());
+        EXPECT_FLOAT_EQ(style->width->px, 10.0f);
+    }
+    // Default context (no viewport): min-width conditions do not match.
+    {
+        Hummingbird::Css::StyleEngine engine;
+        engine.apply(sheet, body.get());
+        auto style = body->get_children()[0]->get_computed_style();
+        ASSERT_NE(style, nullptr);
+        ASSERT_TRUE(style->width.has_value());
+        EXPECT_FLOAT_EQ(style->width->px, 10.0f);
+    }
 }

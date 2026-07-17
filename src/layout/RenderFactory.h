@@ -15,6 +15,8 @@ class RenderObject;
 class RenderFactory {
 public:
     static std::unique_ptr<RenderObject> create_block_box(const DOM::Node* dom_node);
+    static std::unique_ptr<RenderObject> create_flex_box(const DOM::Node* dom_node);
+    static std::unique_ptr<RenderObject> create_grid_box(const DOM::Node* dom_node);
     static std::unique_ptr<RenderObject> create_inline_box(const DOM::Node* dom_node);
     static std::unique_ptr<RenderObject> create_inline_block_box(const DOM::Node* dom_node);
     static std::unique_ptr<RenderObject> create_list_item(const DOM::Node* dom_node);

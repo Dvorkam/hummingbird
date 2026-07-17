@@ -2,12 +2,17 @@
 
 #include <gtest/gtest.h>
 
+#include <functional>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
+#include "core/dom/Element.h"
+#include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
+#include "engine/document/DocumentModel.h"
 #include "engine/resources/ResourceStore.h"
 #include "layout/geometry/Geometry.h"
 #include "test_utils/TestGraphicsContext.h"
@@ -84,6 +89,108 @@ TEST(DocumentPipelineTest, DispatchesLoadHandler) {
     auto result = pipeline.dispatch_load();
     EXPECT_TRUE(result.handled);
     EXPECT_TRUE(result.mutated);
+}
+
+TEST(DocumentModelTest, MarksAnchorsVisitedByResolvedHref) {
+    using Hummingbird::DOM::Element;
+    using Hummingbird::DOM::Node;
+    using Hummingbird::Engine::DocumentModel;
+
+    DocumentModel model;
+    ASSERT_TRUE(model.parse_html("<html><body><a href=\"/next\">n</a><a href=\"/other\">o</a></body></html>").ok);
+
+    std::unordered_set<std::string> visited{"https://example.dev/next"};
+    model.mark_visited_links(visited, "https://example.dev/page");
+
+    std::vector<Element*> anchors;
+    std::function<void(Node*)> walk = [&](Node* node) {
+        if (auto* element = dynamic_cast<Element*>(node)) {
+            if (element->get_tag_name() == "a") anchors.push_back(element);
+        }
+        for (const auto& child : node->get_children()) walk(child.get());
+    };
+    walk(model.dom_root());
+
+    ASSERT_EQ(anchors.size(), 2u);
+    // /next resolves to the visited URL; /other does not.
+    EXPECT_TRUE(anchors[0]->has_pseudo_state(Element::PseudoState::Visited));
+    EXPECT_FALSE(anchors[1]->has_pseudo_state(Element::PseudoState::Visited));
+}
+
+TEST(DocumentModelTest, BudgetExhaustionShowsErrorPage) {
+    using Hummingbird::DOM::Element;
+    using Hummingbird::DOM::Node;
+    using Hummingbird::Engine::DocumentModel;
+
+    // A tiny single-block arena: big enough for the built-in error page, far too
+    // small for a large document.
+    DocumentModel model(8192, 1);
+    std::string big = "<html><body>";
+    for (int i = 0; i < 4000; ++i) {
+        big += "<div>x</div>";
+    }
+    big += "</body></html>";
+
+    auto result = model.parse_html(big);
+    // The over-budget parse recovers into the error page rather than a blank tab.
+    EXPECT_TRUE(result.ok);
+    EXPECT_FALSE(result.arena_failed);
+    ASSERT_NE(model.dom_root(), nullptr);
+
+    // The rendered DOM is the built-in "too large" page: locate its <h1>.
+    std::function<Element*(Node*)> find_h1 = [&](Node* node) -> Element* {
+        if (auto* element = dynamic_cast<Element*>(node)) {
+            if (element->get_tag_name() == "h1") return element;
+        }
+        for (const auto& child : node->get_children()) {
+            if (auto* found = find_h1(child.get())) return found;
+        }
+        return nullptr;
+    };
+    EXPECT_NE(find_h1(model.dom_root()), nullptr);
+}
+
+TEST(DocumentPipelineTest, DetectsMediaBreakpointCrossOnResize) {
+    // DDG gates its desktop layout behind (min-width: 864px)-style rules;
+    // resizing across such a bound must trigger a restyle (T-MEDIA-RESIZE-1).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <style>
+      body { margin: 0; }
+      @media (min-width: 864px) {
+        body { margin: 8px; }
+      }
+    </style>
+  </head>
+  <body><p>hi</p></body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    TestGraphicsContext graphics;
+    Rect narrow{0, 0, 800, 600};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, narrow, "https://example.dev");
+
+    // Same side of the breakpoint: relayout is enough.
+    EXPECT_FALSE(pipeline.needs_restyle_for_viewport({0, 0, 820, 600}));
+    // Crossing 864px flips the rule: restyle required.
+    EXPECT_TRUE(pipeline.needs_restyle_for_viewport({0, 0, 1024, 768}));
+
+    // After restyling at the wide viewport, staying wide needs no restyle
+    // but shrinking back across the bound does.
+    pipeline.apply_styles_and_layout(graphics, {0, 0, 1024, 768}, "https://example.dev");
+    EXPECT_FALSE(pipeline.needs_restyle_for_viewport({0, 0, 900, 700}));
+    EXPECT_TRUE(pipeline.needs_restyle_for_viewport(narrow));
 }
 
 TEST(DocumentPipelineTest, DispatchesClickHandler) {

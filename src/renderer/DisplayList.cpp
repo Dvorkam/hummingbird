@@ -28,6 +28,14 @@ void DisplayList::add_set_global_alpha(float alpha) {
     commands_.push_back(RenderCommandUtils::make_set_global_alpha(alpha));
 }
 
+void DisplayList::add_push_clip(const Hummingbird::Layout::Rect& rect) {
+    commands_.push_back(RenderCommandUtils::make_push_clip(rect));
+}
+
+void DisplayList::add_pop_clip() {
+    commands_.push_back(RenderCommandUtils::make_pop_clip());
+}
+
 void DisplayList::replay(IGraphicsContext& context) const {
     for (const auto& command : commands_) {
         RenderCommandUtils::replay_command(command, context);

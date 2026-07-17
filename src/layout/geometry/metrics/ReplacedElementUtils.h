@@ -32,11 +32,18 @@ inline std::optional<float> find_attribute_dimension(const DOM::Element& element
     return std::nullopt;
 }
 
+// Replaced-element sizing has no containing-block reference plumbed here, so a
+// percentage is taken as its bare magnitude (matching the pre-unification
+// behavior of a single float). Proper percent resolution can come with calc.
+inline float raw_px(const Css::ComputedStyle::LengthValue& value) {
+    return value.has_percent ? value.percent : value.px;
+}
+
 inline float resolve_dimension(const DOM::Element& element, const Css::ComputedStyle* style, std::string_view name,
                                float default_value, std::optional<float> intrinsic_value,
-                               const std::optional<float>& style_value) {
+                               const std::optional<Css::ComputedStyle::LengthValue>& style_value) {
     if (style && style_value.has_value()) {
-        return std::max(0.0f, *style_value);
+        return std::max(0.0f, raw_px(*style_value));
     }
     if (auto attr = find_attribute_dimension(element, name)) {
         return std::max(0.0f, *attr);
@@ -50,41 +57,44 @@ inline float resolve_dimension(const DOM::Element& element, const Css::ComputedS
 inline LayoutSize compute_layout_size(const DOM::Element& element, const Css::ComputedStyle* style,
                                       const SizeOptions& options) {
     Metrics::Insets insets = Metrics::compute_insets(style);
+    using LV = Css::ComputedStyle::LengthValue;
     float content_width =
         resolve_dimension(element, style, Hummingbird::Html::AttributeNames::Width, options.default_width,
-                          options.intrinsic_width, style ? style->width : std::optional<float>{});
+                          options.intrinsic_width, style ? style->width : std::optional<LV>{});
     float content_height =
         resolve_dimension(element, style, Hummingbird::Html::AttributeNames::Height, options.default_height,
-                          options.intrinsic_height, style ? style->height : std::optional<float>{});
+                          options.intrinsic_height, style ? style->height : std::optional<LV>{});
 
     float total_width = content_width + insets.left + insets.right;
     float total_height = content_height + insets.top + insets.bottom;
 
     if (style && style->box_sizing == Css::ComputedStyle::BoxSizing::BorderBox) {
         if (style->width.has_value()) {
-            total_width = std::max(0.0f, *style->width);
+            total_width = std::max(0.0f, raw_px(*style->width));
             content_width = Metrics::content_width(total_width, insets);
         }
         if (style->height.has_value()) {
-            total_height = std::max(0.0f, *style->height);
+            total_height = std::max(0.0f, raw_px(*style->height));
             content_height = std::max(0.0f, total_height - insets.top - insets.bottom);
         }
     }
 
     if (style) {
         if (style->min_width.has_value()) {
-            total_width = std::max(total_width, Metrics::resolve_border_box_width(style, *style->min_width, insets));
+            total_width =
+                std::max(total_width, Metrics::resolve_border_box_width(style, raw_px(*style->min_width), insets));
         }
         if (style->max_width.has_value()) {
-            total_width = std::min(total_width, Metrics::resolve_border_box_width(style, *style->max_width, insets));
+            total_width =
+                std::min(total_width, Metrics::resolve_border_box_width(style, raw_px(*style->max_width), insets));
         }
         if (style->min_height.has_value()) {
             total_height =
-                std::max(total_height, Metrics::resolve_border_box_height(style, *style->min_height, insets));
+                std::max(total_height, Metrics::resolve_border_box_height(style, raw_px(*style->min_height), insets));
         }
         if (style->max_height.has_value()) {
             total_height =
-                std::min(total_height, Metrics::resolve_border_box_height(style, *style->max_height, insets));
+                std::min(total_height, Metrics::resolve_border_box_height(style, raw_px(*style->max_height), insets));
         }
     }
 

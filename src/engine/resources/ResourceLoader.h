@@ -47,6 +47,7 @@ public:
         bool document_ready = false;
         bool stylesheet_ready = false;
         bool image_ready = false;
+        bool font_ready = false;
         size_t pending_count = 0;
         std::string document_url;
         std::string effective_url;
@@ -70,6 +71,7 @@ public:
 
     void request_stylesheets(const std::vector<std::string>& links, std::string_view base_url);
     void request_images(const std::vector<std::string>& links, std::string_view base_url);
+    void request_fonts(const std::vector<std::string>& links, std::string_view base_url);
 
     BatchResult consume_pending_updates();
 

@@ -68,8 +68,8 @@ std::optional<std::string_view> resolve_custom_property(const ComputedStyle& sty
 
 }  // namespace
 
-std::optional<Color> resolve_var_color(const ComputedStyle& style, const ComputedStyle* parent_style,
-                                       std::string_view value) {
+std::optional<std::string> resolve_var_text(const ComputedStyle& style, const ComputedStyle* parent_style,
+                                            std::string_view value) {
     auto parsed = parse_var_expression(value);
     if (!parsed) {
         return std::nullopt;
@@ -80,9 +80,18 @@ std::optional<Color> resolve_var_color(const ComputedStyle& style, const Compute
         return std::nullopt;
     }
     if (is_var_function(candidate)) {
-        return resolve_var_color(style, parent_style, candidate);
+        return resolve_var_text(style, parent_style, candidate);
     }
-    return Core::Utils::parse_html_color(candidate);
+    return std::string(candidate);
+}
+
+std::optional<Color> resolve_var_color(const ComputedStyle& style, const ComputedStyle* parent_style,
+                                       std::string_view value) {
+    auto text = resolve_var_text(style, parent_style, value);
+    if (!text) {
+        return std::nullopt;
+    }
+    return Core::Utils::parse_html_color(*text);
 }
 
 }  // namespace Hummingbird::Css::Apply

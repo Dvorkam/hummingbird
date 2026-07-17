@@ -118,8 +118,8 @@ TEST(BlockBoxLayoutTest, FloatLeftShiftsInlineContent) {
 
     auto float_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
     float_style->float_type = Hummingbird::Css::ComputedStyle::Float::Left;
-    float_style->width = 50.0f;
-    float_style->height = 10.0f;
+    float_style->width = Hummingbird::Css::ComputedStyle::LengthValue::from_px(50.0f);
+    float_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(10.0f);
     root->get_children()[0]->set_computed_style(float_style);
 
     auto render_root = BlockBox::create(root.get());
@@ -206,4 +206,69 @@ TEST(BlockBoxLayoutTest, FloatImageInsideLinkIsFloated) {
     const auto& link_rect = render_root->get_children()[0]->get_rect();
     EXPECT_FLOAT_EQ(link_rect.width, 88.0f);
     EXPECT_FLOAT_EQ(link_rect.x, 112.0f);
+}
+
+namespace {
+// Builds <div> with a left float (50x40) followed by a block, and returns the
+// followed block's y after layout at width 200. The block's clear is set by
+// the caller before layout.
+struct ClearFixture {
+    Hummingbird::Core::ArenaAllocator arena{2048};
+    std::shared_ptr<Hummingbird::Css::ComputedStyle> block_style;
+    Hummingbird::Core::ArenaPtr<Element> root;
+    std::unique_ptr<BlockBox> render_root;
+
+    ClearFixture() {
+        root = DomFactory::create_element(arena, "div");
+        root->append_child(DomFactory::create_element(arena, "div"));
+        root->append_child(DomFactory::create_element(arena, "div"));
+        root->set_computed_style(
+            std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style()));
+
+        auto float_style =
+            std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+        float_style->float_type = Hummingbird::Css::ComputedStyle::Float::Left;
+        float_style->width = Hummingbird::Css::ComputedStyle::LengthValue::from_px(50.0f);
+        float_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(40.0f);
+        root->get_children()[0]->set_computed_style(float_style);
+
+        block_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
+        block_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(10.0f);
+        root->get_children()[1]->set_computed_style(block_style);
+    }
+
+    float run() {
+        render_root = BlockBox::create(root.get());
+        render_root->append_child(BlockBox::create(root->get_children()[0].get()));
+        render_root->append_child(BlockBox::create(root->get_children()[1].get()));
+        Hummingbird::Test::TestGraphicsContext context;
+        Rect bounds{0, 0, 200, 0};
+        render_root->layout(context, bounds);
+        return render_root->get_children()[1]->get_rect().y;
+    }
+};
+}  // namespace
+
+TEST(BlockBoxLayoutTest, ClearLeftDropsBlockBelowLeftFloat) {
+    ClearFixture fixture;
+    fixture.block_style->clear = Hummingbird::Css::ComputedStyle::Clear::Left;
+    EXPECT_GE(fixture.run(), 40.0f);
+}
+
+TEST(BlockBoxLayoutTest, ClearBothDropsBlockBelowLeftFloat) {
+    ClearFixture fixture;
+    fixture.block_style->clear = Hummingbird::Css::ComputedStyle::Clear::Both;
+    EXPECT_GE(fixture.run(), 40.0f);
+}
+
+TEST(BlockBoxLayoutTest, ClearRightDoesNotClearLeftFloat) {
+    // clear:right must ignore a left float, so the block stays beside it.
+    ClearFixture fixture;
+    fixture.block_style->clear = Hummingbird::Css::ComputedStyle::Clear::Right;
+    EXPECT_LT(fixture.run(), 40.0f);
+}
+
+TEST(BlockBoxLayoutTest, NoClearLeavesBlockBesideFloat) {
+    ClearFixture fixture;  // default clear = None
+    EXPECT_LT(fixture.run(), 40.0f);
 }

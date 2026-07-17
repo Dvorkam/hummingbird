@@ -5,6 +5,12 @@ project(Hummingbird VERSION 0.5.0)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Treat source and execution charset as UTF-8 on MSVC (matches Clang/GCC behavior),
+# so \uXXXX narrow literals do not get re-encoded into the local codepage.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 set(HB_LOG_LEVEL "ERROR" CACHE STRING "Log level: OFF, ERROR, WARN, INFO, DEBUG")
 set_property(CACHE HB_LOG_LEVEL PROPERTY STRINGS OFF ERROR WARN INFO DEBUG)
 
@@ -121,6 +127,8 @@ add_library(Layout STATIC
     src/layout/TreeBuilder.cpp
     src/layout/block/BlockBox.cpp
     src/layout/block/FloatLayoutUtils.cpp
+    src/layout/flex/FlexBox.cpp
+    src/layout/grid/GridBox.cpp
     src/layout/flow/InlineBox.cpp
     src/layout/flow/TextBox.cpp
     src/layout/flow/TextMeasurer.cpp

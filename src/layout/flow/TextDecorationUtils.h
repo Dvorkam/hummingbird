@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/GraphicsTypes.h"
 #include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout {

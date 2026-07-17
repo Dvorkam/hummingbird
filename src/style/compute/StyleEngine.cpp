@@ -2,16 +2,22 @@
 
 #include <stddef.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "core/ArenaAllocator.h"
+#include "core/GraphicsTypes.h"
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/utils/StringUtils.h"
+#include "html/HtmlAttributeNames.h"
 #include "style/compute/StyleDefaults.h"
+#include "style/compute/StyleValueUtils.h"
 #include "style/compute/Stylesheet.h"
+#include "style/compute/apply/ApplyColorUtils.h"
 #include "style/compute/apply/PropertyApplier.h"
 #include "style/registry/CssPropertyRegistry.h"
 #include "style/selector/SelectorMatcher.h"
@@ -25,7 +31,15 @@ struct MatchedProperty {
     int specificity;
     size_t order;
     Value value;
+    bool important;
 };
+
+// Cascade: importance beats specificity beats source order (T-CSS-IMPORTANT-1).
+bool declaration_wins(bool important, int specificity, size_t order, const MatchedProperty& incumbent) {
+    if (important != incumbent.important) return important;
+    if (specificity != incumbent.specificity) return specificity > incumbent.specificity;
+    return order > incumbent.order;
+}
 
 struct StyleResult {
     ComputedStyle style;
@@ -44,38 +58,111 @@ struct MatchedDeclarations {
     CustomPropertyMap custom_properties;
 };
 
-MatchedDeclarations collect_matched_properties(const Stylesheet& sheet, const DOM::Node* node) {
+// A single (rule, selector) pair, tagged with its document-order sequence so
+// candidates gathered from several buckets can be re-sorted into cascade order.
+struct RuleCandidate {
+    const Rule* rule;
+    const Selector* selector;
+    size_t sequence;
+};
+
+// Rules bucketed by the key (rightmost) compound selector's most specific simple
+// part, so an element only tests selectors that could plausibly match it instead
+// of the whole sheet (T-PERF-STYLE-1). Media-non-matching rules are excluded at
+// build time, since a build is scoped to one MediaContext.
+struct RuleIndex {
+    std::unordered_map<std::string, std::vector<RuleCandidate>> by_id;
+    std::unordered_map<std::string, std::vector<RuleCandidate>> by_class;
+    std::unordered_map<std::string, std::vector<RuleCandidate>> by_tag;
+    std::vector<RuleCandidate> universal;
+};
+
+RuleIndex build_rule_index(const Stylesheet& sheet, const MediaContext& media) {
+    RuleIndex index;
+    size_t sequence = 0;
+    for (const auto& rule : sheet.rules) {
+        if (rule.media && !media_condition_matches(*rule.media, media)) {
+            continue;
+        }
+        for (const auto& selector : rule.selectors) {
+            RuleCandidate candidate{&rule, &selector, sequence++};
+            if (selector.parts.empty()) {
+                continue;
+            }
+            const SelectorPart& key = selector.parts.back();
+            if (!key.id.empty()) {
+                index.by_id[key.id].push_back(candidate);
+            } else if (!key.classes.empty()) {
+                index.by_class[key.classes.front()].push_back(candidate);
+            } else if (!key.tag.empty() && key.tag != "*") {
+                index.by_tag[key.tag].push_back(candidate);
+            } else {
+                index.universal.push_back(candidate);
+            }
+        }
+    }
+    return index;
+}
+
+MatchedDeclarations collect_matched_properties(const RuleIndex& index, const DOM::Node* node) {
     MatchedDeclarations matched;
-    size_t order = 0;
 
     const auto* element = dynamic_cast<const DOM::Element*>(node);
     if (!element) return matched;
 
-    for (const auto& rule : sheet.rules) {
-        for (const auto& selector : rule.selectors) {
-            if (!matches_selector(node, selector)) continue;
-            int spec = selector.specificity();
-            for (const auto& decl : rule.declarations) {
-                if (decl.property == Property::Custom) {
-                    if (decl.custom_property.empty()) {
-                        ++order;
-                        continue;
-                    }
-                    auto it = matched.custom_properties.find(decl.custom_property);
-                    if (it == matched.custom_properties.end() || spec > it->second.specificity ||
-                        (spec == it->second.specificity && order > it->second.order)) {
-                        matched.custom_properties[decl.custom_property] = {spec, order, decl.value};
-                    }
+    // Gather the candidate selectors whose key part could match this element:
+    // its id bucket, one bucket per class, its tag bucket, and the universal set.
+    std::vector<const RuleCandidate*> candidates;
+    auto append_bucket = [&](const std::unordered_map<std::string, std::vector<RuleCandidate>>& buckets,
+                             const std::string& key) {
+        auto it = buckets.find(key);
+        if (it == buckets.end()) return;
+        for (const auto& candidate : it->second) {
+            candidates.push_back(&candidate);
+        }
+    };
+
+    if (const auto* id = element->find_attribute(Hummingbird::Html::AttributeNames::Id); id && !id->empty()) {
+        append_bucket(index.by_id, *id);
+    }
+    if (const auto* classes = element->find_attribute(Hummingbird::Html::AttributeNames::Class);
+        classes && !classes->empty()) {
+        for (auto token : Core::Utils::split_ascii_whitespace(*classes)) {
+            append_bucket(index.by_class, std::string(token));
+        }
+    }
+    append_bucket(index.by_tag, std::string(element->get_tag_name()));
+    for (const auto& candidate : index.universal) {
+        candidates.push_back(&candidate);
+    }
+
+    // Restore cascade (document) order across the mixed buckets before applying.
+    std::sort(candidates.begin(), candidates.end(),
+              [](const RuleCandidate* a, const RuleCandidate* b) { return a->sequence < b->sequence; });
+
+    size_t order = 0;
+    for (const auto* candidate : candidates) {
+        if (!matches_selector(node, *candidate->selector)) continue;
+        int spec = candidate->selector->specificity();
+        for (const auto& decl : candidate->rule->declarations) {
+            if (decl.property == Property::Custom) {
+                if (decl.custom_property.empty()) {
                     ++order;
                     continue;
                 }
-                auto it = matched.properties.find(decl.property);
-                if (it == matched.properties.end() || spec > it->second.specificity ||
-                    (spec == it->second.specificity && order > it->second.order)) {
-                    matched.properties[decl.property] = {spec, order, decl.value};
+                auto it = matched.custom_properties.find(decl.custom_property);
+                if (it == matched.custom_properties.end() ||
+                    declaration_wins(decl.important, spec, order, it->second)) {
+                    matched.custom_properties[decl.custom_property] = {spec, order, decl.value, decl.important};
                 }
                 ++order;
+                continue;
             }
+            auto it = matched.properties.find(decl.property);
+            if (it == matched.properties.end() || declaration_wins(decl.important, spec, order, it->second)) {
+                matched.properties[decl.property] = {spec, order, decl.value, decl.important};
+            }
+            ++order;
         }
     }
 
@@ -92,100 +179,87 @@ void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& sty
         if (it == properties.end()) {
             continue;
         }
-        Apply::apply_property(entry.property, it->second.value, style, overrides, context);
+        // CSS-wide `inherit` (T-CSS-INHERIT-1): leave the field untouched and
+        // its override flag unset so inherit_from_parent copies the parent's
+        // computed value. This is exact for inherited properties (DDG's
+        // `font-family: inherit`); non-inherited properties fall back to
+        // their initial value, which is the supported slice for now.
+        const Value& value = it->second.value;
+        if (value.type == Value::Type::Identifier && value.ident == "inherit") {
+            continue;
+        }
+        // var() substitution for any property (T-CSS-VAR-3): resolve the
+        // custom property to its raw text and re-type it (length/color/
+        // number) before the apply hook runs. An unresolvable var leaves the
+        // property at its initial/inherited value, per spec.
+        if (value.type == Value::Type::Identifier && value.ident.starts_with("var(")) {
+            auto text = Apply::resolve_var_text(style, parent_style, value.ident);
+            if (!text) {
+                continue;
+            }
+            Value substituted = StyleValueUtils::parse_substituted_value(*text);
+            if (substituted.type == Value::Type::Identifier && substituted.ident == "inherit") {
+                continue;
+            }
+            Apply::apply_property(entry.property, substituted, style, overrides, context);
+            continue;
+        }
+        Apply::apply_property(entry.property, value, style, overrides, context);
     }
 }
 
 void apply_custom_properties(const CustomPropertyMap& properties, ComputedStyle& style) {
     for (const auto& [name, property] : properties) {
+        // `--x: inherit` keeps the parent's value (custom properties inherit
+        // by default; the parent merge in compute_node fills the gap).
+        if (property.value.ident == "inherit") {
+            continue;
+        }
         style.custom_properties[name] = property.value.ident;
     }
 }
 
-void apply_non_inheritable(ComputedStyle& target, const ComputedStyle& source) {
-    target.margin = source.margin;
-    target.margin_left_auto = source.margin_left_auto;
-    target.margin_right_auto = source.margin_right_auto;
-    target.padding = source.padding;
-    target.box_sizing = source.box_sizing;
-    target.transform_has_translate = source.transform_has_translate;
-    target.transform_translate_x = source.transform_translate_x;
-    target.transform_translate_y = source.transform_translate_y;
-    target.width = source.width;
-    target.height = source.height;
-    target.min_width = source.min_width;
-    target.min_height = source.min_height;
-    target.max_width = source.max_width;
-    target.max_height = source.max_height;
-    target.width_is_percent = source.width_is_percent;
-    target.height_is_percent = source.height_is_percent;
-    target.min_width_is_percent = source.min_width_is_percent;
-    target.min_height_is_percent = source.min_height_is_percent;
-    target.max_width_is_percent = source.max_width_is_percent;
-    target.max_height_is_percent = source.max_height_is_percent;
-    target.display = source.display;
-    target.overflow_x = source.overflow_x;
-    target.overflow_y = source.overflow_y;
-    target.vertical_align = source.vertical_align;
-    target.border_width = source.border_width;
-    target.border_radius = source.border_radius;
-    target.border_color = source.border_color;
-    target.border_style = source.border_style;
-    target.outline_width = source.outline_width;
-    target.outline_offset = source.outline_offset;
-    target.outline_color = source.outline_color;
-    target.background = source.background;
-    target.background_image = source.background_image;
-    target.box_shadow = source.box_shadow;
-    target.background_repeat = source.background_repeat;
-    target.background_position = source.background_position;
-    target.background_size = source.background_size;
-    target.position = source.position;
-    target.top = source.top;
-    target.right = source.right;
-    target.bottom = source.bottom;
-    target.left = source.left;
-    target.top_is_percent = source.top_is_percent;
-    target.right_is_percent = source.right_is_percent;
-    target.bottom_is_percent = source.bottom_is_percent;
-    target.left_is_percent = source.left_is_percent;
-    target.z_index = source.z_index;
-    target.opacity = source.opacity;
-    target.float_type = source.float_type;
-    target.text_overflow = source.text_overflow;
-}
-
-void apply_inheritable_overrides(ComputedStyle& target, const ComputedStyle& source,
-                                 const StyleDefaults::StyleOverrides& overrides) {
-    if (overrides.color) target.color = source.color;
-    if (overrides.underline) target.underline = source.underline;
-    if (overrides.underline_thickness) target.underline_thickness = source.underline_thickness;
-    if (overrides.underline_offset) target.underline_offset = source.underline_offset;
-    if (overrides.link_color) target.link_color = source.link_color;
-    if (overrides.vlink_color) target.vlink_color = source.vlink_color;
-    if (overrides.whitespace) target.whitespace = source.whitespace;
-    if (overrides.font_monospace) target.font_monospace = source.font_monospace;
-    if (overrides.weight) target.weight = source.weight;
-    if (overrides.style) target.style = source.style;
-    if (overrides.font_size) target.font_size = source.font_size;
-    if (overrides.font_face) target.font_face = source.font_face;
-    if (overrides.text_align) target.text_align = source.text_align;
-    if (overrides.text_transform) target.text_transform = source.text_transform;
-    if (overrides.cursor) target.cursor = source.cursor;
-    if (overrides.letter_spacing) target.letter_spacing = source.letter_spacing;
-    if (overrides.text_indent) target.text_indent = source.text_indent;
-    if (overrides.word_wrap) target.word_wrap = source.word_wrap;
-    if (overrides.background) target.background = source.background;
-    if (overrides.line_height) target.line_height = source.line_height;
-    if (overrides.list_style_type) target.list_style_type = source.list_style_type;
-    if (overrides.list_style_position) target.list_style_position = source.list_style_position;
+// Fills inherited text/font properties from the parent for any field the
+// element did not set itself (tracked by `overrides`). Non-inherited box
+// properties are intentionally NOT handled here: the element's computed style
+// already holds its own values, so they need no per-field copy and adding a new
+// non-inherited property requires no change to this function. Only the small,
+// stable set of genuinely inherited CSS properties is enumerated below; a new
+// *inherited* property must be added here (guarded by
+// StyleEngineTest.InheritsAllInheritedProperties).
+void inherit_from_parent(ComputedStyle& style, const ComputedStyle& parent,
+                         const StyleDefaults::StyleOverrides& overrides) {
+    if (!overrides.color) style.color = parent.color;
+    if (!overrides.underline) style.underline = parent.underline;
+    if (!overrides.underline_thickness) style.underline_thickness = parent.underline_thickness;
+    if (!overrides.underline_offset) style.underline_offset = parent.underline_offset;
+    if (!overrides.link_color) style.link_color = parent.link_color;
+    if (!overrides.vlink_color) style.vlink_color = parent.vlink_color;
+    if (!overrides.whitespace) style.whitespace = parent.whitespace;
+    if (!overrides.font_monospace) style.font_monospace = parent.font_monospace;
+    if (!overrides.weight) style.weight = parent.weight;
+    if (!overrides.style) style.style = parent.style;
+    if (!overrides.font_size) style.font_size = parent.font_size;
+    if (!overrides.font_face) style.font_face = parent.font_face;
+    if (!overrides.text_align) style.text_align = parent.text_align;
+    if (!overrides.text_transform) style.text_transform = parent.text_transform;
+    if (!overrides.cursor) style.cursor = parent.cursor;
+    if (!overrides.letter_spacing) style.letter_spacing = parent.letter_spacing;
+    if (!overrides.text_indent) style.text_indent = parent.text_indent;
+    if (!overrides.word_wrap) style.word_wrap = parent.word_wrap;
+    if (!overrides.line_height) style.line_height = parent.line_height;
+    if (!overrides.list_style_type) style.list_style_type = parent.list_style_type;
+    if (!overrides.list_style_position) style.list_style_position = parent.list_style_position;
+    if (!overrides.visibility) style.visibility = parent.visibility;
+    if (!overrides.pointer_events) style.pointer_events = parent.pointer_events;
+    if (!overrides.text_shadow) style.text_shadow = parent.text_shadow;
 }
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).
-StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, const ComputedStyle* parent_style) {
+StyleResult build_style_for(const RuleIndex& index, const DOM::Node* node, const ComputedStyle* parent_style) {
     StyleResult result{default_computed_style(), {}};
     ComputedStyle& style = result.style;
-    MatchedDeclarations matched = collect_matched_properties(sheet, node);
+    MatchedDeclarations matched = collect_matched_properties(index, node);
     bool display_set = matched.properties.find(Property::Display) != matched.properties.end();
 
     // Minimal UA defaults for basic HTML readability.
@@ -202,36 +276,45 @@ StyleResult build_style_for(const Stylesheet& sheet, const DOM::Node* node, cons
     return result;
 }
 
-}  // namespace
+void compute_node(const RuleIndex& index, DOM::Node* node, const ComputedStyle* parent_style,
+                  const FontFaceRegistry* fonts) {
+    StyleResult own = build_style_for(index, node, parent_style);
+    // Start from the element's own computed style: every non-inherited (box)
+    // property is already correct by construction, so no per-field copy list is
+    // needed. Only inherited properties fall back to the parent. (Text nodes
+    // have no overrides, so they inherit everything.)
+    ComputedStyle style = std::move(own.style);
 
-void StyleEngine::compute_node(const Stylesheet& sheet, DOM::Node* node, const ComputedStyle* parent_style) {
-    ComputedStyle base = parent_style ? *parent_style : default_computed_style();
-    StyleResult own = build_style_for(sheet, node, parent_style);
-
-    // Non-inheritable box properties come from the computed (own) style.
-    apply_non_inheritable(base, own.style);
-
-    // Inheritable text properties: only elements introduce overrides; text nodes inherit.
-    if (dynamic_cast<DOM::Element*>(node)) {
-        apply_inheritable_overrides(base, own.style, own.overrides);
+    if (parent_style) {
+        inherit_from_parent(style, *parent_style, own.overrides);
+        // Custom properties inherit; the element's own values take precedence.
+        for (const auto& [name, value] : parent_style->custom_properties) {
+            style.custom_properties.emplace(name, value);
+        }
     }
 
-    for (const auto& [name, value] : own.style.custom_properties) {
-        base.custom_properties[name] = value;
+    // font-family is final here (cascade + inheritance done); resolve any
+    // matching @font-face to its loadable key so paint uses the web font.
+    if (fonts && !fonts->empty()) {
+        style.font_src = fonts->resolve(style.font_face);
     }
 
-    ComputedStyle style = base;
-
-    node->set_computed_style(std::make_shared<ComputedStyle>(style));
+    node->set_computed_style(std::make_shared<ComputedStyle>(std::move(style)));
 
     for (const auto& child : node->get_children()) {
-        compute_node(sheet, child.get(), node->get_computed_style().get());
+        compute_node(index, child.get(), node->get_computed_style().get(), fonts);
     }
 }
 
-void StyleEngine::apply(const Stylesheet& sheet, DOM::Node* root) {
+}  // namespace
+
+void StyleEngine::apply(const Stylesheet& sheet, DOM::Node* root, const MediaContext& media,
+                        const FontFaceRegistry* fonts) {
     if (!root) return;
-    compute_node(sheet, root, nullptr);
+    // Index the sheet once per apply (bucketed by key selector), then walk the
+    // tree testing only candidate rules per element instead of the whole sheet.
+    const RuleIndex index = build_rule_index(sheet, media);
+    compute_node(index, root, nullptr, fonts);
 }
 
 }  // namespace Hummingbird::Css

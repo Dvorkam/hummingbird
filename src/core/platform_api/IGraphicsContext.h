@@ -2,35 +2,14 @@
 
 #include <cstdint>
 #include <string>
-#include <utility>
 
+#include "core/GraphicsTypes.h"
 #include "core/geometry/Geometry.h"
 
 namespace Hummingbird {
 
-struct ImageBitmap;
-
-struct Color {
-    unsigned char r, g, b, a;
-};
-
-struct TextMetrics {
-    float width = 0.0f;
-    float height = 0.0f;
-    float ascent = 0.0f;
-    float descent = 0.0f;
-    float underline_position = 0.0f;
-    float underline_thickness = 0.0f;
-};
-
-struct TextStyle {
-    std::string font_path;
-    float font_size = 16.0f;
-    bool bold = false;
-    bool italic = false;
-    bool monospace = false;
-    Color color{0, 0, 0, 255};
-};
+// Color / TextMetrics / TextStyle / ImageBitmap now live in core/GraphicsTypes.h
+// so consumers that only need the value types do not depend on this port.
 
 class IGraphicsContext {
 public:
@@ -49,6 +28,13 @@ public:
     }
     virtual void set_global_alpha(float /*alpha*/) {}
     virtual void set_text_cache_owner(std::uint64_t /*owner_id*/) {}
+
+    // Restrict subsequent drawing to the intersection of `rect` with the current
+    // clip, until the matching pop_clip(). Implementations without clipping
+    // ignore both (drawing is simply not clipped). Used for background-clip and,
+    // later, overflow:hidden.
+    virtual void push_clip(const Hummingbird::Geometry::Rect& /*rect*/) {}
+    virtual void pop_clip() {}
 
     // Optional document cache hooks for partial redraws.
     virtual bool begin_document_cache(const Hummingbird::Geometry::Rect& /*viewport*/) { return false; }

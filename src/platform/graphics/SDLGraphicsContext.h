@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
@@ -32,6 +33,8 @@ public:
                                 const TextMetrics& metrics) override;
     void set_global_alpha(float alpha) override;
     void set_text_cache_owner(std::uint64_t owner_id) override;
+    void push_clip(const Hummingbird::Layout::Rect& rect) override;
+    void pop_clip() override;
     bool begin_document_cache(const Hummingbird::Layout::Rect& viewport) override;
     void end_document_cache() override;
     void draw_document_cache() override;
@@ -125,6 +128,8 @@ private:
     int document_cache_width_ = 0;
     int document_cache_height_ = 0;
     float global_alpha_ = 1.0f;
+    // Nested clip rectangles (each already intersected with its parent).
+    std::vector<Hummingbird::Layout::Rect> clip_stack_;
 };
 
 }  // namespace Hummingbird::Platform

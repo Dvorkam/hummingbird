@@ -31,6 +31,22 @@ TEST(CssPropertyRegistryTest, MapsCanonicalAndAliasNames) {
     EXPECT_TRUE(PropertyRegistry::canonical_property_name(Property::Unknown).empty());
 }
 
+TEST(CssPropertyRegistryTest, IdentifiesVendorPrefixedNames) {
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-webkit-user-select"));
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-moz-appearance"));
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-ms-overflow-style"));
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-o-transition"));
+    EXPECT_TRUE(PropertyRegistry::is_vendor_prefixed_name("-khtml-user-select"));
+    EXPECT_FALSE(PropertyRegistry::is_vendor_prefixed_name("margin"));
+    EXPECT_FALSE(PropertyRegistry::is_vendor_prefixed_name("--custom-prop"));
+    EXPECT_FALSE(PropertyRegistry::is_vendor_prefixed_name("bogus"));
+}
+
+TEST(CssPropertyRegistryTest, AliasesPrefixedTextOverflow) {
+    EXPECT_EQ(PropertyRegistry::parse_property_name("-o-text-overflow"), Property::TextOverflow);
+    EXPECT_EQ(PropertyRegistry::parse_property_name("-ms-text-overflow"), Property::TextOverflow);
+}
+
 TEST(CssPropertyRegistryTest, EntriesRoundTripAndHooksExist) {
     for (const auto& entry : PropertyRegistry::entries()) {
         EXPECT_EQ(PropertyRegistry::parse_property_name(entry.name), entry.property);
@@ -51,8 +67,10 @@ TEST(CssPropertyRegistryTest, PropertyListMetadataMatchesRegistryAccessors) {
 }
 
 TEST(CssPropertyRegistryTest, EveryTypedHookIsUsedByAtLeastOneProperty) {
-    std::array<bool, enum_index(PropertyRegistry::ParserHook::parse_box_shadow) + 1> parser_seen{};
-    std::array<bool, enum_index(PropertyRegistry::ApplyHook::apply_box_shadow) + 1> applier_seen{};
+    // Size to the Count sentinel so the arrays span the whole enum; otherwise
+    // hooks enumerated after the chosen bound would write out of bounds.
+    std::array<bool, enum_index(PropertyRegistry::ParserHook::Count)> parser_seen{};
+    std::array<bool, enum_index(PropertyRegistry::ApplyHook::Count)> applier_seen{};
 
     for (const auto& entry : PropertyRegistry::property_list()) {
         parser_seen[enum_index(entry.parser_hook)] = true;

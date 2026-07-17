@@ -164,6 +164,10 @@ void ResourceLoader::request_images(const std::vector<std::string>& links, std::
     request_resources(links, base_url, ResourceRequestPlanning::image_request_options());
 }
 
+void ResourceLoader::request_fonts(const std::vector<std::string>& links, std::string_view base_url) {
+    request_resources(links, base_url, ResourceRequestPlanning::font_request_options());
+}
+
 ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
     auto pending = take_pending_resources();
 
@@ -189,6 +193,7 @@ ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
     result.document_ready = stats.document_ready;
     result.stylesheet_ready = stats.stylesheet_ready;
     result.image_ready = stats.image_ready;
+    result.font_ready = stats.font_ready;
     return result;
 }
 
@@ -227,15 +232,33 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         }
 
         if (resource_provider_) {
+            // Only probe the local asset provider with paths that can plausibly be
+            // asset-relative; root-relative ("/x"), protocol-relative ("//host/x"),
+            // UNC ("\\host\x"), and absolute-URL links belong to the document's
+            // origin, not our bundled assets, and must never reach the filesystem
+            // (T-SEC-URL-1). The same guard applies to the resolved URL, since a
+            // protocol-relative link survives resolution unchanged when the base
+            // does not parse as absolute.
+            auto is_asset_candidate = [](std::string_view candidate) {
+                return !candidate.empty() && candidate.front() != '/' && candidate.front() != '\\' &&
+                       candidate.find("://") == std::string_view::npos;
+            };
+            const bool raw_is_asset_candidate = is_asset_candidate(raw_url);
+            const bool resolved_is_asset_candidate =
+                is_asset_candidate(resolved.resolved) && resolved.resolved != raw_url;
             std::optional<std::string> data;
             if (options.use_binary) {
-                data = resource_provider_->load_bytes(raw_url);
-                if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
+                if (raw_is_asset_candidate) {
+                    data = resource_provider_->load_bytes(raw_url);
+                }
+                if (!data && resolved_is_asset_candidate) {
                     data = resource_provider_->load_bytes(resolved.resolved);
                 }
             } else {
-                data = resource_provider_->load_text(raw_url);
-                if (!data && !resolved.resolved.empty() && resolved.resolved != raw_url) {
+                if (raw_is_asset_candidate) {
+                    data = resource_provider_->load_text(raw_url);
+                }
+                if (!data && resolved_is_asset_candidate) {
                     data = resource_provider_->load_text(resolved.resolved);
                 }
             }

@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <functional>
+
 #include "html/HtmlTagNames.h"
 #include "style/registry/CssPropertyNames.h"
 
@@ -125,6 +127,61 @@ TEST(HtmlParserTest, DedupesUnsupportedTagWarnings) {
     EXPECT_TRUE(result.unsupported_tags.count("custom"));
 }
 
+TEST(HtmlParserTest, ScriptContentIsRawTextAndDoesNotLeakTags) {
+    std::string_view html =
+        "<html><body><script>var a = '<img src=\"http://evil/x.png\">';\n"
+        "var b = '<link rel=\"stylesheet\" href=\"http://evil/x.css\">';\n"
+        "if (a < b || b > a) {}</script></body></html>";
+    Hummingbird::Core::ArenaAllocator arena(8192);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    // Markup-looking strings inside the script are raw text: no fake elements,
+    // so nothing is discovered as an image or stylesheet resource.
+    EXPECT_TRUE(result.image_links.empty());
+    EXPECT_TRUE(result.stylesheet_links.empty());
+    EXPECT_FALSE(result.unsupported_tags.count("img"));
+    EXPECT_FALSE(result.unsupported_tags.count("link"));
+}
+
+TEST(HtmlParserTest, StyleContentIsRawText) {
+    std::string_view html = "<html><head><style>a::before{content:'<b>'}</style></head></html>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    ASSERT_EQ(result.style_blocks.size(), 1u);
+    // The '<b>' inside the CSS string is preserved as literal text, not a tag.
+    EXPECT_NE(result.style_blocks[0].find("content:'<b>'"), std::string::npos);
+}
+
+TEST(HtmlParserTest, RawTextStopsAtMatchingEndTagCaseInsensitive) {
+    // The </SCRIPT> ends raw text; the following <p> is a real element.
+    std::string_view html = "<body><script>x < 1</SCRIPT><p>after</p></body>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+
+    // Find the <p> element and confirm its text is "after".
+    std::function<Hummingbird::DOM::Element*(Hummingbird::DOM::Node*)> find_p =
+        [&](Hummingbird::DOM::Node* node) -> Hummingbird::DOM::Element* {
+        for (const auto& child : node->get_children()) {
+            if (auto* el = dynamic_cast<Hummingbird::DOM::Element*>(child.get())) {
+                if (el->get_tag_name() == TagNames::P) return el;
+                if (auto* found = find_p(el)) return found;
+            }
+        }
+        return nullptr;
+    };
+    auto* p = find_p(result.dom.get());
+    ASSERT_NE(p, nullptr);
+    ASSERT_EQ(p->get_children().size(), 1u);
+    auto* text = dynamic_cast<Hummingbird::DOM::Text*>(p->get_children()[0].get());
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->get_text(), "after");
+}
+
 TEST(HtmlParserTest, DoesNotWarnForSvgChildElements) {
     std::string_view html = "<svg><rect></rect><circle/></svg>";
     Hummingbird::Core::ArenaAllocator arena(4096);
@@ -199,7 +256,25 @@ TEST(HtmlParserTest, DecodesNamedEntities) {
     ASSERT_EQ(p_node->get_children().size(), 1u);
     auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(p_node->get_children()[0].get());
     ASSERT_NE(text_node, nullptr);
-    const std::string expected = "A \u2014 B & C < D > E \"F\" 'G' \u00A0H";
+    // Byte-escaped UTF-8 so the assertion is independent of the compiler's
+    // execution charset (\uXXXX narrow literals are not, without /utf-8).
+    const std::string expected = "A \xE2\x80\x94 B & C < D > E \"F\" 'G' \xC2\xA0H";
+    EXPECT_EQ(text_node->get_text(), expected);
+}
+
+TEST(HtmlParserTest, DecodesExtendedAndNumericEntities) {
+    std::string_view html = "<p>&larr; &middot; &rarr; &hellip; &#8212; &#x2192; &bogus; &#xZZ;</p>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    auto p_node = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(p_node, nullptr);
+    ASSERT_EQ(p_node->get_children().size(), 1u);
+    auto text_node = dynamic_cast<Hummingbird::DOM::Text*>(p_node->get_children()[0].get());
+    ASSERT_NE(text_node, nullptr);
+    const std::string expected =
+        "\xE2\x86\x90 \xC2\xB7 \xE2\x86\x92 \xE2\x80\xA6 \xE2\x80\x94 \xE2\x86\x92 &bogus; &#xZZ;";
     EXPECT_EQ(text_node->get_text(), expected);
 }
 

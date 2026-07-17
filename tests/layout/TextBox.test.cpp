@@ -102,6 +102,46 @@ TEST(TextBoxLayoutTest, PreservesWhitespaceInPreMode) {
     EXPECT_EQ(text_box->rendered_text(), "Line1\n  Line2");
 }
 
+TEST(TextBoxLayoutTest, PreservedTextPaintsPerLineWithoutControlCharacters) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto dom_text = Hummingbird::DOM::DomFactory::create_text(arena, "Preformatted\ntext stays\naligned.");
+    Hummingbird::Css::ComputedStyle pre_style = Hummingbird::Css::default_computed_style();
+    pre_style.whitespace = Hummingbird::Css::ComputedStyle::WhiteSpace::Preserve;
+    dom_text->set_computed_style(std::make_shared<Hummingbird::Css::ComputedStyle>(pre_style));
+
+    auto text_box = Hummingbird::Layout::TextBox::create(dom_text.get());
+    DrawCaptureContext context;
+
+    // Drive the inline participant path used when <pre> text flows through a
+    // block container (this is where the raw run text used to reach painting).
+    auto* participant = static_cast<Hummingbird::Layout::IInlineParticipant*>(text_box.get());
+    participant->reset_inline_layout();
+    participant->measure_inline(context);
+    std::vector<Hummingbird::Layout::InlineRun> runs;
+    participant->collect_inline_runs(context, runs);
+    ASSERT_EQ(runs.size(), 1u);
+    Hummingbird::Layout::InlineFragment fragment;
+    fragment.run_index = 0;
+    fragment.line_index = 0;
+    fragment.rect = {0.0f, 0.0f, runs[0].width, runs[0].height};
+    fragment.ascent = runs[0].ascent;
+    participant->apply_inline_fragment(0, fragment, runs[0]);
+    participant->finalize_inline_layout();
+    text_box->paint(context, {0.0f, 0.0f});
+
+    ASSERT_EQ(context.draws.size(), 3u);
+    EXPECT_EQ(context.draws[0].text, "Preformatted");
+    EXPECT_EQ(context.draws[1].text, "text stays");
+    EXPECT_EQ(context.draws[2].text, "aligned.");
+    for (const auto& draw : context.draws) {
+        EXPECT_EQ(draw.text.find('\n'), std::string::npos);
+        EXPECT_EQ(draw.text.find('\r'), std::string::npos);
+    }
+    // Lines stack vertically.
+    EXPECT_LT(context.draws[0].y, context.draws[1].y);
+    EXPECT_LT(context.draws[1].y, context.draws[2].y);
+}
+
 TEST(TextBoxLayoutTest, SelectsFontByBoldItalicCombination) {
     auto run_case = [](Hummingbird::Css::ComputedStyle style, std::string_view expected_suffix) {
         Hummingbird::Core::ArenaAllocator arena(1024);

@@ -21,7 +21,12 @@ enum class TokenType {
     Hash,
     Star,
     Greater,
+    Tilde,
+    Plus,
     Percent,
+    At,
+    Bang,
+    Slash,
     Url,
     End,
 };

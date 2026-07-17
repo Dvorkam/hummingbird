@@ -107,7 +107,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
 void Tab::apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (extension_css_dirty_ && document_pipeline_->has_dom_tree()) {
         document_pipeline_->set_extension_style_blocks(extension_style_blocks_);
-        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:extension_css", true);
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:extension_css");
         extension_css_dirty_ = false;
         mark_dirty("extension_css");
     }
@@ -116,8 +116,14 @@ void Tab::apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout
 void Tab::relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (document_pipeline_->has_render_tree()) {
         if (layout_state_.viewport_changed(viewport)) {
-            document_pipeline_->relayout(graphics, viewport);
-            update_layout_state(viewport, "tick:viewport_changed");
+            if (document_pipeline_->needs_restyle_for_viewport(viewport)) {
+                // Crossing a @media breakpoint changes which rules apply;
+                // a plain relayout would keep the old styles (T-MEDIA-RESIZE-1).
+                (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:viewport_breakpoint");
+            } else {
+                document_pipeline_->relayout(graphics, viewport);
+                update_layout_state(viewport, "tick:viewport_changed");
+            }
             mark_dirty("viewport_changed");
         }
     }
@@ -163,12 +169,17 @@ std::optional<std::string> Tab::hit_test_link(const Layout::Point& point, const 
         make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y));
 }
 
+std::optional<std::string> Tab::inspect_at(const Layout::Point& point, const Layout::Rect& viewport) const {
+    return document_pipeline_->inspect_at(
+        make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y));
+}
+
 Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
                                      IGraphicsContext& graphics) {
     auto result = document_pipeline_->dispatch_click(
         make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y));
     if (result.mutated) {
-        (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation", false);
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation");
         mark_dirty();
     }
     return {result.handled, result.mutated};
@@ -201,7 +212,7 @@ bool Tab::refresh_styles_for_interaction(IGraphicsContext& graphics, const Layou
     if (!document_pipeline_->has_dom_tree()) {
         return false;
     }
-    return rebuild_document_and_sync_layout(graphics, viewport, "refresh_styles_for_interaction", false);
+    return rebuild_document_and_sync_layout(graphics, viewport, "refresh_styles_for_interaction");
 }
 
 bool Tab::has_focused_input() const {
@@ -262,14 +273,21 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
         handle_document_ready(result.document_url, result.effective_url, result.document_error, graphics, viewport);
         return;
     }
-    process_incremental_resource_updates(result.stylesheet_ready, result.image_ready, graphics, viewport);
+    process_incremental_resource_updates(result.stylesheet_ready, result.image_ready, result.font_ready, graphics,
+                                         viewport);
 }
 
-void Tab::process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, IGraphicsContext& graphics,
-                                               const Layout::Rect& viewport) {
+void Tab::process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, bool font_ready,
+                                               IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (stylesheet_ready && document_pipeline_->has_dom_tree()) {
         sync_extension_styles_before_stylesheet_update();
         handle_stylesheet_ready(graphics, viewport);
+    }
+    // A newly-arrived web font changes text metrics/rendering: re-apply styles so
+    // the font resolver picks up the now-cached bytes, then relayout (FOUT).
+    if (font_ready && !stylesheet_ready && document_pipeline_->has_dom_tree()) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "font_ready");
+        mark_dirty("font_ready");
     }
     if (image_ready && document_pipeline_->has_render_tree()) {
         handle_image_ready(graphics, viewport);
@@ -297,6 +315,11 @@ void Tab::handle_document_ready(std::string_view document_url, std::string_view 
     if (!prepare_document_from_response(*document_body)) {
         return;
     }
+    // Record this navigation so links pointing back at it style as :visited
+    // (T-HIST-1). Both the requested and post-redirect URLs count, since an
+    // anchor may resolve to either.
+    document_pipeline_->mark_url_visited(navigation_lifecycle_.requested_url());
+    document_pipeline_->mark_url_visited(effective_url);
     rebuild_after_document_ready(graphics, viewport);
     HB_LOG_INFO("[pipeline] render tree root children: " << document_pipeline_->render_tree_children());
     mark_dirty("document_ready");
@@ -313,20 +336,32 @@ std::optional<std::string_view> Tab::resolve_document_ready_body(std::string_vie
 }
 
 void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    // Sub-timers bracket every step so a stall inside the rebuild span is
+    // attributable from logs alone (the 21s DDG freeze hid between these).
+    auto timed = [](const char* label, auto&& fn) {
+        const auto start = Core::Clock::now();
+        fn();
+        HB_LOG_INFO("[perf] rebuild step " << label << " ms=" << Core::duration_ms(start, Core::Clock::now()));
+    };
+
     TabDocumentReadyPolicy::log_discovered_resources(*document_pipeline_);
-    TabDocumentReadyPolicy::request_discovered_resources(*resource_loader_, *document_pipeline_,
-                                                         navigation_lifecycle_.requested_url());
-    bool has_render_tree =
-        rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build", true);
+    timed("request_resources", [&] {
+        TabDocumentReadyPolicy::request_discovered_resources(*resource_loader_, *document_pipeline_,
+                                                             navigation_lifecycle_.requested_url());
+    });
+    bool has_render_tree = false;
+    timed("build_and_layout", [&] {
+        has_render_tree = rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:initial_build");
+    });
     if (has_render_tree) {
-        apply_autofocus_after_rebuild();
+        timed("autofocus", [&] { apply_autofocus_after_rebuild(); });
     }
-    apply_load_mutations_after_document_ready(graphics, viewport);
+    timed("load_mutations", [&] { apply_load_mutations_after_document_ready(graphics, viewport); });
 }
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto style_update_start = Core::Clock::now();
-    (void)rebuild_document_and_sync_layout(graphics, viewport, "handle_stylesheet_ready", true);
+    (void)rebuild_document_and_sync_layout(graphics, viewport, "handle_stylesheet_ready");
     const auto style_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] stylesheet update ms=" << Core::duration_ms(style_update_start, style_update_end));
     mark_dirty("stylesheet_ready");
@@ -352,7 +387,9 @@ bool Tab::prepare_document_from_response(std::string_view html) {
     navigation_lifecycle_.set_pending_commit_url();
     document_pipeline_->set_extension_style_blocks(extension_style_blocks_);
     extension_css_dirty_ = false;
+    const auto scripts_start = Core::Clock::now();
     document_pipeline_->run_scripts();
+    HB_LOG_INFO("[perf] rebuild step run_scripts ms=" << Core::duration_ms(scripts_start, Core::Clock::now()));
     return true;
 }
 
@@ -362,7 +399,7 @@ void Tab::apply_load_mutations_after_document_ready(IGraphicsContext& graphics, 
         return;
     }
 
-    if (rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:load_mutation", true)) {
+    if (rebuild_document_and_sync_layout(graphics, viewport, "handle_document_ready:load_mutation")) {
         apply_autofocus_after_rebuild();
     }
     mark_dirty();
@@ -383,13 +420,19 @@ void Tab::mark_dirty(std::string_view reason) {
 }
 
 bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
-                                           std::string_view reason, bool request_background_images) {
+                                           std::string_view reason) {
     bool has_render_tree =
         document_pipeline_->rebuild_and_layout(graphics, viewport, navigation_lifecycle_.requested_url());
-    if (request_background_images) {
-        resource_loader_->request_images(document_pipeline_->background_image_links(),
-                                         navigation_lifecycle_.requested_url());
-    }
+    // Every rebuild requests the background images its computed styles now
+    // reference: interaction restyles can switch a node to an image that was
+    // not discoverable at load time (DDG's loupe swaps white<->gray with
+    // :focus, and autofocus means only one variant exists at load). The
+    // resource store dedupes, so re-requesting known URLs is a no-op.
+    resource_loader_->request_images(document_pipeline_->background_image_links(),
+                                     navigation_lifecycle_.requested_url());
+    // @font-face web fonts the just-applied styles reference; the store dedupes,
+    // so re-requesting known urls each rebuild is a no-op (T-FONT-FACE-1).
+    resource_loader_->request_fonts(document_pipeline_->font_requests(), navigation_lifecycle_.requested_url());
     if (has_render_tree) {
         update_layout_state(viewport, reason);
     }

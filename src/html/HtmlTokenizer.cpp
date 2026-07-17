@@ -4,6 +4,7 @@
 #include <variant>
 
 #include "html/HtmlStringUtils.h"
+#include "html/HtmlTagMetadata.h"
 
 namespace Hummingbird::Html {
 
@@ -146,8 +147,40 @@ bool Tokenizer::handle_tag_open_state(Token& out) {
         consume_char();
     }
     if (peek_char() == '>') consume_char();
-    m_state = State::Data;
+    // Script/style bodies are raw text: switch modes so their content (which may
+    // contain '<' inside string literals) is not tokenized as markup.
+    if (!self_closing && TagMetadata::is_raw_text_tag(tag_name)) {
+        m_state = State::RawText;
+        m_rawtext_tag = tag_name;
+    } else {
+        m_state = State::Data;
+    }
     out = emit_tag(false, self_closing, tag_name, std::move(attrs));
+    return true;
+}
+
+bool Tokenizer::handle_rawtext_state(Token& out) {
+    // Consume up to the matching case-insensitive end tag (</name followed by a
+    // whitespace, '>', '/', or EOF); everything before it is literal text.
+    const size_t start = m_pos;
+    const size_t name_len = m_rawtext_tag.length();
+    while (m_pos < m_input.length()) {
+        if (peek_char() == '<' && peek_char(1) == '/' && m_pos + 2 + name_len <= m_input.length() &&
+            Core::Utils::equals_ignore_case(m_input.substr(m_pos + 2, name_len), m_rawtext_tag)) {
+            const char after = peek_char(2 + name_len);
+            if (after == '\0' || after == '>' || after == '/' || Utils::is_html_whitespace(after)) {
+                break;
+            }
+        }
+        consume_char();
+    }
+    std::string_view text = m_input.substr(start, m_pos - start);
+    // The end tag that follows is parsed normally in the Data state.
+    m_state = State::Data;
+    if (text.empty()) {
+        return false;
+    }
+    out = Token{TokenType::CharacterData, CharacterDataToken{text}};
     return true;
 }
 
@@ -214,6 +247,11 @@ Token Tokenizer::next_token() {
             case State::EndTagOpen: {
                 Token token;
                 if (handle_end_tag_open_state(token)) return token;
+                break;
+            }
+            case State::RawText: {
+                Token token;
+                if (handle_rawtext_state(token)) return token;
                 break;
             }
             default:

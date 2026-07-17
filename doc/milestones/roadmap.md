@@ -140,7 +140,7 @@ Detailed doc: [milestone4.md](milestone4.md)
 
 ---
 
-## Milestone 5: The Architect (Extensions & Tabs) — Done (0.5.0 scope complete; release tag pending)
+## Milestone 5: The Architect (Extensions & Tabs) — Done (v0.5.0, Jul 2026)
 
 Detailed doc: [milestone5.md](milestone5.md) · Archive: [milestone5_done.md](../todo_archive/milestone5_done.md)
 
@@ -157,7 +157,7 @@ Detailed doc: [milestone5.md](milestone5.md) · Archive: [milestone5_done.md](..
 
 ---
 
-## Milestone 6: The Layouter (Real-Page Layout Compatibility) — Next
+## Milestone 6: The Layouter (Real-Page Layout Compatibility) — In progress
 
 Detailed doc: [milestone6.md](milestone6.md)
 

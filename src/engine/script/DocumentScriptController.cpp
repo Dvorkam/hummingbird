@@ -7,6 +7,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/utils/Log.h"
+#include "engine/document/HitTestUtils.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
 #include "layout/geometry/GeometryUtils.h"
@@ -92,36 +93,9 @@ bool DocumentScriptController::run_inline_scripts(const std::vector<std::string>
 DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_click(
     DOM::Node* dom_root, Core::ArenaAllocator* arena, const Layout::RenderObject* render_tree,
     const Layout::Rect& viewport, const Layout::Point& point, float scroll_y) {
-    if (!render_tree) {
-        return {};
-    }
-    if (!Layout::rect_contains_point(viewport, point)) {
-        return {};
-    }
-
-    Layout::Point offset{0.0f, -scroll_y};
-    std::optional<std::string> handler;
-
-    Layout::Positioning::traverse_render_tree_z_order(
-        *render_tree, offset,
-        [&](const Layout::RenderObject& node, const Layout::Rect& absolute, const Layout::Point& /*local_offset*/) {
-            if (!Layout::rect_intersects(absolute, viewport) || !Layout::rect_contains_point(absolute, point)) {
-                if (node.has_absolute_descendant()) {
-                    return Layout::Traversal::TraverseAction::Continue;
-                }
-                return Layout::Traversal::TraverseAction::SkipChildren;
-            }
-            return Layout::Traversal::TraverseAction::Continue;
-        },
-        [&](const Layout::RenderObject& node, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
-            auto hit = resolve_onclick_handler(node.get_dom_node());
-            if (hit) {
-                handler = std::move(*hit);
-                return Layout::Traversal::TraverseAction::Stop;
-            }
-            return Layout::Traversal::TraverseAction::Continue;
-        },
-        Layout::Traversal::ChildOrder::Reverse);
+    auto handler = HitTest::hit_test_z_order<std::string>(
+        render_tree, point, viewport, scroll_y,
+        [&](const Layout::RenderObject& node) { return resolve_onclick_handler(node.get_dom_node()); });
 
     if (!handler) {
         return {};

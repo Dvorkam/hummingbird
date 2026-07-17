@@ -28,6 +28,9 @@ struct FloatPlacement {
 inline constexpr float kFloatLineHeightFallback = 16.0f;
 
 bool overlaps_vertical(const Rect& rect, float y, float height);
+// Lowest y a `clear`ed box must start at to clear the relevant floats' bottom
+// margin edges. Returns `current_y` when nothing needs clearing.
+float clearance_y(const std::vector<FloatBox>& floats, Css::ComputedStyle::Clear clear, float current_y);
 FloatBand compute_float_band(const std::vector<FloatBox>& floats, float y, float height, float content_left,
                              float content_right);
 FloatPlacement place_float(const std::vector<FloatBox>& floats, Css::ComputedStyle::Float side, float start_y,

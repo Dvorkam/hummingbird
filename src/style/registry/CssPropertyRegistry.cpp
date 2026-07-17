@@ -27,6 +27,11 @@ bool is_supported_property(std::string_view name) {
     return parse_property_name(name) != Property::Unknown;
 }
 
+bool is_vendor_prefixed_name(std::string_view name) {
+    return name.starts_with("-webkit-") || name.starts_with("-moz-") || name.starts_with("-ms-") ||
+           name.starts_with("-o-") || name.starts_with("-khtml-");
+}
+
 std::span<const PropertyEntry> entries() {
     return kEntries;
 }

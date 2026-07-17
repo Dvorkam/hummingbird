@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <fstream>
+#include <sstream>
 #include <string>
 
 #include "core/platform_api/InputEvent.h"
@@ -409,6 +411,113 @@ TEST(EngineTabTest, HitTestResolvesLink) {
     EXPECT_EQ(*link, "https://example.dev/next");
 }
 
+TEST(EngineTabTest, InspectAtDescribesElementUnderPoint) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>body { margin: 0; } #box { display: block; width: 100px; height: 40px; margin: 10px; padding: 5px; }</style></head>
+  <body>
+    <div id="box" class="panel">hi</div>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 200, 200});
+    harness.navigate("https://example.dev");
+    EXPECT_TRUE(harness.tick());
+
+    // A point inside the #box border area (origin ~10,10; 110x50 border box).
+    auto info = harness.tab().inspect_at({30.0f, 30.0f}, harness.viewport());
+    ASSERT_TRUE(info.has_value());
+    EXPECT_NE(info->find("<div>"), std::string::npos);
+    EXPECT_NE(info->find("#box"), std::string::npos);
+    EXPECT_NE(info->find("panel"), std::string::npos);
+    EXPECT_NE(info->find("display=block"), std::string::npos);
+    EXPECT_NE(info->find("rect="), std::string::npos);
+
+    // A point outside any element returns nothing.
+    EXPECT_FALSE(harness.tab().inspect_at({190.0f, 190.0f}, harness.viewport()).has_value());
+}
+
+TEST(EngineTabTest, HitTestSkipsPointerEventsNone) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>a { pointer-events: none; }</style></head>
+  <body>
+    <a HREF="/next">Next</a>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 200, 200});
+    harness.navigate("https://example.dev");
+    EXPECT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{10.0f, 12.0f};
+    // The anchor is transparent to hit-testing, so the click falls through.
+    EXPECT_FALSE(harness.tab().hit_test_link(point, harness.viewport()).has_value());
+}
+
+TEST(EngineTabTest, HitTestSkipsVisibilityHidden) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>a { visibility: hidden; }</style></head>
+  <body>
+    <a HREF="/next">Next</a>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 200, 200});
+    harness.navigate("https://example.dev");
+    EXPECT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{10.0f, 12.0f};
+    EXPECT_FALSE(harness.tab().hit_test_link(point, harness.viewport()).has_value());
+}
+
+TEST(EngineTabTest, HitTestSkipsEmptyClipRect) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>a { position: absolute; top: 0; left: 0; clip: rect(0 0 0 0); }</style></head>
+  <body>
+    <a HREF="/next">Next</a>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 200, 200});
+    harness.navigate("https://example.dev");
+    EXPECT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point point{4.0f, 6.0f};
+    // The clipped-away anchor is hidden from hit-testing.
+    EXPECT_FALSE(harness.tab().hit_test_link(point, harness.viewport()).has_value());
+}
+
 TEST(EngineTabTest, FocusesInputAndEditsValue) {
     const std::string html = R"HTML(
 <!doctype html>
@@ -606,6 +715,49 @@ TEST(EngineTabTest, SubmitsInputSubmitControlByClick) {
     EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Get);
 }
 
+// DDG-shaped regression: an absolutely-positioned submit button must only
+// capture clicks inside its own box. Nodes kept in the hit-test walk to reach
+// absolute descendants must not resolve for points outside themselves.
+TEST(EngineTabTest, AbsoluteSubmitButtonDoesNotCaptureClicksOutsideItsBox) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <style>
+      form { position: relative; width: 280px; height: 40px; }
+      #submit { position: absolute; top: 0; right: 0; width: 40px; height: 40px; }
+    </style>
+  </head>
+  <body>
+    <form action="/search" method="get">
+      <input name="q" value="saturn">
+      <input id="submit" type="submit" value="S">
+    </form>
+    <p>plain page text far below the form</p>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 300, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    // Clicking empty space well below the form must not submit anything.
+    Hummingbird::Layout::Point outside{150.0f, 180.0f};
+    EXPECT_FALSE(harness.tab().submit_form_at(outside, harness.viewport()).has_value());
+
+    // Clicking the absolute button itself still submits.
+    Hummingbird::Layout::Point on_button{260.0f, 20.0f};
+    auto submitted = harness.tab().submit_form_at(on_button, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->url, "https://example.dev/search?q=saturn");
+}
+
 TEST(EngineTabTest, SubmitsInputSubmitControlWithFormAttribute) {
     const std::string html = R"HTML(
 <!doctype html>
@@ -707,6 +859,48 @@ TEST(EngineTabTest, EnterSubmitsPostFormWithEncodedBody) {
     EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Post);
     EXPECT_EQ(result.submitted_form->body, "q=duck+duck+go");
     EXPECT_EQ(result.submitted_form->content_type, "application/x-www-form-urlencoded");
+}
+
+// End-to-end regression on the pinned DuckDuckGo HTML homepage snapshot
+// (tests/fixtures/ddg): drive the real focus -> type -> submit -> navigate flow
+// through the tab. Guards the exact DDG form contract (POST to /html/, the
+// autofocused name="q" search box) so a regression in autofocus, text editing,
+// or form submission fails CI.
+TEST(EngineTabTest, DdgHomepageSnapshotFocusTypeSubmitFlow) {
+    std::ifstream file(std::string(HB_TEST_FIXTURE_DIR) + "/ddg/ddg_home.html", std::ios::binary);
+    ASSERT_TRUE(file) << "missing fixture ddg/ddg_home.html";
+    std::ostringstream buffer;
+    buffer << file.rdbuf();
+    const std::string html = buffer.str();
+    ASSERT_FALSE(html.empty());
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 1024, 768});
+    harness.navigate("https://html.duckduckgo.com/html/");
+    ASSERT_TRUE(harness.tick());
+
+    // The search box carries `autofocus`, so typing lands there with no click.
+    ASSERT_TRUE(harness.tab().has_focused_input());
+    EXPECT_TRUE(harness.tab().handle_text_input("hummingbird browser"));
+    auto typed = harness.tab().focused_input_value();
+    ASSERT_TRUE(typed.has_value());
+    EXPECT_EQ(*typed, "hummingbird browser");
+
+    // Enter submits the form as a POST to the resolved action with the query.
+    Hummingbird::InputEvent enter_event;
+    enter_event.type = Hummingbird::EventType::KeyDown;
+    enter_event.key.key = Hummingbird::Key::Enter;
+    auto result = harness.tab().handle_key_down(enter_event);
+    EXPECT_TRUE(result.handled);
+    ASSERT_TRUE(result.submitted_form.has_value());
+    EXPECT_EQ(result.submitted_form->url, "https://html.duckduckgo.com/html/");
+    EXPECT_EQ(result.submitted_form->method, Hummingbird::Engine::FormSubmitMethod::Post);
+    EXPECT_NE(result.submitted_form->body.find("q=hummingbird+browser"), std::string::npos)
+        << "form body was: " << result.submitted_form->body;
 }
 
 TEST(EngineTabTest, ClickSubmitReturnsPostFormSubmission) {

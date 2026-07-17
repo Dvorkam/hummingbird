@@ -1,12 +1,55 @@
 #include "style/compute/StyleValueUtils.h"
 
+#include <cctype>
+#include <string>
+
+#include "core/utils/ColorUtils.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "style/registry/CssValueNames.h"
 
 namespace Hummingbird::Css::StyleValueUtils {
 
+Value parse_substituted_value(std::string_view text) {
+    auto trimmed = Core::Utils::trim_ascii_whitespace(text);
+    if (trimmed.empty()) {
+        return Value::identifier("");
+    }
+    if (auto color = Core::Utils::parse_html_color(trimmed)) {
+        return Value::color_value(*color);
+    }
+    // <number>[<unit>|%]: split the numeric prefix from a unit suffix.
+    size_t split = 0;
+    while (split < trimmed.size()) {
+        const char c = trimmed[split];
+        const bool sign = (c == '+' || c == '-') && split == 0;
+        if (!sign && c != '.' && !std::isdigit(static_cast<unsigned char>(c))) {
+            break;
+        }
+        ++split;
+    }
+    if (split > 0) {
+        if (auto number = Core::Utils::parse_float(trimmed.substr(0, split))) {
+            auto suffix = trimmed.substr(split);
+            if (suffix.empty()) {
+                return Value::number_value(*number);
+            }
+            if (auto unit = parse_unit_token(suffix)) {
+                return Value::length_value(*number, *unit);
+            }
+        }
+    }
+    return Value::identifier(std::string(trimmed));
+}
+
 float value_to_length(const Value& value, float fallback, float font_size) {
+    // A unitless number is a valid length only for 0, but treat any unitless
+    // value as px (lenient, matches apply_optional_length). Without this,
+    // `padding: 0` — a unitless Number — returned the fallback (the current
+    // value), so it silently failed to override a UA default.
+    if (value.type == Value::Type::Number) {
+        return value.number;
+    }
     if (value.type != Value::Type::Length) {
         return fallback;
     }

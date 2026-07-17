@@ -4,9 +4,11 @@
 #include "layout/block/BlockBox.h"
 #include "layout/controls/RenderBreak.h"
 #include "layout/controls/RenderRule.h"
+#include "layout/flex/FlexBox.h"
 #include "layout/flow/InlineBox.h"
 #include "layout/flow/TextBox.h"
 #include "layout/formatting/RenderListItem.h"
+#include "layout/grid/GridBox.h"
 #include "layout/replaced/RenderImage.h"
 #include "layout/replaced/RenderSvg.h"
 #include "layout/table/RenderTable.h"
@@ -15,6 +17,14 @@ namespace Hummingbird::Layout {
 
 std::unique_ptr<RenderObject> RenderFactory::create_block_box(const DOM::Node* dom_node) {
     return BlockBox::create(dom_node);
+}
+
+std::unique_ptr<RenderObject> RenderFactory::create_flex_box(const DOM::Node* dom_node) {
+    return FlexBox::create(dom_node);
+}
+
+std::unique_ptr<RenderObject> RenderFactory::create_grid_box(const DOM::Node* dom_node) {
+    return GridBox::create(dom_node);
 }
 
 std::unique_ptr<RenderObject> RenderFactory::create_inline_box(const DOM::Node* dom_node) {

@@ -5,8 +5,8 @@
 #include <string_view>
 #include <utility>
 
+#include "core/GraphicsTypes.h"
 #include "core/dom/Element.h"
-#include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/ColorUtils.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
@@ -70,10 +70,15 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         overrides.whitespace = true;
         overrides.font_monospace = true;
     } else if (tag == Hummingbird::Html::TagNames::A) {
-        if (parent_style && parent_style->link_color.has_value()) {
-            style.color = *parent_style->link_color;
-        } else if (parent_style && parent_style->vlink_color.has_value()) {
+        // A visited link prefers the document's vlink color (or the UA default
+        // purple); otherwise the link color (or UA default blue). T-HIST-1.
+        const bool visited = element.has_pseudo_state(DOM::Element::PseudoState::Visited);
+        if (visited && parent_style && parent_style->vlink_color.has_value()) {
             style.color = *parent_style->vlink_color;
+        } else if (parent_style && parent_style->link_color.has_value()) {
+            style.color = *parent_style->link_color;
+        } else if (visited) {
+            style.color = {0x55, 0x1a, 0x8b, 255};
         } else {
             style.color = {0, 0, 255, 255};
         }
@@ -91,26 +96,27 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.margin.top = 8.0f;
         style.margin.bottom = 8.0f;
     } else if (tag == Hummingbird::Html::TagNames::Hr) {
-        style.height = 2.0f;
+        style.height = ComputedStyle::LengthValue::from_px(2.0f);
         style.margin.top = style.margin.bottom = 8.0f;
         style.background = Color{50, 50, 50, 255};
     } else if (tag == Hummingbird::Html::TagNames::Input) {
         style.border_style = ComputedStyle::BorderStyle::Solid;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
         style.border_color = {125, 125, 125, 255};
-        style.border_radius = 2.0f;
+        style.border_edge_color = {style.border_color, style.border_color, style.border_color, style.border_color};
+        style.border_radius.set_all({2.0f, false});
         style.padding.left = 8.0f;
         style.padding.right = 8.0f;
         style.padding.top = 4.0f;
         style.padding.bottom = 4.0f;
         if (input_type_is_text_like(element)) {
-            style.width = 180.0f;
-            style.height = 24.0f;
+            style.width = ComputedStyle::LengthValue::from_px(180.0f);
+            style.height = ComputedStyle::LengthValue::from_px(24.0f);
             style.border_style = ComputedStyle::BorderStyle::Inset;
             style.background = Color{255, 255, 255, 255};
         } else {
-            style.width = 80.0f;
-            style.height = 24.0f;
+            style.width = ComputedStyle::LengthValue::from_px(80.0f);
+            style.height = ComputedStyle::LengthValue::from_px(24.0f);
             style.border_style = ComputedStyle::BorderStyle::Outset;
             style.background = Color{236, 236, 236, 255};
         }
@@ -118,7 +124,8 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.border_style = ComputedStyle::BorderStyle::Outset;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
         style.border_color = {80, 80, 80, 255};
-        style.border_radius = 2.0f;
+        style.border_edge_color = {style.border_color, style.border_color, style.border_color, style.border_color};
+        style.border_radius.set_all({2.0f, false});
         style.padding.left = 10.0f;
         style.padding.right = 10.0f;
         style.padding.top = 4.0f;
@@ -218,11 +225,11 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
             overrides.whitespace = true;
         } else if (key == Hummingbird::Html::AttributeNames::Width && !style.width.has_value()) {
             if (auto parsed = parse_length_value(value)) {
-                style.width = *parsed;
+                style.width = ComputedStyle::LengthValue::from_px(*parsed);
             }
         } else if (key == Hummingbird::Html::AttributeNames::Height && !style.height.has_value()) {
             if (auto parsed = parse_length_value(value)) {
-                style.height = *parsed;
+                style.height = ComputedStyle::LengthValue::from_px(*parsed);
             }
         } else if (key == Hummingbird::Html::AttributeNames::Size) {
             if (auto parsed = parse_font_size_value(value)) {

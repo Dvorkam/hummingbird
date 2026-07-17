@@ -26,6 +26,7 @@ enum class ParserHook : std::uint8_t {
     parse_length,
     parse_transform,
     parse_border_shorthand,
+    parse_border_radius,
     parse_color,
     parse_number_auto,
     parse_text_decoration,
@@ -40,6 +41,13 @@ enum class ParserHook : std::uint8_t {
     parse_outline_shorthand,
     parse_opacity,
     parse_box_shadow,
+    parse_clip,
+    parse_flex_shorthand,
+    parse_grid_track_list,
+    parse_grid_placement,
+    parse_gap,
+    parse_passthrough,
+    Count,  // Sentinel: number of parser hooks. Keep last.
 };
 
 enum class ApplyHook : std::uint8_t {
@@ -85,6 +93,8 @@ enum class ApplyHook : std::uint8_t {
     apply_text_align,
     apply_text_transform,
     apply_cursor,
+    apply_visibility,
+    apply_pointer_events,
     apply_vertical_align,
     apply_letter_spacing,
     apply_text_indent,
@@ -98,6 +108,7 @@ enum class ApplyHook : std::uint8_t {
     apply_font_weight,
     apply_font_style,
     apply_float,
+    apply_clear,
     apply_list_style,
     apply_list_style_type,
     apply_list_style_position,
@@ -109,6 +120,19 @@ enum class ApplyHook : std::uint8_t {
     apply_background_position,
     apply_background_size,
     apply_box_shadow,
+    apply_text_shadow,
+    apply_clip,
+    apply_flex_direction,
+    apply_flex_wrap,
+    apply_justify_content,
+    apply_align_items,
+    apply_flex_grow,
+    apply_flex_shrink,
+    apply_flex_basis,
+    apply_order,
+    apply_grid,
+    apply_noop,
+    Count,  // Sentinel: number of applier hooks. Keep last.
 };
 
 constexpr PropertyFlags operator|(PropertyFlags lhs, PropertyFlags rhs) {

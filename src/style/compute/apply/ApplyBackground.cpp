@@ -2,6 +2,8 @@
 
 #include <string_view>
 
+#include "core/utils/ParseUtils.h"
+#include "core/utils/StringUtils.h"
 #include "style/compute/StyleValueUtils.h"
 #include "style/compute/apply/ApplyColorUtils.h"
 #include "style/registry/CssValueNames.h"
@@ -15,6 +17,11 @@ void apply_background_color_value(const Value& value, ComputedStyle& style, Styl
         style.background = value.color;
         overrides.background = true;
     } else if (value.type == Value::Type::Identifier) {
+        if (value.ident == ValueNames::None || value.ident == ValueNames::Transparent) {
+            style.background.reset();
+            overrides.background = true;
+            return;
+        }
         if (auto resolved = resolve_var_color(style, parent_style, value.ident)) {
             style.background = *resolved;
             overrides.background = true;
@@ -121,23 +128,35 @@ void apply_background_position_value(const Value& value, ComputedStyle& style) {
     };
 
     const float font_size = style.font_size;
+    // Try to parse one axis token as a percentage or a length; keyword otherwise.
+    auto apply_axis = [&](std::string_view token, std::optional<float>& offset, bool& is_percent, bool& axis_set) {
+        token = Core::Utils::trim_ascii_whitespace(token);
+        if (!token.empty() && token.back() == '%') {
+            if (auto number = Core::Utils::parse_float(token.substr(0, token.size() - 1))) {
+                offset = *number;
+                is_percent = true;
+                axis_set = true;
+                return;
+            }
+        }
+        if (auto length = StyleValueUtils::parse_length_token(token, font_size)) {
+            offset = *length;
+            is_percent = false;
+            axis_set = true;
+            return;
+        }
+        apply_keyword(token);
+    };
+
     size_t index = 0;
     if (index < tokens.size()) {
-        if (auto length = StyleValueUtils::parse_length_token(tokens[index], font_size)) {
-            style.background_position.offset_x = *length;
-            horizontal_set = true;
-        } else {
-            apply_keyword(tokens[index]);
-        }
+        apply_axis(tokens[index], style.background_position.offset_x, style.background_position.offset_x_is_percent,
+                   horizontal_set);
         ++index;
     }
     if (index < tokens.size()) {
-        if (auto length = StyleValueUtils::parse_length_token(tokens[index], font_size)) {
-            style.background_position.offset_y = *length;
-            vertical_set = true;
-        } else {
-            apply_keyword(tokens[index]);
-        }
+        apply_axis(tokens[index], style.background_position.offset_y, style.background_position.offset_y_is_percent,
+                   vertical_set);
     }
 
     if (horizontal_set && !vertical_set) {
@@ -168,7 +187,11 @@ void apply_background_size_value(const Value& value, ComputedStyle& style) {
         style.background_size.height.reset();
         return;
     }
-    if (tokens[0] == ValueNames::Auto) {
+    // Only the single-token form `background-size: auto` means "intrinsic size".
+    // The two-value `auto <length>` (e.g. DDG's logo `auto 36px`) must fall
+    // through to the per-axis path so the fixed axis and aspect-preserved auto
+    // axis are both honored.
+    if (tokens.size() == 1 && tokens[0] == ValueNames::Auto) {
         style.background_size.type = ComputedStyle::BackgroundSize::Type::Auto;
         style.background_size.width.reset();
         style.background_size.height.reset();
@@ -176,16 +199,46 @@ void apply_background_size_value(const Value& value, ComputedStyle& style) {
     }
 
     const float font_size = style.font_size;
-    auto width = StyleValueUtils::parse_length_token(tokens[0], font_size);
+
+    // One axis of `background-size`: `auto`, a percentage (kept unresolved,
+    // resolved against the box at paint time), or a length.
+    struct SizeAxis {
+        std::optional<float> value;  // nullopt => auto
+        bool is_percent = false;
+    };
+    auto parse_axis = [&](std::string_view token) -> std::optional<SizeAxis> {
+        token = Core::Utils::trim_ascii_whitespace(token);
+        if (token.empty()) {
+            return std::nullopt;
+        }
+        if (token == ValueNames::Auto) {
+            return SizeAxis{std::nullopt, false};
+        }
+        if (token.back() == '%') {
+            if (auto number = Core::Utils::parse_float(token.substr(0, token.size() - 1))) {
+                return SizeAxis{*number, true};
+            }
+            return std::nullopt;
+        }
+        if (auto length = StyleValueUtils::parse_length_token(token, font_size)) {
+            return SizeAxis{*length, false};
+        }
+        return std::nullopt;
+    };
+
+    auto width = parse_axis(tokens[0]);
     if (!width) {
         return;
     }
     style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
-    style.background_size.width = *width;
+    style.background_size.width = width->value;
+    style.background_size.width_is_percent = width->is_percent;
     style.background_size.height.reset();
+    style.background_size.height_is_percent = false;
     if (tokens.size() > 1) {
-        if (auto height = StyleValueUtils::parse_length_token(tokens[1], font_size)) {
-            style.background_size.height = *height;
+        if (auto height = parse_axis(tokens[1])) {
+            style.background_size.height = height->value;
+            style.background_size.height_is_percent = height->is_percent;
         }
     }
 }

@@ -44,6 +44,25 @@ bool has_all_classes(const DOM::Element& element, const std::vector<std::string>
     }
     return true;
 }
+
+// Element siblings only: text/comment nodes between elements are ignored,
+// matching how CSS sibling combinators are defined.
+const DOM::Node* previous_element_sibling(const DOM::Node* node) {
+    const DOM::Node* parent = node ? node->get_parent() : nullptr;
+    if (!parent) {
+        return nullptr;
+    }
+    const DOM::Node* previous = nullptr;
+    for (const auto& child : parent->get_children()) {
+        if (child.get() == node) {
+            return previous;
+        }
+        if (dynamic_cast<const DOM::Element*>(child.get())) {
+            previous = child.get();
+        }
+    }
+    return nullptr;
+}
 }  // namespace
 
 bool matches_simple_selector(const DOM::Node* node, const SelectorPart& selector) {
@@ -73,6 +92,9 @@ bool matches_simple_selector(const DOM::Node* node, const SelectorPart& selector
                 break;
             case SelectorPart::PseudoClass::Focus:
                 matches = element->has_pseudo_state(DOM::Element::PseudoState::Focus);
+                break;
+            case SelectorPart::PseudoClass::Visited:
+                matches = element->has_pseudo_state(DOM::Element::PseudoState::Visited);
                 break;
         }
         if (!matches) {
@@ -104,8 +126,9 @@ bool matches_selector(const DOM::Node* node, const Selector& selector) {
 
     for (size_t i = selector.parts.size() - 1; i-- > 0;) {
         const auto& part = selector.parts[i];
-        const DOM::Node* parent = current ? current->get_parent() : nullptr;
-        if (combinator_for(i) == Selector::Combinator::Child) {
+        const auto combinator = combinator_for(i);
+        if (combinator == Selector::Combinator::Child) {
+            const DOM::Node* parent = current ? current->get_parent() : nullptr;
             if (!parent || !matches_simple_selector(parent, part)) {
                 return false;
             }
@@ -113,7 +136,33 @@ bool matches_selector(const DOM::Node* node, const Selector& selector) {
             continue;
         }
 
-        const DOM::Node* cursor = parent;
+        if (combinator == Selector::Combinator::NextSibling) {
+            const DOM::Node* sibling = previous_element_sibling(current);
+            if (!sibling || !matches_simple_selector(sibling, part)) {
+                return false;
+            }
+            current = sibling;
+            continue;
+        }
+
+        if (combinator == Selector::Combinator::SubsequentSibling) {
+            const DOM::Node* sibling = previous_element_sibling(current);
+            bool sibling_found = false;
+            while (sibling) {
+                if (matches_simple_selector(sibling, part)) {
+                    sibling_found = true;
+                    current = sibling;
+                    break;
+                }
+                sibling = previous_element_sibling(sibling);
+            }
+            if (!sibling_found) {
+                return false;
+            }
+            continue;
+        }
+
+        const DOM::Node* cursor = current ? current->get_parent() : nullptr;
         bool found = false;
         while (cursor) {
             if (matches_simple_selector(cursor, part)) {

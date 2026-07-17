@@ -1,0 +1,424 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>M6 - The Layouter (Flexbox)</title>
+    <style>
+      body { margin: 0; padding: 0 0 30px 0; background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; }
+      .top { background-color: #14213d; color: #ffffff; padding: 14px 24px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+      .top-title { font-size: 20px; font-weight: bold; margin: 0; }
+      .top a { color: #fca311; }
+      .page { max-width: 860px; margin: 0 auto; padding: 16px 24px; }
+      .section { background-color: #ffffff; border: 1px solid #dde3ee; border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+      .section h2 { margin: 4px 0 10px 0; font-size: 18px; }
+      .note { color: #56617a; font-size: 13px; }
+      code { background-color: #e8ecf4; padding: 1px 5px; border-radius: 4px; }
+
+      .flex-row { display: flex; flex-direction: row; border: 1px dashed #9aa7bd; padding: 6px; }
+      .flex-col { display: flex; flex-direction: column; border: 1px dashed #9aa7bd; padding: 6px; }
+      .item { background-color: #dfe9ff; border: 1px solid #7aa7e3; border-radius: 6px; padding: 8px; margin: 4px; text-align: center; }
+      .item-b { background-color: #ffe8cc; border-color: #e3a35f; }
+      .item-c { background-color: #d9f2d9; border-color: #6fbf6f; }
+
+      .grow-1 { flex: 1; }
+      .grow-2 { flex: 2; }
+      .grow-3 { flex: 3; }
+      .fixed-120 { flex: 0 0 120px; }
+
+      .jc-start { justify-content: flex-start; }
+      .jc-center { justify-content: center; }
+      .jc-end { justify-content: flex-end; }
+      .jc-between { justify-content: space-between; }
+      .jc-around { justify-content: space-around; }
+      .jc-evenly { justify-content: space-evenly; }
+      .jc-demo .item { width: 90px; margin: 4px; }
+      .wrap-demo { flex-wrap: wrap; }
+      .wrap-item { width: 130px; flex-shrink: 0; }
+      .baseline-demo { align-items: baseline; background-color: #fafbff; border: 1px solid #dde3ee; padding: 6px; }
+      .baseline-demo .bl { margin: 0 14px 0 0; color: #14213d; }
+      .bl-sm { font-size: 13px; }
+      .bl-md { font-size: 22px; }
+      .bl-lg { font-size: 38px; }
+
+      .align-demo { height: 110px; }
+      .ai-start { align-items: flex-start; }
+      .ai-center { align-items: center; }
+      .ai-end { align-items: flex-end; }
+      .ai-stretch { align-items: stretch; }
+      .tall { height: 70px; }
+      .short { height: 30px; }
+
+      .order-demo .o1 { order: 1; }
+      .order-demo .o2 { order: 2; }
+      .order-demo .o3 { order: 3; }
+
+      .navbar { display: flex; flex-direction: row; align-items: center; background-color: #14213d; color: #ffffff; border-radius: 8px; padding: 8px 12px; }
+      .navbar-logo { font-weight: bold; letter-spacing: 1px; margin-right: 14px; }
+      .navbar-spacer { flex: 1; }
+      .navbar-btn { background-color: #fca311; color: #14213d; border-radius: 6px; padding: 5px 12px; margin-left: 8px; font-weight: bold; }
+
+      .ddg-hero { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 220px; background-color: #fafbff; border: 1px solid #dde3ee; border-radius: 8px; }
+      .ddg-logo { font-size: 26px; font-weight: bold; color: #14213d; margin-bottom: 12px; }
+      .ddg-form { display: flex; flex-direction: row; align-items: center; }
+      .ddg-form input { width: 320px; padding: 9px 12px; border: 1px solid #9aa7bd; border-radius: 6px; margin-right: 8px; background-color: #ffffff; }
+      .ddg-form button { padding: 9px 16px; border: 1px solid #14213d; border-radius: 6px; background-color: #14213d; color: #ffffff; }
+
+      .bgsize-row { display: flex; flex-direction: row; align-items: flex-start; }
+      .bgsize-cell { display: flex; flex-direction: column; align-items: center; margin: 0 16px 0 0; }
+      /* A wide box so the sizing modes render differently (a square box hides the difference). */
+      .bgsize-box { width: 170px; height: 80px; border: 1px solid #7aa7e3; background-color: #fafbff;
+                    background-image: url(assets/logos/hummingbird.svg); background-repeat: no-repeat;
+                    background-position: center; }
+      .bgsize-cap { font-size: 12px; color: #56617a; margin-top: 5px; }
+      .bs-contain { background-size: contain; }
+      .bs-100 { background-size: 100%; }
+      .bs-stretch { background-size: 100% 100%; }
+      /* Shorthand position/size syntax: `center/100%` (should match the 100% box). */
+      .bs-shorthand { background: url(assets/logos/hummingbird.svg) no-repeat center/100%; }
+      /* Fixed height, auto (aspect-preserved) width — the DDG results-page logo form. */
+      .bs-auto-h { background-size: auto 40px; }
+      .chrome-row { display: flex; flex-direction: row; align-items: center; }
+      .swatch { width: 96px; height: 64px; margin: 6px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
+                color: #1d2433; font-size: 12px; text-align: center; }
+      .r-pill { border-radius: 40px; }
+      .r-circle { width: 64px; border-radius: 50%; }
+      .r-top { border-radius: 16px 16px 0 0; }
+      .r-diag { border-radius: 20px 0 20px 0; }
+      /* The exact DDG search-button shape: square left, rounded right. */
+      .r-ddg-btn { border-radius: 0 16px 16px 0; background-color: #5b9e4d; border-color: #4a8a3d; color: #ffffff; }
+      /* Vendor-prefixed forms must resolve to the standard property. */
+      .r-vendor { -webkit-border-radius: 16px; -moz-border-radius: 16px; }
+      /* Per-side border colors on a square box (each edge its own color). */
+      .sides { width: 120px; height: 64px; margin: 6px; background-color: #ffffff; border: 5px solid #cccccc;
+               border-top-color: #e05a5a; border-right-color: #e0a63c; border-bottom-color: #4a8a3d;
+               border-left-color: #3969ef; }
+
+      .float-box { border: 1px solid #dde3ee; padding: 8px; background-color: #fafbff; }
+      .float-left { float: left; width: 80px; height: 56px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
+                    border-radius: 6px; margin: 0 10px 6px 0; text-align: center; }
+      .float-flowed { background-color: #fff4e0; }
+      .float-cleared { clear: left; background-color: #d9f2d9; border-radius: 6px; padding: 8px; }
+
+      .abscenter-box { position: relative; width: 280px; height: 90px; border: 1px solid #7aa7e3;
+                       background-color: #fafbff; }
+      .abscenter-dot { position: absolute; top: 0; bottom: 0; left: 0; right: 0; margin: auto; width: 90px; height: 32px;
+                       background-color: #dfe9ff; border: 1px solid #7aa7e3; border-radius: 6px; text-align: center; }
+      .abscenter-btn { position: absolute; top: 0; bottom: 0; right: 8px; left: auto; margin: auto; width: 40px;
+                       height: 40px; background-color: #5b9e4d; border-radius: 0 6px 6px 0; }
+
+      /* T-CSS-MISC-LEGACY-1: legacy property compatibility slice. */
+      .legacy-row { display: flex; flex-direction: row; align-items: flex-start; }
+      .legacy-cell { margin: 0 20px 0 0; text-align: center; width: 130px; }
+      .legacy-box { width: 110px; height: 40px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
+                    border-radius: 6px; padding: 8px; margin: 0 auto 4px auto; }
+      .is-hidden { visibility: hidden; }
+      /* visibility is inherited: the box hides but a visible child paints again. */
+      .hidden-parent { visibility: hidden; }
+      .revealed { visibility: visible; }
+      .shadow-title { font-size: 30px; font-weight: bold; color: #14213d; text-shadow: 2px 2px 0 #fca311; margin: 6px 0; }
+      .pe-stack { position: relative; width: 240px; height: 44px; margin: 6px 0; }
+      .pe-link { display: block; padding: 12px; background-color: #dfe9ff; border: 1px solid #7aa7e3;
+                 border-radius: 6px; text-align: center; }
+      .pe-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #ffe8cc;
+                    opacity: 0.55; border-radius: 6px; pointer-events: none; }
+      /* The accessibility "visually hidden" pattern: an empty clip rect. */
+      .sr-only { position: absolute; clip: rect(0 0 0 0); }
+
+      /* T-HIST-1: visited link state. */
+      .link-demo a { margin-right: 18px; font-weight: bold; }
+      .link-demo a:visited { color: #8e44ad; }
+
+      /* T-CSS-CALC-1: calc() length expressions (percent +/- px). */
+      .calc-track { background-color: #eef2fb; border: 1px solid #dde3ee; padding: 8px; }
+      .calc-bar { height: 26px; background-color: #14213d; color: #ffffff; border-radius: 6px; padding: 4px 8px;
+                  margin-bottom: 8px; box-sizing: border-box; }
+      .calc-full { width: calc(100% - 40px); }
+      .calc-half { width: calc(50% + 40px); background-color: #5b9e4d; }
+
+      /* T-FONT-FACE-1: @font-face maps a custom family to a bundled font file.
+         "Webfont Demo" is not a built-in family, so without @font-face it would
+         fall back to the sans body font; the src makes it render as RobotoMono. */
+      @font-face { font-family: "Webfont Demo"; src: url(assets/fonts/RobotoMono-Regular.ttf) format("truetype"); }
+      .webfont-demo { font-family: "Webfont Demo"; font-size: 17px; color: #14213d; margin: 6px 0; }
+
+      /* T-LAYOUT-GRID-1: CSS Grid MVP (tracks + fr/repeat + gap + line/span). */
+      .grid-cell { background-color: #dfe9ff; border: 1px solid #7aa7e3; border-radius: 6px; padding: 10px;
+                   text-align: center; color: #14213d; }
+      .grid-cell-b { background-color: #ffe8cc; border-color: #e3a35f; }
+      .grid-cell-c { background-color: #d9f2d9; border-color: #6fbf6f; }
+      .grid-equal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+      .grid-sidebar { display: grid; grid-template-columns: 160px 1fr; gap: 12px; margin-top: 12px; }
+      .grid-areas { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+      .grid-areas .span-2 { grid-column: span 2; }
+      .grid-areas .span-all { grid-column: 1 / 5; background-color: #14213d; color: #ffffff; border-color: #14213d; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="top-title">Milestone 6 &mdash; The Layouter (Flexbox)</p>
+      <a href="https://example.dev">&laquo; back to example.dev</a>
+    </div>
+    <div class="page">
+      <p class="note">
+        Added in M6: <code>display: flex</code>, <code>flex-direction</code> (+reverse),
+        <code>justify-content</code>, <code>align-items</code>, <code>flex-grow/shrink/basis</code>,
+        the <code>flex</code> shorthand, <code>order</code>, and <code>flex-wrap</code> (+
+        <code>wrap-reverse</code>); float <code>clear</code>; plus CSS control-chrome compat &mdash;
+        per-corner <code>border-radius</code>, per-side <code>border-color</code>, vendor-prefixed
+        aliases, and percentage <code>background-size</code>; and <code>align-items: baseline</code>.
+        Also a legacy compatibility slice &mdash; <code>visibility</code>, <code>pointer-events</code>,
+        <code>text-shadow</code>, and legacy <code>clip: rect(...)</code> &mdash; and vendor-prefixed
+        properties we do not implement are now dropped silently instead of warning.
+        Additive <code>calc()</code> (percentage &plusmn; px) resolves at layout time, and visited links
+        (<code>:visited</code> / <code>vlink</code>) style from navigation history. Rounding out the milestone:
+        <code>@font-face</code> web fonts (local + remote TTF/OTF) and a <code>display: grid</code> MVP
+        (tracks, <code>fr</code>/<code>repeat()</code>, gaps, and line/span placement).
+      </p>
+
+      <div class="section">
+        <h2>Grow factors (flex: 1 / 2 / 3)</h2>
+        <div class="flex-row">
+          <div class="item grow-1">1</div>
+          <div class="item item-b grow-2">2</div>
+          <div class="item item-c grow-3">3</div>
+        </div>
+        <p class="note">Widths should be proportional 1 : 2 : 3.</p>
+      </div>
+
+      <div class="section">
+        <h2>Fixed basis + flexible fill</h2>
+        <div class="flex-row">
+          <div class="item fixed-120">fixed 120px</div>
+          <div class="item item-b grow-1">takes the rest</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>flex-wrap (narrow row wraps onto multiple lines)</h2>
+        <div class="flex-row wrap-demo">
+          <div class="item wrap-item">1</div>
+          <div class="item item-b wrap-item">2</div>
+          <div class="item item-c wrap-item">3</div>
+          <div class="item wrap-item">4</div>
+          <div class="item item-b wrap-item">5</div>
+          <div class="item item-c wrap-item">6</div>
+        </div>
+        <p class="note">Six fixed-width items in a <code>flex-wrap: wrap</code> row: they fill the first line,
+        then wrap onto the next instead of overflowing or shrinking to nothing.</p>
+      </div>
+
+      <div class="section">
+        <h2>justify-content</h2>
+        <div class="flex-row jc-demo jc-start"><div class="item">start</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-center"><div class="item">center</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-end"><div class="item">end</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-between"><div class="item">between</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-around"><div class="item">around</div><div class="item">·</div></div>
+        <div class="flex-row jc-demo jc-evenly"><div class="item">evenly</div><div class="item">·</div></div>
+      </div>
+
+      <div class="section">
+        <h2>align-items (container height 110px)</h2>
+        <div class="flex-row align-demo ai-start"><div class="item tall">tall</div><div class="item item-b short">start</div></div>
+        <div class="flex-row align-demo ai-center"><div class="item tall">tall</div><div class="item item-b short">center</div></div>
+        <div class="flex-row align-demo ai-end"><div class="item tall">tall</div><div class="item item-b short">end</div></div>
+        <div class="flex-row align-demo ai-stretch"><div class="item">stretch</div><div class="item item-b">stretch</div></div>
+      </div>
+
+      <div class="section">
+        <h2>align-items: baseline (mixed font sizes share a text baseline)</h2>
+        <div class="flex-row baseline-demo">
+          <span class="bl bl-sm">small</span>
+          <span class="bl bl-md">medium</span>
+          <span class="bl bl-lg">large</span>
+          <span class="bl bl-sm">small again</span>
+        </div>
+        <p class="note">Text of different sizes sits on a common baseline &mdash; the bottoms of the letters
+        line up rather than the tops or box edges.</p>
+      </div>
+
+      <div class="section">
+        <h2>Column direction</h2>
+        <div class="flex-col">
+          <div class="item">first</div>
+          <div class="item item-b">second</div>
+          <div class="item item-c">third (items stretch to full width)</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>order (markup order is A, B, C)</h2>
+        <div class="flex-row order-demo">
+          <div class="item o3">A (order 3)</div>
+          <div class="item item-b o1">B (order 1)</div>
+          <div class="item item-c o2">C (order 2)</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Real-world pattern: navbar</h2>
+        <div class="navbar">
+          <span class="navbar-logo">Hummingbird</span>
+          <span>Docs</span>
+          <span class="navbar-spacer"></span>
+          <span class="navbar-btn">Sign in</span>
+          <span class="navbar-btn">Download</span>
+        </div>
+        <p class="note">Logo left, links, flexible spacer, buttons pushed right.</p>
+      </div>
+
+      <div class="section">
+        <h2>Real-world pattern: DDG-style centered search</h2>
+        <div class="ddg-hero">
+          <p class="ddg-logo">Search Engine</p>
+          <form class="ddg-form" action="https://example.dev/search" method="get">
+            <input name="q">
+            <button type="submit">Search</button>
+          </form>
+        </div>
+        <p class="note">Column flex container centering a logo + search form &mdash; the DDG homepage pattern this milestone targets.</p>
+      </div>
+
+      <div class="section">
+        <h2>background-size: 100% (fills width, keeps aspect ratio)</h2>
+        <div class="bgsize-row">
+          <div class="bgsize-cell"><div class="bgsize-box bs-contain"></div><span class="bgsize-cap">contain</span></div>
+          <div class="bgsize-cell"><div class="bgsize-box bs-100"></div><span class="bgsize-cap">100%</span></div>
+          <div class="bgsize-cell"><div class="bgsize-box bs-stretch"></div><span class="bgsize-cap">100% 100%</span></div>
+          <div class="bgsize-cell"><div class="bgsize-box bs-shorthand"></div><span class="bgsize-cap">center/100% (shorthand)</span></div>
+          <div class="bgsize-cell"><div class="bgsize-box bs-auto-h"></div><span class="bgsize-cap">auto 40px</span></div>
+        </div>
+        <p class="note">In a wide box the modes render distinctly: <code>contain</code> fits the whole logo inside
+        (small, letterboxed); <code>100%</code> scales it to the box <em>width</em> keeping aspect ratio (larger,
+        cropped top/bottom); <code>100% 100%</code> stretches it to fill both axes (distorted). The
+        <code>background: … center/100%</code> shorthand (right) parses the <code>/size</code> syntax and so matches
+        the <code>100%</code> box &mdash; the fix behind DDG's round, centered logo.</p>
+      </div>
+
+      <div class="section">
+        <h2>Control chrome: per-corner radius &amp; per-side borders</h2>
+        <div class="chrome-row">
+          <div class="swatch r-pill">pill<br>40px</div>
+          <div class="swatch r-circle">50%</div>
+          <div class="swatch r-top">top<br>16 16 0 0</div>
+          <div class="swatch r-diag">diagonal<br>20 0 20 0</div>
+          <div class="swatch r-ddg-btn">DDG btn<br>0 16 16 0</div>
+          <div class="swatch r-vendor">vendor<br>-webkit-</div>
+        </div>
+        <div class="chrome-row">
+          <div class="sides">4 colored sides</div>
+          <p class="note">
+            Each corner rounds independently (<code>border-radius: 0 16px 16px 0</code> is the DDG search
+            button), <code>50%</code> makes a circle, vendor-prefixed <code>-webkit-/-moz-border-radius</code>
+            resolve to the standard property, and <code>border-&lt;side&gt;-color</code> paints each edge
+            its own color.
+          </p>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Absolute centering with opposing insets (margin:auto)</h2>
+        <div class="abscenter-box">
+          <div class="abscenter-dot">centered</div>
+          <div class="abscenter-btn"></div>
+        </div>
+        <p class="note">The blue box uses <code>position:absolute; top:0; bottom:0; left:0; right:0; margin:auto</code>
+        to center in both axes; the green box (<code>right:8px; left:auto; margin:auto</code>) is vertically centered
+        and pinned right &mdash; the DDG search-button pattern.</p>
+      </div>
+
+      <div class="section">
+        <h2>Float and clear</h2>
+        <div class="float-box">
+          <div class="float-left">float<br>left</div>
+          <p class="float-flowed">This paragraph flows alongside the floated box, wrapping its text into the
+          narrower band beside the float &mdash; the classic magazine-style text wrap.</p>
+          <div class="float-cleared">This block uses <code>clear: left</code>, so it drops below the float
+          instead of sitting beside it.</div>
+        </div>
+        <p class="note">The green <code>clear: left</code> block starts below the floated box; the amber
+        paragraph above it wraps beside the float.</p>
+      </div>
+
+      <div class="section">
+        <h2>Legacy compatibility slice: visibility, text-shadow, pointer-events, clip</h2>
+        <div class="legacy-row">
+          <div class="legacy-cell"><div class="legacy-box">visible</div><span class="note">normal</span></div>
+          <div class="legacy-cell"><div class="legacy-box is-hidden">hidden</div><span class="note"><code>visibility:hidden</code> &mdash; still reserves its space</span></div>
+          <div class="legacy-cell"><div class="legacy-box hidden-parent"><span class="revealed">child</span></div><span class="note">hidden box, <code>visibility:visible</code> child paints</span></div>
+        </div>
+        <p class="shadow-title">Text shadow</p>
+        <p class="note"><code>text-shadow: 2px 2px 0 #fca311</code> paints an offset copy of the glyphs behind the text.</p>
+        <div class="pe-stack">
+          <a class="pe-link" href="https://example.dev">clickable link</a>
+          <div class="pe-overlay"></div>
+        </div>
+        <p class="note">The amber overlay sets <code>pointer-events: none</code>, so clicks pass through to the
+        link beneath it instead of hitting the overlay.</p>
+        <p>Accessibility-hidden text follows:<span class="sr-only">you should not see this</span> (a
+        <code>clip: rect(0 0 0 0)</code> span renders nothing and is not hit-testable).</p>
+      </div>
+
+      <div class="section link-demo">
+        <h2>Visited link state</h2>
+        <p><a href="https://example.dev">example.dev</a> (you navigated here from it, so it renders
+        <code>:visited</code> purple) &mdash;
+        <a href="https://example.dev/link-target">a fresh link</a> (default link blue &mdash; click it, then come
+        back, and it turns purple).</p>
+        <p class="note">The engine records every navigated URL; an anchor whose href resolves to a visited URL
+        matches <code>:visited</code> and takes the <code>vlink</code> color (here forced purple via
+        <code>a:visited</code>). Both links go to real pages you can return from.</p>
+      </div>
+
+      <div class="section">
+        <h2>calc() length expressions</h2>
+        <div class="calc-track">
+          <div class="calc-bar calc-full">width: calc(100% - 40px)</div>
+          <div class="calc-bar calc-half">width: calc(50% + 40px)</div>
+        </div>
+        <p class="note">Widths mix a percentage of the container with a px offset, resolved at layout time. The
+        dark bar stops 40px short of the track's right edge; the green bar is half the track plus 40px.
+        Multiplication, nested <code>calc()</code>, and <code>calc()</code> with <code>var()</code> are not yet
+        supported (those declarations are dropped).</p>
+      </div>
+
+      <div class="section">
+        <h2>@font-face web font</h2>
+        <p class="webfont-demo">The quick brown fox jumps over 1234567890.</p>
+        <p class="note">This line uses <code>font-family: "Webfont Demo"</code>, a name with no built-in
+        mapping. An <code>@font-face</code> rule points that family at a bundled <code>RobotoMono</code> file, so
+        the text renders in that (monospaced) font instead of falling back to the sans body font. Local
+        <code>url()</code> sources load synchronously; remote <code>src</code> urls are fetched through the
+        resource pipeline (raw TTF/OTF only &mdash; WOFF2 needs a decoder, filed as T-FONT-WOFF2-1).</p>
+      </div>
+
+      <div class="section">
+        <h2>CSS Grid</h2>
+        <div class="grid-equal">
+          <div class="grid-cell">1fr</div>
+          <div class="grid-cell grid-cell-b">1fr</div>
+          <div class="grid-cell grid-cell-c">1fr</div>
+        </div>
+        <p class="note"><code>grid-template-columns: repeat(3, 1fr); gap: 10px</code> &mdash; three equal columns.</p>
+
+        <div class="grid-sidebar">
+          <div class="grid-cell">160px</div>
+          <div class="grid-cell grid-cell-b">1fr (fills the rest)</div>
+        </div>
+        <p class="note"><code>grid-template-columns: 160px 1fr</code> &mdash; a fixed sidebar plus a flexible column.</p>
+
+        <div class="grid-areas">
+          <div class="grid-cell span-all">grid-column: 1 / 5 (spans all four)</div>
+          <div class="grid-cell grid-cell-b span-2">span 2</div>
+          <div class="grid-cell grid-cell-c">3</div>
+          <div class="grid-cell">4</div>
+          <div class="grid-cell grid-cell-b">5</div>
+          <div class="grid-cell grid-cell-c">6</div>
+        </div>
+        <p class="note">Line/span placement over a 4-column grid: the header uses <code>grid-column: 1 / 5</code>,
+        the amber cell <code>grid-column: span 2</code>; the rest auto-place row by row and wrap. Not in this MVP:
+        <code>minmax()</code>, <code>auto-fill/fit</code>, named areas, and column-direction auto-flow.</p>
+      </div>
+    </div>
+  </body>
+</html>

@@ -20,6 +20,7 @@ add_executable(HummingbirdTests
     engine/ExtensionLoader.test.cpp
     engine/ExtensionHost.test.cpp
     engine/ResourceStore.test.cpp
+    engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
     core/AssetPath.test.cpp
     core/AssetLoader.test.cpp
@@ -41,6 +42,8 @@ add_executable(HummingbirdTests
     layout/TableLayout.test.cpp
     layout/TableColumnLayout.test.cpp
     layout/Positioning.test.cpp
+    layout/FlexLayout.test.cpp
+    layout/GridLayout.test.cpp
     layout/TextStyleUtils.test.cpp
     renderer/DisplayList.test.cpp
     renderer/Painter.test.cpp
@@ -63,6 +66,11 @@ add_executable(HummingbirdTests
     network/StubNetwork.test.cpp
     network/CurlNetwork.test.cpp
     network/NetworkFactory.test.cpp
+    layout/DdgHomeLayout.test.cpp
+)
+
+target_compile_definitions(HummingbirdTests PRIVATE
+    HB_TEST_FIXTURE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures"
 )
 
 # Link the test executable against GTest and our libraries

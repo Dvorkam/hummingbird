@@ -32,6 +32,10 @@ std::unique_ptr<RenderObject> create_render_for_display(const DOM::Element* elem
             return RenderFactory::create_inline_block_box(element);
         case Css::ComputedStyle::Display::ListItem:
             return RenderFactory::create_list_item(element);
+        case Css::ComputedStyle::Display::Flex:
+            return RenderFactory::create_flex_box(element);
+        case Css::ComputedStyle::Display::Grid:
+            return RenderFactory::create_grid_box(element);
         case Css::ComputedStyle::Display::None:
             return nullptr;
         case Css::ComputedStyle::Display::Block:

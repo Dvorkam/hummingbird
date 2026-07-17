@@ -37,3 +37,12 @@ are superseded.
 - [ ] `src/engine/extensions/ExtensionManifest.cpp`: extract a small `JsonMiniParser` (cursor/skip helpers) to reduce bespoke parsing code.
 - [ ] `src/engine/resources/ResourceLoader.cpp`: extract a `DocumentFetchPolicy` helper to separate navigation policy from request handling.
 - [ ] `src/engine/document/DocumentPipeline.cpp`: keep the orchestrator thin by pushing any new business logic into helpers.
+
+## CSS Property System Ceremony
+
+Surfaced while adding `clear` (T-CSS-CLEAR-1): a genuinely new property with its
+own field touches ~5 wiring points before the actual behavior. The layering is
+correct (Ports & Adapters firewall holds), but two seams are avoidable ceremony.
+
+- [x] **T-STYLE-FIELDCOPY-1: Make `apply_non_inheritable` drift-proof** (`src/style/compute/StyleEngine.cpp`). *Done: inverted the merge — `compute_node` now starts from the element's own computed style (non-inherited box properties correct by construction, no per-field copy list) and only pulls inherited properties from the parent via `inherit_from_parent`. Non-inherited drift is now structurally impossible; the smaller inherited list is guarded by `StyleEngineTest.InheritsAllInheritedProperties` (proven to fail when a field is dropped) and `DoesNotInheritBoxPropertiesFromParent`.*
+- [ ] `src/style/registry` + `src/style/compute/apply/PropertyApplier.cpp`: collapse the `ApplyHook` enum + dispatch `switch` redundancy. The registry `.inl` already names the applier; a hand-maintained enum plus a switch that only forwards to a function is boilerplate. Consider keying appliers directly off the registry (function pointer / small dispatch table) so adding a simple property needs one registry row + one apply case, not four synced touchpoints.

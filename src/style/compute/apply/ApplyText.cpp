@@ -124,6 +124,31 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                 }
             }
             return true;
+        case Property::Visibility:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Visible) {
+                    style.visibility = ComputedStyle::Visibility::Visible;
+                    overrides.visibility = true;
+                } else if (value.ident == ValueNames::Hidden) {
+                    style.visibility = ComputedStyle::Visibility::Hidden;
+                    overrides.visibility = true;
+                } else if (value.ident == ValueNames::Collapse) {
+                    style.visibility = ComputedStyle::Visibility::Collapse;
+                    overrides.visibility = true;
+                }
+            }
+            return true;
+        case Property::PointerEvents:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Auto) {
+                    style.pointer_events = ComputedStyle::PointerEvents::Auto;
+                    overrides.pointer_events = true;
+                } else if (value.ident == ValueNames::None) {
+                    style.pointer_events = ComputedStyle::PointerEvents::None;
+                    overrides.pointer_events = true;
+                }
+            }
+            return true;
         case Property::VerticalAlign:
             if (value.type == Value::Type::Identifier) {
                 if (value.ident == ValueNames::Baseline) {
@@ -247,6 +272,19 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                     style.float_type = ComputedStyle::Float::Right;
                 } else if (value.ident == ValueNames::None) {
                     style.float_type = ComputedStyle::Float::None;
+                }
+            }
+            return true;
+        case Property::Clear:
+            if (value.type == Value::Type::Identifier) {
+                if (value.ident == ValueNames::Left) {
+                    style.clear = ComputedStyle::Clear::Left;
+                } else if (value.ident == ValueNames::Right) {
+                    style.clear = ComputedStyle::Clear::Right;
+                } else if (value.ident == ValueNames::Both) {
+                    style.clear = ComputedStyle::Clear::Both;
+                } else if (value.ident == ValueNames::None) {
+                    style.clear = ComputedStyle::Clear::None;
                 }
             }
             return true;

@@ -12,6 +12,7 @@
 #include "html/HtmlTagNames.h"
 #include "layout/TreeBuilder.h"
 #include "layout/flow/TextBox.h"
+#include "layout/paint/PaintUtils.h"
 #include "layout/formatting/RenderListItem.h"
 #include "style/compute/StyleEngine.h"
 #include "style/parser/CssParser.h"
@@ -830,4 +831,125 @@ TEST(PainterTest, SkipsFallbackGridForLikelyLayoutTableWithoutBorderHints) {
     painter.paint(*render_tree, context, opts);
 
     EXPECT_EQ(context.fill_calls.size(), 0u);
+}
+
+// background-size geometry (compute_background_image_rect): the DDG logo bug
+// where `background-size: 100%%` squished the SVG into an ellipse.
+TEST(BackgroundSizeGeometryTest, PercentFillsWidthAndPreservesAspect) {
+    ImageBitmap image;
+    image.width = 200;
+    image.height = 200;  // square (duck-in-circle)
+    ComputedStyle style;
+    style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
+    style.background_size.width = 100.0f;
+    style.background_size.width_is_percent = true;  // 100%, height auto
+
+    const Hummingbird::Layout::Rect area{0, 0, 205, 200};
+    const auto dest = Hummingbird::Layout::PaintUtils::compute_background_image_rect(area, image, style);
+    EXPECT_FLOAT_EQ(dest.width, 205.0f);   // 100% of the box width
+    EXPECT_FLOAT_EQ(dest.height, 205.0f);  // aspect preserved -> circle stays a circle
+}
+
+TEST(BackgroundSizeGeometryTest, PercentPortraitImageKeepsAspect) {
+    ImageBitmap image;
+    image.width = 200;
+    image.height = 250;  // portrait (duck + wordmark)
+    ComputedStyle style;
+    style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
+    style.background_size.width = 100.0f;
+    style.background_size.width_is_percent = true;
+
+    const Hummingbird::Layout::Rect area{0, 0, 205, 200};
+    const auto dest = Hummingbird::Layout::PaintUtils::compute_background_image_rect(area, image, style);
+    EXPECT_FLOAT_EQ(dest.width, 205.0f);
+    EXPECT_NEAR(dest.height, 256.25f, 0.1f);  // 250 * (205/200), aspect preserved
+}
+
+TEST(BackgroundSizeGeometryTest, ExplicitTwoValuePercentResolvesBothAxes) {
+    ImageBitmap image;
+    image.width = 200;
+    image.height = 200;
+    ComputedStyle style;
+    style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
+    style.background_size.width = 50.0f;
+    style.background_size.width_is_percent = true;
+    style.background_size.height = 25.0f;
+    style.background_size.height_is_percent = true;
+
+    const Hummingbird::Layout::Rect area{0, 0, 200, 200};
+    const auto dest = Hummingbird::Layout::PaintUtils::compute_background_image_rect(area, image, style);
+    EXPECT_FLOAT_EQ(dest.width, 100.0f);  // 50% of 200
+    EXPECT_FLOAT_EQ(dest.height, 50.0f);  // 25% of 200
+}
+
+TEST(BackgroundSizeGeometryTest, PercentPositionCentersImageNotOffsetsByPixels) {
+    // DDG magnifier bug: background-position:50% 50% must center the image
+    // ((box - image) * 0.5), not offset it 50px down-right (which pushed the
+    // loupe outside the button box).
+    ImageBitmap image;
+    image.width = 20;
+    image.height = 20;
+    ComputedStyle style;  // no size -> natural 20x20
+    style.background_position.offset_x = 50.0f;
+    style.background_position.offset_x_is_percent = true;
+    style.background_position.offset_y = 50.0f;
+    style.background_position.offset_y_is_percent = true;
+
+    const Hummingbird::Layout::Rect area{0, 0, 100, 100};
+    const auto dest = Hummingbird::Layout::PaintUtils::compute_background_image_rect(area, image, style);
+    EXPECT_FLOAT_EQ(dest.x, 40.0f);  // (100 - 20) * 0.5, centered
+    EXPECT_FLOAT_EQ(dest.y, 40.0f);
+}
+
+namespace {
+// Records clip push/pop and image draws to verify background-clip behavior.
+class ClipRecordingContext : public IGraphicsContext {
+public:
+    void set_viewport(const Hummingbird::Layout::Rect&) override {}
+    void clear(const Color&) override {}
+    void present() override {}
+    void fill_rect(const Hummingbird::Layout::Rect&, const Color&) override {}
+    void draw_image(const ImageBitmap&, const Hummingbird::Layout::Rect& dest) override {
+        image_dests.push_back(dest);
+        clipped_when_drawn.push_back(clip_depth > 0);
+    }
+    TextMetrics measure_text(const std::string&, const TextStyle&) override { return {}; }
+    void draw_text(const std::string&, float, float, const TextStyle&) override {}
+    void push_clip(const Hummingbird::Layout::Rect& rect) override {
+        pushed.push_back(rect);
+        ++clip_depth;
+    }
+    void pop_clip() override { --clip_depth; }
+
+    std::vector<Hummingbird::Layout::Rect> image_dests;
+    std::vector<Hummingbird::Layout::Rect> pushed;
+    std::vector<bool> clipped_when_drawn;
+    int clip_depth = 0;
+};
+}  // namespace
+
+TEST(BackgroundClipTest, BackgroundImageIsClippedToItsBox) {
+    ClipRecordingContext ctx;
+    ImageBitmap image;
+    image.width = 100;
+    image.height = 100;  // square image
+    ComputedStyle style;
+    style.background_image = "logo.svg";
+    style.background_size.type = ComputedStyle::BackgroundSize::Type::Length;
+    style.background_size.width = 100.0f;
+    style.background_size.width_is_percent = true;  // 100% -> 200 wide, 200 tall
+    style.background_repeat = ComputedStyle::BackgroundRepeat::NoRepeat;
+
+    const Hummingbird::Layout::Rect area{0, 0, 200, 80};  // wide/short box
+    Hummingbird::Layout::PaintUtils::draw_background_image(ctx, area, image, style);
+
+    // A clip matching the box was pushed, the image drawn under it, clip balanced.
+    ASSERT_EQ(ctx.pushed.size(), 1u);
+    EXPECT_FLOAT_EQ(ctx.pushed[0].width, 200.0f);
+    EXPECT_FLOAT_EQ(ctx.pushed[0].height, 80.0f);
+    ASSERT_EQ(ctx.image_dests.size(), 1u);
+    EXPECT_TRUE(ctx.clipped_when_drawn[0]);
+    EXPECT_EQ(ctx.clip_depth, 0);  // push/pop balanced
+    // The image is genuinely taller than the box, so the clip is what crops it.
+    EXPECT_GT(ctx.image_dests[0].height, area.height);
 }

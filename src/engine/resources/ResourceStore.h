@@ -17,6 +17,7 @@ enum class ResourceType : uint8_t {
     Document,
     Stylesheet,
     Image,
+    Font,
 };
 
 enum class ResourceState : uint8_t {

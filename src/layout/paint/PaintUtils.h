@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <optional>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
@@ -49,6 +50,106 @@ inline void draw_rounded_fill(IGraphicsContext& context, const Rect& rect, float
             continue;
         }
         context.fill_rect(Rect{x, y, width, 1.0f}, color);
+    }
+}
+
+// Corner radii resolved to px for a specific box, clamped so no single corner
+// exceeds half the shorter side.
+struct ResolvedCorners {
+    float top_left = 0.0f;
+    float top_right = 0.0f;
+    float bottom_right = 0.0f;
+    float bottom_left = 0.0f;
+    bool any() const { return top_left > 0.0f || top_right > 0.0f || bottom_right > 0.0f || bottom_left > 0.0f; }
+};
+
+inline ResolvedCorners resolve_corners(const Css::CornerRadii& radii, float width, float height) {
+    const float reference = std::min(width, height);
+    const float cap = std::max(0.0f, reference * 0.5f);
+    auto rv = [&](const Css::CornerRadius& corner) { return std::min(std::max(0.0f, corner.resolve(reference)), cap); };
+    return {rv(radii.top_left), rv(radii.top_right), rv(radii.bottom_right), rv(radii.bottom_left)};
+}
+
+// Horizontal inset into a circular corner of the given radius, for a row whose
+// center is `dist_from_edge` px from the near horizontal edge.
+inline float corner_inset(float dist_from_edge, float radius) {
+    if (radius <= 0.0f || dist_from_edge >= radius) {
+        return 0.0f;
+    }
+    const float dy = radius - dist_from_edge;
+    return radius - std::sqrt(std::max(0.0f, radius * radius - dy * dy));
+}
+
+// Left/right horizontal insets for one scanline row, given four corner radii.
+inline void corner_insets_at_row(const ResolvedCorners& corners, float row_center, float height, float& left,
+                                 float& right) {
+    const float dist_top = row_center;
+    const float dist_bottom = height - row_center;
+    left = std::max(corner_inset(dist_top, corners.top_left), corner_inset(dist_bottom, corners.bottom_left));
+    right = std::max(corner_inset(dist_top, corners.top_right), corner_inset(dist_bottom, corners.bottom_right));
+}
+
+// Scanline fill supporting four independent corner radii (e.g. `0 4px 4px 0`).
+inline void draw_rounded_fill_corners(IGraphicsContext& context, const Rect& rect, const ResolvedCorners& corners,
+                                      const Color& color) {
+    if (!corners.any()) {
+        context.fill_rect(rect, color);
+        return;
+    }
+    const int row_count = std::max(1, static_cast<int>(std::ceil(rect.height)));
+    for (int row = 0; row < row_count; ++row) {
+        float left = 0.0f;
+        float right = 0.0f;
+        corner_insets_at_row(corners, static_cast<float>(row) + 0.5f, rect.height, left, right);
+        const float width = std::max(0.0f, rect.width - left - right);
+        if (width > 0.0f) {
+            context.fill_rect(Rect{rect.x + left, rect.y + static_cast<float>(row), width, 1.0f}, color);
+        }
+    }
+}
+
+// Uniform-width border stroke that follows four independent corner radii: fills
+// the gap between the outer rounded edge and an inner edge inset by `thickness`
+// (with each corner radius reduced by the thickness).
+inline void draw_rounded_border_corners(IGraphicsContext& context, const Rect& rect, const ResolvedCorners& corners,
+                                        float thickness, const Color& color) {
+    if (thickness <= 0.0f) {
+        return;
+    }
+    const Rect inner{rect.x + thickness, rect.y + thickness, std::max(0.0f, rect.width - thickness * 2.0f),
+                     std::max(0.0f, rect.height - thickness * 2.0f)};
+    const ResolvedCorners inner_corners{
+        std::max(0.0f, corners.top_left - thickness),
+        std::max(0.0f, corners.top_right - thickness),
+        std::max(0.0f, corners.bottom_right - thickness),
+        std::max(0.0f, corners.bottom_left - thickness),
+    };
+    const int row_count = std::max(1, static_cast<int>(std::ceil(rect.height)));
+    for (int row = 0; row < row_count; ++row) {
+        const float y_abs = rect.y + static_cast<float>(row);
+        float outer_left = 0.0f;
+        float outer_right = 0.0f;
+        corner_insets_at_row(corners, static_cast<float>(row) + 0.5f, rect.height, outer_left, outer_right);
+        const float ox_left = rect.x + outer_left;
+        const float ox_right = rect.x + rect.width - outer_right;
+        if (ox_right <= ox_left) {
+            continue;
+        }
+        if (y_abs < inner.y || y_abs >= inner.y + inner.height || inner.width <= 0.0f || inner.height <= 0.0f) {
+            context.fill_rect(Rect{ox_left, y_abs, ox_right - ox_left, 1.0f}, color);
+            continue;
+        }
+        float inner_left = 0.0f;
+        float inner_right = 0.0f;
+        corner_insets_at_row(inner_corners, (y_abs - inner.y) + 0.5f, inner.height, inner_left, inner_right);
+        const float ix_left = inner.x + inner_left;
+        const float ix_right = inner.x + inner.width - inner_right;
+        if (ix_left > ox_left) {
+            context.fill_rect(Rect{ox_left, y_abs, ix_left - ox_left, 1.0f}, color);
+        }
+        if (ox_right > ix_right) {
+            context.fill_rect(Rect{ix_right, y_abs, ox_right - ix_right, 1.0f}, color);
+        }
     }
 }
 
@@ -159,18 +260,48 @@ inline Rect compute_background_image_rect(const Rect& area, const ImageBitmap& i
         dest_width = image_width * scale;
         dest_height = image_height * scale;
     } else if (style.background_size.type == Css::ComputedStyle::BackgroundSize::Type::Length) {
-        if (style.background_size.width) {
-            dest_width = *style.background_size.width;
+        const auto& bs = style.background_size;
+        std::optional<float> resolved_w;
+        std::optional<float> resolved_h;
+        if (bs.width) {
+            resolved_w = bs.width_is_percent ? area.width * (*bs.width * 0.01f) : *bs.width;
         }
-        if (style.background_size.height) {
-            dest_height = *style.background_size.height;
+        if (bs.height) {
+            resolved_h = bs.height_is_percent ? area.height * (*bs.height * 0.01f) : *bs.height;
+        }
+        // A single specified axis (e.g. `background-size: 100%`) keeps the
+        // image's aspect ratio by deriving the other axis from it.
+        if (resolved_w && !resolved_h) {
+            dest_width = *resolved_w;
+            dest_height = image_height * (*resolved_w / image_width);
+        } else if (!resolved_w && resolved_h) {
+            dest_height = *resolved_h;
+            dest_width = image_width * (*resolved_h / image_height);
+        } else if (resolved_w && resolved_h) {
+            dest_width = *resolved_w;
+            dest_height = *resolved_h;
         }
     }
 
-    float offset_x = style.background_position.offset_x.value_or(
-        aligned_offset(area.width, dest_width, style.background_position.horizontal));
-    float offset_y = style.background_position.offset_y.value_or(
-        aligned_offset(area.height, dest_height, style.background_position.vertical));
+    // A percentage offset aligns the same-percent point of the image to that
+    // point of the box: offset = (box - image) * pct. A length offset is used
+    // as-is; with neither, fall back to the keyword alignment.
+    float offset_x;
+    if (style.background_position.offset_x.has_value()) {
+        offset_x = style.background_position.offset_x_is_percent
+                       ? (area.width - dest_width) * (*style.background_position.offset_x * 0.01f)
+                       : *style.background_position.offset_x;
+    } else {
+        offset_x = aligned_offset(area.width, dest_width, style.background_position.horizontal);
+    }
+    float offset_y;
+    if (style.background_position.offset_y.has_value()) {
+        offset_y = style.background_position.offset_y_is_percent
+                       ? (area.height - dest_height) * (*style.background_position.offset_y * 0.01f)
+                       : *style.background_position.offset_y;
+    } else {
+        offset_y = aligned_offset(area.height, dest_height, style.background_position.vertical);
+    }
     return {area.x + offset_x, area.y + offset_y, dest_width, dest_height};
 }
 
@@ -181,8 +312,14 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
         return;
     }
 
+    // Background painting is clipped to the box (background-clip: border-box),
+    // so a scaled image larger than the box (e.g. background-size:100% on a
+    // wide box) is cropped rather than overflowing.
+    context.push_clip(area);
+
     if (style.background_repeat == Css::ComputedStyle::BackgroundRepeat::NoRepeat) {
         context.draw_image(image, dest);
+        context.pop_clip();
         return;
     }
 
@@ -217,6 +354,8 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
         if (!repeat_y) break;
         y += dest.height;
     } while (y < area.y + area.height);
+
+    context.pop_clip();
 }
 
 inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, const Css::ComputedStyle* style,
@@ -224,6 +363,8 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
     if (!style) {
         return;
     }
+    const ResolvedCorners corners = resolve_corners(style->border_radius, rect.width, rect.height);
+    const float radius = std::max({corners.top_left, corners.top_right, corners.bottom_right, corners.bottom_left});
     if (style->box_shadow.has_value()) {
         const auto& shadow = *style->box_shadow;
         const float blur = std::max(0.0f, shadow.blur);
@@ -238,7 +379,7 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
             if (blur > 0.0f) {
                 shadow_color.a = static_cast<uint8_t>(shadow_color.a * 0.6f);
             }
-            const float shadow_radius = std::max(0.0f, style->border_radius + blur);
+            const float shadow_radius = std::max(0.0f, radius + blur);
             if (shadow_radius > 0.0f) {
                 draw_rounded_fill(context, shadow_rect, shadow_radius, shadow_color);
             } else {
@@ -246,10 +387,9 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
             }
         }
     }
-    const float radius = std::max(0.0f, style->border_radius);
     if (style->background.has_value()) {
-        if (radius > 0.0f) {
-            draw_rounded_fill(context, rect, radius, *style->background);
+        if (corners.any()) {
+            draw_rounded_fill_corners(context, rect, corners, *style->background);
         } else {
             context.fill_rect(rect, *style->background);
         }
@@ -259,25 +399,29 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
     }
     if (style->border_style != Css::ComputedStyle::BorderStyle::None) {
         const auto& bw = style->border_width;
-        const auto& color = style->border_color;
+        const auto& edge = style->border_edge_color;
+        // A uniform-width border follows the corner radii (each corner rounds
+        // independently). A single border color is used for the rounded stroke;
+        // per-side colors only apply to the square multi-edge path below, which
+        // is also the fallback when border widths differ per side.
         if (radius > 0.0f && is_uniform_border_width(bw)) {
-            draw_uniform_rounded_border(context, rect, radius, bw.top, color);
+            draw_rounded_border_corners(context, rect, corners, bw.top, style->border_color);
         } else {
             if (bw.top > 0.0f) {
                 Rect top{rect.x, rect.y, rect.width, bw.top};
-                context.fill_rect(top, color);
+                context.fill_rect(top, edge.top);
             }
             if (bw.bottom > 0.0f) {
                 Rect bottom{rect.x, rect.y + rect.height - bw.bottom, rect.width, bw.bottom};
-                context.fill_rect(bottom, color);
+                context.fill_rect(bottom, edge.bottom);
             }
             if (bw.left > 0.0f) {
                 Rect left{rect.x, rect.y, bw.left, rect.height};
-                context.fill_rect(left, color);
+                context.fill_rect(left, edge.left);
             }
             if (bw.right > 0.0f) {
                 Rect right{rect.x + rect.width - bw.right, rect.y, bw.right, rect.height};
-                context.fill_rect(right, color);
+                context.fill_rect(right, edge.right);
             }
         }
     }

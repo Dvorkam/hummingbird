@@ -17,6 +17,8 @@ DisplayCommand make_draw_text(const std::string& text, float x, float y, const T
 DisplayCommand make_draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
                                            const TextMetrics& metrics);
 DisplayCommand make_set_global_alpha(float alpha);
+DisplayCommand make_push_clip(const Hummingbird::Layout::Rect& rect);
+DisplayCommand make_pop_clip();
 void replay_command(const DisplayCommand& command, IGraphicsContext& context);
 void draw_outline(IGraphicsContext& context, const Hummingbird::Layout::Rect& rect, const Color& color);
 

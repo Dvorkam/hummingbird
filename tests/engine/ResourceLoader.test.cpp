@@ -23,12 +23,14 @@ using Hummingbird::Platform::CompositeImageDecoder;
 class FakeResourceProvider final : public Hummingbird::IResourceProvider {
 public:
     std::optional<std::string> load_text(std::string_view resource_id) override {
+        queried.emplace_back(resource_id);
         auto it = text_.find(std::string(resource_id));
         if (it == text_.end()) return std::nullopt;
         return it->second;
     }
 
     std::optional<std::string> load_bytes(std::string_view resource_id) override {
+        queried.emplace_back(resource_id);
         auto it = bytes_.find(std::string(resource_id));
         if (it == bytes_.end()) return std::nullopt;
         return it->second;
@@ -36,6 +38,7 @@ public:
 
     std::unordered_map<std::string, std::string> text_;
     std::unordered_map<std::string, std::string> bytes_;
+    std::vector<std::string> queried;
 };
 
 class CapturingNetwork final : public Hummingbird::INetwork {
@@ -122,6 +125,57 @@ TEST(ResourceLoaderTest, StylesheetAssetsMarkReadyWithoutNetwork) {
 
     auto batch = loader.consume_pending_updates();
     EXPECT_EQ(batch.pending_count, 0u);
+}
+
+TEST(ResourceLoaderTest, NeverProbesProviderForOriginRelativeUrls) {
+    // The local asset provider must never be probed with page-controlled paths
+    // that belong to the document's origin: root-relative ("/x"), protocol-
+    // relative ("//host/x"), UNC ("\\host\x"), or absolute-URL links. Feeding
+    // such a path to the filesystem is what caused the DDG UNC/SMB stall.
+    auto provider = std::make_unique<FakeResourceProvider>();
+    auto* provider_ptr = provider.get();
+
+    ResourceLoader loader(std::make_unique<CapturingNetwork>(), std::make_unique<CapturingNetwork>(),
+                          std::move(provider), nullptr);
+
+    const std::string base_url = "https://example.dev/page.html";
+    loader.request_stylesheets({"//evil.example/x.css", "/rooted.css", "https://evil.example/y.css"}, base_url);
+    // Also exercise a base that does not parse as absolute, so a protocol-relative
+    // link survives resolution unchanged (the exact UNC-shaped case).
+    loader.request_stylesheets({"//evil.example/z.css"}, "");
+
+    for (const auto& id : provider_ptr->queried) {
+        ASSERT_FALSE(id.empty());
+        EXPECT_NE(id.front(), '/') << "provider probed with origin path: " << id;
+        EXPECT_NE(id.front(), '\\') << "provider probed with UNC path: " << id;
+        EXPECT_EQ(id.find("://"), std::string::npos) << "provider probed with absolute URL: " << id;
+    }
+}
+
+TEST(ResourceLoaderTest, CoalescesMultipleArrivalsIntoOneBatch) {
+    // Several resources arriving before a tick must drain in a single
+    // consume_pending_updates() with one aggregate ready flag, so the tab does
+    // one restyle/relayout instead of one per resource (T-PERF-5).
+    auto fallback = std::make_unique<CapturingNetwork>();
+    fallback->body = "PNGDATA";
+
+    ResourceLoader loader(nullptr, std::move(fallback), nullptr,
+                          std::make_unique<Hummingbird::Test::InlineImageDecoder>());
+    loader.allow_insecure_host("example.dev");
+
+    const std::string base_url = "https://example.dev/index.html";
+    loader.request_images({"/img/a.png", "/img/b.png", "/img/c.png"}, base_url);
+
+    // All three network callbacks fired synchronously and enqueued; a single
+    // consume drains them together.
+    auto batch = loader.consume_pending_updates();
+    EXPECT_EQ(batch.pending_count, 3u);
+    EXPECT_TRUE(batch.image_ready);
+
+    // The queue is now empty: no second rebuild is triggered.
+    auto empty = loader.consume_pending_updates();
+    EXPECT_EQ(empty.pending_count, 0u);
+    EXPECT_FALSE(empty.image_ready);
 }
 
 TEST(ResourceLoaderTest, ImageUsesFallbackNetworkAndDecoder) {

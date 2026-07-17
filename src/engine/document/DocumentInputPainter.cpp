@@ -12,6 +12,7 @@
 #include "layout/RenderObject.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
+#include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Engine {
 
@@ -29,6 +30,48 @@ struct InputPaintData {
     float text_y;
     float text_height;
 };
+
+// Inputs with `background: none` (DDG) paint nothing themselves, so erasing a
+// deleted character needs the backdrop actually behind the control: the
+// nearest ancestor with an opaque background, white as the last resort.
+// The fill must stay inside that ancestor's padding box: chromeless inputs may
+// intentionally overflow their styled container (DDG's input pokes past the
+// form's border box), and an unclipped fill wipes the container's border and
+// shadow from the cached document underneath.
+struct Backdrop {
+    Color color{255, 255, 255, 255};
+    std::optional<Layout::Rect> clip;
+};
+
+Backdrop resolve_backdrop(const Layout::RenderObject& node, const Layout::Rect& absolute) {
+    Layout::Rect current_abs = absolute;
+    for (const auto* current = &node; current; current = current->get_parent()) {
+        const auto* style = current->get_computed_style();
+        if (style && style->background.has_value() && style->background->a == 255) {
+            Layout::Rect padding_box{current_abs.x + style->border_width.left, current_abs.y + style->border_width.top,
+                                     current_abs.width - style->border_width.left - style->border_width.right,
+                                     current_abs.height - style->border_width.top - style->border_width.bottom};
+            return {*style->background, padding_box};
+        }
+        // Hoist this box's rect into the parent's coordinate space before
+        // walking up (child rects are parent-relative).
+        const Layout::Rect relative = current->get_rect();
+        const Layout::RenderObject* parent = current->get_parent();
+        if (!parent) break;
+        const Layout::Rect parent_relative = parent->get_rect();
+        current_abs = {current_abs.x - relative.x, current_abs.y - relative.y, parent_relative.width,
+                       parent_relative.height};
+    }
+    return {};
+}
+
+Layout::Rect intersect_rects(const Layout::Rect& a, const Layout::Rect& b) {
+    float left = std::max(a.x, b.x);
+    float top = std::max(a.y, b.y);
+    float right = std::min(a.x + a.width, b.x + b.width);
+    float bottom = std::min(a.y + a.height, b.y + b.height);
+    return {left, top, std::max(0.0f, right - left), std::max(0.0f, bottom - top)};
+}
 
 Color high_contrast_text(Color background) {
     const int luma = (static_cast<int>(background.r) * 299 + static_cast<int>(background.g) * 587 +
@@ -103,6 +146,15 @@ void paint_input_caret(const InputPaintData& data, IGraphicsContext& graphics, s
                                                << " scroll_y=" << scroll_y << " repaint_bg=" << repaint_background);
 }
 
+// Pages that strip the input's native border (border:none) are drawing their
+// own control chrome; a synthetic focus ring on top of it fights their design.
+bool wants_synthetic_focus_ring(const Css::ComputedStyle* style) {
+    if (!style) return true;
+    if (style->border_style == Css::ComputedStyle::BorderStyle::None) return false;
+    const auto& width = style->border_width;
+    return width.top > 0.0f || width.right > 0.0f || width.bottom > 0.0f || width.left > 0.0f;
+}
+
 void paint_input_focus_ring(const Layout::Rect& absolute, IGraphicsContext& graphics) {
     constexpr float kStroke = 1.0f;
     graphics.fill_rect({absolute.x, absolute.y, absolute.width, kStroke}, kFocusRingColor);
@@ -117,6 +169,11 @@ void paint_input_control(const DOM::Element& element, const Layout::RenderObject
                          const Layout::Point& local_offset, IGraphicsContext& graphics, bool repaint_background,
                          bool focused, size_t caret, float scroll_y) {
     if (repaint_background) {
+        Backdrop backdrop = resolve_backdrop(node, absolute);
+        Layout::Rect fill = backdrop.clip ? intersect_rects(absolute, *backdrop.clip) : absolute;
+        if (fill.width > 0.0f && fill.height > 0.0f) {
+            graphics.fill_rect(fill, backdrop.color);
+        }
         node.paint_self(graphics, local_offset);
     }
 
@@ -128,7 +185,9 @@ void paint_input_control(const DOM::Element& element, const Layout::RenderObject
     paint_input_value(*paint_data, graphics);
 
     if (focused) {
-        paint_input_focus_ring(absolute, graphics);
+        if (wants_synthetic_focus_ring(node.get_computed_style())) {
+            paint_input_focus_ring(absolute, graphics);
+        }
         HB_LOG_DEBUG("[input] draw focused value='" << paint_data->value << "' text_pos=" << paint_data->text_x << ","
                                                     << paint_data->text_y << " text_h=" << paint_data->text_height
                                                     << " color=(" << static_cast<int>(paint_data->text_style.color.r)

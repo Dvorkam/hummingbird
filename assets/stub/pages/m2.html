@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>M2 - The Stylist (CSS Engine)</title>
+    <link rel="stylesheet" href="assets/stub.css">
+    <style>
+      body { margin: 0; padding: 0 0 30px 0; background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; --brand: #ffd54d; --panel: #2a3aa0; }
+      .top { background-color: #14213d; color: #ffffff; padding: 14px 24px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+      .top-title { font-size: 20px; font-weight: bold; margin: 0; }
+      .top a { color: #fca311; }
+      .page { max-width: 860px; margin: 0 auto; padding: 16px 24px; }
+      .section { background-color: #ffffff; border: 1px solid #dde3ee; border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+      .section h2 { margin: 4px 0 10px 0; font-size: 18px; }
+      .note { color: #56617a; font-size: 13px; }
+      code { background-color: #e8ecf4; padding: 1px 5px; border-radius: 4px; }
+
+      .hidden { display: none; }
+      .boxed { border: 20px solid #cc0000; padding: 4px; }
+      .selector-demo { background-color: #fafafa; padding: 6px; }
+      .selector-demo * { border: 1px solid #ddd; padding: 2px; }
+      .selector-demo .title { color: #cc0033; }
+      .selector-demo > .direct-child { background-color: #fff3d6; }
+      .var-demo { color: var(--brand); background-color: var(--panel, #444); padding: 4px; }
+      .external-demo { color: #cc0000; }
+
+      .border-style-demo { border: 3px outset #5b3a12; padding: 6px; }
+      .border-radius-demo { border: 3px solid #2d4a9b; background-color: #dfe9ff; padding: 10px; width: 220px; border-radius: 14px; }
+      .border-sides-demo { width: 240px; padding: 8px; background-color: #f8fbff;
+        border-top: 5px solid #2d4a9b; border-right: 3px ridge #5b7bb8;
+        border-bottom: 2px solid #2d4a9b; border-left: 7px inset #8aa2d6; }
+      .outline-demo { width: 220px; padding: 8px; border: 1px solid #555; outline: 3px solid #2c7a4b; outline-offset: 4px; margin: 12px; }
+      .box-shadow-demo { width: 220px; padding: 8px; border: 1px solid #666; background-color: #ffffff; box-shadow: 6px 6px 8px #444444; }
+
+      .box-sizing-demo { width: 160px; padding: 8px; border: 2px solid #666; margin: 4px 0; }
+      .box-sizing-content { box-sizing: content-box; background-color: #fff4e6; }
+      .box-sizing-border { box-sizing: border-box; background-color: #eaf5ff; }
+      .minmax-demo { width: 120px; min-width: 180px; max-width: 200px; min-height: 28px; max-height: 40px; padding: 4px; border: 1px solid #666; background-color: #f0fff0; }
+
+      .pos-demo { position: relative; height: 90px; border: 1px dashed #999; margin: 8px 0; }
+      .pos-base { width: 120px; height: 40px; background-color: #d7e8ff; border: 1px solid #7aa7e3; }
+      .pos-overlay { position: absolute; top: 6px; left: 30px; width: 120px; height: 40px; background-color: #ffd3c6; border: 1px solid #e59680; z-index: 2; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="top-title">Milestone 2 &mdash; The Stylist (CSS Engine)</p>
+      <a href="https://example.dev">&laquo; back to example.dev</a>
+    </div>
+    <div class="page">
+      <p class="note">
+        Added in M2 (and grown since): CSS tokenizer/parser, selector matching with specificity,
+        the cascade, external stylesheets, the box model, and later custom properties,
+        border/outline/shadow painting, box-sizing, min/max clamps, and positioning.
+      </p>
+
+      <div class="section selector-demo">
+        <h2>Selectors &amp; specificity</h2>
+        <p class="title">Descendant selector styles this line red.</p>
+        <div class="card"><p><span class="title">Nested title styled via descendant selector.</span></p></div>
+        <p class="direct-child">Direct-child combinator (<code>.selector-demo &gt; .direct-child</code>) highlights this.</p>
+      </div>
+
+      <div class="section">
+        <h2>External stylesheet + display:none</h2>
+        <p class="external-demo">Text color from inline CSS, border from the linked stylesheet.</p>
+        <p class="hidden">You should NOT see this paragraph.</p>
+      </div>
+
+      <div class="section">
+        <h2>Custom properties</h2>
+        <p class="var-demo">Colors come from <code>var(--brand)</code> and <code>var(--panel)</code>.</p>
+      </div>
+
+      <div class="section">
+        <h2>Box model &amp; decoration</h2>
+        <p class="boxed">A 20px border demonstrates border vs padding vs content.</p>
+        <p class="border-style-demo">Outset border style.</p>
+        <p class="border-radius-demo">Rounded corners (border-radius: 14px).</p>
+        <p class="border-sides-demo">Per-side border shorthands.</p>
+        <p class="outline-demo">Outline with offset (drawn outside the border).</p>
+        <p class="box-shadow-demo">Box shadow.</p>
+      </div>
+
+      <div class="section">
+        <h2>Box sizing &amp; min/max</h2>
+        <p class="box-sizing-demo box-sizing-content">content-box (total width grows)</p>
+        <p class="box-sizing-demo box-sizing-border">border-box (total width fixed)</p>
+        <p class="minmax-demo">Min/max size clamps override width.</p>
+      </div>
+
+      <div class="section">
+        <h2>Positioning</h2>
+        <div class="pos-demo">
+          <div class="pos-base">Base block</div>
+          <div class="pos-overlay">Absolute overlay (top/left + z-index)</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

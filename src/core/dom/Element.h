@@ -17,6 +17,7 @@ public:
         Hover,
         Active,
         Focus,
+        Visited,
     };
 
     struct AttributeHash {
@@ -69,6 +70,8 @@ public:
                 return pseudo_active_;
             case PseudoState::Focus:
                 return pseudo_focus_;
+            case PseudoState::Visited:
+                return pseudo_visited_;
         }
         return false;
     }
@@ -84,6 +87,9 @@ public:
                 break;
             case PseudoState::Focus:
                 slot = &pseudo_focus_;
+                break;
+            case PseudoState::Visited:
+                slot = &pseudo_visited_;
                 break;
         }
         if (!slot || *slot == enabled) {
@@ -124,6 +130,7 @@ private:
     bool pseudo_hover_ = false;
     bool pseudo_active_ = false;
     bool pseudo_focus_ = false;
+    bool pseudo_visited_ = false;
 };
 
 }  // namespace Hummingbird::DOM

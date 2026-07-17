@@ -12,7 +12,7 @@
 #include "app/DocumentEventRouter.h"
 #include "app/ExtensionBootstrap.h"
 #include "app/RenderCoordinator.h"
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/GraphicsTypes.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/ImageDecoderFactory.h"
 #include "core/platform_api/InputEvent.h"

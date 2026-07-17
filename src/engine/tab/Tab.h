@@ -67,6 +67,9 @@ public:
     // --- document interaction ---
     // Returns a resolved link URL for the render node under the window-space point.
     std::optional<std::string> hit_test_link(const Layout::Point& point, const Layout::Rect& viewport) const;
+    // F1 debug inspection: describe the topmost element under the point
+    // (T-DEBUG-INSPECT-1).
+    std::optional<std::string> inspect_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics);
     std::optional<FormSubmission> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport);
@@ -94,8 +97,8 @@ public:
 
 private:
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
-    void process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, IGraphicsContext& graphics,
-                                              const Layout::Rect& viewport);
+    void process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, bool font_ready,
+                                              IGraphicsContext& graphics, const Layout::Rect& viewport);
     void sync_extension_styles_before_stylesheet_update();
     void handle_document_ready(std::string_view document_url, std::string_view effective_url,
                                NetworkError document_error, IGraphicsContext& graphics, const Layout::Rect& viewport);
@@ -107,7 +110,7 @@ private:
     void relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_animation_updates();
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
-                                          std::string_view reason, bool request_background_images);
+                                          std::string_view reason);
     void begin_navigation_session(std::string_view url);
     bool prepare_document_from_response(std::string_view html);
     void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);

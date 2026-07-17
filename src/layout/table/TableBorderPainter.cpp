@@ -5,6 +5,7 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/ElementUtils.h"
+#include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/Log.h"
 #include "html/HtmlAttributeNames.h"
 #include "layout/geometry/Geometry.h"

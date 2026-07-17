@@ -98,6 +98,13 @@ void SDLWindow::open() {
         }
     }
 
+    // Scale textures with linear filtering rather than nearest-neighbour, so an
+    // image drawn larger than its rasterized size (e.g. an SVG logo decoded at
+    // intrinsic size then upscaled to its CSS box) smooths instead of showing
+    // stair-step edges. Read at texture creation, so set before the renderer.
+    // Interim for T-SVG-RASTER-1; true crispness needs rasterizing at display size.
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+
     if (headless) {
         m_renderer = SDL_CreateRenderer(m_window, -1, SDL_RENDERER_SOFTWARE);
     } else {
