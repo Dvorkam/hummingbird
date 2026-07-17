@@ -25,6 +25,8 @@ const char* display_name(Css::ComputedStyle::Display display) {
             return "list-item";
         case Css::ComputedStyle::Display::Flex:
             return "flex";
+        case Css::ComputedStyle::Display::Grid:
+            return "grid";
         case Css::ComputedStyle::Display::None:
             return "none";
     }

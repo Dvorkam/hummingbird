@@ -1199,6 +1199,12 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
         case PropertyRegistry::ParserHook::parse_font_weight:
         case PropertyRegistry::ParserHook::parse_color:
         case PropertyRegistry::ParserHook::parse_opacity:
+        // Grid hooks are handled before value-list parsing (see the interception
+        // near the top of consume_declaration); listed here for switch
+        // exhaustiveness.
+        case PropertyRegistry::ParserHook::parse_grid_track_list:
+        case PropertyRegistry::ParserHook::parse_grid_placement:
+        case PropertyRegistry::ParserHook::parse_gap:
         case PropertyRegistry::ParserHook::Count:
             break;
     }

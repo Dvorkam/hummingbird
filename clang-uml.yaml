@@ -1,18 +1,32 @@
 # Hummingbird clang-uml config (works with clang-uml 0.6.x)
+#
+# Scope note (T-ARCH-GUARD-2): the diagrams intentionally cover only the
+# *portable* layers (app, core, engine, html, layout, renderer, style) and the
+# platform *port* (src/core/platform_api). The platform *adapters*
+# (src/platform/* — SDL/Blend2D/curl/lunasvg glue) are NOT parsed: they drag in
+# third-party headers that libclang cannot always parse on this toolchain
+# (e.g. SDL's MSVC intrinsics), and UML-ing third-party glue adds noise without
+# signal. The architectural invariant that matters — nothing depends *inward* on
+# the adapters — is enforced by the DependencyFirewall test (T-ARCH-GUARD-1),
+# not by these diagrams.
+#
+# Every diagram's `glob` selects our source minus the platform adapters via the
+# regex ".*src.(app|core|engine|html|layout|renderer|style).*\.cpp$" (the `.`
+# after `src` matches either path separator, / or \).
 
 compilation_database_dir: build
 output_directory: doc/diagrams
 
-# Defaults applied to all diagrams unless overridden
+# Method arguments off everywhere: signatures are noise at the architecture level.
 generate_method_arguments: none
 
 diagrams:
   hummingbird_packages:
     type: package
-    title: Hummingbird - packages by directory
+    title: Hummingbird - packages (portable layers + platform port)
     package_type: directory
     glob:
-      - r: ".*src/.*\\.cpp$"
+      - r: ".*src.(app|core|engine|html|layout|renderer|style).*\\.cpp$"
     include:
       paths:
         - src/app
@@ -20,7 +34,6 @@ diagrams:
         - src/engine
         - src/html
         - src/layout
-        - src/platform
         - src/renderer
         - src/style
     exclude:
@@ -31,17 +44,26 @@ diagrams:
 
   platform_api:
     type: class
-    title: Platform API (interfaces & factories)
+    title: Platform API (port interfaces & factories)
     generate_packages: true
     package_type: directory
     glob:
-      - r: ".*src/.*\\.cpp$"
+      # Engine + renderer + app consume the port; parsing them surfaces the
+      # interfaces/factories without the slower html/layout/style TUs.
+      - r: ".*src.(app|core|engine|renderer).*\\.cpp$"
     include:
+      # Only the port itself; consumers/adapters are elsewhere and out of frame.
       paths:
         - src/core/platform_api
+      namespaces:
+        - Hummingbird
     exclude:
       access:
         - private
+      # Kill the anonymous union/struct payloads (e.g. InputEvent's per-variant
+      # members), which libclang emits once per translation unit — pure noise.
+      elements:
+        - r: ".*anonymous.*"
 
   engine_document_pipeline:
     type: class
@@ -50,40 +72,20 @@ diagrams:
     package_type: directory
     include_relations_also_as_members: false
     glob:
-      - r: ".*src/.*\\.cpp$"
+      # Only engine TUs are needed to model the engine pipeline classes.
+      - r: ".*src.engine.*\\.cpp$"
     include:
       paths:
         - src/engine/document
         - src/engine/resources
         - src/engine/script
         - src/engine/tab
+      # Only the engine's own classes (drops DOM/Layout/Css/platform context and
+      # all std/template/anonymous noise) so the pipeline view stays focused.
+      namespaces:
+        - Hummingbird::Engine
     exclude:
       access:
         - private
-
-  app_includes_src_only:
-    type: include
-    title: Include graph (src only)
-    glob:
-      - src/app/main.cpp
-      - src/app/BrowserApp.cpp
-
-    # keep nodes inside your repo code
-    include:
-      paths:
-        - src
-
-    exclude:
-      paths:
-        # project noise
-        - build
-        - build_sanity
-        - tests
-        - vcpkg_installed
-
-        # system + toolchain common roots
-        - /usr/include
-        - /usr/local/include
-        - /usr/include/c++
-        - /usr/lib/clang
-        - /usr/lib64/clang
+      elements:
+        - r: ".*anonymous.*"
