@@ -1267,3 +1267,26 @@ TEST(EngineTabTest, DefersScriptExecutionAndLoadUntilExternalScriptArrives) {
     EXPECT_EQ(ready->state, Hummingbird::Engine::ResourceState::Ready);
     EXPECT_GT(harness.tab().content_height(), height_before);
 }
+
+TEST(EngineTabTest, M7DemoPageLoadsExternalScriptFromAssets) {
+    // Guards the shipped example.dev/m7 demo: its <script src> must resolve
+    // through the bundled-asset probe and register Ready so the page's
+    // document-order sequence actually runs in the app.
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto html = provider->load_text("assets/stub/pages/m7.html");
+    ASSERT_TRUE(html.has_value()) << "demo page asset missing";
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(*html), std::make_unique<InlineNetwork>(*html),
+                               Hummingbird::create_resource_provider(), nullptr);
+
+    harness.navigate("https://example.dev/m7");
+    harness.tick();
+    harness.tick();
+
+    auto script =
+        harness.resource_view("https://example.dev/assets/stub/pages/m7.js", Hummingbird::Engine::ResourceType::Script);
+    ASSERT_TRUE(script.has_value()) << "external demo script was never requested";
+    EXPECT_EQ(script->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_NE(script->body.find("step-external"), std::string::npos);
+}
