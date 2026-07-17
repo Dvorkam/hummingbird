@@ -94,6 +94,49 @@ TEST(ScriptEngineTest, BuildsListFromScratchThroughBindings) {
     EXPECT_TRUE(host.consume_mutations());
 }
 
+TEST(ScriptEngineTest, ClassListDatasetAndAttributesThroughBindings) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 8);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto item = Hummingbird::DOM::Element::create(arena, "li");
+    item->set_attribute("id", "item");
+    item->set_attribute("class", "todo");
+    root->append_child(std::move(item));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "var el = document.getElementById('item');"
+        "var had = el.classList.contains('todo');"
+        "el.classList.add('active');"
+        "el.classList.toggle('completed');"
+        "el.classList.remove('todo');"
+        "el.dataset.id = '7';"
+        "el.dataset.userName = 'kate';"
+        "el.setAttribute('title', 'hi');"
+        "var readback = el.dataset.id + '/' + el.getAttribute('title') + '/' + el.className +"
+        "  '/' + had + '/' + el.classList.contains('completed');"
+        "el.removeAttribute('title');"
+        "readback;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+
+    auto* el = host.get_element_by_id("item");
+    ASSERT_NE(el, nullptr);
+    // classList mutations rewrote the class attribute (todo removed, others added).
+    EXPECT_EQ(host.get_attribute(el, "class"), "active completed");
+    // dataset round-tripped through data-* attributes with camelCase mapping.
+    EXPECT_EQ(host.get_attribute(el, "data-id"), "7");
+    EXPECT_EQ(host.get_attribute(el, "data-user-name"), "kate");
+    // removeAttribute took effect.
+    EXPECT_FALSE(host.has_attribute(el, "title"));
+    EXPECT_TRUE(host.consume_mutations());
+}
+
 TEST(ScriptEngineTest, WrapperIdentityIsStablePerNode) {
     Hummingbird::Core::ArenaAllocator arena(4096, 4);
     auto root = Hummingbird::DOM::Element::create(arena, "div");

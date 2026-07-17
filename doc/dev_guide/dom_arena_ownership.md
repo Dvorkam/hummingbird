@@ -54,6 +54,13 @@ The JS engine caches **one wrapper object per node** for the document's lifetime
 and node-keyed `Set`/`Map` patterns work (`WrapperIdentityIsStablePerNode`). The
 cache holds one owning JS reference per node; it is dropped in `reset_bindings()`.
 
+`classList` and `dataset` return small wrapper objects (`DOMTokenList` /
+`DOMStringMap`) whose opaque is the raw owner `Node*`. They are created fresh per
+access and are **not** in `node_wrappers_`, so — unlike node wrappers — they are
+not neutralized on navigation. This is safe for their normal transient use
+(`el.classList.add(...)`); stashing one in a global across navigation is a known
+gap folded into 7.5.4.
+
 ## Navigation teardown
 
 On navigation, `DocumentScriptController::clear()` calls

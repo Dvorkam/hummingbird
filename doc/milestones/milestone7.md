@@ -328,7 +328,11 @@ P0: DOM + Events (North Star)
       (createElement/createTextNode/appendChild/insertBefore/removeChild/replaceChild;
       parentNode/children/childNodes/first-last-child/next-prev-(element-)sibling;
       wrapper identity + `doc/dev_guide/dom_arena_ownership.md`)
-- [ ] 7.1.2: Attributes, classList, dataset
+- [x] 7.1.2: Attributes, classList, dataset — 2026-07-17
+      (getAttribute/removeAttribute + className; classList add/remove/toggle/contains
+      via a DOMTokenList; dataset read/write via an exotic DOMStringMap with the
+      camelCase<->data-* mapping; class changes feed selector re-match — pipeline
+      test shows a JS class toggle restyling an element to display:none)
 - [ ] 7.1.3: querySelector / querySelectorAll (+ matches/closest/getElementsBy*)
 - [ ] 7.1.4: innerHTML (fragment parse)
 - [ ] 7.1.5: Form Control JS Surface + Checkbox MVP

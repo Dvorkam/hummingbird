@@ -167,6 +167,74 @@ TEST(DocumentScriptHostTest, RejectsHierarchyViolations) {
     EXPECT_EQ(host.append_child(text, host.create_element("span")), nullptr);
 }
 
+TEST(DocumentScriptHostTest, AttributeGetRemoveRoundTrip) {
+    ArenaAllocator arena(4096, 4);
+    auto root = Element::create(arena, "div");
+    DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto* el = host.create_element("a");
+    host.append_child(root.get(), el);
+
+    EXPECT_FALSE(host.has_attribute(el, "href"));
+    host.set_attribute(el, "href", "/x");
+    EXPECT_TRUE(host.has_attribute(el, "href"));
+    EXPECT_EQ(host.get_attribute(el, "href"), "/x");
+    // Attribute names are ASCII case-insensitive.
+    EXPECT_TRUE(host.has_attribute(el, "HREF"));
+
+    host.remove_attribute(el, "href");
+    EXPECT_FALSE(host.has_attribute(el, "href"));
+    EXPECT_EQ(host.get_attribute(el, "href"), "");
+}
+
+TEST(DocumentScriptHostTest, ClassListAddRemoveToggleContains) {
+    ArenaAllocator arena(4096, 4);
+    auto root = Element::create(arena, "div");
+    DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto* el = host.create_element("li");
+    host.append_child(root.get(), el);
+
+    host.class_list_add(el, "todo");
+    host.class_list_add(el, "todo");  // idempotent
+    host.class_list_add(el, "active");
+    EXPECT_EQ(host.get_attribute(el, "class"), "todo active");
+    EXPECT_TRUE(host.class_list_contains(el, "todo"));
+    EXPECT_FALSE(host.class_list_contains(el, "done"));
+
+    EXPECT_TRUE(host.class_list_toggle(el, "done"));  // absent -> added
+    EXPECT_TRUE(host.class_list_contains(el, "done"));
+    EXPECT_FALSE(host.class_list_toggle(el, "done"));  // present -> removed
+    EXPECT_FALSE(host.class_list_contains(el, "done"));
+
+    host.class_list_remove(el, "todo");
+    EXPECT_EQ(host.get_attribute(el, "class"), "active");
+}
+
+TEST(DocumentScriptHostTest, DatasetMapsCamelCaseToDataAttr) {
+    ArenaAllocator arena(4096, 4);
+    auto root = Element::create(arena, "div");
+    DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto* el = host.create_element("li");
+    host.append_child(root.get(), el);
+
+    host.set_dataset(el, "id", "42");
+    host.set_dataset(el, "userName", "kate");
+    EXPECT_EQ(host.get_attribute(el, "data-id"), "42");
+    EXPECT_EQ(host.get_attribute(el, "data-user-name"), "kate");
+
+    std::string out;
+    EXPECT_TRUE(host.get_dataset(el, "id", out));
+    EXPECT_EQ(out, "42");
+    EXPECT_TRUE(host.get_dataset(el, "userName", out));
+    EXPECT_EQ(out, "kate");
+    EXPECT_FALSE(host.get_dataset(el, "missing", out));
+}
+
 TEST(DocumentScriptHostTest, TraversalAccessorsSkipTextForElementSiblings) {
     ArenaAllocator arena(4096, 4);
     auto root = Element::create(arena, "p");

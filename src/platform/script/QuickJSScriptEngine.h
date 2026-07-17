@@ -55,16 +55,36 @@ private:
     static JSValue js_node_get_child_nodes(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_get_children(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    static JSValue js_node_get_class_name(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_set_class_name(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_get_class_list(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_get_dataset(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
     // Node/Element methods.
     static JSValue js_node_append_child(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_insert_before(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_remove_child(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_replace_child(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_element_set_attribute(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_element_get_attribute(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_element_remove_attribute(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
+    // DOMTokenList (classList) methods.
+    static JSValue js_token_list_add(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_token_list_remove(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_token_list_toggle(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_token_list_contains(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
+    // DOMStringMap (dataset) exotic property access.
+    static JSValue js_string_map_get(JSContext* ctx, JSValueConst obj, JSAtom atom, JSValueConst receiver);
+    static int js_string_map_set(JSContext* ctx, JSValueConst obj, JSAtom atom, JSValueConst value,
+                                 JSValueConst receiver, int flags);
 
     static JSValue js_native_insert_css(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
     void install_node_prototype();
+    void install_token_list_class();
+    void install_string_map_class();
     void install_console_bindings();
     void install_document_bindings();
     void install_extension_bindings();
@@ -76,10 +96,14 @@ private:
     JSValue wrap_node(DOM::Node* node);
     JSValue wrap_node_list(const std::vector<DOM::Node*>& nodes);
     DOM::Node* node_from_value(JSValueConst value);
+    // Node backing a DOMTokenList/DOMStringMap wrapper (opaque is the raw node).
+    DOM::Node* node_from_opaque(JSValueConst value, JSClassID class_id);
 
     JSRuntime* runtime_ = nullptr;
     JSContext* context_ = nullptr;
     JSClassID node_class_id_ = 0;
+    JSClassID token_list_class_id_ = 0;
+    JSClassID string_map_class_id_ = 0;
     bool console_ready_ = false;
     bool document_ready_ = false;
     bool extension_ready_ = false;

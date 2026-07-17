@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <functional>
 #include <optional>
 #include <string>
@@ -93,6 +94,53 @@ TEST(DocumentPipelineTest, DispatchesLoadHandler) {
     auto result = pipeline.dispatch_load();
     EXPECT_TRUE(result.handled);
     EXPECT_TRUE(result.mutated);
+}
+
+TEST(DocumentPipelineTest, ClassToggleRestylesElementHidden) {
+    // A JS class toggle must feed selector re-match: adding `.hidden`
+    // (display:none) removes the element from the rendered output (7.1.2).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <style>
+      body { margin: 0; padding: 0; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body onload="document.getElementById('x').classList.add('hidden');">
+    <p id="x">visibletext</p>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.paint(graphics, {viewport, false, 0.0f});
+    const auto contains_text = [&] {
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), "visibletext") !=
+               graphics.drawn_texts.end();
+    };
+    EXPECT_TRUE(contains_text());  // visible before the toggle
+
+    auto load = pipeline.dispatch_load();
+    ASSERT_TRUE(load.handled);
+    ASSERT_TRUE(load.mutated);
+
+    graphics.drawn_texts.clear();
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.paint(graphics, {viewport, false, 0.0f});
+    EXPECT_FALSE(contains_text());  // .hidden { display:none } restyled it away
 }
 
 TEST(DocumentModelTest, MarksAnchorsVisitedByResolvedHref) {

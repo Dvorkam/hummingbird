@@ -42,6 +42,22 @@ void collect_text(const DOM::Node* node, std::string& out) {
     }
 }
 
+// Maps a dataset property name to its data-* attribute name per the HTML rules:
+// prepend "data-" and turn each ASCII uppercase letter into "-" + lowercase
+// ("userId" -> "data-user-id").
+std::string dataset_key_to_attr(std::string_view key) {
+    std::string attr = "data-";
+    for (char c : key) {
+        if (c >= 'A' && c <= 'Z') {
+            attr.push_back('-');
+            attr.push_back(static_cast<char>(c - 'A' + 'a'));
+        } else {
+            attr.push_back(c);
+        }
+    }
+    return attr;
+}
+
 // Walks siblings from `node` in the given direction until an element is found.
 DOM::Node* element_sibling(DOM::Node* node, bool forward) {
     if (!node) return nullptr;
@@ -114,6 +130,71 @@ void DocumentScriptHost::set_attribute(DOM::Node* node, std::string_view name, s
     auto* element = dynamic_cast<DOM::Element*>(node);
     if (!element) return;
     element->set_attribute(name, value);
+    mutated_ = true;
+}
+
+bool DocumentScriptHost::has_attribute(DOM::Node* node, std::string_view name) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    return element && element->has_attribute(Core::Utils::to_lower(name));
+}
+
+std::string DocumentScriptHost::get_attribute(DOM::Node* node, std::string_view name) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return {};
+    const auto* value = element->find_attribute(Core::Utils::to_lower(name));
+    return value ? *value : std::string{};
+}
+
+void DocumentScriptHost::remove_attribute(DOM::Node* node, std::string_view name) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return;
+    element->remove_attribute(name);
+    mutated_ = true;
+}
+
+bool DocumentScriptHost::class_list_contains(DOM::Node* node, std::string_view token) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    return element && element->class_contains(token);
+}
+
+void DocumentScriptHost::class_list_add(DOM::Node* node, std::string_view token) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (element && element->class_add(token)) {
+        mutated_ = true;
+    }
+}
+
+void DocumentScriptHost::class_list_remove(DOM::Node* node, std::string_view token) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (element && element->class_remove(token)) {
+        mutated_ = true;
+    }
+}
+
+bool DocumentScriptHost::class_list_toggle(DOM::Node* node, std::string_view token) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return false;
+    if (element->class_contains(token)) {
+        if (element->class_remove(token)) mutated_ = true;
+        return false;
+    }
+    if (element->class_add(token)) mutated_ = true;
+    return true;
+}
+
+bool DocumentScriptHost::get_dataset(DOM::Node* node, std::string_view key, std::string& out) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return false;
+    const auto* value = element->find_attribute(dataset_key_to_attr(key));
+    if (!value) return false;
+    out = *value;
+    return true;
+}
+
+void DocumentScriptHost::set_dataset(DOM::Node* node, std::string_view key, std::string_view value) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return;
+    element->set_attribute(dataset_key_to_attr(key), value);
     mutated_ = true;
 }
 

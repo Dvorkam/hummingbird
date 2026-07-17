@@ -28,6 +28,18 @@ public:
     void set_text_content(DOM::Node* node, std::string_view text) override;
     void set_attribute(DOM::Node* node, std::string_view name, std::string_view value) override;
 
+    bool has_attribute(DOM::Node* node, std::string_view name) override;
+    std::string get_attribute(DOM::Node* node, std::string_view name) override;
+    void remove_attribute(DOM::Node* node, std::string_view name) override;
+
+    bool class_list_contains(DOM::Node* node, std::string_view token) override;
+    void class_list_add(DOM::Node* node, std::string_view token) override;
+    void class_list_remove(DOM::Node* node, std::string_view token) override;
+    bool class_list_toggle(DOM::Node* node, std::string_view token) override;
+
+    bool get_dataset(DOM::Node* node, std::string_view key, std::string& out) override;
+    void set_dataset(DOM::Node* node, std::string_view key, std::string_view value) override;
+
     DOM::Element* create_element(std::string_view tag_name) override;
     DOM::Node* create_text_node(std::string_view data) override;
 

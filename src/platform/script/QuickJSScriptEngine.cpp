@@ -24,6 +24,10 @@ DOM::Node* QuickJSScriptEngine::node_from_value(JSValueConst value) {
     return static_cast<DOM::Node*>(JS_GetOpaque(value, node_class_id_));
 }
 
+DOM::Node* QuickJSScriptEngine::node_from_opaque(JSValueConst value, JSClassID class_id) {
+    return static_cast<DOM::Node*>(JS_GetOpaque(value, class_id));
+}
+
 JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv) {
     std::string message;
     for (int i = 0; i < argc; ++i) {
@@ -277,6 +281,193 @@ JSValue QuickJSScriptEngine::js_element_set_attribute(JSContext* ctx, JSValueCon
     return JS_UNDEFINED;
 }
 
+JSValue QuickJSScriptEngine::js_element_get_attribute(JSContext* ctx, JSValueConst this_val, int argc,
+                                                      JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) {
+        return JS_NULL;
+    }
+    auto* node = engine->node_from_value(this_val);
+    const char* name = JS_ToCString(ctx, argv[0]);
+    if (!node || !name) {
+        if (name) JS_FreeCString(ctx, name);
+        return JS_NULL;
+    }
+    // Absent attribute -> null; present (even empty) -> its string value.
+    JSValue result = engine->host_->has_attribute(node, name)
+                         ? JS_NewString(ctx, engine->host_->get_attribute(node, name).c_str())
+                         : JS_NULL;
+    JS_FreeCString(ctx, name);
+    return result;
+}
+
+JSValue QuickJSScriptEngine::js_element_remove_attribute(JSContext* ctx, JSValueConst this_val, int argc,
+                                                         JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) {
+        return JS_UNDEFINED;
+    }
+    auto* node = engine->node_from_value(this_val);
+    const char* name = JS_ToCString(ctx, argv[0]);
+    if (node && name) {
+        engine->host_->remove_attribute(node, name);
+    }
+    if (name) JS_FreeCString(ctx, name);
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_node_get_class_name(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                    JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NewString(ctx, "");
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_NewString(ctx, "");
+    return JS_NewString(ctx, engine->host_->get_attribute(node, "class").c_str());
+}
+
+JSValue QuickJSScriptEngine::js_node_set_class_name(JSContext* ctx, JSValueConst this_val, int argc,
+                                                    JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_UNDEFINED;
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_UNDEFINED;
+    const char* value = JS_ToCString(ctx, argv[0]);
+    if (value) {
+        engine->host_->set_attribute(node, "class", value);
+        JS_FreeCString(ctx, value);
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_node_get_class_list(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                    JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || engine->token_list_class_id_ == 0) return JS_NULL;
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_NULL;
+    JSValue obj = JS_NewObjectClass(ctx, engine->token_list_class_id_);
+    if (JS_IsException(obj)) return obj;
+    JS_SetOpaque(obj, node);
+    return obj;
+}
+
+JSValue QuickJSScriptEngine::js_node_get_dataset(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                 JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || engine->string_map_class_id_ == 0) return JS_NULL;
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_NULL;
+    JSValue obj = JS_NewObjectClass(ctx, engine->string_map_class_id_);
+    if (JS_IsException(obj)) return obj;
+    JS_SetOpaque(obj, node);
+    return obj;
+}
+
+// --- DOMTokenList (classList) ---------------------------------------------
+
+JSValue QuickJSScriptEngine::js_token_list_add(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_UNDEFINED;
+    auto* node = engine->node_from_opaque(this_val, engine->token_list_class_id_);
+    if (!node) return JS_UNDEFINED;
+    for (int i = 0; i < argc; ++i) {
+        const char* token = JS_ToCString(ctx, argv[i]);
+        if (token) {
+            engine->host_->class_list_add(node, token);
+            JS_FreeCString(ctx, token);
+        }
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_token_list_remove(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_UNDEFINED;
+    auto* node = engine->node_from_opaque(this_val, engine->token_list_class_id_);
+    if (!node) return JS_UNDEFINED;
+    for (int i = 0; i < argc; ++i) {
+        const char* token = JS_ToCString(ctx, argv[i]);
+        if (token) {
+            engine->host_->class_list_remove(node, token);
+            JS_FreeCString(ctx, token);
+        }
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_token_list_toggle(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_FALSE;
+    auto* node = engine->node_from_opaque(this_val, engine->token_list_class_id_);
+    const char* token = JS_ToCString(ctx, argv[0]);
+    if (!node || !token) {
+        if (token) JS_FreeCString(ctx, token);
+        return JS_FALSE;
+    }
+    bool present;
+    if (argc >= 2) {
+        // Two-arg form forces the result regardless of current membership.
+        const bool force = JS_ToBool(ctx, argv[1]) != 0;
+        if (force) {
+            engine->host_->class_list_add(node, token);
+        } else {
+            engine->host_->class_list_remove(node, token);
+        }
+        present = force;
+    } else {
+        present = engine->host_->class_list_toggle(node, token);
+    }
+    JS_FreeCString(ctx, token);
+    return JS_NewBool(ctx, present ? 1 : 0);
+}
+
+JSValue QuickJSScriptEngine::js_token_list_contains(JSContext* ctx, JSValueConst this_val, int argc,
+                                                    JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_FALSE;
+    auto* node = engine->node_from_opaque(this_val, engine->token_list_class_id_);
+    const char* token = JS_ToCString(ctx, argv[0]);
+    if (!node || !token) {
+        if (token) JS_FreeCString(ctx, token);
+        return JS_FALSE;
+    }
+    const bool has = engine->host_->class_list_contains(node, token);
+    JS_FreeCString(ctx, token);
+    return JS_NewBool(ctx, has ? 1 : 0);
+}
+
+// --- DOMStringMap (dataset) exotic access ---------------------------------
+
+JSValue QuickJSScriptEngine::js_string_map_get(JSContext* ctx, JSValueConst obj, JSAtom atom,
+                                               JSValueConst /*receiver*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_UNDEFINED;
+    auto* node = engine->node_from_opaque(obj, engine->string_map_class_id_);
+    if (!node) return JS_UNDEFINED;
+    const char* key = JS_AtomToCString(ctx, atom);
+    if (!key) return JS_UNDEFINED;
+    std::string value;
+    JSValue result = engine->host_->get_dataset(node, key, value) ? JS_NewString(ctx, value.c_str()) : JS_UNDEFINED;
+    JS_FreeCString(ctx, key);
+    return result;
+}
+
+int QuickJSScriptEngine::js_string_map_set(JSContext* ctx, JSValueConst obj, JSAtom atom, JSValueConst value,
+                                           JSValueConst /*receiver*/, int /*flags*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return -1;
+    auto* node = engine->node_from_opaque(obj, engine->string_map_class_id_);
+    if (!node) return -1;
+    const char* key = JS_AtomToCString(ctx, atom);
+    const char* val = JS_ToCString(ctx, value);
+    if (node && key && val) {
+        engine->host_->set_dataset(node, key, val);
+    }
+    if (key) JS_FreeCString(ctx, key);
+    if (val) JS_FreeCString(ctx, val);
+    return 1;  // report success (property assignment accepted)
+}
+
 JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /*this_val*/, int argc,
                                                   JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
@@ -320,6 +511,8 @@ QuickJSScriptEngine::QuickJSScriptEngine() {
     class_def.class_name = "Node";
     JS_NewClass(runtime_, node_class_id_, &class_def);
     install_node_prototype();
+    install_token_list_class();
+    install_string_map_class();
 
     // Install console bindings unconditionally so non-DOM scripts (e.g., extensions)
     // can log without needing to bind a host.
@@ -413,15 +606,54 @@ void QuickJSScriptEngine::install_node_prototype() {
     define_getter(proto, "previousElementSibling", js_node_get_previous_element_sibling);
     define_getter(proto, "childNodes", js_node_get_child_nodes);
     define_getter(proto, "children", js_node_get_children);
+    define_accessor(proto, "className", js_node_get_class_name, js_node_set_class_name);
+    define_getter(proto, "classList", js_node_get_class_list);
+    define_getter(proto, "dataset", js_node_get_dataset);
 
     define_method(proto, "appendChild", js_node_append_child, 1);
     define_method(proto, "insertBefore", js_node_insert_before, 2);
     define_method(proto, "removeChild", js_node_remove_child, 1);
     define_method(proto, "replaceChild", js_node_replace_child, 2);
     define_method(proto, "setAttribute", js_element_set_attribute, 2);
+    define_method(proto, "getAttribute", js_element_get_attribute, 1);
+    define_method(proto, "removeAttribute", js_element_remove_attribute, 1);
 
     // Consumes the proto reference and makes it the prototype for every wrapper.
     JS_SetClassProto(context_, node_class_id_, proto);
+}
+
+void QuickJSScriptEngine::install_token_list_class() {
+    if (!context_ || !runtime_) {
+        return;
+    }
+    JS_NewClassID(runtime_, &token_list_class_id_);
+    JSClassDef class_def{};
+    class_def.class_name = "DOMTokenList";
+    JS_NewClass(runtime_, token_list_class_id_, &class_def);
+
+    JSValue proto = JS_NewObject(context_);
+    define_method(proto, "add", js_token_list_add, 1);
+    define_method(proto, "remove", js_token_list_remove, 1);
+    define_method(proto, "toggle", js_token_list_toggle, 1);
+    define_method(proto, "contains", js_token_list_contains, 1);
+    JS_SetClassProto(context_, token_list_class_id_, proto);
+}
+
+void QuickJSScriptEngine::install_string_map_class() {
+    if (!context_ || !runtime_) {
+        return;
+    }
+    // dataset is a live string map: property reads/writes intercept through the
+    // exotic get/set handlers, which translate keys to data-* attributes.
+    static JSClassExoticMethods exotic{};
+    exotic.get_property = js_string_map_get;
+    exotic.set_property = js_string_map_set;
+
+    JS_NewClassID(runtime_, &string_map_class_id_);
+    JSClassDef class_def{};
+    class_def.class_name = "DOMStringMap";
+    class_def.exotic = &exotic;
+    JS_NewClass(runtime_, string_map_class_id_, &class_def);
 }
 
 void QuickJSScriptEngine::define_getter(JSValueConst proto, const char* name, JSCFunction* getter) {

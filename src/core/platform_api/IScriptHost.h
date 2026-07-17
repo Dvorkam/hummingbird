@@ -32,6 +32,23 @@ public:
     virtual void set_text_content(DOM::Node* node, std::string_view text) = 0;
     virtual void set_attribute(DOM::Node* node, std::string_view name, std::string_view value) = 0;
 
+    // --- Attributes / classList / dataset (7.1.2) ---
+    virtual bool has_attribute(DOM::Node* node, std::string_view name) = 0;
+    // Attribute value, or "" when absent (pair with has_attribute for null checks).
+    virtual std::string get_attribute(DOM::Node* node, std::string_view name) = 0;
+    virtual void remove_attribute(DOM::Node* node, std::string_view name) = 0;
+
+    virtual bool class_list_contains(DOM::Node* node, std::string_view token) = 0;
+    virtual void class_list_add(DOM::Node* node, std::string_view token) = 0;
+    virtual void class_list_remove(DOM::Node* node, std::string_view token) = 0;
+    // Adds the token when absent / removes it when present; returns final membership.
+    virtual bool class_list_toggle(DOM::Node* node, std::string_view token) = 0;
+
+    // dataset uses the DOM camelCase<->data-* mapping ("userId" <-> "data-user-id").
+    // Returns true (and fills out) when the mapped attribute is present.
+    virtual bool get_dataset(DOM::Node* node, std::string_view key, std::string& out) = 0;
+    virtual void set_dataset(DOM::Node* node, std::string_view key, std::string_view value) = 0;
+
     // --- Node factories (7.1.1) ---
     // Created nodes are detached (no parent) and owned by the host until they
     // are inserted into the tree.
