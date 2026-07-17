@@ -2,12 +2,10 @@
 
 #include <string>
 #include <string_view>
+#include <vector>
 
+#include "core/ArenaAllocator.h"
 #include "core/platform_api/IScriptHost.h"
-
-namespace Hummingbird::Core {
-class ArenaAllocator;
-}
 
 namespace Hummingbird::DOM {
 class Element;
@@ -18,19 +16,53 @@ namespace Hummingbird::Engine {
 
 class DocumentScriptHost final : public IScriptHost {
 public:
+    DocumentScriptHost();
+    ~DocumentScriptHost() override;
+
     void reset(DOM::Node* root, Core::ArenaAllocator* arena);
     void clear();
     bool consume_mutations();
 
     DOM::Element* get_element_by_id(std::string_view id) override;
-    std::string get_text_content(const DOM::Element* element) override;
-    void set_text_content(DOM::Element* element, std::string_view text) override;
-    void set_attribute(DOM::Element* element, std::string_view name, std::string_view value) override;
+    std::string get_text_content(const DOM::Node* node) override;
+    void set_text_content(DOM::Node* node, std::string_view text) override;
+    void set_attribute(DOM::Node* node, std::string_view name, std::string_view value) override;
+
+    DOM::Element* create_element(std::string_view tag_name) override;
+    DOM::Node* create_text_node(std::string_view data) override;
+
+    DOM::Node* append_child(DOM::Node* parent, DOM::Node* child) override;
+    DOM::Node* insert_before(DOM::Node* parent, DOM::Node* child, DOM::Node* reference) override;
+    DOM::Node* remove_child(DOM::Node* parent, DOM::Node* child) override;
+    DOM::Node* replace_child(DOM::Node* parent, DOM::Node* new_child, DOM::Node* old_child) override;
+
+    DOM::Node* parent_node(DOM::Node* node) override;
+    DOM::Node* first_child(DOM::Node* node) override;
+    DOM::Node* last_child(DOM::Node* node) override;
+    DOM::Node* next_sibling(DOM::Node* node) override;
+    DOM::Node* previous_sibling(DOM::Node* node) override;
+    DOM::Node* next_element_sibling(DOM::Node* node) override;
+    DOM::Node* previous_element_sibling(DOM::Node* node) override;
+    std::vector<DOM::Node*> child_nodes(DOM::Node* node) override;
+    std::vector<DOM::Node*> child_elements(DOM::Node* node) override;
+
+    NodeKind node_kind(const DOM::Node* node) override;
+    std::string node_name(const DOM::Node* node) override;
 
 private:
+    // Takes exclusive ownership of `node` out of wherever it currently lives
+    // (its parent's child list or the detached set). Returns an empty pointer
+    // when the node cannot be located or has no owning arena.
+    Core::ArenaPtr<DOM::Node> take_ownership(DOM::Node* node);
+
     DOM::Node* root_ = nullptr;
     Core::ArenaAllocator* arena_ = nullptr;
     bool mutated_ = false;
+
+    // Nodes created by script but not yet attached, plus nodes removed from the
+    // tree. Their arena storage stays valid until the arena resets, so they can
+    // be re-inserted; this vector is the single owner while they are detached.
+    std::vector<Core::ArenaPtr<DOM::Node>> detached_;
 };
 
 }  // namespace Hummingbird::Engine

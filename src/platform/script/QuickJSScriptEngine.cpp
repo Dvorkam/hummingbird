@@ -3,8 +3,16 @@
 #include <cstdint>
 #include <string>
 #include <utility>
+#include <vector>
 
+#include "core/dom/Element.h"
+#include "core/dom/Node.h"
 #include "core/utils/Log.h"
+
+// The QuickJS engine is a thin adapter: it holds DOM nodes only as opaque
+// handles and performs every read/mutation through IScriptHost. The core/dom
+// includes above exist solely so the compiler knows Element derives from Node
+// (needed to wrap an Element* as a Node*); no DOM methods are called here.
 
 namespace Hummingbird::Platform {
 
@@ -12,8 +20,8 @@ QuickJSScriptEngine* QuickJSScriptEngine::engine_from_context(JSContext* ctx) {
     return static_cast<QuickJSScriptEngine*>(JS_GetContextOpaque(ctx));
 }
 
-static DOM::Element* element_from_value(JSContext* ctx, JSValueConst value, JSClassID class_id) {
-    return static_cast<DOM::Element*>(JS_GetOpaque2(ctx, value, class_id));
+DOM::Node* QuickJSScriptEngine::node_from_value(JSValueConst value) {
+    return static_cast<DOM::Node*>(JS_GetOpaque(value, node_class_id_));
 }
 
 JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv) {
@@ -32,13 +40,12 @@ JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_
     return JS_UNDEFINED;
 }
 
+// --- document.* ------------------------------------------------------------
+
 JSValue QuickJSScriptEngine::js_document_get_element_by_id(JSContext* ctx, JSValueConst /*this_val*/, int argc,
                                                            JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
-    if (!engine || !engine->host_) {
-        return JS_NULL;
-    }
-    if (argc < 1) {
+    if (!engine || !engine->host_ || argc < 1) {
         return JS_NULL;
     }
     const char* id = JS_ToCString(ctx, argv[0]);
@@ -47,76 +54,233 @@ JSValue QuickJSScriptEngine::js_document_get_element_by_id(JSContext* ctx, JSVal
     }
     auto* element = engine->host_->get_element_by_id(id);
     JS_FreeCString(ctx, id);
-    if (!element) {
+    return engine->wrap_node(element);
+}
+
+JSValue QuickJSScriptEngine::js_document_create_element(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                        JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) {
         return JS_NULL;
     }
-    return engine->wrap_element(element);
+    const char* tag = JS_ToCString(ctx, argv[0]);
+    if (!tag) {
+        return JS_NULL;
+    }
+    auto* element = engine->host_->create_element(tag);
+    JS_FreeCString(ctx, tag);
+    return engine->wrap_node(element);
 }
 
-JSValue QuickJSScriptEngine::js_element_get_text_content(JSContext* ctx, JSValueConst this_val, int /*argc*/,
-                                                         JSValueConst* /*argv*/) {
+JSValue QuickJSScriptEngine::js_document_create_text_node(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                          JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
     if (!engine || !engine->host_) {
-        return JS_UNDEFINED;
+        return JS_NULL;
     }
-    auto* element = element_from_value(ctx, this_val, engine->element_class_id_);
-    if (!element) {
-        return JS_UNDEFINED;
+    const char* data = argc >= 1 ? JS_ToCString(ctx, argv[0]) : nullptr;
+    auto* text = engine->host_->create_text_node(data ? data : "");
+    if (data) {
+        JS_FreeCString(ctx, data);
     }
-    std::string text = engine->host_->get_text_content(element);
-    return JS_NewString(ctx, text.c_str());
+    return engine->wrap_node(text);
 }
 
-JSValue QuickJSScriptEngine::js_element_set_text_content(JSContext* ctx, JSValueConst this_val, int argc,
-                                                         JSValueConst* argv) {
+// --- Node property getters/setters ----------------------------------------
+
+JSValue QuickJSScriptEngine::js_node_get_node_type(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                   JSValueConst* /*argv*/) {
     auto* engine = engine_from_context(ctx);
-    if (!engine || !engine->host_) {
-        return JS_UNDEFINED;
+    if (!engine || !engine->host_) return JS_NewInt32(ctx, 0);
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_NewInt32(ctx, 0);
+    switch (engine->host_->node_kind(node)) {
+        case NodeKind::Element:
+            return JS_NewInt32(ctx, 1);
+        case NodeKind::Text:
+            return JS_NewInt32(ctx, 3);
+        case NodeKind::Other:
+            break;
     }
-    auto* element = element_from_value(ctx, this_val, engine->element_class_id_);
-    if (!element || argc < 1) {
-        return JS_UNDEFINED;
-    }
+    return JS_NewInt32(ctx, 0);
+}
+
+JSValue QuickJSScriptEngine::js_node_get_node_name(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                   JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_UNDEFINED;
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_UNDEFINED;
+    return JS_NewString(ctx, engine->host_->node_name(node).c_str());
+}
+
+JSValue QuickJSScriptEngine::js_node_get_tag_name(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                  JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_UNDEFINED;
+    auto* node = engine->node_from_value(this_val);
+    if (!node || engine->host_->node_kind(node) != NodeKind::Element) return JS_UNDEFINED;
+    return JS_NewString(ctx, engine->host_->node_name(node).c_str());
+}
+
+JSValue QuickJSScriptEngine::js_node_get_text_content(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                      JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_UNDEFINED;
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_UNDEFINED;
+    return JS_NewString(ctx, engine->host_->get_text_content(node).c_str());
+}
+
+JSValue QuickJSScriptEngine::js_node_set_text_content(JSContext* ctx, JSValueConst this_val, int argc,
+                                                      JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_UNDEFINED;
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_UNDEFINED;
     const char* value = JS_ToCString(ctx, argv[0]);
-    if (!value) {
-        return JS_UNDEFINED;
-    }
-    engine->host_->set_text_content(element, value);
+    if (!value) return JS_UNDEFINED;
+    engine->host_->set_text_content(node, value);
     JS_FreeCString(ctx, value);
     return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_node_get_parent_node(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                     JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NULL;
+    auto* node = engine->node_from_value(this_val);
+    return engine->wrap_node(node ? engine->host_->parent_node(node) : nullptr);
+}
+
+JSValue QuickJSScriptEngine::js_node_get_first_child(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                     JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NULL;
+    auto* node = engine->node_from_value(this_val);
+    return engine->wrap_node(node ? engine->host_->first_child(node) : nullptr);
+}
+
+JSValue QuickJSScriptEngine::js_node_get_last_child(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                    JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NULL;
+    auto* node = engine->node_from_value(this_val);
+    return engine->wrap_node(node ? engine->host_->last_child(node) : nullptr);
+}
+
+JSValue QuickJSScriptEngine::js_node_get_next_sibling(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                      JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NULL;
+    auto* node = engine->node_from_value(this_val);
+    return engine->wrap_node(node ? engine->host_->next_sibling(node) : nullptr);
+}
+
+JSValue QuickJSScriptEngine::js_node_get_previous_sibling(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                          JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NULL;
+    auto* node = engine->node_from_value(this_val);
+    return engine->wrap_node(node ? engine->host_->previous_sibling(node) : nullptr);
+}
+
+JSValue QuickJSScriptEngine::js_node_get_next_element_sibling(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                              JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NULL;
+    auto* node = engine->node_from_value(this_val);
+    return engine->wrap_node(node ? engine->host_->next_element_sibling(node) : nullptr);
+}
+
+JSValue QuickJSScriptEngine::js_node_get_previous_element_sibling(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                                  JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NULL;
+    auto* node = engine->node_from_value(this_val);
+    return engine->wrap_node(node ? engine->host_->previous_element_sibling(node) : nullptr);
+}
+
+JSValue QuickJSScriptEngine::js_node_get_child_nodes(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                     JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NewArray(ctx);
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_NewArray(ctx);
+    return engine->wrap_node_list(engine->host_->child_nodes(node));
+}
+
+JSValue QuickJSScriptEngine::js_node_get_children(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                  JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NewArray(ctx);
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_NewArray(ctx);
+    return engine->wrap_node_list(engine->host_->child_elements(node));
+}
+
+// --- Node methods ----------------------------------------------------------
+
+JSValue QuickJSScriptEngine::js_node_append_child(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NULL;
+    auto* parent = engine->node_from_value(this_val);
+    auto* child = engine->node_from_value(argv[0]);
+    return engine->wrap_node(engine->host_->append_child(parent, child));
+}
+
+JSValue QuickJSScriptEngine::js_node_insert_before(JSContext* ctx, JSValueConst this_val, int argc,
+                                                   JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NULL;
+    auto* parent = engine->node_from_value(this_val);
+    auto* child = engine->node_from_value(argv[0]);
+    auto* reference = argc >= 2 ? engine->node_from_value(argv[1]) : nullptr;
+    return engine->wrap_node(engine->host_->insert_before(parent, child, reference));
+}
+
+JSValue QuickJSScriptEngine::js_node_remove_child(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NULL;
+    auto* parent = engine->node_from_value(this_val);
+    auto* child = engine->node_from_value(argv[0]);
+    return engine->wrap_node(engine->host_->remove_child(parent, child));
+}
+
+JSValue QuickJSScriptEngine::js_node_replace_child(JSContext* ctx, JSValueConst this_val, int argc,
+                                                   JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 2) return JS_NULL;
+    auto* parent = engine->node_from_value(this_val);
+    auto* new_child = engine->node_from_value(argv[0]);
+    auto* old_child = engine->node_from_value(argv[1]);
+    return engine->wrap_node(engine->host_->replace_child(parent, new_child, old_child));
 }
 
 JSValue QuickJSScriptEngine::js_element_set_attribute(JSContext* ctx, JSValueConst this_val, int argc,
                                                       JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
-    if (!engine || !engine->host_) {
+    if (!engine || !engine->host_ || argc < 2) {
         return JS_UNDEFINED;
     }
-    auto* element = element_from_value(ctx, this_val, engine->element_class_id_);
-    if (!element || argc < 2) {
+    auto* node = engine->node_from_value(this_val);
+    if (!node) {
         return JS_UNDEFINED;
     }
     const char* name = JS_ToCString(ctx, argv[0]);
     const char* value = JS_ToCString(ctx, argv[1]);
     if (name && value) {
-        engine->host_->set_attribute(element, name, value);
+        engine->host_->set_attribute(node, name, value);
     }
-    if (name) {
-        JS_FreeCString(ctx, name);
-    }
-    if (value) {
-        JS_FreeCString(ctx, value);
-    }
+    if (name) JS_FreeCString(ctx, name);
+    if (value) JS_FreeCString(ctx, value);
     return JS_UNDEFINED;
 }
 
 JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /*this_val*/, int argc,
                                                   JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
-    if (!engine || !engine->extension_host_) {
-        return JS_NewBool(ctx, 0);
-    }
-    if (argc < 2) {
+    if (!engine || !engine->extension_host_ || argc < 2) {
         return JS_NewBool(ctx, 0);
     }
 
@@ -134,6 +298,8 @@ JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /
     return JS_NewBool(ctx, ok ? 1 : 0);
 }
 
+// --- Lifecycle -------------------------------------------------------------
+
 QuickJSScriptEngine::QuickJSScriptEngine() {
     runtime_ = JS_NewRuntime();
     if (!runtime_) {
@@ -149,10 +315,11 @@ QuickJSScriptEngine::QuickJSScriptEngine() {
     }
 
     JS_SetContextOpaque(context_, this);
-    JS_NewClassID(runtime_, &element_class_id_);
+    JS_NewClassID(runtime_, &node_class_id_);
     JSClassDef class_def{};
-    class_def.class_name = "Element";
-    JS_NewClass(runtime_, element_class_id_, &class_def);
+    class_def.class_name = "Node";
+    JS_NewClass(runtime_, node_class_id_, &class_def);
+    install_node_prototype();
 
     // Install console bindings unconditionally so non-DOM scripts (e.g., extensions)
     // can log without needing to bind a host.
@@ -161,7 +328,7 @@ QuickJSScriptEngine::QuickJSScriptEngine() {
 
 QuickJSScriptEngine::~QuickJSScriptEngine() {
     if (context_) {
-        clear_bindings();
+        reset_bindings();
         JS_FreeContext(context_);
         context_ = nullptr;
     }
@@ -213,11 +380,69 @@ ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_
     return ok_result();
 }
 
-void QuickJSScriptEngine::install_console_bindings() {
-    if (console_ready_) {
+void QuickJSScriptEngine::reset_bindings() {
+    if (context_) {
+        for (auto& [node, value] : node_wrappers_) {
+            (void)node;
+            // Neutralize any wrapper the script still holds (e.g. via a global)
+            // so a post-navigation access returns null instead of dereferencing
+            // a node whose arena has been reset.
+            JS_SetOpaque(value, nullptr);
+            JS_FreeValue(context_, value);
+        }
+    }
+    node_wrappers_.clear();
+}
+
+void QuickJSScriptEngine::install_node_prototype() {
+    if (!context_) {
         return;
     }
-    if (!context_) {
+    JSValue proto = JS_NewObject(context_);
+
+    define_getter(proto, "nodeType", js_node_get_node_type);
+    define_getter(proto, "nodeName", js_node_get_node_name);
+    define_getter(proto, "tagName", js_node_get_tag_name);
+    define_accessor(proto, "textContent", js_node_get_text_content, js_node_set_text_content);
+    define_getter(proto, "parentNode", js_node_get_parent_node);
+    define_getter(proto, "firstChild", js_node_get_first_child);
+    define_getter(proto, "lastChild", js_node_get_last_child);
+    define_getter(proto, "nextSibling", js_node_get_next_sibling);
+    define_getter(proto, "previousSibling", js_node_get_previous_sibling);
+    define_getter(proto, "nextElementSibling", js_node_get_next_element_sibling);
+    define_getter(proto, "previousElementSibling", js_node_get_previous_element_sibling);
+    define_getter(proto, "childNodes", js_node_get_child_nodes);
+    define_getter(proto, "children", js_node_get_children);
+
+    define_method(proto, "appendChild", js_node_append_child, 1);
+    define_method(proto, "insertBefore", js_node_insert_before, 2);
+    define_method(proto, "removeChild", js_node_remove_child, 1);
+    define_method(proto, "replaceChild", js_node_replace_child, 2);
+    define_method(proto, "setAttribute", js_element_set_attribute, 2);
+
+    // Consumes the proto reference and makes it the prototype for every wrapper.
+    JS_SetClassProto(context_, node_class_id_, proto);
+}
+
+void QuickJSScriptEngine::define_getter(JSValueConst proto, const char* name, JSCFunction* getter) {
+    define_accessor(proto, name, getter, nullptr);
+}
+
+void QuickJSScriptEngine::define_accessor(JSValueConst proto, const char* name, JSCFunction* getter,
+                                          JSCFunction* setter) {
+    JSAtom atom = JS_NewAtom(context_, name);
+    JSValue getter_fn = getter ? JS_NewCFunction(context_, getter, name, 0) : JS_UNDEFINED;
+    JSValue setter_fn = setter ? JS_NewCFunction(context_, setter, name, 1) : JS_UNDEFINED;
+    JS_DefinePropertyGetSet(context_, proto, atom, getter_fn, setter_fn, JS_PROP_CONFIGURABLE);
+    JS_FreeAtom(context_, atom);
+}
+
+void QuickJSScriptEngine::define_method(JSValueConst proto, const char* name, JSCFunction* method, int length) {
+    JS_SetPropertyStr(context_, proto, name, JS_NewCFunction(context_, method, name, length));
+}
+
+void QuickJSScriptEngine::install_console_bindings() {
+    if (console_ready_ || !context_) {
         return;
     }
     JSValue global = JS_GetGlobalObject(context_);
@@ -231,10 +456,7 @@ void QuickJSScriptEngine::install_console_bindings() {
 }
 
 void QuickJSScriptEngine::install_document_bindings() {
-    if (document_ready_) {
-        return;
-    }
-    if (!context_) {
+    if (document_ready_ || !context_) {
         return;
     }
 
@@ -242,16 +464,17 @@ void QuickJSScriptEngine::install_document_bindings() {
     JSValue document = JS_NewObject(context_);
     JS_SetPropertyStr(context_, document, "getElementById",
                       JS_NewCFunction(context_, js_document_get_element_by_id, "getElementById", 1));
+    JS_SetPropertyStr(context_, document, "createElement",
+                      JS_NewCFunction(context_, js_document_create_element, "createElement", 1));
+    JS_SetPropertyStr(context_, document, "createTextNode",
+                      JS_NewCFunction(context_, js_document_create_text_node, "createTextNode", 1));
     JS_SetPropertyStr(context_, global, "document", document);
     JS_FreeValue(context_, global);
     document_ready_ = true;
 }
 
 void QuickJSScriptEngine::install_extension_bindings() {
-    if (extension_ready_) {
-        return;
-    }
-    if (!context_) {
+    if (extension_ready_ || !context_) {
         return;
     }
     JSValue global = JS_GetGlobalObject(context_);
@@ -261,32 +484,31 @@ void QuickJSScriptEngine::install_extension_bindings() {
     extension_ready_ = true;
 }
 
-void QuickJSScriptEngine::clear_bindings() {
-    console_ready_ = false;
-    document_ready_ = false;
-    extension_ready_ = false;
-}
-
-JSValue QuickJSScriptEngine::wrap_element(DOM::Element* element) {
-    if (!context_ || !element || element_class_id_ == 0) {
+JSValue QuickJSScriptEngine::wrap_node(DOM::Node* node) {
+    if (!context_ || !node || node_class_id_ == 0) {
         return JS_NULL;
     }
-    JSValue obj = JS_NewObjectClass(context_, element_class_id_);
+    if (auto it = node_wrappers_.find(node); it != node_wrappers_.end()) {
+        return JS_DupValue(context_, it->second);
+    }
+    JSValue obj = JS_NewObjectClass(context_, node_class_id_);
     if (JS_IsException(obj)) {
         return obj;
     }
-    JS_SetOpaque(obj, element);
-
-    JSAtom text_atom = JS_NewAtom(context_, "textContent");
-    JSValue getter = JS_NewCFunction(context_, js_element_get_text_content, "getTextContent", 0);
-    JSValue setter = JS_NewCFunction(context_, js_element_set_text_content, "setTextContent", 1);
-    JS_DefinePropertyGetSet(context_, obj, text_atom, getter, setter, JS_PROP_CONFIGURABLE);
-    JS_FreeAtom(context_, text_atom);
-
-    JS_SetPropertyStr(context_, obj, "setAttribute",
-                      JS_NewCFunction(context_, js_element_set_attribute, "setAttribute", 2));
-
+    JS_SetOpaque(obj, node);
+    // Keep one owning reference in the cache (freed on reset_bindings) so the
+    // wrapper survives for the node's lifetime and identity stays stable.
+    node_wrappers_.emplace(node, JS_DupValue(context_, obj));
     return obj;
+}
+
+JSValue QuickJSScriptEngine::wrap_node_list(const std::vector<DOM::Node*>& nodes) {
+    JSValue array = JS_NewArray(context_);
+    uint32_t index = 0;
+    for (DOM::Node* node : nodes) {
+        JS_SetPropertyUint32(context_, array, index++, wrap_node(node));
+    }
+    return array;
 }
 
 }  // namespace Hummingbird::Platform

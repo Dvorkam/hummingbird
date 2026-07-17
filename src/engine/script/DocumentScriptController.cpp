@@ -62,6 +62,11 @@ std::optional<std::string> resolve_onload_handler(const DOM::Node* node) {
 DocumentScriptController::DocumentScriptController(ScriptEnginePtr engine) : script_engine_(std::move(engine)) {}
 
 void DocumentScriptController::clear() {
+    // Drop cached node wrappers before the host forgets the document: their
+    // opaque pointers become dangling once the DOM arena is reset on navigation.
+    if (script_engine_) {
+        script_engine_->reset_bindings();
+    }
     script_host_.clear();
 }
 

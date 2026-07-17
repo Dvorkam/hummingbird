@@ -324,7 +324,10 @@
 
 P0: DOM + Events (North Star)
 - [x] 7.0.1: External Script Loading (+ T-RESOURCE-TYPE-TABLE-1 paydown) — 2026-07-17
-- [ ] 7.1.1: Mutation Primitives With Arena Ownership (+ traversal accessors)
+- [x] 7.1.1: Mutation Primitives With Arena Ownership (+ traversal accessors) — 2026-07-17
+      (createElement/createTextNode/appendChild/insertBefore/removeChild/replaceChild;
+      parentNode/children/childNodes/first-last-child/next-prev-(element-)sibling;
+      wrapper identity + `doc/dev_guide/dom_arena_ownership.md`)
 - [ ] 7.1.2: Attributes, classList, dataset
 - [ ] 7.1.3: querySelector / querySelectorAll (+ matches/closest/getElementsBy*)
 - [ ] 7.1.4: innerHTML (fragment parse)
