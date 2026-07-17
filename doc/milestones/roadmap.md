@@ -157,7 +157,7 @@ Detailed doc: [milestone5.md](milestone5.md) · Archive: [milestone5_done.md](..
 
 ---
 
-## Milestone 6: The Layouter (Real-Page Layout Compatibility) — In progress
+## Milestone 6: The Layouter (Real-Page Layout Compatibility) — Done (v0.6.0, Jul 2026)
 
 Detailed doc: [milestone6.md](milestone6.md)
 
@@ -173,7 +173,7 @@ Detailed doc: [milestone6.md](milestone6.md)
 
 ---
 
-## Milestone 7: The Programmable Document (DOM + Events + Scheduling) — Planned
+## Milestone 7: The Programmable Document (DOM + Events + Scheduling) — In Progress
 
 Detailed doc: [milestone7.md](milestone7.md)
 
