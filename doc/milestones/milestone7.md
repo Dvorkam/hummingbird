@@ -323,7 +323,7 @@
 ## Execution Order Checklist
 
 P0: DOM + Events (North Star)
-- [ ] 7.0.1: External Script Loading (+ T-RESOURCE-TYPE-TABLE-1 paydown)
+- [x] 7.0.1: External Script Loading (+ T-RESOURCE-TYPE-TABLE-1 paydown) — 2026-07-17
 - [ ] 7.1.1: Mutation Primitives With Arena Ownership (+ traversal accessors)
 - [ ] 7.1.2: Attributes, classList, dataset
 - [ ] 7.1.3: querySelector / querySelectorAll (+ matches/closest/getElementsBy*)
