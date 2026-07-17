@@ -34,9 +34,8 @@ public:
         size_t start = 0;
         while (start <= font_family_list.size()) {
             size_t comma = font_family_list.find(',', start);
-            std::string_view segment = comma == std::string_view::npos
-                                           ? font_family_list.substr(start)
-                                           : font_family_list.substr(start, comma - start);
+            std::string_view segment = comma == std::string_view::npos ? font_family_list.substr(start)
+                                                                       : font_family_list.substr(start, comma - start);
             std::string_view trimmed = Core::Utils::trim_ascii_whitespace(segment);
             if (!trimmed.empty()) {
                 auto it = families_.find(std::string(trimmed));

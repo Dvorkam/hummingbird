@@ -48,8 +48,7 @@ Backdrop resolve_backdrop(const Layout::RenderObject& node, const Layout::Rect& 
     for (const auto* current = &node; current; current = current->get_parent()) {
         const auto* style = current->get_computed_style();
         if (style && style->background.has_value() && style->background->a == 255) {
-            Layout::Rect padding_box{current_abs.x + style->border_width.left,
-                                     current_abs.y + style->border_width.top,
+            Layout::Rect padding_box{current_abs.x + style->border_width.left, current_abs.y + style->border_width.top,
                                      current_abs.width - style->border_width.left - style->border_width.right,
                                      current_abs.height - style->border_width.top - style->border_width.bottom};
             return {*style->background, padding_box};

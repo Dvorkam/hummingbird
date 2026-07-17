@@ -120,8 +120,8 @@ SDL_Texture* build_text_texture(SDL_Renderer* renderer, const std::string& text,
         }
     }
 
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(
-        pixels.data(), target_width, target_height, 32, imgData.stride, SDL_PIXELFORMAT_BGRA32);
+    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(pixels.data(), target_width, target_height, 32,
+                                                              imgData.stride, SDL_PIXELFORMAT_BGRA32);
     if (!surface) {
         HB_LOG_ERROR("[platform] Failed to create SDL_Surface from BLImage");
         return nullptr;

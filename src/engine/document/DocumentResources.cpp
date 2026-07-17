@@ -262,7 +262,7 @@ bool DocumentResources::update_image_resources(Layout::RenderObject* render_tree
 }
 
 Css::FontFaceRegistry DocumentResources::resolve_font_faces(const std::vector<Css::FontFaceRule>& faces,
-                                                           std::vector<std::string>& out_pending_remote) const {
+                                                            std::vector<std::string>& out_pending_remote) const {
     Css::FontFaceRegistry registry;
     for (const auto& face : faces) {
         if (face.family.empty() || face.sources.empty()) {
