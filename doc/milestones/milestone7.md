@@ -1,5 +1,8 @@
-> **Status: Planned** — pre-written 2026-07, two milestones ahead. Sanity-check scope
-> against the M6 outcome before kickoff; story structure is expected to hold.
+> **Status: Active** — scope revalidated at kickoff 2026-07-17. Additions from the
+> kickoff review: external script loading (7.0.1 — only inline scripts run today),
+> real-world secondary proof (HN comment collapse), form-control JS surface +
+> checkbox MVP (7.1.5), fragment navigation (7.2.5), and browser-chrome
+> conveniences (7.6: back/forward, bookmarks).
 
 ## Milestone 7 North Star Deliverable
 
@@ -27,13 +30,24 @@
   style/layout/paint pass.
 * **Proof target:** a pinned **vanilla-JS TodoMVC snapshot** is fully usable — add,
   toggle, edit, filter, clear-completed — in a CI harness.
+* **Real-world secondary proof:** on a **Hacker News item page** (pinned snapshot;
+  live as a manual check), `hn.js` initializes and **comment collapse/expand ([–]/[+])
+  works**. Verified against the live `hn.js` (2026-07-17): the collapse path needs
+  exactly M7's surface — `addEventListener` delegation on `document`, event objects
+  (`target`, `stopPropagation`, `preventDefault`), `className` manipulation with
+  restyle, `getAttribute`, `nextElementSibling` traversal, `getElementsByClassName` —
+  plus fail-soft stubs for the APIs we don't do yet (`fetch`/XHR for voting → M8/M9,
+  `scrollIntoView` → no-op). Voting/login staying broken is expected and fine; it is
+  M8's proof target.
 
 ---
 
 ## Non-Goals (keep the blast radius controlled)
 
 * No fetch/XHR or any networking JS API (M9). No cookies/storage bindings (M8).
-* No History API, no observer APIs (`MutationObserver` etc.), no custom elements (M12).
+* No History API (`pushState` etc. — M12); the only same-document navigation in scope
+  is the fragment/`hashchange` slice (7.2.5). No observer APIs (`MutationObserver`
+  etc.), no custom elements (M12).
 * No Shadow DOM.
 * No exhaustive event-type coverage — an enumerated set (see 7.2.4) is the contract.
 * `innerHTML` reuses the existing recovery-oriented parser on a fragment; no separate
@@ -48,10 +62,15 @@
 
 **Must-have**
 
+* External script loading (7.0.1) — both proof targets ship their JS as separate
+  files; carries the T-RESOURCE-TYPE-TABLE-1 paydown (Script is the 5th resource type).
 * DOM construction/mutation primitives with arena ownership (7.1.1) + `innerHTML` (7.1.4).
 * `querySelector`/`querySelectorAll` over the existing SelectorMatcher (7.1.3).
+* Form-control JS surface + checkbox MVP (7.1.5) — TodoMVC's toggle is a checkbox
+  and every flow reads/writes `.value`.
 * EventTarget with propagation and real event objects (7.2.1–7.2.3).
 * Keyboard/input/submit event routing (7.2.4) — TodoMVC is keyboard-driven.
+* Fragment navigation + `hashchange` (7.2.5) — TodoMVC's filters are hash-routed.
 * Task + microtask queues in the main loop (7.3.1–7.3.2).
 * Batched invalidation per task (7.4.1).
 * TodoMVC snapshot harness in CI (7.5.1).
@@ -61,6 +80,8 @@
 * `requestAnimationFrame` (7.3.3) — cheap once the frame tick owns the queues.
 * `classList`/`dataset` conveniences beyond what TodoMVC touches (7.1.2 minimum scope
   is what the target needs).
+* Browser chrome: back/forward (7.6.1) and bookmarks MVP (7.6.2) — dev-convenience,
+  independent of the engine-side critical path; good interleave work.
 
 ---
 
@@ -68,6 +89,9 @@
 
 * TodoMVC (pinned snapshot) passes a scripted add/toggle/edit/filter/clear flow in the
   headless harness, and CI fails on regression.
+* On a pinned Hacker News item-page snapshot, comment collapse/expand works end-to-end
+  (secondary proof; live-site check stays a manual gate). Voting/login remain broken
+  by design (M8/M9).
 * Capture/target/bubble order is correct for nested listeners (event-order tests).
 * A handler performing many mutations triggers exactly one style/layout/paint pass.
 * `setTimeout(fn, 0)` and Promise jobs interleave in spec order (task vs microtask
@@ -80,11 +104,32 @@
 
 ## Stories
 
+### 7.0 - Script Loading (prerequisite — both proof targets ship external JS)
+
+* **Story 7.0.1: External Script Loading (T-SCRIPT-SRC-1)**
+* **Goal:** fetch and execute `<script src="...">` — TodoMVC's `app.js` and HN's
+  `hn.js` are external files; today only inline `<script>` bodies run
+  (`DocumentLinkDiscovery` ignores the `src` attribute).
+* **Scope:** `ResourceType::Script` through the store/loader/update-processor
+  pipeline; execution-order MVP: after parse, scripts run in document order with
+  inline and external interleaved (classic-script semantics approximated; `async`/
+  `defer` may collapse to that same order), all before `load` dispatch. **Pay down
+  T-RESOURCE-TYPE-TABLE-1 here:** Script is the 5th resource type — introduce the
+  per-type descriptor table instead of hand-mirroring the Image/Font boilerplate a
+  fifth time.
+* **Acceptance:** a page whose behavior lives in an external .js file works
+  identically to the same script inlined; script order is deterministic.
+* **Tests:** resource pipeline tests + script execution-order tests + the
+  table-drives-dispatch test from T-RESOURCE-TYPE-TABLE-1.
+
 ### 7.1 - DOM Core (JS can build UI)
 
 * **Story 7.1.1: Mutation Primitives With Arena Ownership**
 * **Goal:** `createElement`, `createTextNode`, `appendChild`, `insertBefore`,
-  `removeChild`, `replaceChild`.
+  `removeChild`, `replaceChild`; read-only traversal accessors (`parentNode`,
+  `children`/`childNodes`, `firstChild`/`lastChild`,
+  `nextElementSibling`/`previousElementSibling`) — real-page delegation patterns
+  (hn.js) walk siblings, so traversal ships with mutation, not later.
 * **Scope:** core/dom node factories + tree surgery; document the rule for nodes
   created after initial parse (same arena; removal detaches, never frees).
 * **Acceptance:** JS builds a list of elements from scratch; removing/reinserting nodes
@@ -99,7 +144,10 @@
 * **Tests:** DOM + style invalidation tests.
 
 * **Story 7.1.3: querySelector / querySelectorAll**
-* **Goal:** subtree selector queries reusing SelectorMatcher.
+* **Goal:** subtree selector queries reusing SelectorMatcher; plus the cheap
+  derivatives once the matcher entry point exists — `Element.matches`,
+  `Element.closest`, and legacy `getElementsByClassName`/`getElementsByTagName`
+  (hn.js and most pre-framework pages use the legacy forms, not `querySelector`).
 * **Scope:** traversal + matcher entry point + JS bindings (static NodeList snapshot).
 * **Acceptance:** the selector subset supported by the style engine works identically
   from JS.
@@ -112,6 +160,21 @@
   matches document parsing.
 * **Acceptance:** TodoMVC's template-string rendering path works.
 * **Tests:** fragment parse + mutation tests, including malformed input.
+
+* **Story 7.1.5: Form Control JS Surface + Checkbox MVP**
+* **Goal:** JS read/write of `input.value`, `input.checked`, `disabled`;
+  `element.focus()`/`blur()`; and a working `<input type=checkbox>` control
+  (render checked/unchecked, click toggles, fires `change`).
+* **Scope:** JS bindings over the existing form-control state + a bounded checkbox
+  control (M4 forms MVP covered text input + button only; checkbox is currently
+  excluded from input semantics in `DocumentInputUtils` and has no interactive
+  rendering). Radio groups, `<select>`, and everything else stay in M11 forms v2.
+* **Why now:** every TodoMVC interaction runs through this — add reads+clears
+  `.value`, toggle *is* a checkbox, edit mode calls `.focus()`. Without this story
+  the North Star is unreachable no matter how good DOM/events are.
+* **Acceptance:** JS reads what the user typed, clears the field, toggles a checkbox
+  programmatically and by click, and `change`/`input` fire per 7.2.4.
+* **Tests:** binding unit tests + control interaction tests.
 
 ### 7.2 - Event System v1
 
@@ -144,6 +207,17 @@
   interface boundary intact.
 * **Acceptance:** TodoMVC's Enter-to-add, dblclick-to-edit, blur-to-commit flows work.
 * **Tests:** input-controller + dispatch integration tests.
+
+* **Story 7.2.5: Fragment Navigation + hashchange**
+* **Goal:** `location.hash` read/write, clicking `href="#/..."` links, and the
+  `hashchange` event — same-document, **no reload, no document teardown**.
+* **Scope:** navigation path special-case for fragment-only URL changes + a minimal
+  `window.location` binding (`hash`, `href` read). Full History API stays in M12.
+* **Why now:** vanilla TodoMVC's filter bar (All/Active/Completed) is hash-routed;
+  without this the "filter" step of the North Star flow silently reloads or 404s.
+* **Acceptance:** clicking a `#/active` filter link fires `hashchange`, the handler
+  re-renders, and the document (timers, listeners, DOM) survives untouched.
+* **Tests:** navigation + event integration tests.
 
 ### 7.3 - Scheduling
 
@@ -191,9 +265,13 @@
 * **Story 7.5.2: Missing-API Telemetry (T-JS-REG-1)**
 * **Goal:** once-per-page logging of unimplemented JS APIs/DOM properties touched by a
   page (the JS-era T-SUPPORT-REG-1).
-* **Scope:** binding-layer trap/registry + report output.
+* **Scope:** binding-layer trap/registry + report output. **Fail-soft contract:**
+  touching a missing API logs once and returns undefined / no-ops — it must not
+  throw in a way that aborts the rest of the script (hn.js references `fetch`/XHR
+  for voting; that must not prevent the collapse handlers from registering).
 * **Acceptance:** loading a proof target emits a deduped missing-API list; this list
-  feeds the M12 backlog.
+  feeds the M12 backlog; a script touching an unimplemented API still runs its
+  remaining statements/handlers.
 * **Tests:** registry unit tests.
 
 * **Story 7.5.3: Parser Fuzzing In CI (T-FUZZ-1)**
@@ -205,24 +283,57 @@
 
 * **Story 7.5.4: JS/Native Ownership Rules Documented**
 * **Goal:** write down who owns what across the boundary (arena nodes vs JS wrappers
-  vs listener registry) before M8/M9 build on it.
+  vs listener registry) before M8/M9 build on it. Include the **wrapper identity
+  rule**: the same DOM node must yield the same JS object (`event.target === myEl`
+  and `Set`-of-nodes patterns depend on it) — this is a design constraint on the
+  binding layer, not a nice-to-have.
 * **Scope:** `doc/dev_guide/` entry + assertions where cheap.
 * **Acceptance:** rules doc exists; teardown tests reference it.
 * **Tests:** teardown/leak tests.
+
+### 7.6 - Browser Chrome (P1, dev-convenience — off the North Star critical path)
+
+* **Story 7.6.1: Back/Forward Navigation (T-UI-NAV-BACK-1)**
+* **Goal:** let the user return to the previous page (Alt+Left / a back button)
+  instead of being stranded after clicking a link (came up repeatedly while
+  evaluating DDG: clicking the logo/results navigates away with no way back).
+* **Scope:** a per-tab ordered navigation history stack (the visited-URL set from
+  T-HIST-1 is a starting point) + a chrome shortcut/button. Chrome-side only; the
+  JS History API stays in M12. Fragment navigations (7.2.5) should push entries so
+  back works across hash routes too.
+* **Acceptance:** after navigating A→B, back returns to A; forward returns to B.
+* **Tests:** tab navigation tests. *(Moved from `doc/TODOs.md` 2026-07-17; filed
+  2026-07-16 on user request.)*
+
+* **Story 7.6.2: Bookmarks MVP (T-UI-BOOKMARKS-1)**
+* **Goal:** keep the reference pages we test against (html.duckduckgo.com today,
+  the TodoMVC/HN fixtures tomorrow) one action away instead of retyped every session.
+* **Scope:** a file-backed bookmark list (URL + title) in the user data dir,
+  seeded with `https://html.duckduckgo.com/html/`; Ctrl+D bookmarks the current
+  page; an internal bookmarks page (e.g. `about:bookmarks`, reachable from the URL
+  bar) rendered as plain HTML links through the engine's own pipeline — no new UI
+  surface needed. Chrome-side only: no folders, no favicons, no sync, no web-visible
+  API.
+* **Acceptance:** bookmark a page, restart the browser, open `about:bookmarks`,
+  click the entry, land on the page.
+* **Tests:** app-level bookmark store tests (persistence + add/dedupe).
 
 ---
 
 ## Execution Order Checklist
 
 P0: DOM + Events (North Star)
-- [ ] 7.1.1: Mutation Primitives With Arena Ownership
+- [ ] 7.0.1: External Script Loading (+ T-RESOURCE-TYPE-TABLE-1 paydown)
+- [ ] 7.1.1: Mutation Primitives With Arena Ownership (+ traversal accessors)
 - [ ] 7.1.2: Attributes, classList, dataset
-- [ ] 7.1.3: querySelector / querySelectorAll
+- [ ] 7.1.3: querySelector / querySelectorAll (+ matches/closest/getElementsBy*)
 - [ ] 7.1.4: innerHTML (fragment parse)
+- [ ] 7.1.5: Form Control JS Surface + Checkbox MVP
 - [ ] 7.2.1: EventTarget + Listener Registry
 - [ ] 7.2.2: Event Objects
 - [ ] 7.2.3: Capture/Target/Bubble Propagation
 - [ ] 7.2.4: Input Event Coverage
+- [ ] 7.2.5: Fragment Navigation + hashchange
 
 P0: Scheduling + Invalidation (North Star)
 - [ ] 7.3.1: Task Queue (setTimeout/setInterval)
@@ -232,8 +343,11 @@ P0: Scheduling + Invalidation (North Star)
 P0: Guardrails
 - [ ] 7.5.4: JS/Native Ownership Rules Documented
 - [ ] 7.5.1: TodoMVC Snapshot Harness
-- [ ] 7.5.2: Missing-API Telemetry
+- [ ] 7.5.2: Missing-API Telemetry (fail-soft)
 - [ ] 7.5.3: Parser Fuzzing In CI
+- [ ] Secondary proof: HN item-page snapshot — comment collapse works
 
 P1: If Schedule Allows
 - [ ] 7.3.3: requestAnimationFrame
+- [ ] 7.6.1: Back/Forward Navigation (T-UI-NAV-BACK-1)
+- [ ] 7.6.2: Bookmarks MVP (T-UI-BOOKMARKS-1)
