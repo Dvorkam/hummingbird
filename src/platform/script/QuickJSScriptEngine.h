@@ -69,6 +69,16 @@ private:
     static JSValue js_element_get_attribute(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_element_remove_attribute(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    // Selector queries. Shared by document.* and element.*: the scope is
+    // node_from_value(this_val), which is null (== document root) when called on
+    // the plain `document` object.
+    static JSValue js_query_selector(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_query_selector_all(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_element_matches(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_element_closest(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_get_elements_by_class_name(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_get_elements_by_tag_name(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
     // DOMTokenList (classList) methods.
     static JSValue js_token_list_add(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_token_list_remove(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);

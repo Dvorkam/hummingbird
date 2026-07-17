@@ -235,6 +235,57 @@ TEST(DocumentScriptHostTest, DatasetMapsCamelCaseToDataAttr) {
     EXPECT_FALSE(host.get_dataset(el, "missing", out));
 }
 
+TEST(DocumentScriptHostTest, SelectorQueriesMatchLikeTheStyleEngine) {
+    ArenaAllocator arena(8192, 8);
+    DocumentScriptHost host;
+
+    // <div id=root><ul class="list">
+    //   <li class="item active"><span>a</span></li>
+    //   <li class="item"><span>b</span></li>
+    // </ul></div>
+    auto root = Element::create(arena, "div");
+    host.reset(root.get(), &arena);
+
+    auto* list = host.create_element("ul");
+    host.set_attribute(list, "class", "list");
+    host.append_child(root.get(), list);
+
+    auto* li1 = host.create_element("li");
+    host.set_attribute(li1, "class", "item active");
+    auto* span1 = host.create_element("span");
+    host.append_child(span1, host.create_text_node("a"));
+    host.append_child(li1, span1);
+    host.append_child(list, li1);
+
+    auto* li2 = host.create_element("li");
+    host.set_attribute(li2, "class", "item");
+    auto* span2 = host.create_element("span");
+    host.append_child(span2, host.create_text_node("b"));
+    host.append_child(li2, span2);
+    host.append_child(list, li2);
+
+    // Document-scoped (nullptr) queries.
+    EXPECT_EQ(host.query_selector(nullptr, "li.active"), li1);
+    EXPECT_EQ(host.query_selector(nullptr, ".missing"), nullptr);
+    EXPECT_EQ(host.query_selector_all(nullptr, "li").size(), 2u);
+    EXPECT_EQ(host.query_selector_all(nullptr, ".item span").size(), 2u);
+    EXPECT_EQ(host.get_elements_by_class_name(nullptr, "item").size(), 2u);
+    EXPECT_EQ(host.get_elements_by_class_name(nullptr, "item active").size(), 1u);
+    EXPECT_EQ(host.get_elements_by_tag_name(nullptr, "span").size(), 2u);
+    EXPECT_EQ(host.get_elements_by_tag_name(nullptr, "*").size(), 5u);  // ul,li,span,li,span
+
+    // matches / closest.
+    EXPECT_TRUE(host.matches(li1, "li.active"));
+    EXPECT_FALSE(host.matches(li2, ".active"));
+    EXPECT_EQ(host.closest(span1, "ul"), list);
+    EXPECT_EQ(host.closest(span1, ".active"), li1);
+    EXPECT_EQ(host.closest(span1, "table"), nullptr);
+
+    // Element-scoped query searches only that element's descendants.
+    EXPECT_EQ(host.query_selector_all(li2, "span").size(), 1u);
+    EXPECT_EQ(host.query_selector(li2, "span"), span2);
+}
+
 TEST(DocumentScriptHostTest, TraversalAccessorsSkipTextForElementSiblings) {
     ArenaAllocator arena(4096, 4);
     auto root = Element::create(arena, "p");

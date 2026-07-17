@@ -40,6 +40,13 @@ public:
     bool get_dataset(DOM::Node* node, std::string_view key, std::string& out) override;
     void set_dataset(DOM::Node* node, std::string_view key, std::string_view value) override;
 
+    DOM::Node* query_selector(DOM::Node* scope, std::string_view selector) override;
+    std::vector<DOM::Node*> query_selector_all(DOM::Node* scope, std::string_view selector) override;
+    bool matches(DOM::Node* node, std::string_view selector) override;
+    DOM::Node* closest(DOM::Node* node, std::string_view selector) override;
+    std::vector<DOM::Node*> get_elements_by_class_name(DOM::Node* scope, std::string_view names) override;
+    std::vector<DOM::Node*> get_elements_by_tag_name(DOM::Node* scope, std::string_view tag) override;
+
     DOM::Element* create_element(std::string_view tag_name) override;
     DOM::Node* create_text_node(std::string_view data) override;
 

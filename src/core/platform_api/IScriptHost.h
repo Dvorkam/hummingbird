@@ -49,6 +49,18 @@ public:
     virtual bool get_dataset(DOM::Node* node, std::string_view key, std::string& out) = 0;
     virtual void set_dataset(DOM::Node* node, std::string_view key, std::string_view value) = 0;
 
+    // --- Selector queries (7.1.3) ---
+    // `scope` is the element to search within; nullptr means the document root.
+    // Queries reuse the style engine's selector parser + matcher, so the
+    // supported subset is identical to CSS. Results are document-order snapshots.
+    virtual DOM::Node* query_selector(DOM::Node* scope, std::string_view selector) = 0;
+    virtual std::vector<DOM::Node*> query_selector_all(DOM::Node* scope, std::string_view selector) = 0;
+    virtual bool matches(DOM::Node* node, std::string_view selector) = 0;
+    virtual DOM::Node* closest(DOM::Node* node, std::string_view selector) = 0;
+    // Legacy live-collection accessors (returned here as static snapshots).
+    virtual std::vector<DOM::Node*> get_elements_by_class_name(DOM::Node* scope, std::string_view names) = 0;
+    virtual std::vector<DOM::Node*> get_elements_by_tag_name(DOM::Node* scope, std::string_view tag) = 0;
+
     // --- Node factories (7.1.1) ---
     // Created nodes are detached (no parent) and owned by the host until they
     // are inserted into the tree.

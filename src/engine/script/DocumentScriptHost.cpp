@@ -8,6 +8,9 @@
 #include "core/dom/Text.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
+#include "style/compute/Stylesheet.h"
+#include "style/parser/CssParser.h"
+#include "style/selector/SelectorMatcher.h"
 
 namespace Hummingbird::Engine {
 
@@ -56,6 +59,67 @@ std::string dataset_key_to_attr(std::string_view key) {
         }
     }
     return attr;
+}
+
+// Parses a selector string into the style engine's selector list by reusing the
+// CSS parser on a rule with an empty body. This keeps the querySelector-supported
+// subset identical to what the style engine matches (7.1.3 scope).
+std::vector<Css::Selector> parse_selector_list(std::string_view selector) {
+    std::string css(selector);
+    css += "{}";
+    Css::Parser parser(css);
+    Css::Stylesheet sheet = parser.parse();
+    if (sheet.rules.empty()) {
+        return {};
+    }
+    return std::move(sheet.rules.front().selectors);
+}
+
+bool any_selector_matches(const DOM::Node* node, const std::vector<Css::Selector>& selectors) {
+    for (const auto& selector : selectors) {
+        if (Css::matches_selector(node, selector)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Pre-order (document-order) search of `scope`'s descendants for the first
+// element matching any selector.
+DOM::Node* find_first_descendant(DOM::Node* scope, const std::vector<Css::Selector>& selectors) {
+    for (const auto& child : scope->get_children()) {
+        DOM::Node* node = child.get();
+        if (dynamic_cast<DOM::Element*>(node) && any_selector_matches(node, selectors)) {
+            return node;
+        }
+        if (DOM::Node* found = find_first_descendant(node, selectors)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+
+void collect_matching_descendants(DOM::Node* scope, const std::vector<Css::Selector>& selectors,
+                                  std::vector<DOM::Node*>& out) {
+    for (const auto& child : scope->get_children()) {
+        DOM::Node* node = child.get();
+        if (dynamic_cast<DOM::Element*>(node) && any_selector_matches(node, selectors)) {
+            out.push_back(node);
+        }
+        collect_matching_descendants(node, selectors, out);
+    }
+}
+
+// Collects descendant elements satisfying an arbitrary predicate, document order.
+template <typename Pred>
+void collect_descendant_elements(DOM::Node* scope, Pred pred, std::vector<DOM::Node*>& out) {
+    for (const auto& child : scope->get_children()) {
+        DOM::Node* node = child.get();
+        if (auto* element = dynamic_cast<DOM::Element*>(node); element && pred(*element)) {
+            out.push_back(node);
+        }
+        collect_descendant_elements(node, pred, out);
+    }
 }
 
 // Walks siblings from `node` in the given direction until an element is found.
@@ -196,6 +260,74 @@ void DocumentScriptHost::set_dataset(DOM::Node* node, std::string_view key, std:
     if (!element) return;
     element->set_attribute(dataset_key_to_attr(key), value);
     mutated_ = true;
+}
+
+DOM::Node* DocumentScriptHost::query_selector(DOM::Node* scope, std::string_view selector) {
+    DOM::Node* root = scope ? scope : root_;
+    if (!root) return nullptr;
+    auto selectors = parse_selector_list(selector);
+    if (selectors.empty()) return nullptr;
+    return find_first_descendant(root, selectors);
+}
+
+std::vector<DOM::Node*> DocumentScriptHost::query_selector_all(DOM::Node* scope, std::string_view selector) {
+    std::vector<DOM::Node*> result;
+    DOM::Node* root = scope ? scope : root_;
+    if (!root) return result;
+    auto selectors = parse_selector_list(selector);
+    if (selectors.empty()) return result;
+    collect_matching_descendants(root, selectors, result);
+    return result;
+}
+
+bool DocumentScriptHost::matches(DOM::Node* node, std::string_view selector) {
+    if (!dynamic_cast<DOM::Element*>(node)) return false;
+    auto selectors = parse_selector_list(selector);
+    return !selectors.empty() && any_selector_matches(node, selectors);
+}
+
+DOM::Node* DocumentScriptHost::closest(DOM::Node* node, std::string_view selector) {
+    auto selectors = parse_selector_list(selector);
+    if (selectors.empty()) return nullptr;
+    for (DOM::Node* cursor = node; cursor; cursor = cursor->get_parent()) {
+        if (dynamic_cast<DOM::Element*>(cursor) && any_selector_matches(cursor, selectors)) {
+            return cursor;
+        }
+    }
+    return nullptr;
+}
+
+std::vector<DOM::Node*> DocumentScriptHost::get_elements_by_class_name(DOM::Node* scope, std::string_view names) {
+    std::vector<DOM::Node*> result;
+    DOM::Node* root = scope ? scope : root_;
+    if (!root) return result;
+    // All space-separated tokens must be present (matches the DOM contract).
+    std::vector<std::string> required;
+    for (auto token : Core::Utils::split_ascii_whitespace(names)) {
+        required.emplace_back(token);
+    }
+    if (required.empty()) return result;
+    collect_descendant_elements(
+        root,
+        [&](const DOM::Element& element) {
+            for (const auto& token : required) {
+                if (!element.class_contains(token)) return false;
+            }
+            return true;
+        },
+        result);
+    return result;
+}
+
+std::vector<DOM::Node*> DocumentScriptHost::get_elements_by_tag_name(DOM::Node* scope, std::string_view tag) {
+    std::vector<DOM::Node*> result;
+    DOM::Node* root = scope ? scope : root_;
+    if (!root) return result;
+    const bool all = tag == "*";
+    const std::string lowered = Core::Utils::to_lower(tag);
+    collect_descendant_elements(
+        root, [&](const DOM::Element& element) { return all || element.get_tag_name() == lowered; }, result);
+    return result;
 }
 
 DOM::Element* DocumentScriptHost::create_element(std::string_view tag_name) {

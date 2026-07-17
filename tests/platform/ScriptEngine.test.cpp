@@ -137,6 +137,44 @@ TEST(ScriptEngineTest, ClassListDatasetAndAttributesThroughBindings) {
     EXPECT_TRUE(host.consume_mutations());
 }
 
+TEST(ScriptEngineTest, SelectorQueriesThroughBindings) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 8);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto ul = Hummingbird::DOM::Element::create(arena, "ul");
+    ul->set_attribute("id", "list");
+    for (int i = 0; i < 3; ++i) {
+        auto li = Hummingbird::DOM::Element::create(arena, "li");
+        li->set_attribute("class", i == 1 ? "item active" : "item");
+        li->append_child(Hummingbird::DOM::Text::create(arena, i == 1 ? "mid" : "x"));
+        ul->append_child(std::move(li));
+    }
+    root->append_child(std::move(ul));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "var list = document.getElementById('list');"
+        "function check(name, cond) { if (!cond) throw new Error('failed: ' + name); }"
+        "check('qsa count', document.querySelectorAll('li.item').length === 3);"
+        "var active = document.querySelector('.active');"
+        "check('qs text', active.textContent === 'mid');"
+        "check('byClass', list.getElementsByClassName('item').length === 3);"
+        "check('byTag', document.getElementsByTagName('li').length === 3);"
+        "check('scoped', list.querySelectorAll('li').length === 3);"
+        "check('matches', active.matches('li.active'));"
+        "check('closest', active.closest('#list') === list);"
+        "check('identity', active === document.querySelector('.active'));"
+        "check('miss', document.querySelector('.nope') === null);"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+}
+
 TEST(ScriptEngineTest, WrapperIdentityIsStablePerNode) {
     Hummingbird::Core::ArenaAllocator arena(4096, 4);
     auto root = Hummingbird::DOM::Element::create(arena, "div");

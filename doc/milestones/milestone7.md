@@ -333,7 +333,10 @@ P0: DOM + Events (North Star)
       via a DOMTokenList; dataset read/write via an exotic DOMStringMap with the
       camelCase<->data-* mapping; class changes feed selector re-match — pipeline
       test shows a JS class toggle restyling an element to display:none)
-- [ ] 7.1.3: querySelector / querySelectorAll (+ matches/closest/getElementsBy*)
+- [x] 7.1.3: querySelector / querySelectorAll (+ matches/closest/getElementsBy*) — 2026-07-17
+      (reuses the CssParser + SelectorMatcher so the supported selector subset is
+      identical to CSS; static document-order snapshots; document- and element-scoped;
+      matches/closest + legacy getElementsByClassName/getElementsByTagName)
 - [ ] 7.1.4: innerHTML (fragment parse)
 - [ ] 7.1.5: Form Control JS Surface + Checkbox MVP
 - [ ] 7.2.1: EventTarget + Listener Registry

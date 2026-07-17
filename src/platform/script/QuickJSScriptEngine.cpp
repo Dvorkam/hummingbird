@@ -363,6 +363,83 @@ JSValue QuickJSScriptEngine::js_node_get_dataset(JSContext* ctx, JSValueConst th
     return obj;
 }
 
+// --- Selector queries ------------------------------------------------------
+
+JSValue QuickJSScriptEngine::js_query_selector(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NULL;
+    DOM::Node* scope = engine->node_from_value(this_val);  // null == document root
+    const char* selector = JS_ToCString(ctx, argv[0]);
+    if (!selector) return JS_NULL;
+    DOM::Node* match = engine->host_->query_selector(scope, selector);
+    JS_FreeCString(ctx, selector);
+    return engine->wrap_node(match);
+}
+
+JSValue QuickJSScriptEngine::js_query_selector_all(JSContext* ctx, JSValueConst this_val, int argc,
+                                                   JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NewArray(ctx);
+    DOM::Node* scope = engine->node_from_value(this_val);
+    const char* selector = JS_ToCString(ctx, argv[0]);
+    if (!selector) return JS_NewArray(ctx);
+    JSValue result = engine->wrap_node_list(engine->host_->query_selector_all(scope, selector));
+    JS_FreeCString(ctx, selector);
+    return result;
+}
+
+JSValue QuickJSScriptEngine::js_element_matches(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_FALSE;
+    DOM::Node* node = engine->node_from_value(this_val);
+    const char* selector = JS_ToCString(ctx, argv[0]);
+    if (!node || !selector) {
+        if (selector) JS_FreeCString(ctx, selector);
+        return JS_FALSE;
+    }
+    const bool result = engine->host_->matches(node, selector);
+    JS_FreeCString(ctx, selector);
+    return JS_NewBool(ctx, result ? 1 : 0);
+}
+
+JSValue QuickJSScriptEngine::js_element_closest(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NULL;
+    DOM::Node* node = engine->node_from_value(this_val);
+    const char* selector = JS_ToCString(ctx, argv[0]);
+    if (!node || !selector) {
+        if (selector) JS_FreeCString(ctx, selector);
+        return JS_NULL;
+    }
+    DOM::Node* match = engine->host_->closest(node, selector);
+    JS_FreeCString(ctx, selector);
+    return engine->wrap_node(match);
+}
+
+JSValue QuickJSScriptEngine::js_get_elements_by_class_name(JSContext* ctx, JSValueConst this_val, int argc,
+                                                           JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NewArray(ctx);
+    DOM::Node* scope = engine->node_from_value(this_val);
+    const char* names = JS_ToCString(ctx, argv[0]);
+    if (!names) return JS_NewArray(ctx);
+    JSValue result = engine->wrap_node_list(engine->host_->get_elements_by_class_name(scope, names));
+    JS_FreeCString(ctx, names);
+    return result;
+}
+
+JSValue QuickJSScriptEngine::js_get_elements_by_tag_name(JSContext* ctx, JSValueConst this_val, int argc,
+                                                         JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NewArray(ctx);
+    DOM::Node* scope = engine->node_from_value(this_val);
+    const char* tag = JS_ToCString(ctx, argv[0]);
+    if (!tag) return JS_NewArray(ctx);
+    JSValue result = engine->wrap_node_list(engine->host_->get_elements_by_tag_name(scope, tag));
+    JS_FreeCString(ctx, tag);
+    return result;
+}
+
 // --- DOMTokenList (classList) ---------------------------------------------
 
 JSValue QuickJSScriptEngine::js_token_list_add(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
@@ -617,6 +694,12 @@ void QuickJSScriptEngine::install_node_prototype() {
     define_method(proto, "setAttribute", js_element_set_attribute, 2);
     define_method(proto, "getAttribute", js_element_get_attribute, 1);
     define_method(proto, "removeAttribute", js_element_remove_attribute, 1);
+    define_method(proto, "querySelector", js_query_selector, 1);
+    define_method(proto, "querySelectorAll", js_query_selector_all, 1);
+    define_method(proto, "matches", js_element_matches, 1);
+    define_method(proto, "closest", js_element_closest, 1);
+    define_method(proto, "getElementsByClassName", js_get_elements_by_class_name, 1);
+    define_method(proto, "getElementsByTagName", js_get_elements_by_tag_name, 1);
 
     // Consumes the proto reference and makes it the prototype for every wrapper.
     JS_SetClassProto(context_, node_class_id_, proto);
@@ -700,6 +783,16 @@ void QuickJSScriptEngine::install_document_bindings() {
                       JS_NewCFunction(context_, js_document_create_element, "createElement", 1));
     JS_SetPropertyStr(context_, document, "createTextNode",
                       JS_NewCFunction(context_, js_document_create_text_node, "createTextNode", 1));
+    // Document-scoped queries reuse the shared callbacks (this_val == document is
+    // not a node wrapper, so the scope resolves to the document root).
+    JS_SetPropertyStr(context_, document, "querySelector",
+                      JS_NewCFunction(context_, js_query_selector, "querySelector", 1));
+    JS_SetPropertyStr(context_, document, "querySelectorAll",
+                      JS_NewCFunction(context_, js_query_selector_all, "querySelectorAll", 1));
+    JS_SetPropertyStr(context_, document, "getElementsByClassName",
+                      JS_NewCFunction(context_, js_get_elements_by_class_name, "getElementsByClassName", 1));
+    JS_SetPropertyStr(context_, document, "getElementsByTagName",
+                      JS_NewCFunction(context_, js_get_elements_by_tag_name, "getElementsByTagName", 1));
     JS_SetPropertyStr(context_, global, "document", document);
     JS_FreeValue(context_, global);
     document_ready_ = true;
