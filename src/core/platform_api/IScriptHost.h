@@ -49,6 +49,19 @@ public:
     virtual bool get_dataset(DOM::Node* node, std::string_view key, std::string& out) = 0;
     virtual void set_dataset(DOM::Node* node, std::string_view key, std::string_view value) = 0;
 
+    // --- Form control surface (7.1.5) ---
+    // Reflect the form-control state JS reads/writes. `value` is the control's
+    // current value; `checked`/`disabled` are boolean attribute state. Focus is
+    // reflected as the :focus pseudo-state (full text-edit focus wiring + the
+    // checkbox control land with the event system in 7.2.4).
+    virtual std::string get_value(DOM::Node* node) = 0;
+    virtual void set_value(DOM::Node* node, std::string_view value) = 0;
+    virtual bool get_checked(DOM::Node* node) = 0;
+    virtual void set_checked(DOM::Node* node, bool checked) = 0;
+    virtual bool get_disabled(DOM::Node* node) = 0;
+    virtual void set_disabled(DOM::Node* node, bool disabled) = 0;
+    virtual void set_focused(DOM::Node* node, bool focused) = 0;
+
     // --- innerHTML (7.1.4) ---
     // Replaces node's children with the fragment parsed from `html` (reuses the
     // document HTML parser in a recovery-oriented fragment mode).

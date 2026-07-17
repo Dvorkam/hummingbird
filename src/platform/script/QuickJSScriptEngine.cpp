@@ -362,6 +362,83 @@ JSValue QuickJSScriptEngine::js_node_set_inner_html(JSContext* ctx, JSValueConst
     return JS_UNDEFINED;
 }
 
+JSValue QuickJSScriptEngine::js_node_get_value(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                               JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NewString(ctx, "");
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_NewString(ctx, "");
+    return JS_NewString(ctx, engine->host_->get_value(node).c_str());
+}
+
+JSValue QuickJSScriptEngine::js_node_set_value(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_UNDEFINED;
+    auto* node = engine->node_from_value(this_val);
+    if (!node) return JS_UNDEFINED;
+    const char* value = JS_ToCString(ctx, argv[0]);
+    if (value) {
+        engine->host_->set_value(node, value);
+        JS_FreeCString(ctx, value);
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_node_get_checked(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                 JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_FALSE;
+    auto* node = engine->node_from_value(this_val);
+    return JS_NewBool(ctx, node && engine->host_->get_checked(node) ? 1 : 0);
+}
+
+JSValue QuickJSScriptEngine::js_node_set_checked(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_UNDEFINED;
+    auto* node = engine->node_from_value(this_val);
+    if (node) {
+        engine->host_->set_checked(node, JS_ToBool(ctx, argv[0]) != 0);
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_node_get_disabled(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                  JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_FALSE;
+    auto* node = engine->node_from_value(this_val);
+    return JS_NewBool(ctx, node && engine->host_->get_disabled(node) ? 1 : 0);
+}
+
+JSValue QuickJSScriptEngine::js_node_set_disabled(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_UNDEFINED;
+    auto* node = engine->node_from_value(this_val);
+    if (node) {
+        engine->host_->set_disabled(node, JS_ToBool(ctx, argv[0]) != 0);
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_node_focus(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                           JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_UNDEFINED;
+    if (auto* node = engine->node_from_value(this_val)) {
+        engine->host_->set_focused(node, true);
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_node_blur(JSContext* ctx, JSValueConst this_val, int /*argc*/, JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_UNDEFINED;
+    if (auto* node = engine->node_from_value(this_val)) {
+        engine->host_->set_focused(node, false);
+    }
+    return JS_UNDEFINED;
+}
+
 JSValue QuickJSScriptEngine::js_node_get_class_list(JSContext* ctx, JSValueConst this_val, int /*argc*/,
                                                     JSValueConst* /*argv*/) {
     auto* engine = engine_from_context(ctx);
@@ -708,6 +785,9 @@ void QuickJSScriptEngine::install_node_prototype() {
     define_getter(proto, "children", js_node_get_children);
     define_accessor(proto, "className", js_node_get_class_name, js_node_set_class_name);
     define_accessor(proto, "innerHTML", js_node_get_inner_html, js_node_set_inner_html);
+    define_accessor(proto, "value", js_node_get_value, js_node_set_value);
+    define_accessor(proto, "checked", js_node_get_checked, js_node_set_checked);
+    define_accessor(proto, "disabled", js_node_get_disabled, js_node_set_disabled);
     define_getter(proto, "classList", js_node_get_class_list);
     define_getter(proto, "dataset", js_node_get_dataset);
 
@@ -724,6 +804,8 @@ void QuickJSScriptEngine::install_node_prototype() {
     define_method(proto, "closest", js_element_closest, 1);
     define_method(proto, "getElementsByClassName", js_get_elements_by_class_name, 1);
     define_method(proto, "getElementsByTagName", js_get_elements_by_tag_name, 1);
+    define_method(proto, "focus", js_node_focus, 0);
+    define_method(proto, "blur", js_node_blur, 0);
 
     // Consumes the proto reference and makes it the prototype for every wrapper.
     JS_SetClassProto(context_, node_class_id_, proto);

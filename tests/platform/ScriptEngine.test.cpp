@@ -137,6 +137,46 @@ TEST(ScriptEngineTest, ClassListDatasetAndAttributesThroughBindings) {
     EXPECT_TRUE(host.consume_mutations());
 }
 
+TEST(ScriptEngineTest, FormControlSurfaceThroughBindings) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "form");
+    auto field = Hummingbird::DOM::Element::create(arena, "input");
+    field->set_attribute("id", "field");
+    root->append_child(std::move(field));
+    auto box = Hummingbird::DOM::Element::create(arena, "input");
+    box->set_attribute("id", "box");
+    box->set_attribute("type", "checkbox");
+    root->append_child(std::move(box));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var f = document.getElementById('field');"
+        "check('empty', f.value === '');"
+        "f.value = 'typed';"
+        "check('value', f.value === 'typed');"
+        "var b = document.getElementById('box');"
+        "check('unchecked', b.checked === false);"
+        "b.checked = true;"
+        "check('checked', b.checked === true);"
+        "f.disabled = true;"
+        "check('disabled', f.disabled === true);"
+        "f.focus();"  // no-throw smoke
+        "f.blur();"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+
+    EXPECT_EQ(host.get_value(host.get_element_by_id("field")), "typed");
+    EXPECT_TRUE(host.get_checked(host.get_element_by_id("box")));
+}
+
 TEST(ScriptEngineTest, InnerHtmlThroughBindings) {
     Hummingbird::Core::ArenaAllocator arena(8192, 8);
     auto root = Hummingbird::DOM::Element::create(arena, "div");

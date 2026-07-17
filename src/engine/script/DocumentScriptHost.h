@@ -43,6 +43,14 @@ public:
     void set_inner_html(DOM::Node* node, std::string_view html) override;
     std::string get_inner_html(DOM::Node* node) override;
 
+    std::string get_value(DOM::Node* node) override;
+    void set_value(DOM::Node* node, std::string_view value) override;
+    bool get_checked(DOM::Node* node) override;
+    void set_checked(DOM::Node* node, bool checked) override;
+    bool get_disabled(DOM::Node* node) override;
+    void set_disabled(DOM::Node* node, bool disabled) override;
+    void set_focused(DOM::Node* node, bool focused) override;
+
     DOM::Node* query_selector(DOM::Node* scope, std::string_view selector) override;
     std::vector<DOM::Node*> query_selector_all(DOM::Node* scope, std::string_view selector) override;
     bool matches(DOM::Node* node, std::string_view selector) override;

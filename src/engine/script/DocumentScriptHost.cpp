@@ -355,6 +355,63 @@ std::string DocumentScriptHost::get_inner_html(DOM::Node* node) {
     return out;
 }
 
+std::string DocumentScriptHost::get_value(DOM::Node* node) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return {};
+    const auto* value = element->find_attribute(Hummingbird::Html::AttributeNames::Value);
+    return value ? *value : std::string{};
+}
+
+void DocumentScriptHost::set_value(DOM::Node* node, std::string_view value) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return;
+    element->set_attribute(Hummingbird::Html::AttributeNames::Value, value);
+    mutated_ = true;
+}
+
+bool DocumentScriptHost::get_checked(DOM::Node* node) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    // MVP: checkedness is reflected by the presence of the `checked` attribute.
+    return element && element->has_attribute("checked");
+}
+
+void DocumentScriptHost::set_checked(DOM::Node* node, bool checked) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return;
+    if (checked) {
+        element->set_attribute("checked", "");
+    } else {
+        element->remove_attribute("checked");
+    }
+    mutated_ = true;
+}
+
+bool DocumentScriptHost::get_disabled(DOM::Node* node) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    return element && element->has_attribute("disabled");
+}
+
+void DocumentScriptHost::set_disabled(DOM::Node* node, bool disabled) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return;
+    if (disabled) {
+        element->set_attribute("disabled", "");
+    } else {
+        element->remove_attribute("disabled");
+    }
+    mutated_ = true;
+}
+
+void DocumentScriptHost::set_focused(DOM::Node* node, bool focused) {
+    auto* element = dynamic_cast<DOM::Element*>(node);
+    if (!element) return;
+    // Reflect focus as the :focus pseudo-state so styling responds; hooking
+    // focus() up to the text-edit caret target is deferred to 7.2.4.
+    if (element->set_pseudo_state(DOM::Element::PseudoState::Focus, focused)) {
+        mutated_ = true;
+    }
+}
+
 DOM::Node* DocumentScriptHost::query_selector(DOM::Node* scope, std::string_view selector) {
     DOM::Node* root = scope ? scope : root_;
     if (!root) return nullptr;

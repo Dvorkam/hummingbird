@@ -235,6 +235,47 @@ TEST(DocumentScriptHostTest, DatasetMapsCamelCaseToDataAttr) {
     EXPECT_FALSE(host.get_dataset(el, "missing", out));
 }
 
+TEST(DocumentScriptHostTest, FormControlSurfaceReflectsState) {
+    ArenaAllocator arena(4096, 4);
+    auto root = Element::create(arena, "form");
+    DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto* field = host.create_element("input");
+    host.append_child(root.get(), field);
+
+    // value <-> value attribute
+    EXPECT_EQ(host.get_value(field), "");
+    host.set_value(field, "hello");
+    EXPECT_EQ(host.get_value(field), "hello");
+    EXPECT_EQ(host.get_attribute(field, "value"), "hello");
+
+    // checked <-> presence of the checked attribute (MVP)
+    auto* box = host.create_element("input");
+    host.set_attribute(box, "type", "checkbox");
+    host.append_child(root.get(), box);
+    EXPECT_FALSE(host.get_checked(box));
+    host.set_checked(box, true);
+    EXPECT_TRUE(host.get_checked(box));
+    EXPECT_TRUE(host.has_attribute(box, "checked"));
+    host.set_checked(box, false);
+    EXPECT_FALSE(host.has_attribute(box, "checked"));
+
+    // disabled
+    host.set_disabled(field, true);
+    EXPECT_TRUE(host.get_disabled(field));
+    host.set_disabled(field, false);
+    EXPECT_FALSE(host.get_disabled(field));
+
+    // focus() reflects the :focus pseudo-state
+    EXPECT_FALSE(field->has_pseudo_state(Element::PseudoState::Focus));
+    host.set_focused(field, true);
+    EXPECT_TRUE(field->has_pseudo_state(Element::PseudoState::Focus));
+    host.set_focused(field, false);
+    EXPECT_FALSE(field->has_pseudo_state(Element::PseudoState::Focus));
+    EXPECT_TRUE(host.consume_mutations());
+}
+
 TEST(DocumentScriptHostTest, InnerHtmlParsesFragmentReplacesAndSerializes) {
     ArenaAllocator arena(8192, 8);
     auto root = Element::create(arena, "div");

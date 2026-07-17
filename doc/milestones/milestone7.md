@@ -66,10 +66,12 @@
   files; carries the T-RESOURCE-TYPE-TABLE-1 paydown (Script is the 5th resource type).
 * DOM construction/mutation primitives with arena ownership (7.1.1) + `innerHTML` (7.1.4).
 * `querySelector`/`querySelectorAll` over the existing SelectorMatcher (7.1.3).
-* Form-control JS surface + checkbox MVP (7.1.5) — TodoMVC's toggle is a checkbox
-  and every flow reads/writes `.value`.
+* Form-control JS surface (7.1.5) — every TodoMVC flow reads/writes `.value` and
+  `.checked`.
 * EventTarget with propagation and real event objects (7.2.1–7.2.3).
 * Keyboard/input/submit event routing (7.2.4) — TodoMVC is keyboard-driven.
+* Interactive checkbox control (7.2.6) — TodoMVC's toggle is a checkbox whose
+  `change` handler drives the re-render (split from 7.1.5; needs 7.2.1–7.2.4).
 * Fragment navigation + `hashchange` (7.2.5) — TodoMVC's filters are hash-routed.
 * Task + microtask queues in the main loop (7.3.1–7.3.2).
 * Batched invalidation per task (7.4.1).
@@ -161,20 +163,22 @@
 * **Acceptance:** TodoMVC's template-string rendering path works.
 * **Tests:** fragment parse + mutation tests, including malformed input.
 
-* **Story 7.1.5: Form Control JS Surface + Checkbox MVP**
+* **Story 7.1.5: Form Control JS Surface** — *(the interactive checkbox control
+  originally bundled here moved to Story 7.2.6, which depends on the event system;
+  see the note there. This story is now the JS-surface half only.)*
 * **Goal:** JS read/write of `input.value`, `input.checked`, `disabled`;
-  `element.focus()`/`blur()`; and a working `<input type=checkbox>` control
-  (render checked/unchecked, click toggles, fires `change`).
-* **Scope:** JS bindings over the existing form-control state + a bounded checkbox
-  control (M4 forms MVP covered text input + button only; checkbox is currently
-  excluded from input semantics in `DocumentInputUtils` and has no interactive
-  rendering). Radio groups, `<select>`, and everything else stay in M11 forms v2.
+  `element.focus()`/`blur()`.
+* **Scope:** JS bindings over the existing form-control state. `.value` reflects
+  the `value` attribute; `.checked`/`.disabled` reflect boolean-attribute state;
+  `focus()`/`blur()` reflect the `:focus` pseudo-state (hooking `focus()` to the
+  live text-edit caret target is part of 7.2.6). Radio groups, `<select>`, and
+  everything else stay in M11 forms v2.
 * **Why now:** every TodoMVC interaction runs through this — add reads+clears
-  `.value`, toggle *is* a checkbox, edit mode calls `.focus()`. Without this story
-  the North Star is unreachable no matter how good DOM/events are.
-* **Acceptance:** JS reads what the user typed, clears the field, toggles a checkbox
-  programmatically and by click, and `change`/`input` fire per 7.2.4.
-* **Tests:** binding unit tests + control interaction tests.
+  `.value`, toggle reads/writes `.checked`, edit mode calls `.focus()`. Without
+  this the North Star is unreachable no matter how good DOM/events are.
+* **Acceptance:** JS reads what the user typed, clears the field, reads/writes
+  `.checked` and `.disabled`, and `focus()`/`blur()` flip `:focus`.
+* **Tests:** binding unit tests (host + end-to-end). **DONE 2026-07-17.**
 
 ### 7.2 - Event System v1
 
@@ -218,6 +222,30 @@
 * **Acceptance:** clicking a `#/active` filter link fires `hashchange`, the handler
   re-renders, and the document (timers, listeners, DOM) survives untouched.
 * **Tests:** navigation + event integration tests.
+
+* **Story 7.2.6: Interactive Checkbox Control (T-FORM-CHECKBOX-1)**
+* **Split from 7.1.5:** the JS-visible checkbox state (`.checked` get/set) shipped
+  with 7.1.5; this story adds the *interactive control* — render + click + the
+  events. It lives here (not in 7.1) because its acceptance depends on the event
+  pipeline from 7.2.1–7.2.4 (a click must fire `change`/`input`), so it must land
+  **after 7.2.4**.
+* **Goal:** a working `<input type=checkbox>`: render checked/unchecked, a click
+  toggles it, and toggling (by click or by JS setting `.checked`) fires `change`
+  (and `input`) through the 7.2 dispatch pipeline. Also wire `element.focus()` to
+  the live text-edit caret target (7.1.5 only reflects `:focus` styling).
+* **Scope:** a bounded checkbox control — checkbox is currently excluded from input
+  semantics in `DocumentInputUtils::is_editable_input_element` and has no
+  interactive rendering (M4 forms MVP was text input + button only). Adds: box +
+  checkmark paint (`DocumentInputPainter`), hit-test/click-toggle in the input
+  controller, and `change`/`input` dispatch. Checkedness stays reflected by the
+  `checked` attribute (the 7.1.5 MVP). Radio groups, `<select>`, and everything
+  else stay in M11 forms v2.
+* **Why it matters:** TodoMVC's per-todo toggle *is* a checkbox whose `change`
+  handler drives the re-render; the North Star's toggle step needs this.
+* **Acceptance:** a user click toggles the box visibly and fires `change`; setting
+  `.checked` from JS updates the rendering; TodoMVC's toggle-complete flow works.
+* **Tests:** control interaction tests (click → toggle → `change` dispatched) +
+  paint/render tests.
 
 ### 7.3 - Scheduling
 
@@ -341,11 +369,14 @@ P0: DOM + Events (North Star)
       (setter reuses the document HtmlParser in fragment mode — recovery matches
       document parsing; getter serializes children with text/attr escaping and
       void-element handling)
-- [ ] 7.1.5: Form Control JS Surface + Checkbox MVP
+- [x] 7.1.5: Form Control JS Surface — 2026-07-17
+      (.value/.checked/.disabled get+set, focus()/blur() reflecting :focus).
+      The interactive checkbox control split out to 7.2.6 (needs the event system).
 - [ ] 7.2.1: EventTarget + Listener Registry
 - [ ] 7.2.2: Event Objects
 - [ ] 7.2.3: Capture/Target/Bubble Propagation
 - [ ] 7.2.4: Input Event Coverage
+- [ ] 7.2.6: Interactive Checkbox Control (render + click-toggle + change/input) — split from 7.1.5; needs 7.2.1–7.2.4
 - [ ] 7.2.5: Fragment Navigation + hashchange
 
 P0: Scheduling + Invalidation (North Star)

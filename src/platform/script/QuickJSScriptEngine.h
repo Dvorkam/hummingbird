@@ -59,6 +59,16 @@ private:
     static JSValue js_node_set_class_name(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_get_inner_html(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_set_inner_html(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
+    // Form-control surface (7.1.5).
+    static JSValue js_node_get_value(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_set_value(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_get_checked(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_set_checked(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_get_disabled(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_set_disabled(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_focus(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_blur(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_get_class_list(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_get_dataset(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
