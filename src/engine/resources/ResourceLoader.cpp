@@ -168,6 +168,10 @@ void ResourceLoader::request_fonts(const std::vector<std::string>& links, std::s
     request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Font));
 }
 
+void ResourceLoader::request_scripts(const std::vector<std::string>& links, std::string_view base_url) {
+    request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Script));
+}
+
 ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
     auto pending = take_pending_resources();
 

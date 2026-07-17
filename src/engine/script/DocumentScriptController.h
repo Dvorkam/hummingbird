@@ -28,11 +28,18 @@ public:
         bool mutated = false;
     };
 
+    // One script body ready to eval; views must stay valid for the run_scripts
+    // call (they point into the document model / resource store).
+    struct ScriptSource {
+        std::string_view text;
+        std::string_view context_name;
+    };
+
     explicit DocumentScriptController(ScriptEnginePtr engine);
 
     void clear();
 
-    bool run_inline_scripts(const std::vector<std::string>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);
+    bool run_scripts(const std::vector<ScriptSource>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);
     ScriptDispatchResult dispatch_click(DOM::Node* dom_root, Core::ArenaAllocator* arena,
                                         const Layout::RenderObject* render_tree, const Layout::Rect& viewport,
                                         const Layout::Point& point, float scroll_y);

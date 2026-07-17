@@ -18,6 +18,7 @@ enum class ResourceType : uint8_t {
     Stylesheet,
     Image,
     Font,
+    Script,
     Count,  // sentinel — keep last; sizes the per-type descriptor table
 };
 

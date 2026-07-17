@@ -36,7 +36,7 @@ void DocumentModel::reset() {
     render_tree_.reset();
     dom_arena_.reset();
     style_blocks_.clear();
-    script_blocks_.clear();
+    document_scripts_.clear();
     stylesheet_links_.clear();
     image_links_.clear();
     background_image_links_.clear();
@@ -64,7 +64,7 @@ DocumentModel::ParseResult DocumentModel::parse_html(std::string_view html) {
     style_blocks_ = std::move(parse_result.style_blocks);
     stylesheet_links_ = std::move(parse_result.stylesheet_links);
     image_links_ = std::move(parse_result.image_links);
-    script_blocks_ = collect_script_blocks_from_dom(dom_tree_.get());
+    document_scripts_ = collect_document_scripts_from_dom(dom_tree_.get());
 
     if (!dom_tree_) {
         const bool arena_failed = dom_arena_.failed();
@@ -128,7 +128,7 @@ bool DocumentModel::load_budget_error_page() {
     style_blocks_.clear();
     stylesheet_links_.clear();
     image_links_.clear();
-    script_blocks_.clear();
+    document_scripts_.clear();
 
     Html::Parser parser(dom_arena_, kDomBudgetExceededPage);
     auto parsed = parser.parse();

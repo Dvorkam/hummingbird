@@ -248,6 +248,48 @@ TEST(ResourceLoaderTest, SvgImagesDecodeThroughCompositeDecoder) {
     EXPECT_GT(view->image->height, 0);
 }
 
+TEST(ResourceLoaderTest, ScriptFetchMarksBatchScriptReady) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "var loaded = true;";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+
+    const std::string base_url = "https://example.dev/index.html";
+    loader.request_scripts({"js/app.js"}, base_url);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].url, "https://example.dev/js/app.js");
+
+    auto batch = loader.consume_pending_updates();
+    EXPECT_TRUE(batch.is_ready(ResourceType::Script));
+
+    auto view = loader.view("https://example.dev/js/app.js", ResourceType::Script);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_EQ(view->body, "var loaded = true;");
+}
+
+TEST(ResourceLoaderTest, ScriptAssetsMarkReadyWithoutNetwork) {
+    auto provider = std::make_unique<FakeResourceProvider>();
+    provider->text_["js/app.js"] = "var fromAsset = true;";
+
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), std::move(provider), nullptr);
+
+    const std::string base_url = "https://example.dev/page.html";
+    loader.request_scripts({"js/app.js"}, base_url);
+
+    auto resolved = resolve_resource_url(base_url, "js/app.js");
+    auto view = loader.view(resolved.key, ResourceType::Script);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_EQ(view->body, "var fromAsset = true;");
+    EXPECT_TRUE(network_ptr->requests.empty());
+}
+
 TEST(ResourceLoaderTest, NavigatePostUsesNetworkPostWithBodyAndContentType) {
     auto network = std::make_unique<CapturingNetwork>();
     auto* network_ptr = network.get();

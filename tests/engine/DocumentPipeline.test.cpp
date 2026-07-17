@@ -3,16 +3,20 @@
 #include <gtest/gtest.h>
 
 #include <functional>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <unordered_set>
 #include <vector>
 
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
+#include "core/dom/Text.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "engine/document/DocumentModel.h"
+#include "engine/document/DocumentScripting.h"
 #include "engine/resources/ResourceStore.h"
 #include "layout/geometry/Geometry.h"
 #include "test_utils/TestGraphicsContext.h"
@@ -384,4 +388,142 @@ TEST(DocumentPipelineTest, ContentHeightIncludesDescendantsBeyondRootHeightClamp
     pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
 
     EXPECT_GT(pipeline.content_height(), 300.0f);
+}
+
+namespace {
+using Hummingbird::Engine::DocumentModel;
+using Hummingbird::Engine::DocumentScripting;
+
+// Concatenated text of the element with the given id, or empty when absent.
+std::string element_text_by_id(Hummingbird::DOM::Node* root, std::string_view id) {
+    using Hummingbird::DOM::Element;
+    using Hummingbird::DOM::Node;
+    using Hummingbird::DOM::Text;
+
+    std::function<Element*(Node*)> find = [&](Node* node) -> Element* {
+        if (auto* element = dynamic_cast<Element*>(node)) {
+            const auto* attr = element->find_attribute("id");
+            if (attr && *attr == id) return element;
+        }
+        for (const auto& child : node->get_children()) {
+            if (auto* found = find(child.get())) return found;
+        }
+        return nullptr;
+    };
+    Element* element = root ? find(root) : nullptr;
+    if (!element) return {};
+
+    std::string text;
+    std::function<void(Node*)> collect = [&](Node* node) {
+        if (auto* text_node = dynamic_cast<Text*>(node)) {
+            text += text_node->get_text();
+        }
+        for (const auto& child : node->get_children()) collect(child.get());
+    };
+    collect(element);
+    return text;
+}
+}  // namespace
+
+TEST(DocumentScriptingTest, RunsInlineAndExternalScriptsInDocumentOrder) {
+    // Three <script>s — inline, external, inline — each overwriting the same
+    // element; the surviving value proves document-order execution (7.0.1).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p id="out">initial</p>
+    <script>document.getElementById('out').textContent = 'first-inline';</script>
+    <script src="app.js"></script>
+    <script>document.getElementById('out').textContent = 'second-inline';</script>
+  </body>
+</html>
+)HTML";
+
+    DocumentModel model;
+    ASSERT_TRUE(model.parse_html(html).ok);
+    ASSERT_EQ(model.document_scripts().size(), 3u);
+    EXPECT_FALSE(model.document_scripts()[0].is_external());
+    EXPECT_TRUE(model.document_scripts()[1].is_external());
+    EXPECT_EQ(model.document_scripts()[1].src, "app.js");
+
+    std::vector<std::string> looked_up;
+    DocumentScripting scripting(Hummingbird::create_script_engine());
+    const bool mutated = scripting.run_document_scripts(model, [&](std::string_view src) {
+        looked_up.emplace_back(src);
+        return std::optional<std::string_view>("document.getElementById('out').textContent = 'external';");
+    });
+
+    EXPECT_TRUE(mutated);
+    ASSERT_EQ(looked_up.size(), 1u);
+    EXPECT_EQ(looked_up[0], "app.js");
+    // The last script in document order wins; if the external script had run
+    // first or last the value would differ.
+    EXPECT_EQ(element_text_by_id(model.dom_root(), "out"), "second-inline");
+}
+
+TEST(DocumentScriptingTest, ExternalScriptRunsBetweenInlineScripts) {
+    const std::string html = R"HTML(
+<html><body>
+  <p id="out">initial</p>
+  <script>document.getElementById('out').textContent = 'inline';</script>
+  <script src="late.js"></script>
+</body></html>
+)HTML";
+
+    DocumentModel model;
+    ASSERT_TRUE(model.parse_html(html).ok);
+
+    DocumentScripting scripting(Hummingbird::create_script_engine());
+    (void)scripting.run_document_scripts(model, [&](std::string_view) {
+        return std::optional<std::string_view>("document.getElementById('out').textContent = 'external';");
+    });
+
+    // The external script is last in document order, so its write survives.
+    EXPECT_EQ(element_text_by_id(model.dom_root(), "out"), "external");
+}
+
+TEST(DocumentScriptingTest, MissingExternalScriptIsSkippedButInlineStillRuns) {
+    // Fail-soft: a script whose fetch failed is skipped with a warning; the
+    // rest of the document's scripts must still execute.
+    const std::string html = R"HTML(
+<html><body>
+  <p id="out">initial</p>
+  <script src="gone.js"></script>
+  <script>document.getElementById('out').textContent = 'inline-ran';</script>
+</body></html>
+)HTML";
+
+    DocumentModel model;
+    ASSERT_TRUE(model.parse_html(html).ok);
+
+    DocumentScripting scripting(Hummingbird::create_script_engine());
+    const bool mutated =
+        scripting.run_document_scripts(model, [&](std::string_view) { return std::optional<std::string_view>{}; });
+
+    EXPECT_TRUE(mutated);
+    EXPECT_EQ(element_text_by_id(model.dom_root(), "out"), "inline-ran");
+}
+
+TEST(DocumentModelTest, ScriptCollectionFiltersNonJsTypesAndPrefersSrc) {
+    const std::string html = R"HTML(
+<html><body>
+  <script type="application/json">{"data": 1}</script>
+  <script type="module">import x from 'y';</script>
+  <script type="text/javascript" src="a.js">ignored inline fallback</script>
+  <script>var inline1 = true;</script>
+</body></html>
+)HTML";
+
+    DocumentModel model;
+    ASSERT_TRUE(model.parse_html(html).ok);
+
+    const auto& scripts = model.document_scripts();
+    ASSERT_EQ(scripts.size(), 2u);
+    // JSON data block and module are skipped; src wins over inline body.
+    EXPECT_TRUE(scripts[0].is_external());
+    EXPECT_EQ(scripts[0].src, "a.js");
+    EXPECT_TRUE(scripts[0].text.empty());
+    EXPECT_FALSE(scripts[1].is_external());
+    EXPECT_NE(scripts[1].text.find("inline1"), std::string::npos);
 }

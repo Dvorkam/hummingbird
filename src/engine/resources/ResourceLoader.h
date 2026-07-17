@@ -72,6 +72,7 @@ public:
     void request_stylesheets(const std::vector<std::string>& links, std::string_view base_url);
     void request_images(const std::vector<std::string>& links, std::string_view base_url);
     void request_fonts(const std::vector<std::string>& links, std::string_view base_url);
+    void request_scripts(const std::vector<std::string>& links, std::string_view base_url);
 
     BatchResult consume_pending_updates();
 

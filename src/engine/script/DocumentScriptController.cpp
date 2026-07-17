@@ -65,8 +65,8 @@ void DocumentScriptController::clear() {
     script_host_.clear();
 }
 
-bool DocumentScriptController::run_inline_scripts(const std::vector<std::string>& scripts, DOM::Node* dom_root,
-                                                  Core::ArenaAllocator* arena) {
+bool DocumentScriptController::run_scripts(const std::vector<ScriptSource>& scripts, DOM::Node* dom_root,
+                                           Core::ArenaAllocator* arena) {
     if (!script_engine_) {
         return false;
     }
@@ -78,12 +78,12 @@ bool DocumentScriptController::run_inline_scripts(const std::vector<std::string>
     }
 
     for (const auto& script : scripts) {
-        if (script.empty()) {
+        if (script.text.empty()) {
             continue;
         }
-        auto result = script_engine_->eval(script, "inline");
+        auto result = script_engine_->eval(script.text, script.context_name);
         if (!result.ok) {
-            HB_LOG_WARN("[script] eval failed: " << result.error);
+            HB_LOG_WARN("[script] eval failed (" << script.context_name << "): " << result.error);
         }
     }
 

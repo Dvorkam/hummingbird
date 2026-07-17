@@ -9,6 +9,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "engine/document/ExternalScriptLookup.h"
 #include "engine/forms/FormSubmission.h"
 #include "layout/geometry/Geometry.h"
 
@@ -69,7 +70,12 @@ public:
 
     // --- document build + layout ---
     bool parse_html(std::string_view html);
-    bool run_scripts();
+    // Runs all <script>s in document order; external bodies come from the
+    // lookup (see DocumentScripting). Returns true when scripts mutated the DOM.
+    bool run_scripts(const ExternalScriptLookup& external_lookup = {});
+    // Raw src attributes of external <script>s in document order (for the
+    // caller to request through the resource loader before running).
+    std::vector<std::string> external_script_srcs() const;
     void set_extension_style_blocks(const std::vector<std::string>& style_blocks);
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool rebuild_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);

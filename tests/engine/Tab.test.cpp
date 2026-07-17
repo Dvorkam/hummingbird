@@ -1220,3 +1220,50 @@ TEST(EngineTabTest, AllowsInsecureReloadForCurrentHost) {
     EXPECT_TRUE(network_ptr->last_allow_insecure());
     EXPECT_EQ(harness.tab().security_state(), Hummingbird::SecurityState::InsecureTls);
 }
+
+TEST(EngineTabTest, DefersScriptExecutionAndLoadUntilExternalScriptArrives) {
+    // 7.0.1: with an external <script src> still in flight, no script (and no
+    // load event) runs; once the fetch completes, scripts run in document
+    // order and their DOM writes reach layout. Observable via content height:
+    // the script fills #out with enough text to wrap into multiple lines.
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p id="out">x</p>
+    <script src="app.js"></script>
+  </body>
+</html>
+)HTML";
+
+    std::string filler;
+    for (int i = 0; i < 60; ++i) filler += "wrapped words grow the layout ";
+    const std::string script = "document.getElementById('out').textContent = '" + filler + "';";
+
+    auto network = std::make_unique<DeferredNetwork>();
+    auto* network_ptr = network.get();
+    network->set_response("https://acme.test", html);
+    network->defer_response("https://acme.test/app.js", script);
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::move(network), std::make_unique<DeferredNetwork>(), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test");
+    harness.tick();  // document ready: parse, request script, defer execution
+    harness.tick();  // nothing new: script still in flight
+
+    auto pending = harness.resource_view("https://acme.test/app.js", Hummingbird::Engine::ResourceType::Script);
+    ASSERT_TRUE(pending.has_value());
+    EXPECT_NE(pending->state, Hummingbird::Engine::ResourceState::Ready);
+    const float height_before = harness.tab().content_height();
+
+    network_ptr->complete("https://acme.test/app.js");
+    harness.tick();  // script batch: run deferred scripts, rebuild, dispatch load
+
+    auto ready = harness.resource_view("https://acme.test/app.js", Hummingbird::Engine::ResourceType::Script);
+    ASSERT_TRUE(ready.has_value());
+    EXPECT_EQ(ready->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_GT(harness.tab().content_height(), height_before);
+}

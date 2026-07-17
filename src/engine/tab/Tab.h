@@ -115,6 +115,11 @@ private:
     void begin_navigation_session(std::string_view url);
     bool prepare_document_from_response(std::string_view html);
     void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    // External <script src> gating (7.0.1): scripts run once every external
+    // body is Ready or Failed, then the load event dispatches.
+    void maybe_run_deferred_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    bool all_external_scripts_resolved() const;
+    bool run_document_scripts_now();
     void apply_autofocus_after_rebuild();
     void mark_dirty(std::string_view reason = {});
     void reset_document_state();
@@ -129,6 +134,9 @@ private:
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;
     bool extension_css_dirty_ = false;
+    // True while external <script src> fetches block script execution and the
+    // load event (cleared by maybe_run_deferred_scripts or navigation reset).
+    bool scripts_pending_ = false;
     NavigationLifecycle navigation_lifecycle_{};
     TabLayoutState layout_state_{};
     TabAnimationTicker animation_ticker_{};

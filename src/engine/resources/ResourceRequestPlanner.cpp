@@ -56,6 +56,17 @@ constexpr ResourceRequestOptions kResourceTypeTable[] = {
         .use_binary = true,
         .decode = ResourceDecode::None,
     },
+    {
+        .type = ResourceType::Script,
+        .type_label = "script",
+        .attr_label = "src",
+        .allow_fallback_network = false,
+        .log_duplicates = true,
+        .log_asset_load = true,
+        .mark_ready_on_asset = true,
+        .use_binary = false,
+        .decode = ResourceDecode::None,
+    },
 };
 
 static_assert(std::size(kResourceTypeTable) == kResourceTypeCount, "every ResourceType needs a descriptor table entry");

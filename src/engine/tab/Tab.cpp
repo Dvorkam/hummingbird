@@ -14,6 +14,7 @@
 #include "core/utils/Timing.h"
 #include "engine/document/DocumentPipeline.h"
 #include "engine/resources/ResourceLoader.h"
+#include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/tab/TabDocumentReadyPolicy.h"
 
 namespace Hummingbird {
@@ -294,6 +295,50 @@ void Tab::process_incremental_resource_updates(const ResourceLoader::BatchResult
     if (image_ready && document_pipeline_->has_render_tree()) {
         handle_image_ready(graphics, viewport);
     }
+    // Checked on every batch (not just script arrivals) so a failed fetch —
+    // which sets no ready flag — still unblocks deferred execution.
+    if (scripts_pending_) {
+        maybe_run_deferred_scripts(graphics, viewport);
+    }
+}
+
+void Tab::maybe_run_deferred_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    if (!document_pipeline_->has_dom_tree()) return;
+    if (!all_external_scripts_resolved()) return;
+    scripts_pending_ = false;
+
+    const auto scripts_start = Core::Clock::now();
+    const bool mutated = run_document_scripts_now();
+    HB_LOG_INFO("[perf] deferred run_scripts ms=" << Core::duration_ms(scripts_start, Core::Clock::now())
+                                                  << " mutated=" << mutated);
+    if (mutated) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "scripts_ready:mutation");
+    }
+    apply_load_mutations_after_document_ready(graphics, viewport);
+    mark_dirty("scripts_ready");
+}
+
+bool Tab::all_external_scripts_resolved() const {
+    for (const auto& src : document_pipeline_->external_script_srcs()) {
+        auto resolved = ResourceRequestPlanning::resolve_request_url(navigation_lifecycle_.requested_url(), src);
+        if (resolved.key.empty()) continue;
+        const auto* entry = resource_loader_->find(resolved.key, ResourceType::Script);
+        if (!entry) continue;  // never registered (rejected url) — nothing to wait for
+        if (entry->state == ResourceState::Requested || entry->state == ResourceState::Loading) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Tab::run_document_scripts_now() {
+    return document_pipeline_->run_scripts([this](std::string_view src) -> std::optional<std::string_view> {
+        auto resolved = ResourceRequestPlanning::resolve_request_url(navigation_lifecycle_.requested_url(), src);
+        if (resolved.key.empty()) return std::nullopt;
+        const auto* entry = resource_loader_->find(resolved.key, ResourceType::Script);
+        if (!entry || entry->state != ResourceState::Ready) return std::nullopt;
+        return std::string_view(entry->body);
+    });
 }
 
 void Tab::sync_extension_styles_before_stylesheet_update() {
@@ -358,7 +403,12 @@ void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout:
     if (has_render_tree) {
         timed("autofocus", [&] { apply_autofocus_after_rebuild(); });
     }
-    timed("load_mutations", [&] { apply_load_mutations_after_document_ready(graphics, viewport); });
+    // The load event fires only after every document-order script has run;
+    // with external scripts still in flight it is dispatched from
+    // maybe_run_deferred_scripts instead.
+    if (!scripts_pending_) {
+        timed("load_mutations", [&] { apply_load_mutations_after_document_ready(graphics, viewport); });
+    }
 }
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -389,8 +439,22 @@ bool Tab::prepare_document_from_response(std::string_view html) {
     navigation_lifecycle_.set_pending_commit_url();
     document_pipeline_->set_extension_style_blocks(extension_style_blocks_);
     extension_css_dirty_ = false;
+
+    // External <script src> bodies must be fetched before any script runs so
+    // inline and external scripts execute in document order (7.0.1). Asset- or
+    // failed-synchronously resources resolve immediately; network fetches
+    // arrive via the pending-update queue, so execution (and the load event,
+    // see rebuild_after_document_ready) defers to maybe_run_deferred_scripts.
+    const auto external_srcs = document_pipeline_->external_script_srcs();
+    if (!external_srcs.empty()) {
+        resource_loader_->request_scripts(external_srcs, navigation_lifecycle_.requested_url());
+    }
+    if (!all_external_scripts_resolved()) {
+        scripts_pending_ = true;
+        return true;
+    }
     const auto scripts_start = Core::Clock::now();
-    document_pipeline_->run_scripts();
+    (void)run_document_scripts_now();
     HB_LOG_INFO("[perf] rebuild step run_scripts ms=" << Core::duration_ms(scripts_start, Core::Clock::now()));
     return true;
 }
@@ -452,6 +516,7 @@ void Tab::reset_document_state() {
     layout_state_.reset();
     navigation_lifecycle_.clear_pending_commit_url();
     animation_ticker_.reset();
+    scripts_pending_ = false;
     mark_dirty();
 }
 

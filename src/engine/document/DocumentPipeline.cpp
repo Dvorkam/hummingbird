@@ -50,8 +50,18 @@ bool DocumentPipeline::parse_html(std::string_view html) {
     return result.ok;
 }
 
-bool DocumentPipeline::run_scripts() {
-    return scripting_->run_inline_scripts(*model_);
+bool DocumentPipeline::run_scripts(const ExternalScriptLookup& external_lookup) {
+    return scripting_->run_document_scripts(*model_, external_lookup);
+}
+
+std::vector<std::string> DocumentPipeline::external_script_srcs() const {
+    std::vector<std::string> srcs;
+    for (const auto& script : model_->document_scripts()) {
+        if (script.is_external()) {
+            srcs.push_back(script.src);
+        }
+    }
+    return srcs;
 }
 
 void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>& style_blocks) {

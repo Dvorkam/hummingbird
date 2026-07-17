@@ -3,6 +3,7 @@
 #include <memory>
 
 #include "core/platform_api/IScriptEngine.h"
+#include "engine/document/ExternalScriptLookup.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird::Engine {
@@ -26,7 +27,9 @@ public:
     DocumentScripting& operator=(DocumentScripting&&) = delete;
 
     void reset();
-    bool run_inline_scripts(DocumentModel& model);
+    // Runs the document's <script>s in document order, inline and external
+    // interleaved (classic-script semantics, 7.0.1 MVP).
+    bool run_document_scripts(DocumentModel& model, const ExternalScriptLookup& external_lookup);
     DispatchResult dispatch_click(DocumentModel& model, const Layout::Rect& viewport, const Layout::Point& point,
                                   float scroll_y);
     DispatchResult dispatch_load(DocumentModel& model);
