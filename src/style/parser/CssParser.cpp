@@ -5,7 +5,7 @@
 #include <ostream>
 #include <utility>
 
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/GraphicsTypes.h"
 #include "core/utils/ColorUtils.h"
 #include "core/utils/Log.h"
 #include "core/utils/ParseUtils.h"

@@ -9,9 +9,9 @@
 #include <vector>
 
 #include "core/ArenaAllocator.h"
+#include "core/GraphicsTypes.h"
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
-#include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "style/compute/StyleDefaults.h"

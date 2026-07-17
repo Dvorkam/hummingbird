@@ -5,8 +5,8 @@
 #include <string_view>
 #include <utility>
 
+#include "core/GraphicsTypes.h"
 #include "core/dom/Element.h"
-#include "core/platform_api/IGraphicsContext.h"
 #include "core/utils/ColorUtils.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"

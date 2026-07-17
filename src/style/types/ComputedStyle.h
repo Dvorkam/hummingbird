@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "core/platform_api/IGraphicsContext.h"
+#include "core/GraphicsTypes.h"
 
 namespace Hummingbird::Css {
 
