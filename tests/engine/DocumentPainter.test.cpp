@@ -94,6 +94,44 @@ TEST(DocumentInputPainterTest, FocusRingFollowsBorderRadius) {
     EXPECT_FALSE(covers_corner);  // ...and its corner is rounded, not filled square
 }
 
+TEST(DocumentInputPainterTest, CheckboxRendersBoxAndCheckmark) {
+    ArenaAllocator arena(1024);
+    const Rect box{10.0f, 10.0f, 13.0f, 13.0f};
+    const Color accent{66, 133, 244, 255};
+    const Color white{255, 255, 255, 255};
+    const auto is = [](const Color& a, const Color& b) { return a.r == b.r && a.g == b.g && a.b == b.b && a.a == b.a; };
+    const auto paint = [&](bool checked) {
+        ArenaPtr<Element> cb = Element::create(arena, "input");
+        cb->set_attribute("type", "checkbox");
+        if (checked) cb->set_attribute("checked", "");
+        auto node = BlockBox::create(cb.get());
+        node->set_rect(box);
+        RectRecordingContext graphics;
+        Hummingbird::Engine::paint_input_control(*cb, *node, box, {0.0f, 0.0f}, graphics,
+                                                 /*repaint_background*/ false, /*focused*/ false, 0, 0.0f);
+        return std::move(graphics.rects);
+    };
+
+    // Unchecked: white interior, no accent fill.
+    int accent_rects = 0, white_rects = 0;
+    for (const auto& [rect, color] : paint(false)) {
+        if (is(color, accent)) ++accent_rects;
+        if (is(color, white)) ++white_rects;
+    }
+    EXPECT_EQ(accent_rects, 0);
+    EXPECT_GT(white_rects, 0);  // the empty box interior
+
+    // Checked: accent box + a white checkmark (several small dabs).
+    accent_rects = 0;
+    white_rects = 0;
+    for (const auto& [rect, color] : paint(true)) {
+        if (is(color, accent)) ++accent_rects;
+        if (is(color, white)) ++white_rects;
+    }
+    EXPECT_GT(accent_rects, 0);  // the filled box
+    EXPECT_GT(white_rects, 1);   // the checkmark dabs
+}
+
 TEST(DocumentPainterTest, RebuildsDisplayListWhenInputsChange) {
     ArenaAllocator arena(1024);
     ArenaPtr<Element> root = Element::create(arena, "div");

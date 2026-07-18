@@ -7,6 +7,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/utils/Log.h"
+#include "engine/document/DocumentInputUtils.h"
 #include "engine/document/HitTestUtils.h"
 #include "html/HtmlTagNames.h"
 #include "layout/RenderObject.h"
@@ -121,6 +122,14 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatc
         }
         if (click_count >= 2) {
             script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"dblclick", true, true, "", ""});
+        }
+
+        // Default action of an un-cancelled click on a checkbox: toggle its
+        // checkedness, then fire input + change through the dispatch pipeline (7.2.6).
+        if (!default_prevented && is_checkbox_input_element(dynamic_cast<DOM::Element*>(*target))) {
+            script_host_.set_checked(*target, !script_host_.get_checked(*target));
+            script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"input", true, false, "", ""});
+            script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"change", true, false, "", ""});
         }
     }
 

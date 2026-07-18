@@ -648,6 +648,58 @@ TEST(DocumentPipelineTest, TodoDemoAssetsDriveTheFullFlow) {
     EXPECT_TRUE(painted_has("Buy milk"));
 }
 
+TEST(DocumentPipelineTest, CheckboxClickTogglesAndFiresChange) {
+    // Clicking a checkbox toggles its checkedness (default action) and fires a
+    // change event whose handler sees the new value (7.2.6).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } p { display: block; } </style></head>
+  <body>
+    <input type="checkbox" id="cb">
+    <p id="status">start</p>
+    <script>
+      document.getElementById('cb').addEventListener('change', function(e) {
+        document.getElementById('status').textContent = 'changed:' + e.target.checked;
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();
+
+    const auto painted_has = [&](const char* text) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), text) != graphics.drawn_texts.end();
+    };
+
+    // Click the checkbox (top-left 13x13 box): toggles on, change fires true.
+    DocumentPipeline::HitTestContext click{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
+    auto r1 = pipeline.dispatch_click(click);
+    EXPECT_TRUE(r1.mutated);
+    EXPECT_TRUE(painted_has("changed:true"));
+
+    // Clicking again toggles back off.
+    auto r2 = pipeline.dispatch_click(click);
+    EXPECT_TRUE(r2.mutated);
+    EXPECT_TRUE(painted_has("changed:false"));
+}
+
 TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {
     const std::string html = R"HTML(
 <!doctype html>

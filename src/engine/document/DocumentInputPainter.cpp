@@ -1,6 +1,7 @@
 #include "engine/document/DocumentInputPainter.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdlib>
 #include <optional>
 #include <string>
@@ -167,11 +168,64 @@ void paint_input_focus_ring(const Layout::Rect& absolute, const Css::ComputedSty
     Layout::PaintUtils::draw_rounded_border_corners(graphics, absolute, corners, kStroke, kFocusRingColor);
 }
 
+// Draws a checkmark inside `box` as two stroked segments (axis-aligned fill_rect
+// dabs stepped along each segment, since that is the only primitive available).
+void draw_checkmark(const Layout::Rect& box, const Color& color, IGraphicsContext& graphics) {
+    const float s = std::min(box.width, box.height);
+    const float dab = std::max(1.5f, s * 0.16f);
+    const auto pt = [&](float fx, float fy) { return Layout::Point{box.x + fx * s, box.y + fy * s}; };
+    const auto stroke = [&](Layout::Point p0, Layout::Point p1) {
+        const int steps = static_cast<int>(std::max(std::fabs(p1.x - p0.x), std::fabs(p1.y - p0.y))) + 1;
+        for (int i = 0; i <= steps; ++i) {
+            const float t = static_cast<float>(i) / static_cast<float>(steps);
+            const float x = p0.x + (p1.x - p0.x) * t;
+            const float y = p0.y + (p1.y - p0.y) * t;
+            graphics.fill_rect({x - dab * 0.5f, y - dab * 0.5f, dab, dab}, color);
+        }
+    };
+    stroke(pt(0.22f, 0.52f), pt(0.42f, 0.72f));  // short down-stroke
+    stroke(pt(0.42f, 0.72f), pt(0.80f, 0.26f));  // long up-stroke
+}
+
+void paint_checkbox_control(const DOM::Element& element, const Layout::RenderObject& node, const Layout::Rect& absolute,
+                            const Layout::Point& local_offset, IGraphicsContext& graphics, bool repaint_background) {
+    if (repaint_background) {
+        Backdrop backdrop = resolve_backdrop(node, absolute);
+        Layout::Rect fill = backdrop.clip ? intersect_rects(absolute, *backdrop.clip) : absolute;
+        if (fill.width > 0.0f && fill.height > 0.0f) {
+            graphics.fill_rect(fill, backdrop.color);
+        }
+        node.paint_self(graphics, local_offset);
+    }
+
+    const bool checked = is_checkbox_checked(element);
+    const Color accent{66, 133, 244, 255};
+    const Color border = checked ? accent : Color{118, 128, 145, 255};
+    const Color interior = checked ? accent : Color{255, 255, 255, 255};
+
+    // 1px border + interior fill: fill the outer box with the border color, then
+    // inset the interior. When checked the whole box is the accent color.
+    graphics.fill_rect(absolute, border);
+    Layout::Rect inner{absolute.x + 1.0f, absolute.y + 1.0f, std::max(0.0f, absolute.width - 2.0f),
+                       std::max(0.0f, absolute.height - 2.0f)};
+    if (inner.width > 0.0f && inner.height > 0.0f) {
+        graphics.fill_rect(inner, interior);
+    }
+    if (checked) {
+        draw_checkmark(absolute, Color{255, 255, 255, 255}, graphics);
+    }
+}
+
 }  // namespace
 
 void paint_input_control(const DOM::Element& element, const Layout::RenderObject& node, const Layout::Rect& absolute,
                          const Layout::Point& local_offset, IGraphicsContext& graphics, bool repaint_background,
                          bool focused, size_t caret, float scroll_y) {
+    // A checkbox renders as a box + checkmark, not as a text field (7.2.6).
+    if (is_checkbox_input_element(&element)) {
+        paint_checkbox_control(element, node, absolute, local_offset, graphics, repaint_background);
+        return;
+    }
     if (repaint_background) {
         Backdrop backdrop = resolve_backdrop(node, absolute);
         Layout::Rect fill = backdrop.clip ? intersect_rects(absolute, *backdrop.clip) : absolute;
