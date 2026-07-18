@@ -210,7 +210,12 @@ void DocumentScriptHost::reset(DOM::Node* root, Core::ArenaAllocator* arena) {
     }
     root_ = root;
     arena_ = arena;
-    mutated_ = false;
+    // A nested dispatch's rebind must preserve the outer dispatch's mutation
+    // epoch — only the outermost bind (depth 0 direct use, or 1 inside a
+    // DispatchScope) starts fresh (T-DISPATCH-REENTRANT-1).
+    if (dispatch_depth_ <= 1) {
+        mutated_ = false;
+    }
 }
 
 void DocumentScriptHost::clear() {
@@ -221,6 +226,11 @@ void DocumentScriptHost::clear() {
 }
 
 bool DocumentScriptHost::consume_mutations() {
+    // A nested dispatch does not drain the flag: the outermost dispatch reports
+    // and clears the accumulated mutations for the whole re-entrant chain.
+    if (dispatch_depth_ >= 2) {
+        return false;
+    }
     bool result = mutated_;
     mutated_ = false;
     return result;

@@ -537,9 +537,12 @@ P0: DOM + Events (North Star)
       reflects the URL bar. Demo filter bar showcases it.)
 
 P0: Scheduling + Invalidation (North Star)
-- [ ] 7.7.1: Re-Entrant Script Dispatch (T-DISPATCH-REENTRANT-1) — prereq for
-      7.3.1 (a timer callback that dispatches an event must not wipe the outer
-      dispatch's mutation flag)
+- [x] 7.7.1: Re-Entrant Script Dispatch (T-DISPATCH-REENTRANT-1) — 2026-07-18
+      (dispatch-depth counter in DocumentScriptHost + a DispatchScope RAII guard
+      around each controller entry point: a nested dispatch shares the outer's
+      mutation epoch — the inner bind_host/reset no longer wipes the outer's
+      `mutated_`, and only the outermost dispatch consumes it. Unblocks 7.3.1
+      timers + 7.7.2. Controller unit tests drive a re-entrant host callback.)
 - [ ] 7.3.1: Task Queue (setTimeout/setInterval)
 - [ ] 7.3.2: Microtask Pump (Promise jobs)
 - [ ] 7.4.1: Batched Dirty Marking Per Task

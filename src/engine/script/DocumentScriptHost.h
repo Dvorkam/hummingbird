@@ -24,6 +24,17 @@ public:
     void clear();
     bool consume_mutations();
 
+    // Brackets one script dispatch so nested dispatches (a host callback that
+    // re-enters the controller — a timer firing an event, JS focus() firing
+    // focus) share the outer dispatch's mutation epoch: the inner reset() must
+    // not wipe the outer's accumulated `mutated_`, and only the outermost
+    // dispatch consumes it (T-DISPATCH-REENTRANT-1, story 7.7.1). Paired via
+    // the controller's DispatchScope RAII guard.
+    void begin_dispatch() { ++dispatch_depth_; }
+    void end_dispatch() {
+        if (dispatch_depth_ > 0) --dispatch_depth_;
+    }
+
     // Notified when JS calls element.focus()/blur(), so the caller can route the
     // request to the input controller's caret target. Persists across reset().
     using FocusSink = std::function<void(DOM::Element*, bool /*focused*/)>;
@@ -94,6 +105,7 @@ private:
     DOM::Node* root_ = nullptr;
     Core::ArenaAllocator* arena_ = nullptr;
     bool mutated_ = false;
+    int dispatch_depth_ = 0;  // >1 while a dispatch is nested inside another
     FocusSink focus_sink_;
 
     // Nodes created by script but not yet attached, plus nodes removed from the

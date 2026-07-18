@@ -17,6 +17,21 @@
 namespace Hummingbird::Engine {
 
 namespace {
+// RAII: brackets one script dispatch. Nested dispatches (a host callback that
+// re-enters the controller) share the outer dispatch's mutation epoch, so the
+// inner bind_host's reset does not wipe the outer's accumulated mutated flag
+// and only the outermost dispatch consumes it (T-DISPATCH-REENTRANT-1, 7.7.1).
+class DispatchScope {
+public:
+    explicit DispatchScope(DocumentScriptHost& host) : host_(host) { host_.begin_dispatch(); }
+    ~DispatchScope() { host_.end_dispatch(); }
+    DispatchScope(const DispatchScope&) = delete;
+    DispatchScope& operator=(const DispatchScope&) = delete;
+
+private:
+    DocumentScriptHost& host_;
+};
+
 std::optional<std::string> resolve_onclick_handler(const DOM::Node* node) {
     const DOM::Node* current = node;
     while (current) {
@@ -75,6 +90,7 @@ void DocumentScriptController::set_location(std::string_view url) {
 DocumentScriptController::ScriptDispatchResult DocumentScriptController::navigate_fragment(DOM::Node* dom_root,
                                                                                            Core::ArenaAllocator* arena,
                                                                                            std::string_view url) {
+    DispatchScope scope(script_host_);
     // Bind the host so a hashchange listener's DOM mutations are captured.
     if (!bind_host(dom_root, arena) || !script_engine_) {
         return {};
@@ -100,6 +116,7 @@ bool DocumentScriptController::run_scripts(const std::vector<ScriptSource>& scri
     if (scripts.empty()) {
         return false;
     }
+    DispatchScope scope(script_host_);
     if (!bind_host(dom_root, arena)) {
         return false;
     }
@@ -120,6 +137,7 @@ bool DocumentScriptController::run_scripts(const std::vector<ScriptSource>& scri
 DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_click(
     DOM::Node* dom_root, Core::ArenaAllocator* arena, const Layout::RenderObject* render_tree,
     const Layout::Rect& viewport, const Layout::Point& point, float scroll_y, int click_count) {
+    DispatchScope scope(script_host_);
     if (!bind_host(dom_root, arena)) {
         return {};
     }
@@ -188,6 +206,7 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatc
 
 DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_dom_event(
     DOM::Node* dom_root, Core::ArenaAllocator* arena, DOM::Node* target, const ScriptDomEvent& event) {
+    DispatchScope scope(script_host_);
     if (!target || !bind_host(dom_root, arena) || !script_engine_) {
         return {};
     }
@@ -212,6 +231,7 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::eval_in
     if (script.empty()) {
         return {};
     }
+    DispatchScope scope(script_host_);
     if (!bind_host(dom_root, arena)) {
         return {};
     }

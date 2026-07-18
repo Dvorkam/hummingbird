@@ -58,6 +58,7 @@ add_executable(HummingbirdTests
     engine/DocumentPainter.test.cpp
     engine/ResourceLoader.test.cpp
     engine/ScriptHost.test.cpp
+    engine/ScriptController.test.cpp
     platform/ResourceProvider.test.cpp
     platform/ImageDecoder.test.cpp
     platform/ScriptEngine.test.cpp
