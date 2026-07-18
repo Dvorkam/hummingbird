@@ -439,7 +439,12 @@ P0: DOM + Events (North Star)
       stopPropagation/stopImmediatePropagation + eventPhase. `document` is now an
       EventTarget (sentinel key) so delegation works — listener order verified for
       nested capture/bubble, incl. document catching a bubbled event.)
-- [ ] 7.2.4.1: Dispatch spine + pointer events (click, dblclick) — `IScriptEngine::dispatch_dom_event` seam
+- [x] 7.2.4.1: Dispatch spine + pointer events (click, dblclick) — 2026-07-18
+      (`IScriptEngine::dispatch_dom_event(target, {type,bubbles,cancelable,key,code})→bool`
+      seam; threaded controller→scripting→pipeline→tab→app router; real click hit-tests
+      the topmost node and dispatches a bubbling/cancelable `click` (+`dblclick` on
+      double, via SDL button.clicks); preventDefault reported up and gates link nav.
+      Delegation + dblclick + preventDefault verified through the real pipeline.)
 - [ ] 7.2.4.2: Keyboard events (keydown, keyup) on the focused element
 - [ ] 7.2.4.3: Form input lifecycle (input, change, focus, blur)
 - [ ] 7.2.4.4: Submit event + preventDefault stops navigation

@@ -38,6 +38,7 @@ public:
         Layout::Rect viewport;
         std::string_view base_url;
         float scroll_y = 0.0f;
+        int click_count = 1;  // 2 on a double-click (drives the dblclick event)
     };
 
     struct PaintContext {
@@ -55,6 +56,7 @@ public:
     struct ScriptDispatchResult {
         bool handled = false;
         bool mutated = false;
+        bool default_prevented = false;
     };
 
     DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider, IImageDecoder* image_decoder,

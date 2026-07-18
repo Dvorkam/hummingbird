@@ -41,10 +41,11 @@ bool DocumentScripting::run_document_scripts(DocumentModel& model, const Externa
 }
 
 DocumentScripting::DispatchResult DocumentScripting::dispatch_click(DocumentModel& model, const Layout::Rect& viewport,
-                                                                    const Layout::Point& point, float scroll_y) {
+                                                                    const Layout::Point& point, float scroll_y,
+                                                                    int click_count) {
     auto result = controller_->dispatch_click(model.dom_root(), model.dom_arena(), model.render_tree(), viewport, point,
-                                              scroll_y);
-    return {result.handled, result.mutated};
+                                              scroll_y, click_count);
+    return {result.handled, result.mutated, result.default_prevented};
 }
 
 DocumentScripting::DispatchResult DocumentScripting::dispatch_load(DocumentModel& model) {

@@ -40,6 +40,7 @@ public:
     struct ClickResult {
         bool handled = false;
         bool mutated = false;
+        bool default_prevented = false;  // a JS click listener called preventDefault
     };
     Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
@@ -71,7 +72,8 @@ public:
     // F1 debug inspection: describe the topmost element under the point
     // (T-DEBUG-INSPECT-1).
     std::optional<std::string> inspect_at(const Layout::Point& point, const Layout::Rect& viewport) const;
-    ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics);
+    ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics,
+                               int click_count = 1);
     std::optional<FormSubmission> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport);
     bool clear_input_focus();

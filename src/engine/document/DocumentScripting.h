@@ -16,6 +16,7 @@ public:
     struct DispatchResult {
         bool handled = false;
         bool mutated = false;
+        bool default_prevented = false;
     };
 
     explicit DocumentScripting(ScriptEnginePtr script_engine);
@@ -31,7 +32,7 @@ public:
     // interleaved (classic-script semantics, 7.0.1 MVP).
     bool run_document_scripts(DocumentModel& model, const ExternalScriptLookup& external_lookup);
     DispatchResult dispatch_click(DocumentModel& model, const Layout::Rect& viewport, const Layout::Point& point,
-                                  float scroll_y);
+                                  float scroll_y, int click_count = 1);
     DispatchResult dispatch_load(DocumentModel& model);
 
 private:

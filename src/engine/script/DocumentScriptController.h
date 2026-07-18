@@ -26,6 +26,7 @@ public:
     struct ScriptDispatchResult {
         bool handled = false;
         bool mutated = false;
+        bool default_prevented = false;  // a listener called preventDefault
     };
 
     // One script body ready to eval; views must stay valid for the run_scripts
@@ -42,7 +43,7 @@ public:
     bool run_scripts(const std::vector<ScriptSource>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);
     ScriptDispatchResult dispatch_click(DOM::Node* dom_root, Core::ArenaAllocator* arena,
                                         const Layout::RenderObject* render_tree, const Layout::Rect& viewport,
-                                        const Layout::Point& point, float scroll_y);
+                                        const Layout::Point& point, float scroll_y, int click_count = 1);
     ScriptDispatchResult dispatch_load(DOM::Node* dom_root, Core::ArenaAllocator* arena);
 
 private:

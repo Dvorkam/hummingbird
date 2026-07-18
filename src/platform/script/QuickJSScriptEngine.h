@@ -27,6 +27,7 @@ public:
     void bind_extension_host(IExtensionApiHost* host) override;
     ScriptEvalResult eval(std::string_view source, std::string_view filename) override;
     void reset_bindings() override;
+    bool dispatch_dom_event(DOM::Node* target, const ScriptDomEvent& event) override;
 
 private:
     static QuickJSScriptEngine* engine_from_context(JSContext* ctx);

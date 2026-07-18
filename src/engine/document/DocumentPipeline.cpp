@@ -69,8 +69,9 @@ void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_click(const HitTestContext& context) {
-    auto result = scripting_->dispatch_click(*model_, context.viewport, context.point, context.scroll_y);
-    return {result.handled, result.mutated};
+    auto result =
+        scripting_->dispatch_click(*model_, context.viewport, context.point, context.scroll_y, context.click_count);
+    return {result.handled, result.mutated, result.default_prevented};
 }
 
 DocumentPipeline::ScriptDispatchResult DocumentPipeline::dispatch_load() {

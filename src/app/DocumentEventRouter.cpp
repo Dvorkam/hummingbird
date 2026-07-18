@@ -55,7 +55,7 @@ void DocumentEventRouter::handle_mouse_down(const Hummingbird::InputEvent& event
             HB_LOG_INFO("[inspect] " << *info);
         }
     }
-    auto click_result = tab.dispatch_click(point, viewport, *graphics_);
+    auto click_result = tab.dispatch_click(point, viewport, *graphics_, event.mouse_button.clicks);
     if (click_result.mutated) {
         render_.set_document_dirty();
     }
@@ -82,6 +82,11 @@ void DocumentEventRouter::handle_mouse_down(const Hummingbird::InputEvent& event
         }
     }
     if (now_focused) {
+        return;
+    }
+    // A JS click listener that called preventDefault suppresses the default
+    // action (link navigation / form submit).
+    if (click_result.default_prevented) {
         return;
     }
     (void)handle_document_hit_navigation(point, viewport);

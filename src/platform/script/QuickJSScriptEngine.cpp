@@ -887,6 +887,23 @@ JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst
     return JS_NewBool(ctx, not_canceled ? 1 : 0);
 }
 
+bool QuickJSScriptEngine::dispatch_dom_event(DOM::Node* target, const ScriptDomEvent& event) {
+    if (!context_ || !target) return true;
+    JSValue js_event = make_event(event.type, target);
+    JS_SetPropertyStr(context_, js_event, "bubbles", JS_NewBool(context_, event.bubbles ? 1 : 0));
+    JS_SetPropertyStr(context_, js_event, "cancelable", JS_NewBool(context_, event.cancelable ? 1 : 0));
+    if (!event.key.empty()) {
+        JS_SetPropertyStr(context_, js_event, "key", JS_NewString(context_, event.key.c_str()));
+    }
+    if (!event.code.empty()) {
+        JS_SetPropertyStr(context_, js_event, "code", JS_NewString(context_, event.code.c_str()));
+    }
+    dispatch_event(target, event.type, js_event);
+    const bool not_canceled = !event_flag(js_event, "defaultPrevented");
+    JS_FreeValue(context_, js_event);
+    return not_canceled;
+}
+
 JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /*this_val*/, int argc,
                                                   JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);

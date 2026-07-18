@@ -283,6 +283,103 @@ TEST(DocumentPipelineTest, DispatchesClickHandler) {
     EXPECT_TRUE(result.mutated);
 }
 
+TEST(DocumentPipelineTest, ClickDelegationAndDblclickThroughDispatch) {
+    // A click listener on the container fires for a click on its child (bubbling),
+    // and a double-click routes a dblclick event (7.2.4.1).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>
+    body { margin: 0; padding: 0; }
+    div, button, p { display: block; }
+  </style></head>
+  <body>
+    <div id="list"><button id="btn">X</button></div>
+    <p id="status">idle</p>
+    <script>
+      document.getElementById('list').addEventListener('click', function() {
+        document.getElementById('status').textContent = 'clickeddelegated';
+      });
+      document.getElementById('list').addEventListener('dblclick', function() {
+        document.getElementById('status').textContent = 'doubleclicked';
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();  // registers the delegated listeners (no DOM mutation, so ignore the flag)
+
+    const auto painted_has = [&](const char* text) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), text) != graphics.drawn_texts.end();
+    };
+
+    // Single click over the button (top-left) bubbles up to #list.
+    DocumentPipeline::HitTestContext single{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
+    auto r1 = pipeline.dispatch_click(single);
+    EXPECT_TRUE(r1.mutated);
+    EXPECT_TRUE(painted_has("clickeddelegated"));
+
+    // Double click additionally fires dblclick.
+    DocumentPipeline::HitTestContext dbl{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 2};
+    auto r2 = pipeline.dispatch_click(dbl);
+    EXPECT_TRUE(r2.mutated);
+    EXPECT_TRUE(painted_has("doubleclicked"));
+}
+
+TEST(DocumentPipelineTest, ClickPreventDefaultIsReported) {
+    // A click listener that calls preventDefault is reported so the caller can
+    // suppress the default action (link navigation).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>
+    body { margin: 0; padding: 0; }
+    a { display: block; }
+  </style></head>
+  <body>
+    <a id="lnk" href="/next">Link</a>
+    <script>
+      document.getElementById('lnk').addEventListener('click', function(e) { e.preventDefault(); });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();
+
+    DocumentPipeline::HitTestContext ctx{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
+    auto result = pipeline.dispatch_click(ctx);
+    EXPECT_TRUE(result.default_prevented);
+}
+
 TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {
     const std::string html = R"HTML(
 <!doctype html>

@@ -176,14 +176,16 @@ std::optional<std::string> Tab::inspect_at(const Layout::Point& point, const Lay
 }
 
 Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
-                                     IGraphicsContext& graphics) {
-    auto result = document_pipeline_->dispatch_click(
-        make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y));
+                                     IGraphicsContext& graphics, int click_count) {
+    auto context =
+        make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y);
+    context.click_count = click_count;
+    auto result = document_pipeline_->dispatch_click(context);
     if (result.mutated) {
         (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation");
         mark_dirty();
     }
-    return {result.handled, result.mutated};
+    return {result.handled, result.mutated, result.default_prevented};
 }
 
 std::optional<FormSubmission> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {

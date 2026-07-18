@@ -94,6 +94,7 @@ struct InputEvent {
         int x{0};
         int y{0};
         MouseButton button{MouseButton::Unknown};
+        int clicks{1};  // 1 = single, 2 = double (SDL button.clicks)
     } mouse_button{};
 
     struct {

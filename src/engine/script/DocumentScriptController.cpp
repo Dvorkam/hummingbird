@@ -97,19 +97,50 @@ bool DocumentScriptController::run_scripts(const std::vector<ScriptSource>& scri
 
 DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_click(
     DOM::Node* dom_root, Core::ArenaAllocator* arena, const Layout::RenderObject* render_tree,
-    const Layout::Rect& viewport, const Layout::Point& point, float scroll_y) {
-    auto handler = HitTest::hit_test_z_order<std::string>(
-        render_tree, point, viewport, scroll_y,
-        [&](const Layout::RenderObject& node) { return resolve_onclick_handler(node.get_dom_node()); });
-
-    if (!handler) {
+    const Layout::Rect& viewport, const Layout::Point& point, float scroll_y, int click_count) {
+    if (!bind_host(dom_root, arena)) {
         return {};
     }
 
-    std::string wrapped = "(function(){";
-    wrapped.append(*handler);
-    wrapped.append("})();");
-    return eval_inline_script(dom_root, arena, wrapped, "onclick");
+    // The event target is the topmost DOM node under the cursor.
+    auto target = HitTest::hit_test_z_order<DOM::Node*>(
+        render_tree, point, viewport, scroll_y, [](const Layout::RenderObject& node) -> std::optional<DOM::Node*> {
+            if (const auto* dom = node.get_dom_node()) {
+                return const_cast<DOM::Node*>(dom);
+            }
+            return std::nullopt;
+        });
+
+    bool default_prevented = false;
+    if (target && script_engine_) {
+        // A real DOM click (bubbling, cancelable): addEventListener('click') runs
+        // through the full capture/target/bubble pipeline; preventDefault cancels
+        // the default action (link navigation, handled by the caller).
+        if (!script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"click", true, true, "", ""})) {
+            default_prevented = true;
+        }
+        if (click_count >= 2) {
+            script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"dblclick", true, true, "", ""});
+        }
+    }
+
+    // Legacy inline onclick="" attribute handler (walks ancestors for the nearest).
+    bool handled = false;
+    auto handler = HitTest::hit_test_z_order<std::string>(
+        render_tree, point, viewport, scroll_y,
+        [&](const Layout::RenderObject& node) { return resolve_onclick_handler(node.get_dom_node()); });
+    if (handler && script_engine_) {
+        std::string wrapped = "(function(){";
+        wrapped.append(*handler);
+        wrapped.append("})();");
+        auto result = script_engine_->eval(wrapped, "onclick");
+        if (!result.ok) {
+            HB_LOG_WARN("[script] onclick eval failed: " << result.error);
+        }
+        handled = true;
+    }
+
+    return {handled, script_host_.consume_mutations(), default_prevented};
 }
 
 DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_load(DOM::Node* dom_root,

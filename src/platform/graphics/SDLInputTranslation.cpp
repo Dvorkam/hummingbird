@@ -87,6 +87,7 @@ bool translate_mouse_button_event(const SDL_Event& e, InputEvent& out, EventType
     out.mouse_button.x = e.button.x;
     out.mouse_button.y = e.button.y;
     out.mouse_button.button = to_mouse_button(e.button.button);
+    out.mouse_button.clicks = e.button.clicks;  // 2 on the second click of a double
     return true;
 }
 
