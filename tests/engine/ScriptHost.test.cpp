@@ -109,6 +109,28 @@ TEST(DocumentScriptHostTest, RemoveThenReinsertKeepsNodeValid) {
     EXPECT_EQ(host.get_text_content(root.get()), "keep");
 }
 
+TEST(DocumentScriptHostTest, DetachedNodesSurviveRebindToSameDocument) {
+    ArenaAllocator arena(4096, 4);
+    auto root = Element::create(arena, "ul");
+    DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto* li = host.create_element("li");
+    host.append_child(li, host.create_text_node("keep"));
+    host.append_child(root.get(), li);
+    EXPECT_EQ(host.remove_child(root.get(), li), li);
+
+    // Every event dispatch rebinds the host (bind_host -> reset). Rebinding to
+    // the same document must not destroy detached nodes: JS may still hold a
+    // wrapper and re-insert the node in a later handler (todo.js's delete +
+    // undo pattern; "removal detaches, never frees").
+    host.reset(root.get(), &arena);
+    EXPECT_EQ(host.get_text_content(li), "keep");
+    EXPECT_EQ(host.append_child(root.get(), li), li);
+    ASSERT_EQ(root->get_children().size(), 1u);
+    EXPECT_EQ(host.get_text_content(root.get()), "keep");
+}
+
 TEST(DocumentScriptHostTest, AppendMovesNodeFromOldParent) {
     ArenaAllocator arena(4096, 4);
     auto root = Element::create(arena, "div");

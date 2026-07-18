@@ -24,7 +24,10 @@ freed** — the arena is only ever reset wholesale on navigation. So:
 
 - Removing a node from the tree **detaches** it (parent link cleared, `ArenaPtr`
   moved into `detached_`). Its storage stays valid, so JS can re-insert the same
-  node object later (`RemoveThenReinsertKeepsNodeValid`).
+  node object later (`RemoveThenReinsertKeepsNodeValid`) — including in a *later*
+  event dispatch: rebinding the host to the same document preserves `detached_`
+  (`DetachedNodesSurviveRebindToSameDocument`); only an actual document change
+  drops it.
 - `ArenaDeleter` runs the destructor (via `std::destroy_at`) but returns no
   memory; `Node`'s virtual destructor makes destroying through `ArenaPtr<Node>`
   correct for `Element`/`Text` subclasses.

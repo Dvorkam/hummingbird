@@ -200,12 +200,17 @@ DocumentScriptHost::DocumentScriptHost() = default;
 DocumentScriptHost::~DocumentScriptHost() = default;
 
 void DocumentScriptHost::reset(DOM::Node* root, Core::ArenaAllocator* arena) {
+    // Rebinding to the same live document (every event dispatch does this via
+    // bind_host) must keep the detached set: JS may still hold wrappers to
+    // removed nodes and re-insert them later — "removal detaches, never frees"
+    // (doc/dev_guide/dom_arena_ownership.md). Only an actual document change
+    // may drop them (their arena is torn down via clear() on navigation).
+    if (root != root_ || arena != arena_) {
+        detached_.clear();
+    }
     root_ = root;
     arena_ = arena;
     mutated_ = false;
-    // Detached nodes from a previous document point into an arena that is about
-    // to be (or has been) reset; drop them so no stale pointer survives.
-    detached_.clear();
 }
 
 void DocumentScriptHost::clear() {

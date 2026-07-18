@@ -76,16 +76,26 @@ DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvi
       style_coordinator_(std::make_unique<DocumentStyleCoordinator>(*model_, *resources_)),
       scripting_(std::make_unique<DocumentScripting>(std::move(script_engine))) {
     // Bridge JS focus()/blur() to the input controller's caret target (7.2.6).
-    scripting_->set_focus_sink(
-        [this](DOM::Element* element, bool focused) { interaction_->apply_script_focus(element, focused); });
+    scripting_->set_focus_sink([this](DOM::Element* element, bool focused) {
+        interaction_->apply_script_focus(element, focused);
+        // Keep the change-detection baseline in sync: a later blur compares the
+        // field's value against this snapshot to decide whether `change` fires.
+        // (Dispatching focus/blur events from here is T-FOCUS-EVENTS-FROM-JS-1 —
+        // blocked on making event dispatch re-entrant.)
+        const DOM::Element* focused_now = interaction_->input_controller().focused_element();
+        focus_snapshot_value_ = focused_now ? input_value(*focused_now) : std::string{};
+    });
 }
 
 DocumentPipeline::~DocumentPipeline() = default;
 
 void DocumentPipeline::reset() {
-    model_->reset();
-    interaction_->reset();
+    // Scripting teardown must run while the DOM arena is still alive: it
+    // destroys the host's detached nodes (whose storage lives in the arena)
+    // and neutralizes JS wrappers before model_->reset() frees the arena.
     scripting_->reset();
+    interaction_->reset();
+    model_->reset();
     renderer_->reset();
 }
 

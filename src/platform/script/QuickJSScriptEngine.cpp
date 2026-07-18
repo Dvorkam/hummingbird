@@ -696,9 +696,11 @@ JSValue QuickJSScriptEngine::js_string_map_get(JSContext* ctx, JSValueConst obj,
 int QuickJSScriptEngine::js_string_map_set(JSContext* ctx, JSValueConst obj, JSAtom atom, JSValueConst value,
                                            JSValueConst /*receiver*/, int /*flags*/) {
     auto* engine = engine_from_context(ctx);
-    if (!engine || !engine->host_) return -1;
+    // Fail soft (returning -1 signals an exception, which we never throw here):
+    // report the assignment as handled and drop it.
+    if (!engine || !engine->host_) return 1;
     auto* node = engine->node_from_opaque(obj, engine->string_map_class_id_);
-    if (!node) return -1;
+    if (!node) return 1;
     const char* key = JS_AtomToCString(ctx, atom);
     const char* val = JS_ToCString(ctx, value);
     if (node && key && val) {
@@ -890,6 +892,11 @@ void QuickJSScriptEngine::dispatch_event(DOM::Node* target, const std::string& t
             invoke_listeners(path[i], type, event, DispatchPhase::Bubble);
         }
     }
+
+    // Post-dispatch state per spec: phase NONE, no current target. Matters for
+    // handlers that stash the event object and read it later.
+    JS_SetPropertyStr(context_, event, "eventPhase", JS_NewInt32(context_, 0));
+    JS_SetPropertyStr(context_, event, "currentTarget", JS_NULL);
 }
 
 JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst this_val, int argc,
