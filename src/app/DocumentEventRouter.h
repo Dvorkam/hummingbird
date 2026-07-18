@@ -8,6 +8,10 @@ class IWindow;
 struct InputEvent;
 }  // namespace Hummingbird
 
+namespace Hummingbird::Engine {
+struct FormSubmission;
+}
+
 namespace Hummingbird::App {
 
 class BrowserApp;
@@ -31,6 +35,9 @@ private:
                                         const Hummingbird::Layout::Rect& viewport);
     // Rebuilds + repaints the document after a JS event listener mutated the DOM.
     void rebuild_after_script_mutation();
+    // Fires the DOM `submit` event; navigates only if no listener called
+    // preventDefault. Returns true if a navigation was started.
+    bool submit_or_navigate(const Hummingbird::Engine::FormSubmission& submission);
 
     BrowserApp& app_;
     BrowserChrome& chrome_;

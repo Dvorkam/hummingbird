@@ -123,6 +123,13 @@ public:
     InputEditResult handle_key_up(const InputEvent& event);
     std::optional<std::string> focused_input_value() const;
 
+    struct SubmitDispatchResult {
+        bool default_prevented = false;  // a submit listener called preventDefault
+        bool mutated = false;
+    };
+    // Fires a cancelable DOM `submit` on the form before it navigates (7.2.4.4).
+    SubmitDispatchResult dispatch_submit(const DOM::Element* form);
+
 private:
     struct KeyDispatchResult {
         bool mutated = false;

@@ -541,6 +541,54 @@ TEST(DocumentPipelineTest, FormInputLifecycleEvents) {
     EXPECT_TRUE(painted_has("change+blur"));
 }
 
+TEST(DocumentPipelineTest, SubmitEventPreventDefaultReported) {
+    // A submit listener that calls preventDefault is reported so the caller can
+    // suppress the navigation (7.2.4.4).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } form, input, button { display: block; } </style></head>
+  <body>
+    <form id="f" action="/submit">
+      <button id="go" type="submit">Go</button>
+      <input id="q" value="hello">
+    </form>
+    <script>
+      document.getElementById('f').addEventListener('submit', function(e) {
+        e.preventDefault();
+        document.getElementById('q').setAttribute('data-submitted', '1');
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();
+
+    // A click on the submit button produces a FormSubmission carrying the form.
+    DocumentPipeline::HitTestContext click{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
+    auto submission = pipeline.submit_form_at(click);
+    ASSERT_TRUE(submission.has_value());
+    ASSERT_NE(submission->form_element, nullptr);
+
+    // Firing the submit event: the listener cancels it.
+    auto result = pipeline.dispatch_submit(submission->form_element);
+    EXPECT_TRUE(result.default_prevented);
+    EXPECT_TRUE(result.mutated);  // the handler also set an attribute
+}
+
 TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {
     const std::string html = R"HTML(
 <!doctype html>

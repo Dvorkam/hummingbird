@@ -43,6 +43,10 @@ public:
         bool mutated = false;
         bool default_prevented = false;  // a JS click listener called preventDefault
     };
+    struct SubmitResult {
+        bool default_prevented = false;  // a JS submit listener called preventDefault
+        bool mutated = false;
+    };
     Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
         std::unique_ptr<IScriptEngine> script_engine);
@@ -85,6 +89,7 @@ public:
     bool handle_text_input(std::string_view text);
     KeyResult handle_key_down(const InputEvent& event);
     KeyResult handle_key_up(const InputEvent& event);
+    SubmitResult dispatch_submit(const DOM::Element* form);
     std::optional<std::string> focused_input_value() const;
 
     std::optional<std::string> consume_navigation_commit_url();

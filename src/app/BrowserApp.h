@@ -16,7 +16,7 @@ struct InputEvent;
 
 namespace Hummingbird::Engine {
 class ExtensionHost;
-class FormSubmission;
+struct FormSubmission;  // defined as a struct in engine/forms/FormSubmission.h
 class Tab;
 }  // namespace Hummingbird::Engine
 

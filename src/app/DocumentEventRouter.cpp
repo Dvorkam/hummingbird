@@ -30,6 +30,19 @@ void DocumentEventRouter::rebuild_after_script_mutation() {
     }
 }
 
+bool DocumentEventRouter::submit_or_navigate(const Hummingbird::Engine::FormSubmission& submission) {
+    // Fire the DOM `submit` first; a listener may cancel the default navigation.
+    auto submit = app_.active_tab().dispatch_submit(submission.form_element);
+    if (submit.mutated) {
+        rebuild_after_script_mutation();
+    }
+    if (submit.default_prevented) {
+        return false;
+    }
+    app_.navigate_and_reflect_submission(submission);
+    return true;
+}
+
 bool DocumentEventRouter::handle_key_down(const Hummingbird::InputEvent& event) {
     auto tab_result = app_.active_tab().handle_key_down(event);
     // A JS keydown listener may have mutated the DOM (e.g. TodoMVC's Enter-to-add).
@@ -37,7 +50,7 @@ bool DocumentEventRouter::handle_key_down(const Hummingbird::InputEvent& event) 
         rebuild_after_script_mutation();
     }
     if (tab_result.submitted_form) {
-        app_.navigate_and_reflect_submission(*tab_result.submitted_form);
+        submit_or_navigate(*tab_result.submitted_form);
     }
     if (tab_result.needs_repaint) {
         render_.set_controls_dirty();
@@ -130,7 +143,7 @@ bool DocumentEventRouter::handle_document_hit_navigation(const Hummingbird::Layo
         HB_LOG_DEBUG("[input] submit hit method="
                      << (submit->method == Hummingbird::Engine::FormSubmitMethod::Post ? "POST" : "GET")
                      << " url=" << submit->url);
-        app_.navigate_and_reflect_submission(*submit);
+        submit_or_navigate(*submit);
         return true;
     }
 

@@ -304,6 +304,15 @@ DocumentPipeline::InputEditResult DocumentPipeline::handle_key_up(const InputEve
     return {dom.mutated, dom.mutated, dom.mutated, std::nullopt};
 }
 
+DocumentPipeline::SubmitDispatchResult DocumentPipeline::dispatch_submit(const DOM::Element* form) {
+    if (!form) {
+        return {};
+    }
+    auto result = dispatch_element_event(const_cast<DOM::Element*>(form), "submit", /*bubbles*/ true,
+                                         /*cancelable*/ true);
+    return {result.default_prevented, result.mutated};
+}
+
 std::optional<std::string> DocumentPipeline::focused_input_value() const {
     return interaction_->focused_input_value();
 }

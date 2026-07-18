@@ -238,6 +238,11 @@ Tab::KeyResult Tab::handle_key_up(const InputEvent& event) {
     return {result.mutated, result.needs_repaint, result.mutated, std::move(result.submitted_form)};
 }
 
+Tab::SubmitResult Tab::dispatch_submit(const DOM::Element* form) {
+    auto result = document_pipeline_->dispatch_submit(form);
+    return {result.default_prevented, result.mutated};
+}
+
 std::optional<std::string> Tab::focused_input_value() const {
     return document_pipeline_->focused_input_value();
 }

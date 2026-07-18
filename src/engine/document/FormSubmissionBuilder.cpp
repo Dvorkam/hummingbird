@@ -194,6 +194,7 @@ std::optional<FormSubmission> build_form_submission_from_dom(const DOM::Node* do
     FormSubmission submission;
     submission.method = form_method;
     submission.content_type = "application/x-www-form-urlencoded";
+    submission.form_element = form;  // target of the DOM `submit` event (7.2.4.4)
     if (form_method == FormSubmitMethod::Post) {
         submission.url = std::move(resolved_action);
         submission.body = std::move(encoded_fields);
