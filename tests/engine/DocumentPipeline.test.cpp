@@ -3,8 +3,10 @@
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <fstream>
 #include <functional>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <unordered_set>
@@ -587,6 +589,63 @@ TEST(DocumentPipelineTest, SubmitEventPreventDefaultReported) {
     auto result = pipeline.dispatch_submit(submission->form_element);
     EXPECT_TRUE(result.default_prevented);
     EXPECT_TRUE(result.mutated);  // the handler also set an attribute
+}
+
+TEST(DocumentPipelineTest, TodoDemoAssetsDriveTheFullFlow) {
+    // End-to-end check of the shipped interactive demo (assets/stub/pages/todo.*):
+    // the external script builds the seeded list, and Enter adds a new todo.
+    const auto read_file = [](const std::string& path) {
+        std::ifstream file(path, std::ios::binary);
+        std::stringstream ss;
+        ss << file.rdbuf();
+        return ss.str();
+    };
+    const std::string html = read_file("assets/stub/pages/todo.html");
+    const std::string js = read_file("assets/stub/pages/todo.js");
+    ASSERT_FALSE(html.empty()) << "todo.html not found (run tests from the repo root)";
+    ASSERT_FALSE(js.empty()) << "todo.js not found";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 800, 600};
+    const std::string base = "https://example.dev/todo";
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, base);
+    // Provide the external todo.js body the way the resource pipeline would.
+    pipeline.run_scripts([&](std::string_view src) -> std::optional<std::string_view> {
+        if (src == "assets/stub/pages/todo.js") return std::string_view(js);
+        return std::nullopt;
+    });
+
+    const auto painted_has = [&](const char* text) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, base);
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), text) != graphics.drawn_texts.end();
+    };
+
+    // The external script seeded two todos via createElement/appendChild.
+    EXPECT_TRUE(painted_has("Click a task to cross it off"));
+    EXPECT_TRUE(painted_has("Type below and press Enter to add"));
+
+    // The input autofocuses; type a task and press Enter to add it.
+    ASSERT_TRUE(pipeline.focus_autofocus_input());
+    pipeline.handle_text_input("Buy milk");
+
+    Hummingbird::InputEvent enter{};
+    enter.type = Hummingbird::EventType::KeyDown;
+    enter.key.key = Hummingbird::Key::Enter;
+    auto result = pipeline.handle_key_down(enter, base);
+    EXPECT_TRUE(result.mutated);  // the keydown listener added a todo
+
+    EXPECT_TRUE(painted_has("Buy milk"));
 }
 
 TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {
