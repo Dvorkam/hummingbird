@@ -28,6 +28,24 @@ DOM::Node* QuickJSScriptEngine::node_from_opaque(JSValueConst value, JSClassID c
     return static_cast<DOM::Node*>(JS_GetOpaque(value, class_id));
 }
 
+DOM::Node* QuickJSScriptEngine::document_target() {
+    return reinterpret_cast<DOM::Node*>(&document_target_marker_);
+}
+
+DOM::Node* QuickJSScriptEngine::resolve_event_target(JSValueConst this_val) {
+    // A node wrapper resolves to its node; the plain `document` object (not a
+    // node wrapper) resolves to the document sentinel.
+    DOM::Node* node = node_from_value(this_val);
+    return node ? node : document_target();
+}
+
+JSValue QuickJSScriptEngine::event_target_value(DOM::Node* target) {
+    if (target == document_target()) {
+        return JS_DupValue(context_, document_object_);
+    }
+    return wrap_node(target);
+}
+
 JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv) {
     std::string message;
     for (int i = 0; i < argc; ++i) {
@@ -662,9 +680,8 @@ bool QuickJSScriptEngine::read_capture_flag(JSValueConst options) const {
 JSValue QuickJSScriptEngine::js_node_add_event_listener(JSContext* ctx, JSValueConst this_val, int argc,
                                                         JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
-    if (!engine || argc < 2) return JS_UNDEFINED;
-    DOM::Node* node = engine->node_from_value(this_val);
-    if (!node || !JS_IsFunction(ctx, argv[1])) return JS_UNDEFINED;
+    if (!engine || argc < 2 || !JS_IsFunction(ctx, argv[1])) return JS_UNDEFINED;
+    DOM::Node* node = engine->resolve_event_target(this_val);
     const char* type = JS_ToCString(ctx, argv[0]);
     if (!type) return JS_UNDEFINED;
     const bool capture = argc >= 3 ? engine->read_capture_flag(argv[2]) : false;
@@ -686,8 +703,7 @@ JSValue QuickJSScriptEngine::js_node_remove_event_listener(JSContext* ctx, JSVal
                                                            JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
     if (!engine || argc < 2) return JS_UNDEFINED;
-    DOM::Node* node = engine->node_from_value(this_val);
-    if (!node) return JS_UNDEFINED;
+    DOM::Node* node = engine->resolve_event_target(this_val);
     const char* type = JS_ToCString(ctx, argv[0]);
     if (!type) return JS_UNDEFINED;
     const bool capture = argc >= 3 ? engine->read_capture_flag(argv[2]) : false;
@@ -739,8 +755,9 @@ bool QuickJSScriptEngine::event_flag(JSValueConst event, const char* name) const
 JSValue QuickJSScriptEngine::make_event(const std::string& type, DOM::Node* target) {
     JSValue event = JS_NewObject(context_);
     JS_SetPropertyStr(context_, event, "type", JS_NewString(context_, type.c_str()));
-    JS_SetPropertyStr(context_, event, "target", wrap_node(target));
+    JS_SetPropertyStr(context_, event, "target", event_target_value(target));
     JS_SetPropertyStr(context_, event, "currentTarget", JS_NULL);
+    JS_SetPropertyStr(context_, event, "eventPhase", JS_NewInt32(context_, 0));
     JS_SetPropertyStr(context_, event, "defaultPrevented", JS_FALSE);
     JS_SetPropertyStr(context_, event, "bubbles", JS_FALSE);
     JS_SetPropertyStr(context_, event, "cancelable", JS_TRUE);
@@ -755,20 +772,25 @@ JSValue QuickJSScriptEngine::make_event(const std::string& type, DOM::Node* targ
     return event;
 }
 
-void QuickJSScriptEngine::invoke_listeners(DOM::Node* node, const std::string& type, JSValueConst event) {
+void QuickJSScriptEngine::invoke_listeners(DOM::Node* node, const std::string& type, JSValueConst event,
+                                           DispatchPhase phase) {
     auto it = listeners_.find(node);
     if (it == listeners_.end()) return;
 
     // Snapshot the matching callbacks (with an owned ref each) so a handler that
     // adds or removes listeners mid-dispatch cannot invalidate our iteration.
+    // Capture listeners fire only in the capture phase, non-capture only in the
+    // bubble phase; both fire in the target phase.
     std::vector<JSValue> to_call;
     for (const auto& listener : it->second) {
-        if (listener.type == type) {
-            to_call.push_back(JS_DupValue(context_, listener.callback));
-        }
+        if (listener.type != type) continue;
+        if (phase == DispatchPhase::Capture && !listener.capture) continue;
+        if (phase == DispatchPhase::Bubble && listener.capture) continue;
+        to_call.push_back(JS_DupValue(context_, listener.callback));
     }
+    if (to_call.empty()) return;
 
-    JSValue current_target = wrap_node(node);
+    JSValue current_target = event_target_value(node);
     JS_SetPropertyStr(context_, event, "currentTarget", JS_DupValue(context_, current_target));
     for (JSValue callback : to_call) {
         // stopImmediatePropagation halts the rest of this node's listeners.
@@ -788,12 +810,45 @@ void QuickJSScriptEngine::invoke_listeners(DOM::Node* node, const std::string& t
     JS_FreeValue(context_, current_target);
 }
 
+void QuickJSScriptEngine::dispatch_event(DOM::Node* target, const std::string& type, JSValueConst event) {
+    // Propagation path: [target, parent, ..., root, document].
+    std::vector<DOM::Node*> path;
+    path.push_back(target);
+    if (target != document_target() && host_) {
+        for (DOM::Node* n = host_->parent_node(target); n; n = host_->parent_node(n)) {
+            path.push_back(n);
+        }
+        path.push_back(document_target());
+    }
+
+    // Capture: from the document down to the target's parent (path.back()..path[1]).
+    JS_SetPropertyStr(context_, event, "eventPhase", JS_NewInt32(context_, 1));
+    for (size_t i = path.size(); i-- > 1;) {
+        if (event_flag(event, "__propagationStopped")) break;
+        invoke_listeners(path[i], type, event, DispatchPhase::Capture);
+    }
+
+    // Target phase: all listeners on the target, in registration order.
+    if (!event_flag(event, "__propagationStopped")) {
+        JS_SetPropertyStr(context_, event, "eventPhase", JS_NewInt32(context_, 2));
+        invoke_listeners(path[0], type, event, DispatchPhase::Target);
+    }
+
+    // Bubble: from the target's parent up to the document — only if the event bubbles.
+    if (event_flag(event, "bubbles")) {
+        JS_SetPropertyStr(context_, event, "eventPhase", JS_NewInt32(context_, 3));
+        for (size_t i = 1; i < path.size(); ++i) {
+            if (event_flag(event, "__propagationStopped")) break;
+            invoke_listeners(path[i], type, event, DispatchPhase::Bubble);
+        }
+    }
+}
+
 JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst this_val, int argc,
                                                     JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
     if (!engine || argc < 1) return JS_FALSE;
-    DOM::Node* node = engine->node_from_value(this_val);
-    if (!node) return JS_FALSE;
+    DOM::Node* target = engine->resolve_event_target(this_val);
 
     // Accept either a type string or an init object carrying `type` (and,
     // optionally, key/code/bubbles/cancelable — used by keyboard-event tests
@@ -814,7 +869,7 @@ JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst
     }
     if (type.empty()) return JS_FALSE;
 
-    JSValue event = engine->make_event(type, node);
+    JSValue event = engine->make_event(type, target);
     if (JS_IsObject(init)) {
         for (const char* field : {"key", "code", "bubbles", "cancelable"}) {
             JSValue value = JS_GetPropertyStr(ctx, init, field);
@@ -826,7 +881,7 @@ JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst
         }
     }
 
-    engine->invoke_listeners(node, type, event);
+    engine->dispatch_event(target, type, event);
     const bool not_canceled = !engine->event_flag(event, "defaultPrevented");
     JS_FreeValue(ctx, event);
     return JS_NewBool(ctx, not_canceled ? 1 : 0);
@@ -886,6 +941,8 @@ QuickJSScriptEngine::QuickJSScriptEngine() {
 QuickJSScriptEngine::~QuickJSScriptEngine() {
     if (context_) {
         reset_bindings();
+        JS_FreeValue(context_, document_object_);
+        document_object_ = JS_UNDEFINED;
         JS_FreeContext(context_);
         context_ = nullptr;
     }
@@ -1104,6 +1161,18 @@ void QuickJSScriptEngine::install_document_bindings() {
                       JS_NewCFunction(context_, js_get_elements_by_class_name, "getElementsByClassName", 1));
     JS_SetPropertyStr(context_, document, "getElementsByTagName",
                       JS_NewCFunction(context_, js_get_elements_by_tag_name, "getElementsByTagName", 1));
+    // document is an EventTarget: listeners registered here catch events that
+    // bubble to the top (e.g. hn.js delegates clicks on `document`). The shared
+    // callbacks resolve `this` == document to the document sentinel.
+    JS_SetPropertyStr(context_, document, "addEventListener",
+                      JS_NewCFunction(context_, js_node_add_event_listener, "addEventListener", 3));
+    JS_SetPropertyStr(context_, document, "removeEventListener",
+                      JS_NewCFunction(context_, js_node_remove_event_listener, "removeEventListener", 3));
+    JS_SetPropertyStr(context_, document, "dispatchEvent",
+                      JS_NewCFunction(context_, js_node_dispatch_event, "dispatchEvent", 1));
+    // Retain a reference so the event machinery can use `document` as an
+    // EventTarget value (target / currentTarget / `this`).
+    document_object_ = JS_DupValue(context_, document);
     JS_SetPropertyStr(context_, global, "document", document);
     JS_FreeValue(context_, global);
     document_ready_ = true;

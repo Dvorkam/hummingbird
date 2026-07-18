@@ -137,12 +137,26 @@ private:
     // Reads the capture flag from addEventListener/removeEventListener's optional
     // third argument (a boolean or an options object with a `capture` field).
     bool read_capture_flag(JSValueConst options) const;
-    // Synchronously invokes every listener registered for `type` on `node`, in
-    // registration order, with `this` == the node wrapper and `event` as the arg.
-    // Honors stopImmediatePropagation within the node. (Target-phase only for
-    // 7.2.1/7.2.2; capture/bubble propagation across ancestors arrives in 7.2.3.)
-    void invoke_listeners(DOM::Node* node, const std::string& type, JSValueConst event);
+    // Three-phase event dispatch (7.2.3): capture down the ancestor chain to the
+    // target, then the target, then bubble back up (if the event bubbles),
+    // honoring stopPropagation / stopImmediatePropagation.
+    enum class DispatchPhase { Capture, Target, Bubble };
+    void dispatch_event(DOM::Node* target, const std::string& type, JSValueConst event);
+    // Invokes the `node`'s listeners that match `type` and the phase's capture
+    // filter (capture-only / all / bubble-only), with `this` == the node's
+    // EventTarget value; honors stopImmediatePropagation within the node.
+    void invoke_listeners(DOM::Node* node, const std::string& type, JSValueConst event, DispatchPhase phase);
     void free_listeners();
+
+    // The EventTarget an add/remove/dispatch call acts on: the node wrapper, or
+    // the document sentinel when `this` is the plain `document` object.
+    DOM::Node* resolve_event_target(JSValueConst this_val);
+    // Stable, unique key under which document-level listeners live (document is an
+    // EventTarget but not a DOM node).
+    DOM::Node* document_target();
+    // The JS value used as target/currentTarget/`this` for an EventTarget: the
+    // node wrapper, or the `document` object for the document sentinel.
+    JSValue event_target_value(DOM::Node* target);
 
     // Builds the Event object handed to listeners: `type`/`target` plus
     // preventDefault/stopPropagation/stopImmediatePropagation and their flags.
@@ -152,6 +166,11 @@ private:
 
     JSRuntime* runtime_ = nullptr;
     JSContext* context_ = nullptr;
+    // Retained reference to the `document` object, used as the EventTarget value
+    // for document-level listeners. Freed in the destructor.
+    JSValue document_object_ = JS_UNDEFINED;
+    // Address is the unique listeners_ key for document-level listeners.
+    char document_target_marker_ = 0;
     JSClassID node_class_id_ = 0;
     JSClassID token_list_class_id_ = 0;
     JSClassID string_map_class_id_ = 0;

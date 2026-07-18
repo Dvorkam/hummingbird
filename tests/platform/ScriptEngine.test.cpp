@@ -343,6 +343,89 @@ TEST(ScriptEngineTest, EventObjectPreventDefaultAndStopImmediate) {
     EXPECT_TRUE(result.ok) << result.error;
 }
 
+TEST(ScriptEngineTest, CaptureTargetBubblePropagationOrder) {
+    // root > gp > p > child
+    Hummingbird::Core::ArenaAllocator arena(8192, 8);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto gp = Hummingbird::DOM::Element::create(arena, "div");
+    gp->set_attribute("id", "gp");
+    auto p = Hummingbird::DOM::Element::create(arena, "div");
+    p->set_attribute("id", "p");
+    auto child = Hummingbird::DOM::Element::create(arena, "div");
+    child->set_attribute("id", "child");
+    p->append_child(std::move(child));
+    gp->append_child(std::move(p));
+    root->append_child(std::move(gp));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "globalThis.log = [];"
+        "function on(id, tag, capture) {"
+        "  document.getElementById(id).addEventListener('x', function() { globalThis.log.push(tag); }, capture);"
+        "}"
+        "on('gp', 'gp-cap', true);  on('gp', 'gp-bub', false);"
+        "on('p',  'p-cap',  true);  on('p',  'p-bub',  false);"
+        "on('child', 'c-cap', true); on('child', 'c-bub', false);"
+        // document catches the bubbling event too (delegation).
+        "document.addEventListener('x', function(e) {"
+        "  globalThis.log.push('doc-bub');"
+        "  globalThis.docTarget = (e.target === document.getElementById('child'));"
+        "  globalThis.docCurrent = (e.currentTarget === document);"
+        "});"
+        "document.getElementById('child').dispatchEvent({ type: 'x', bubbles: true });"
+        "check('order', globalThis.log.join(',') === 'gp-cap,p-cap,c-cap,c-bub,p-bub,gp-bub,doc-bub');"
+        "check('doc-target', globalThis.docTarget === true);"
+        "check('doc-current', globalThis.docCurrent === true);"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+}
+
+TEST(ScriptEngineTest, StopPropagationAndNonBubblingEvents) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 8);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto parent = Hummingbird::DOM::Element::create(arena, "div");
+    parent->set_attribute("id", "p");
+    auto child = Hummingbird::DOM::Element::create(arena, "div");
+    child->set_attribute("id", "c");
+    parent->append_child(std::move(child));
+    root->append_child(std::move(parent));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var c = document.getElementById('c');"
+        "var p = document.getElementById('p');"
+        // stopPropagation in the child's bubble handler prevents the parent's.
+        "globalThis.reached = [];"
+        "c.addEventListener('e', function(ev) { globalThis.reached.push('c'); ev.stopPropagation(); });"
+        "p.addEventListener('e', function(ev) { globalThis.reached.push('p'); });"
+        "c.dispatchEvent({ type: 'e', bubbles: true });"
+        "check('stopped', globalThis.reached.join(',') === 'c');"
+        // A non-bubbling event never reaches the parent's bubble listener.
+        "globalThis.reached2 = [];"
+        "c.addEventListener('n', function() { globalThis.reached2.push('c'); });"
+        "p.addEventListener('n', function() { globalThis.reached2.push('p'); });"
+        "c.dispatchEvent('n');"  // bubbles defaults to false
+        "check('non-bubbling', globalThis.reached2.join(',') === 'c');"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+}
+
 TEST(ScriptEngineTest, ListenersTornDownOnNavigation) {
     Hummingbird::Core::ArenaAllocator arena(4096, 4);
     auto root = Hummingbird::DOM::Element::create(arena, "div");

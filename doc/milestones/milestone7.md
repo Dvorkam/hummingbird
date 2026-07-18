@@ -384,7 +384,12 @@ P0: DOM + Events (North Star)
       canceled), stopPropagation + stopImmediatePropagation (halts remaining listeners
       on the node). Plain-object flags the C++ dispatch loop reads back — no native
       struct. dispatchEvent accepts a type string or an init object with key/code.)
-- [ ] 7.2.3: Capture/Target/Bubble Propagation
+- [x] 7.2.3: Capture/Target/Bubble Propagation — 2026-07-18
+      (three-phase dispatch along the ancestor path target→…→root→document: capture
+      down, target (all listeners), bubble up when the event bubbles; consumes
+      stopPropagation/stopImmediatePropagation + eventPhase. `document` is now an
+      EventTarget (sentinel key) so delegation works — listener order verified for
+      nested capture/bubble, incl. document catching a bubbled event.)
 - [ ] 7.2.4: Input Event Coverage
 - [ ] 7.2.6: Interactive Checkbox Control (render + click-toggle + change/input) — split from 7.1.5; needs 7.2.1–7.2.4
 - [ ] 7.2.5: Fragment Navigation + hashchange
