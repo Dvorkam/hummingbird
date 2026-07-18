@@ -372,7 +372,12 @@ P0: DOM + Events (North Star)
 - [x] 7.1.5: Form Control JS Surface — 2026-07-17
       (.value/.checked/.disabled get+set, focus()/blur() reflecting :focus).
       The interactive checkbox control split out to 7.2.6 (needs the event system).
-- [ ] 7.2.1: EventTarget + Listener Registry
+- [x] 7.2.1: EventTarget + Listener Registry — 2026-07-18
+      (addEventListener/removeEventListener with capture flag + spec dedupe; per-node
+      registry keyed by arena node, each entry owns its JS callback; callbacks freed
+      in reset_bindings before wrappers, so none outlive the document. Minimal
+      target-phase dispatchEvent for now — real Event objects=7.2.2, capture/bubble=7.2.3.
+      document/window as EventTarget deferred to 7.2.3/7.2.4.)
 - [ ] 7.2.2: Event Objects
 - [ ] 7.2.3: Capture/Target/Bubble Propagation
 - [ ] 7.2.4: Input Event Coverage

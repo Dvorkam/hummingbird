@@ -66,9 +66,17 @@ gap folded into 7.5.4.
 On navigation, `DocumentScriptController::clear()` calls
 `IScriptEngine::reset_bindings()` **before** the document arena is reset. That:
 
-1. neutralizes every cached wrapper (`JS_SetOpaque(..., nullptr)`) so any wrapper
+1. frees every registered event listener's callback (`listeners_`, 7.2.1) so no
+   handler outlives the document (`ListenersTornDownOnNavigation`),
+2. neutralizes every cached wrapper (`JS_SetOpaque(..., nullptr)`) so any wrapper
    a script stashed in a global reads as an empty node instead of dereferencing a
    pointer into freed arena storage (`ResetBindingsNeutralizesStaleWrappers`), and
-2. releases the cache's references and clears `detached_`.
+3. releases the cache's references and clears `detached_`.
+
+The event listener registry (`listeners_`) is keyed by the raw arena `Node*`;
+each entry owns a reference to its JS callback. Listeners live for the document's
+lifetime (removing a node from the tree does not drop its listeners — matching the
+DOM, where a re-inserted node keeps them); the whole registry is swept on
+navigation.
 
 Full per-document JS global isolation and the teardown/leak test suite are 7.5.4.

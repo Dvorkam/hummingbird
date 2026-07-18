@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -102,6 +103,11 @@ private:
     static int js_string_map_set(JSContext* ctx, JSValueConst obj, JSAtom atom, JSValueConst value,
                                  JSValueConst receiver, int flags);
 
+    // EventTarget (7.2.1).
+    static JSValue js_node_add_event_listener(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_remove_event_listener(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_node_dispatch_event(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
     static JSValue js_native_insert_css(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
     void install_node_prototype();
@@ -121,6 +127,15 @@ private:
     // Node backing a DOMTokenList/DOMStringMap wrapper (opaque is the raw node).
     DOM::Node* node_from_opaque(JSValueConst value, JSClassID class_id);
 
+    // Reads the capture flag from addEventListener/removeEventListener's optional
+    // third argument (a boolean or an options object with a `capture` field).
+    bool read_capture_flag(JSValueConst options) const;
+    // Synchronously invokes every listener registered for `type` on `node`, in
+    // registration order, with `this` == the node wrapper and `event` as the arg.
+    // (Target-phase only for 7.2.1; capture/bubble propagation arrives in 7.2.3.)
+    void invoke_listeners(DOM::Node* node, const std::string& type, JSValueConst event);
+    void free_listeners();
+
     JSRuntime* runtime_ = nullptr;
     JSContext* context_ = nullptr;
     JSClassID node_class_id_ = 0;
@@ -134,6 +149,16 @@ private:
     // `a.firstChild === a.firstChild` and node-keyed Sets work. Freed on
     // reset_bindings (navigation), before the node pointers dangle.
     std::unordered_map<DOM::Node*, JSValue> node_wrappers_;
+
+    // Per-node event listeners (EventTarget registry, 7.2.1). Keyed by the raw
+    // arena node; each entry owns a reference to its JS callback. Freed on
+    // reset_bindings so no callback outlives the document.
+    struct EventListener {
+        std::string type;
+        JSValue callback;
+        bool capture;
+    };
+    std::unordered_map<DOM::Node*, std::vector<EventListener>> listeners_;
 };
 
 }  // namespace Hummingbird::Platform

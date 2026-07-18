@@ -645,6 +645,129 @@ int QuickJSScriptEngine::js_string_map_set(JSContext* ctx, JSValueConst obj, JSA
     return 1;  // report success (property assignment accepted)
 }
 
+// --- EventTarget (7.2.1) ---------------------------------------------------
+
+bool QuickJSScriptEngine::read_capture_flag(JSValueConst options) const {
+    // The third argument is either a boolean capture flag or an options object
+    // whose `capture` field carries it.
+    if (JS_IsObject(options)) {
+        JSValue capture = JS_GetPropertyStr(context_, options, "capture");
+        const bool result = JS_ToBool(context_, capture) != 0;
+        JS_FreeValue(context_, capture);
+        return result;
+    }
+    return JS_ToBool(context_, options) != 0;
+}
+
+JSValue QuickJSScriptEngine::js_node_add_event_listener(JSContext* ctx, JSValueConst this_val, int argc,
+                                                        JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || argc < 2) return JS_UNDEFINED;
+    DOM::Node* node = engine->node_from_value(this_val);
+    if (!node || !JS_IsFunction(ctx, argv[1])) return JS_UNDEFINED;
+    const char* type = JS_ToCString(ctx, argv[0]);
+    if (!type) return JS_UNDEFINED;
+    const bool capture = argc >= 3 ? engine->read_capture_flag(argv[2]) : false;
+
+    auto& list = engine->listeners_[node];
+    // A duplicate (type, callback, capture) registration is a no-op per spec.
+    for (const auto& listener : list) {
+        if (listener.capture == capture && listener.type == type && JS_IsStrictEqual(ctx, listener.callback, argv[1])) {
+            JS_FreeCString(ctx, type);
+            return JS_UNDEFINED;
+        }
+    }
+    list.push_back({std::string(type), JS_DupValue(ctx, argv[1]), capture});
+    JS_FreeCString(ctx, type);
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_node_remove_event_listener(JSContext* ctx, JSValueConst this_val, int argc,
+                                                           JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || argc < 2) return JS_UNDEFINED;
+    DOM::Node* node = engine->node_from_value(this_val);
+    if (!node) return JS_UNDEFINED;
+    const char* type = JS_ToCString(ctx, argv[0]);
+    if (!type) return JS_UNDEFINED;
+    const bool capture = argc >= 3 ? engine->read_capture_flag(argv[2]) : false;
+
+    if (auto it = engine->listeners_.find(node); it != engine->listeners_.end()) {
+        auto& list = it->second;
+        for (auto lit = list.begin(); lit != list.end(); ++lit) {
+            if (lit->capture == capture && lit->type == type && JS_IsStrictEqual(ctx, lit->callback, argv[1])) {
+                JS_FreeValue(ctx, lit->callback);
+                list.erase(lit);
+                break;
+            }
+        }
+    }
+    JS_FreeCString(ctx, type);
+    return JS_UNDEFINED;
+}
+
+void QuickJSScriptEngine::invoke_listeners(DOM::Node* node, const std::string& type, JSValueConst event) {
+    auto it = listeners_.find(node);
+    if (it == listeners_.end()) return;
+
+    // Snapshot the matching callbacks (with an owned ref each) so a handler that
+    // adds or removes listeners mid-dispatch cannot invalidate our iteration.
+    std::vector<JSValue> to_call;
+    for (const auto& listener : it->second) {
+        if (listener.type == type) {
+            to_call.push_back(JS_DupValue(context_, listener.callback));
+        }
+    }
+
+    JSValue current_target = wrap_node(node);
+    JS_SetPropertyStr(context_, event, "currentTarget", JS_DupValue(context_, current_target));
+    for (JSValue callback : to_call) {
+        JSValue ret = JS_Call(context_, callback, current_target, 1, &event);
+        if (JS_IsException(ret)) {
+            JSValue exc = JS_GetException(context_);
+            const char* message = JS_ToCString(context_, exc);
+            HB_LOG_WARN("[js] event listener threw: " << (message ? message : "unknown"));
+            if (message) JS_FreeCString(context_, message);
+            JS_FreeValue(context_, exc);
+        }
+        JS_FreeValue(context_, ret);
+        JS_FreeValue(context_, callback);
+    }
+    JS_FreeValue(context_, current_target);
+}
+
+JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst this_val, int argc,
+                                                    JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || argc < 1) return JS_FALSE;
+    DOM::Node* node = engine->node_from_value(this_val);
+    if (!node) return JS_FALSE;
+
+    // Accept either a type string or an event-like object carrying `type`.
+    std::string type;
+    if (JS_IsObject(argv[0])) {
+        JSValue type_value = JS_GetPropertyStr(ctx, argv[0], "type");
+        if (const char* text = JS_ToCString(ctx, type_value)) {
+            type = text;
+            JS_FreeCString(ctx, text);
+        }
+        JS_FreeValue(ctx, type_value);
+    } else if (const char* text = JS_ToCString(ctx, argv[0])) {
+        type = text;
+        JS_FreeCString(ctx, text);
+    }
+    if (type.empty()) return JS_FALSE;
+
+    // Minimal event object for handlers; the full Event (preventDefault /
+    // stopPropagation, capture/bubble phases) arrives in 7.2.2 / 7.2.3.
+    JSValue event = JS_NewObject(ctx);
+    JS_SetPropertyStr(ctx, event, "type", JS_NewString(ctx, type.c_str()));
+    JS_SetPropertyStr(ctx, event, "target", engine->wrap_node(node));
+    engine->invoke_listeners(node, type, event);
+    JS_FreeValue(ctx, event);
+    return JS_TRUE;
+}
+
 JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /*this_val*/, int argc,
                                                   JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
@@ -750,7 +873,22 @@ ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_
     return ok_result();
 }
 
+void QuickJSScriptEngine::free_listeners() {
+    if (context_) {
+        for (auto& [node, list] : listeners_) {
+            (void)node;
+            for (auto& listener : list) {
+                JS_FreeValue(context_, listener.callback);
+            }
+        }
+    }
+    listeners_.clear();
+}
+
 void QuickJSScriptEngine::reset_bindings() {
+    // Drop event callbacks first: no listener may outlive the document, and a
+    // callback could otherwise still reference a wrapper we are about to free.
+    free_listeners();
     if (context_) {
         for (auto& [node, value] : node_wrappers_) {
             (void)node;
@@ -806,6 +944,9 @@ void QuickJSScriptEngine::install_node_prototype() {
     define_method(proto, "getElementsByTagName", js_get_elements_by_tag_name, 1);
     define_method(proto, "focus", js_node_focus, 0);
     define_method(proto, "blur", js_node_blur, 0);
+    define_method(proto, "addEventListener", js_node_add_event_listener, 3);
+    define_method(proto, "removeEventListener", js_node_remove_event_listener, 3);
+    define_method(proto, "dispatchEvent", js_node_dispatch_event, 1);
 
     // Consumes the proto reference and makes it the prototype for every wrapper.
     JS_SetClassProto(context_, node_class_id_, proto);

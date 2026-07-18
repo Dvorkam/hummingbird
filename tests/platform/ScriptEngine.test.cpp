@@ -247,6 +247,90 @@ TEST(ScriptEngineTest, SelectorQueriesThroughBindings) {
     EXPECT_TRUE(result.ok) << result.error;
 }
 
+TEST(ScriptEngineTest, EventListenerAddRemoveDedupeAndDispatch) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto el = Hummingbird::DOM::Element::create(arena, "button");
+    el->set_attribute("id", "x");
+    root->append_child(std::move(el));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var el = document.getElementById('x');"
+        "globalThis.c = 0;"
+        "function h() { globalThis.c++; }"
+        // Duplicate (type, callback, capture) registration is ignored -> fires once.
+        "el.addEventListener('t', h);"
+        "el.addEventListener('t', h);"
+        "el.dispatchEvent('t');"
+        "check('dedupe', globalThis.c === 1);"
+        // removeEventListener stops it.
+        "el.removeEventListener('t', h);"
+        "el.dispatchEvent('t');"
+        "check('removed', globalThis.c === 1);"
+        // Capture flag is part of the listener identity.
+        "globalThis.cc = 0;"
+        "function hc() { globalThis.cc++; }"
+        "el.addEventListener('c', hc, true);"
+        "el.removeEventListener('c', hc);"  // capture mismatch: not removed
+        "el.dispatchEvent('c');"
+        "check('capture-keep', globalThis.cc === 1);"
+        "el.removeEventListener('c', hc, true);"  // now removed
+        "el.dispatchEvent('c');"
+        "check('capture-remove', globalThis.cc === 1);"
+        // The handler sees the event fields and correct this/target.
+        "var seen = null;"
+        "el.addEventListener('e', function(evt) {"
+        "  seen = (evt.type === 'e') && (evt.target === el) && (evt.currentTarget === el) && (this === el);"
+        "});"
+        "el.dispatchEvent('e');"
+        "check('event-fields', seen === true);"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+}
+
+TEST(ScriptEngineTest, ListenersTornDownOnNavigation) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto el = Hummingbird::DOM::Element::create(arena, "div");
+    el->set_attribute("id", "x");
+    root->append_child(std::move(el));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    ASSERT_TRUE(engine
+                    ->eval("globalThis.count = 0;"
+                           "document.getElementById('x')"
+                           "  .addEventListener('ping', function() { globalThis.count++; });"
+                           "document.getElementById('x').dispatchEvent('ping');"
+                           "if (globalThis.count !== 1) throw new Error('baseline ' + globalThis.count);",
+                           "inline")
+                    .ok);
+
+    // Simulate navigation teardown: the registry is swept.
+    engine->reset_bindings();
+
+    auto after = engine->eval(
+        "document.getElementById('x').dispatchEvent('ping');"
+        "if (globalThis.count !== 1) throw new Error('stale listener fired: ' + globalThis.count);"
+        "true;",
+        "inline");
+    EXPECT_TRUE(after.ok) << after.error;
+}
+
 TEST(ScriptEngineTest, WrapperIdentityIsStablePerNode) {
     Hummingbird::Core::ArenaAllocator arena(4096, 4);
     auto root = Hummingbird::DOM::Element::create(arena, "div");
