@@ -12,6 +12,7 @@
 #include "layout/RenderObject.h"
 #include "layout/flow/TextStyleUtils.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
+#include "layout/paint/PaintUtils.h"
 #include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Engine {
@@ -155,12 +156,15 @@ bool wants_synthetic_focus_ring(const Css::ComputedStyle* style) {
     return width.top > 0.0f || width.right > 0.0f || width.bottom > 0.0f || width.left > 0.0f;
 }
 
-void paint_input_focus_ring(const Layout::Rect& absolute, IGraphicsContext& graphics) {
+void paint_input_focus_ring(const Layout::Rect& absolute, const Css::ComputedStyle* style, IGraphicsContext& graphics) {
     constexpr float kStroke = 1.0f;
-    graphics.fill_rect({absolute.x, absolute.y, absolute.width, kStroke}, kFocusRingColor);
-    graphics.fill_rect({absolute.x, absolute.y + absolute.height - kStroke, absolute.width, kStroke}, kFocusRingColor);
-    graphics.fill_rect({absolute.x, absolute.y, kStroke, absolute.height}, kFocusRingColor);
-    graphics.fill_rect({absolute.x + absolute.width - kStroke, absolute.y, kStroke, absolute.height}, kFocusRingColor);
+    // Follow the control's corner radii so the ring hugs a rounded field instead
+    // of showing sharp corners (reuses the rounded-stroke helper the CSS `outline`
+    // painter uses; ResolvedCorners of all-zero degrade to a plain rectangle).
+    const Layout::PaintUtils::ResolvedCorners corners =
+        style ? Layout::PaintUtils::resolve_corners(style->border_radius, absolute.width, absolute.height)
+              : Layout::PaintUtils::ResolvedCorners{};
+    Layout::PaintUtils::draw_rounded_border_corners(graphics, absolute, corners, kStroke, kFocusRingColor);
 }
 
 }  // namespace
@@ -186,7 +190,7 @@ void paint_input_control(const DOM::Element& element, const Layout::RenderObject
 
     if (focused) {
         if (wants_synthetic_focus_ring(node.get_computed_style())) {
-            paint_input_focus_ring(absolute, graphics);
+            paint_input_focus_ring(absolute, node.get_computed_style(), graphics);
         }
         HB_LOG_DEBUG("[input] draw focused value='" << paint_data->value << "' text_pos=" << paint_data->text_x << ","
                                                     << paint_data->text_y << " text_h=" << paint_data->text_height
