@@ -5,6 +5,7 @@
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
+#include "core/dom/Text.h"
 #include "layout/TreeBuilder.h"
 #include "style/compute/StyleEngine.h"
 #include "style/parser/CssParser.h"
@@ -369,4 +370,46 @@ TEST(FlexLayoutTest, AlignItemsBaselineAlignsFirstLineBaselines) {
     // b is shifted down by roughly (ascent_a - ascent_b) ~ (32 - 8) = 24px.
     EXPECT_GT(b->get_rect().y, 10.0f);
     EXPECT_NEAR(b->get_rect().y, 24.0f, 3.0f);
+}
+
+TEST(FlexLayoutTest, CheckboxInputIsFixedSquareInFlexRow) {
+    Hummingbird::Core::ArenaAllocator arena{8192};
+    Hummingbird::Test::TestGraphicsContext context;
+
+    auto body = DomFactory::create_element(arena, "body");
+    auto li = DomFactory::create_element(arena, "li");
+    li->set_attribute("id", "li");
+    auto box = DomFactory::create_element(arena, "input");
+    box->set_attribute("id", "box");
+    box->set_attribute("type", "checkbox");
+    auto label = DomFactory::create_element(arena, "span");
+    label->set_attribute("id", "lbl");
+    label->append_child(DomFactory::create_text(arena, "a task"));
+    li->append_child(std::move(box));
+    li->append_child(std::move(label));
+    body->append_child(std::move(li));
+
+    std::string css =
+        "body { margin: 0; padding: 0; } "
+        "li { display: flex; flex-direction: row; align-items: center; width: 590px; } "
+        "#box { flex: none; margin: 0; } "
+        "#lbl { flex: 1; margin: 0 12px; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto root = builder.build(body.get());
+    ASSERT_NE(root, nullptr);
+    Rect viewport{0, 0, 800, 600};
+    root->layout(context, viewport);
+
+    // A checkbox must stay a fixed square, not stretch to a text-input rectangle
+    // just because it sits in a flex row (the UA default gives it width==height).
+    auto* box_box = find_by_id(root.get(), "box");
+    ASSERT_NE(box_box, nullptr);
+    const auto& r = box_box->get_rect();
+    EXPECT_NEAR(r.width, 16.0f, 0.5f);
+    EXPECT_NEAR(r.height, 16.0f, 0.5f);
 }

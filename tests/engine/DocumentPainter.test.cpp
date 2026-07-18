@@ -121,15 +121,15 @@ TEST(DocumentInputPainterTest, CheckboxRendersBoxAndCheckmark) {
     EXPECT_EQ(accent_rects, 0);
     EXPECT_GT(white_rects, 0);  // the empty box interior
 
-    // Checked: accent box + a white checkmark (several small dabs).
+    // Checked: white box with a blue border + a blue checkmark (several dabs).
     accent_rects = 0;
     white_rects = 0;
     for (const auto& [rect, color] : paint(true)) {
         if (is(color, accent)) ++accent_rects;
         if (is(color, white)) ++white_rects;
     }
-    EXPECT_GT(accent_rects, 0);  // the filled box
-    EXPECT_GT(white_rects, 1);   // the checkmark dabs
+    EXPECT_GT(accent_rects, 1);  // blue border + blue checkmark dabs
+    EXPECT_GT(white_rects, 0);   // the white interior
 }
 
 TEST(DocumentPainterTest, RebuildsDisplayListWhenInputsChange) {

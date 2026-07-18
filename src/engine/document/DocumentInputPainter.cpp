@@ -201,26 +201,22 @@ void paint_checkbox_control(const DOM::Element& element, const Layout::RenderObj
     const bool checked = is_checkbox_checked(element);
     const Color white{255, 255, 255, 255};
     const Color accent{66, 133, 244, 255};
-    const Color accent_dark{40, 95, 175, 255};  // checked border
-    const Color border{140, 149, 168, 255};     // unchecked border
+    const Color border{140, 149, 168, 255};  // unchecked border
     const Color inset_shadow{214, 219, 229, 255};
 
-    // A 1px border (both states) keeps it reading as a raised box; the interior
-    // is filled inside it (accent when checked, white when not).
-    graphics.fill_rect(absolute, checked ? accent_dark : border);
+    // White box in both states; a blue border + blue checkmark indicate checked.
+    graphics.fill_rect(absolute, checked ? accent : border);
     Layout::Rect inner{absolute.x + 1.0f, absolute.y + 1.0f, std::max(0.0f, absolute.width - 2.0f),
                        std::max(0.0f, absolute.height - 2.0f)};
     if (inner.width > 0.0f && inner.height > 0.0f) {
-        graphics.fill_rect(inner, checked ? accent : white);
-        // A little depth: a lighter top edge and a darker bottom edge inside.
+        graphics.fill_rect(inner, white);
+        // A little depth: a subtle darker edge along the inside bottom.
         if (inner.height >= 3.0f) {
-            graphics.fill_rect({inner.x, inner.y, inner.width, 1.0f}, checked ? Color{120, 175, 255, 255} : white);
-            graphics.fill_rect({inner.x, inner.y + inner.height - 1.0f, inner.width, 1.0f},
-                               checked ? accent_dark : inset_shadow);
+            graphics.fill_rect({inner.x, inner.y + inner.height - 1.0f, inner.width, 1.0f}, inset_shadow);
         }
     }
     if (checked) {
-        draw_checkmark(absolute, white, graphics);
+        draw_checkmark(absolute, accent, graphics);
     }
 }
 

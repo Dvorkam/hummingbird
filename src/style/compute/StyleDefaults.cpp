@@ -27,6 +27,12 @@ bool input_type_is_text_like(const DOM::Element& element) {
            !Core::Utils::equals_ignore_case(*type, "radio") && !Core::Utils::equals_ignore_case(*type, "file") &&
            !Core::Utils::equals_ignore_case(*type, "hidden") && !Core::Utils::equals_ignore_case(*type, "image");
 }
+
+bool input_type_is_toggle(const DOM::Element& element) {
+    const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
+    return type &&
+           (Core::Utils::equals_ignore_case(*type, "checkbox") || Core::Utils::equals_ignore_case(*type, "radio"));
+}
 }  // namespace
 
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,
@@ -99,6 +105,16 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.height = ComputedStyle::LengthValue::from_px(2.0f);
         style.margin.top = style.margin.bottom = 8.0f;
         style.background = Color{50, 50, 50, 255};
+    } else if (tag == Hummingbird::Html::TagNames::Input && input_type_is_toggle(element)) {
+        // Checkbox/radio: a fixed 16x16 square with no padding or border — the
+        // input painter draws the box, tick, and border itself. Explicit size
+        // keeps flex/inline sizing from inflating it to a text-input rectangle.
+        style.width = ComputedStyle::LengthValue::from_px(16.0f);
+        style.height = ComputedStyle::LengthValue::from_px(16.0f);
+        style.border_style = ComputedStyle::BorderStyle::None;
+        style.border_width = {0.0f, 0.0f, 0.0f, 0.0f};
+        style.margin.left = style.margin.right = 3.0f;
+        style.margin.top = style.margin.bottom = 3.0f;
     } else if (tag == Hummingbird::Html::TagNames::Input) {
         style.border_style = ComputedStyle::BorderStyle::Solid;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
