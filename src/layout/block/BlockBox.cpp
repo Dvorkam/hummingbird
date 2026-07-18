@@ -29,7 +29,7 @@ constexpr float kInlineAtomicLayoutWidth = 100000.0f;
 constexpr float kMinInputContentWidth = 8.0f;
 constexpr float kMinInputContentHeight = 12.0f;
 // A checkbox is a small fixed square (MVP: not resizable via CSS yet, 7.2.6).
-constexpr float kCheckboxSize = 13.0f;
+constexpr float kCheckboxSize = 16.0f;
 
 std::optional<float> resolve_height_constraint(const Css::ComputedStyle* style,
                                                const Css::ComputedStyle::LengthValue& value, float reference_height,
