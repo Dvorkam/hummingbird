@@ -445,7 +445,10 @@ P0: DOM + Events (North Star)
       the topmost node and dispatches a bubbling/cancelable `click` (+`dblclick` on
       double, via SDL button.clicks); preventDefault reported up and gates link nav.
       Delegation + dblclick + preventDefault verified through the real pipeline.)
-- [ ] 7.2.4.2: Keyboard events (keydown, keyup) on the focused element
+- [x] 7.2.4.2: Keyboard events (keydown, keyup) on the focused element — 2026-07-18
+      (route Platform KeyDown/KeyUp → focused element (else document) as bubbling
+      keydown/keyup with key/code; preventDefault on keydown suppresses the default
+      text-edit; a mutating key listener rebuilds the doc. New KeyUp routing path.)
 - [ ] 7.2.4.3: Form input lifecycle (input, change, focus, blur)
 - [ ] 7.2.4.4: Submit event + preventDefault stops navigation
 - [ ] 7.2.6: Interactive Checkbox Control (render + click-toggle + change/input) — split from 7.1.5; needs 7.2.1–7.2.4

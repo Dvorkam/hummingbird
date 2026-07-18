@@ -53,4 +53,10 @@ DocumentScripting::DispatchResult DocumentScripting::dispatch_load(DocumentModel
     return {result.handled, result.mutated};
 }
 
+DocumentScripting::DispatchResult DocumentScripting::dispatch_dom_event(DocumentModel& model, DOM::Node* target,
+                                                                        const ScriptDomEvent& event) {
+    auto result = controller_->dispatch_dom_event(model.dom_root(), model.dom_arena(), target, event);
+    return {result.handled, result.mutated, result.default_prevented};
+}
+
 }  // namespace Hummingbird::Engine

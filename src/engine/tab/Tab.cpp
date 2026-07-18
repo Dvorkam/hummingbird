@@ -229,7 +229,13 @@ bool Tab::handle_text_input(std::string_view text) {
 
 Tab::KeyResult Tab::handle_key_down(const InputEvent& event) {
     auto result = document_pipeline_->handle_key_down(event, navigation_lifecycle_.requested_url());
-    return {result.handled, result.needs_repaint, std::move(result.submitted_form)};
+    return {result.handled, result.needs_repaint, result.mutated, std::move(result.submitted_form)};
+}
+
+Tab::KeyResult Tab::handle_key_up(const InputEvent& event) {
+    auto result = document_pipeline_->handle_key_up(event);
+    // keyup has no default action; a listener may still have mutated the DOM.
+    return {result.mutated, result.needs_repaint, result.mutated, std::move(result.submitted_form)};
 }
 
 std::optional<std::string> Tab::focused_input_value() const {

@@ -22,6 +22,9 @@ void BrowserEventRouter::handle_event(const InputEvent& event) {
                 (void)document_.handle_key_down(event);
             }
             return;
+        case EventType::KeyUp:
+            (void)document_.handle_key_up(event);
+            return;
         case EventType::MouseDown:
             if (!chrome_.handle_mouse_down(event)) {
                 document_.handle_mouse_down(event);

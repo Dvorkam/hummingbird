@@ -50,6 +50,7 @@ public:
     struct InputEditResult {
         bool handled = false;
         bool needs_repaint = false;
+        bool mutated = false;  // a JS key listener mutated the DOM (caller must rebuild)
         std::optional<FormSubmission> submitted_form;
     };
 
@@ -114,9 +115,17 @@ public:
     bool has_focused_input() const;
     InputEditResult handle_text_input(std::string_view text);
     InputEditResult handle_key_down(const InputEvent& event, std::string_view base_url);
+    InputEditResult handle_key_up(const InputEvent& event);
     std::optional<std::string> focused_input_value() const;
 
 private:
+    struct KeyDispatchResult {
+        bool mutated = false;
+        bool default_prevented = false;
+    };
+    // Dispatches a DOM keyboard event (`type`) to the focused element / document.
+    KeyDispatchResult dispatch_key_event(const char* type, const InputEvent& event);
+
     std::unique_ptr<DocumentResources> resources_;
     std::unique_ptr<DocumentModel> model_;
     std::unique_ptr<DocumentInteraction> interaction_;

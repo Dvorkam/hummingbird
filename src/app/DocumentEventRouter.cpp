@@ -19,10 +19,22 @@ bool DocumentEventRouter::handle_text_input(const Hummingbird::InputEvent& event
     return false;
 }
 
+void DocumentEventRouter::rebuild_after_script_mutation() {
+    if (!graphics_ || !window_) {
+        return;
+    }
+    auto [win_w, win_h] = window_->get_size();
+    const auto viewport = chrome_.content_viewport(win_w, win_h);
+    if (app_.active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
+        render_.set_document_and_controls_dirty();
+    }
+}
+
 bool DocumentEventRouter::handle_key_down(const Hummingbird::InputEvent& event) {
     auto tab_result = app_.active_tab().handle_key_down(event);
-    if (!tab_result.handled) {
-        return false;
+    // A JS keydown listener may have mutated the DOM (e.g. TodoMVC's Enter-to-add).
+    if (tab_result.mutated) {
+        rebuild_after_script_mutation();
     }
     if (tab_result.submitted_form) {
         app_.navigate_and_reflect_submission(*tab_result.submitted_form);
@@ -30,7 +42,15 @@ bool DocumentEventRouter::handle_key_down(const Hummingbird::InputEvent& event) 
     if (tab_result.needs_repaint) {
         render_.set_controls_dirty();
     }
-    return true;
+    return tab_result.handled || tab_result.mutated;
+}
+
+bool DocumentEventRouter::handle_key_up(const Hummingbird::InputEvent& event) {
+    auto tab_result = app_.active_tab().handle_key_up(event);
+    if (tab_result.mutated) {
+        rebuild_after_script_mutation();
+    }
+    return tab_result.mutated;
 }
 
 void DocumentEventRouter::handle_mouse_down(const Hummingbird::InputEvent& event) {

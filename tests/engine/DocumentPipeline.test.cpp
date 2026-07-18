@@ -14,6 +14,7 @@
 #include "core/dom/Node.h"
 #include "core/dom/Text.h"
 #include "core/platform_api/IGraphicsContext.h"
+#include "core/platform_api/InputEvent.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "engine/document/DocumentModel.h"
@@ -378,6 +379,110 @@ TEST(DocumentPipelineTest, ClickPreventDefaultIsReported) {
     DocumentPipeline::HitTestContext ctx{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
     auto result = pipeline.dispatch_click(ctx);
     EXPECT_TRUE(result.default_prevented);
+}
+
+TEST(DocumentPipelineTest, KeydownAndKeyupRouteToDocumentWithKeyFields) {
+    // A document keydown/keyup listener sees the key value and can mutate the DOM
+    // (7.2.4.2).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } p { display: block; } </style></head>
+  <body>
+    <p id="status">idle</p>
+    <script>
+      document.addEventListener('keydown', function(e) {
+        document.getElementById('status').textContent = 'down:' + e.key;
+      });
+      document.addEventListener('keyup', function(e) {
+        document.getElementById('status').textContent = 'up:' + e.key;
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();
+
+    const auto painted_has = [&](const char* text) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), text) != graphics.drawn_texts.end();
+    };
+
+    Hummingbird::InputEvent enter{};
+    enter.type = Hummingbird::EventType::KeyDown;
+    enter.key.key = Hummingbird::Key::Enter;
+    auto down = pipeline.handle_key_down(enter, "https://example.dev");
+    EXPECT_TRUE(down.mutated);
+    EXPECT_TRUE(painted_has("down:Enter"));
+
+    Hummingbird::InputEvent up{};
+    up.type = Hummingbird::EventType::KeyUp;
+    up.key.key = Hummingbird::Key::A;
+    auto keyup = pipeline.handle_key_up(up);
+    EXPECT_TRUE(keyup.mutated);
+    EXPECT_TRUE(painted_has("up:a"));
+}
+
+TEST(DocumentPipelineTest, KeydownPreventDefaultSuppressesTextEdit) {
+    // preventDefault in a keydown listener stops the default text-edit action
+    // (here: Backspace does not delete a character).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } input { display: block; } </style></head>
+  <body>
+    <input id="in" value="ab">
+    <script>
+      document.getElementById('in').addEventListener('keydown', function(e) {
+        if (e.key === 'Backspace') { e.preventDefault(); }
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();
+
+    // Focus the input (top-left), then press Backspace.
+    DocumentPipeline::HitTestContext focus{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
+    ASSERT_TRUE(pipeline.focus_input_at(focus));
+
+    Hummingbird::InputEvent backspace{};
+    backspace.type = Hummingbird::EventType::KeyDown;
+    backspace.key.key = Hummingbird::Key::Backspace;
+    pipeline.handle_key_down(backspace, "https://example.dev");
+
+    // preventDefault stopped the delete: the value is untouched.
+    auto value = pipeline.focused_input_value();
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, "ab");
 }
 
 TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {

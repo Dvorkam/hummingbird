@@ -45,6 +45,10 @@ public:
                                         const Layout::RenderObject* render_tree, const Layout::Rect& viewport,
                                         const Layout::Point& point, float scroll_y, int click_count = 1);
     ScriptDispatchResult dispatch_load(DOM::Node* dom_root, Core::ArenaAllocator* arena);
+    // Dispatches an already-built DOM event to `target` (keyboard/input/etc.);
+    // the caller decides the target node and event fields.
+    ScriptDispatchResult dispatch_dom_event(DOM::Node* dom_root, Core::ArenaAllocator* arena, DOM::Node* target,
+                                            const ScriptDomEvent& event);
 
 private:
     bool bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena);

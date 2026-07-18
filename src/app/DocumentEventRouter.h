@@ -22,12 +22,15 @@ public:
 
     bool handle_text_input(const Hummingbird::InputEvent& event);
     bool handle_key_down(const Hummingbird::InputEvent& event);
+    bool handle_key_up(const Hummingbird::InputEvent& event);
     void handle_mouse_down(const Hummingbird::InputEvent& event);
     void handle_mouse_wheel(const Hummingbird::InputEvent& event);
 
 private:
     bool handle_document_hit_navigation(const Hummingbird::Layout::Point& point,
                                         const Hummingbird::Layout::Rect& viewport);
+    // Rebuilds + repaints the document after a JS event listener mutated the DOM.
+    void rebuild_after_script_mutation();
 
     BrowserApp& app_;
     BrowserChrome& chrome_;

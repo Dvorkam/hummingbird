@@ -35,6 +35,7 @@ public:
     struct KeyResult {
         bool handled = false;
         bool needs_repaint = false;
+        bool mutated = false;  // a JS key listener changed the DOM (document repainted)
         std::optional<FormSubmission> submitted_form;
     };
     struct ClickResult {
@@ -83,6 +84,7 @@ public:
     bool has_focused_input() const;
     bool handle_text_input(std::string_view text);
     KeyResult handle_key_down(const InputEvent& event);
+    KeyResult handle_key_up(const InputEvent& event);
     std::optional<std::string> focused_input_value() const;
 
     std::optional<std::string> consume_navigation_commit_url();

@@ -156,6 +156,15 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatc
     return eval_inline_script(dom_root, arena, wrapped, "onload");
 }
 
+DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatch_dom_event(
+    DOM::Node* dom_root, Core::ArenaAllocator* arena, DOM::Node* target, const ScriptDomEvent& event) {
+    if (!target || !bind_host(dom_root, arena) || !script_engine_) {
+        return {};
+    }
+    const bool not_prevented = script_engine_->dispatch_dom_event(target, event);
+    return {true, script_host_.consume_mutations(), !not_prevented};
+}
+
 bool DocumentScriptController::bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena) {
     if (!script_engine_) {
         return false;

@@ -5,6 +5,8 @@
 #include <ostream>
 #include <utility>
 
+#include "core/dom/Element.h"
+#include "core/dom/Node.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
@@ -21,6 +23,46 @@ namespace {
 bool relayout_debug_enabled() {
     static const bool enabled = std::getenv("HB_DEBUG_LAYOUT_STATE") != nullptr;
     return enabled;
+}
+
+// Maps a platform key to its DOM `key`/`code` values (the subset the InputEvent
+// Key enum carries). `key` reflects Shift for letters; `code` is layout-agnostic.
+struct KeyFields {
+    std::string key;
+    std::string code;
+};
+KeyFields key_fields(const InputEvent& event) {
+    const int value = static_cast<int>(event.key.key);
+    if (value >= static_cast<int>(Key::A) && value <= static_cast<int>(Key::Z)) {
+        const int index = value - static_cast<int>(Key::A);
+        const char upper = static_cast<char>('A' + index);
+        const char letter = event.mods.shift ? upper : static_cast<char>('a' + index);
+        return {std::string(1, letter), std::string("Key") + upper};
+    }
+    switch (event.key.key) {
+        case Key::Enter:
+            return {"Enter", "Enter"};
+        case Key::Escape:
+            return {"Escape", "Escape"};
+        case Key::Backspace:
+            return {"Backspace", "Backspace"};
+        case Key::Delete:
+            return {"Delete", "Delete"};
+        case Key::Insert:
+            return {"Insert", "Insert"};
+        case Key::Home:
+            return {"Home", "Home"};
+        case Key::End:
+            return {"End", "End"};
+        case Key::Left:
+            return {"ArrowLeft", "ArrowLeft"};
+        case Key::Right:
+            return {"ArrowRight", "ArrowRight"};
+        case Key::F1:
+            return {"F1", "F1"};
+        default:
+            return {"", ""};
+    }
 }
 }  // namespace
 
@@ -170,13 +212,39 @@ bool DocumentPipeline::has_focused_input() const {
 
 DocumentPipeline::InputEditResult DocumentPipeline::handle_text_input(std::string_view text) {
     auto result = interaction_->handle_text_input(text);
-    return {result.handled, result.needs_repaint, std::move(result.submitted_form)};
+    return {result.handled, result.needs_repaint, /*mutated*/ false, std::move(result.submitted_form)};
+}
+
+DocumentPipeline::KeyDispatchResult DocumentPipeline::dispatch_key_event(const char* type, const InputEvent& event) {
+    // Keyboard events target the focused element, or the document (dom root) when
+    // nothing is focused. Bubbling + cancelable, with key/code populated.
+    const DOM::Element* focused = interaction_->input_controller().focused_element();
+    DOM::Node* target = focused ? const_cast<DOM::Element*>(focused) : model_->dom_root();
+    if (!target) {
+        return {};
+    }
+    KeyFields fields = key_fields(event);
+    ScriptDomEvent dom_event{type, /*bubbles*/ true, /*cancelable*/ true, fields.key, fields.code};
+    auto result = scripting_->dispatch_dom_event(*model_, target, dom_event);
+    return {result.mutated, result.default_prevented};
 }
 
 DocumentPipeline::InputEditResult DocumentPipeline::handle_key_down(const InputEvent& event,
                                                                     std::string_view base_url) {
+    // Fire the DOM keydown first; preventDefault suppresses the engine's default
+    // key handling (text-edit / Enter-to-submit).
+    auto dom = dispatch_key_event("keydown", event);
+    if (dom.default_prevented) {
+        return {/*handled*/ true, /*needs_repaint*/ dom.mutated, /*mutated*/ dom.mutated, std::nullopt};
+    }
     auto result = interaction_->handle_key_down(event, base_url);
-    return {result.handled, result.needs_repaint, std::move(result.submitted_form)};
+    return {result.handled || dom.mutated, result.needs_repaint || dom.mutated, dom.mutated,
+            std::move(result.submitted_form)};
+}
+
+DocumentPipeline::InputEditResult DocumentPipeline::handle_key_up(const InputEvent& event) {
+    auto dom = dispatch_key_event("keyup", event);
+    return {dom.mutated, dom.mutated, dom.mutated, std::nullopt};
 }
 
 std::optional<std::string> DocumentPipeline::focused_input_value() const {

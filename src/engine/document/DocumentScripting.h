@@ -34,6 +34,8 @@ public:
     DispatchResult dispatch_click(DocumentModel& model, const Layout::Rect& viewport, const Layout::Point& point,
                                   float scroll_y, int click_count = 1);
     DispatchResult dispatch_load(DocumentModel& model);
+    // Dispatches a DOM event (keyboard/input/etc.) to `target` node.
+    DispatchResult dispatch_dom_event(DocumentModel& model, DOM::Node* target, const ScriptDomEvent& event);
 
 private:
     std::unique_ptr<DocumentScriptController> controller_;
