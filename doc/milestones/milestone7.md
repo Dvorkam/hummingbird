@@ -462,7 +462,11 @@ P0: DOM + Events (North Star)
       click = default action → toggle checked + fire input/change; JS `.checked`
       reflects on rebuild; also wired element.focus()/blur() → input-controller caret
       target. Native-look only — CSS restyling is T-FORM-CONTROL-CSS-1 [M11].)
-- [ ] 7.2.5: Fragment Navigation + hashchange
+- [x] 7.2.5: Fragment Navigation + hashchange — 2026-07-18
+      (window.location.hash read/write + href; window is an EventTarget; assigning
+      location.hash or clicking an href="#/..." link fires hashchange in place with
+      no reload/teardown; app routes fragment-only clicks to navigate_fragment +
+      reflects the URL bar. Demo filter bar showcases it.)
 
 P0: Scheduling + Invalidation (North Star)
 - [ ] 7.3.1: Task Queue (setTimeout/setInterval)
