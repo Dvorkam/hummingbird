@@ -457,7 +457,11 @@ P0: DOM + Events (North Star)
       (FormSubmission carries the form element; the app router fires a cancelable
       `submit` before navigating and skips navigation on preventDefault. Both
       submit paths (click submit button + Enter) covered. **Completes 7.2.4.**)
-- [ ] 7.2.6: Interactive Checkbox Control (render + click-toggle + change/input) — split from 7.1.5; needs 7.2.1–7.2.4
+- [x] 7.2.6: Interactive Checkbox Control (render + click-toggle + change/input) — 2026-07-18
+      (fixed 13px box; paints box + checkmark, checked=accent fill + white check;
+      click = default action → toggle checked + fire input/change; JS `.checked`
+      reflects on rebuild; also wired element.focus()/blur() → input-controller caret
+      target. Native-look only — CSS restyling is T-FORM-CONTROL-CSS-1 [M11].)
 - [ ] 7.2.5: Fragment Navigation + hashchange
 
 P0: Scheduling + Invalidation (North Star)
