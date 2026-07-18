@@ -204,13 +204,62 @@
 * **Acceptance:** listener order matches spec for nested capture/bubble combinations.
 * **Tests:** event-order integration tests.
 
-* **Story 7.2.4: Input Event Coverage (enumerated)**
-* **Goal:** route `keydown`, `keyup`, `input`, `change`, `submit`, `dblclick`,
-  `focus`, `blur` from Platform through the dispatch pipeline.
+* **Story 7.2.4: Input Event Coverage (enumerated)** — *split into 7.2.4.1–7.2.4.4
+  (below), which together cover the whole enumerated set. This heading stays as the
+  umbrella; the substories are the units of work.*
+* **Goal:** route `click`, `keydown`, `keyup`, `input`, `change`, `submit`,
+  `dblclick`, `focus`, `blur` from Platform through the DOM dispatch pipeline
+  (7.2.3's `dispatch_event`), honoring `preventDefault` on the default action.
 * **Scope:** app/engine event routing → DOM dispatch; keep the Platform → Core
-  interface boundary intact.
-* **Acceptance:** TodoMVC's Enter-to-add, dblclick-to-edit, blur-to-commit flows work.
+  interface boundary intact (platform stays opaque; a new
+  `IScriptEngine::dispatch_dom_event(target, {...})` is the seam).
+* **Acceptance (whole set):** TodoMVC's Enter-to-add, dblclick-to-edit,
+  blur-to-commit flows work; `preventDefault` on a submit stops navigation.
+* **Tests:** input-controller + dispatch integration tests (per substory).
+
+* **Story 7.2.4.1: Dispatch Spine + Pointer Events (click, dblclick)**
+* **Goal:** stand up the reusable dispatch seam and route real pointer input:
+  `IScriptEngine::dispatch_dom_event(DOM::Node* target, {type, bubbles, cancelable,
+  key, code}) -> bool` (false ⇒ a listener called `preventDefault`), plumbed
+  DocumentScriptController → DocumentPipeline → Tab. A real mouse click
+  hit-tests to the topmost DOM node and dispatches a **bubbling, cancelable**
+  `click` (and `dblclick` on double-click); `preventDefault` suppresses the
+  default action (link navigation, onclick).
+* **Why first:** every other substory reuses this seam; click delegation is the
+  hn.js secondary-proof path and TodoMVC's destroy/toggle buttons.
+* **Acceptance:** a JS `click` listener on an ancestor fires for a click on a
+  descendant (delegation); `preventDefault` on a link click stops navigation.
+* **Tests:** dispatch-seam unit + click-routing integration tests.
+
+* **Story 7.2.4.2: Keyboard Events (keydown, keyup)**
+* **Goal:** route Platform `KeyDown`/`KeyUp` to the focused element (falling back
+  to `document`/`body`) as bubbling `keydown`/`keyup` events with `key`/`code`
+  populated; `preventDefault` suppresses the default key action (e.g. character
+  insertion into a focused field).
+* **Why:** TodoMVC's new-todo input is Enter-driven; hn.js reads `key`.
+* **Acceptance:** a `keydown` listener sees `key === 'Enter'`; `preventDefault`
+  in it stops the default text-edit insertion.
 * **Tests:** input-controller + dispatch integration tests.
+
+* **Story 7.2.4.3: Form Input Lifecycle (input, change, focus, blur)**
+* **Goal:** fire `input` as the user edits a text field, `change` on commit
+  (blur/Enter), and `focus`/`blur` on focus transitions (click-focus,
+  programmatic `focus()`/`blur()`, blur-on-commit) — routed from the input
+  controller.
+* **Why:** TodoMVC's blur-to-commit and edit flows depend on these.
+* **Acceptance:** editing a field fires `input`; committing fires `change`;
+  focusing/blurring fire `focus`/`blur` on the right element.
+* **Tests:** input-controller + dispatch integration tests.
+
+* **Story 7.2.4.4: Submit Event + preventDefault-Stops-Navigation**
+* **Goal:** dispatch a cancelable `submit` when a form is submitted (Enter in a
+  field / submit button); `preventDefault` halts the form navigation so a JS
+  handler can take over.
+* **Why:** completes the 7.2.2 acceptance ("preventDefault on submit stops
+  navigation"); most JS-driven forms cancel the native submit.
+* **Acceptance:** submitting a form fires `submit`; `preventDefault` stops the
+  navigation that would otherwise occur.
+* **Tests:** form-submit + dispatch integration tests.
 
 * **Story 7.2.5: Fragment Navigation + hashchange**
 * **Goal:** `location.hash` read/write, clicking `href="#/..."` links, and the
@@ -390,7 +439,10 @@ P0: DOM + Events (North Star)
       stopPropagation/stopImmediatePropagation + eventPhase. `document` is now an
       EventTarget (sentinel key) so delegation works — listener order verified for
       nested capture/bubble, incl. document catching a bubbled event.)
-- [ ] 7.2.4: Input Event Coverage
+- [ ] 7.2.4.1: Dispatch spine + pointer events (click, dblclick) — `IScriptEngine::dispatch_dom_event` seam
+- [ ] 7.2.4.2: Keyboard events (keydown, keyup) on the focused element
+- [ ] 7.2.4.3: Form input lifecycle (input, change, focus, blur)
+- [ ] 7.2.4.4: Submit event + preventDefault stops navigation
 - [ ] 7.2.6: Interactive Checkbox Control (render + click-toggle + change/input) — split from 7.1.5; needs 7.2.1–7.2.4
 - [ ] 7.2.5: Fragment Navigation + hashchange
 
