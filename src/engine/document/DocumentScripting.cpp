@@ -63,4 +63,13 @@ DocumentScripting::DispatchResult DocumentScripting::dispatch_dom_event(Document
     return {result.handled, result.mutated, result.default_prevented};
 }
 
+void DocumentScripting::set_location(std::string_view url) {
+    controller_->set_location(url);
+}
+
+DocumentScripting::DispatchResult DocumentScripting::navigate_fragment(DocumentModel& model, std::string_view url) {
+    auto result = controller_->navigate_fragment(model.dom_root(), model.dom_arena(), url);
+    return {result.handled, result.mutated, result.default_prevented};
+}
+
 }  // namespace Hummingbird::Engine

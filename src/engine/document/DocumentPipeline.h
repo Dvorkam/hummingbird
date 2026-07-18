@@ -130,6 +130,14 @@ public:
     // Fires a cancelable DOM `submit` on the form before it navigates (7.2.4.4).
     SubmitDispatchResult dispatch_submit(const DOM::Element* form);
 
+    // window.location / fragment navigation (7.2.5).
+    struct FragmentNavResult {
+        bool hash_changed = false;  // the fragment differed → hashchange fired
+        bool mutated = false;       // a hashchange listener changed the DOM
+    };
+    void set_location(std::string_view url);
+    FragmentNavResult navigate_fragment(std::string_view url);
+
 private:
     struct KeyDispatchResult {
         bool mutated = false;

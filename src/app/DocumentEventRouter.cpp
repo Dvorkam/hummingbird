@@ -6,6 +6,7 @@
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
+#include "core/utils/Url.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/tab/Tab.h"
 
@@ -151,6 +152,21 @@ bool DocumentEventRouter::handle_document_hit_navigation(const Hummingbird::Layo
     if (!link) {
         return false;
     }
+
+    // A fragment-only change within the current document (e.g. TodoMVC's
+    // #/active filter): fire hashchange in place instead of reloading (7.2.5).
+    const std::string_view current = tab.requested_url();
+    if (Core::url_without_fragment(*link) == Core::url_without_fragment(current) &&
+        Core::url_fragment(*link) != Core::url_fragment(current)) {
+        auto result = tab.navigate_fragment(*link, *graphics_, viewport);
+        chrome_.url_bar().set_text(*link);
+        render_.set_chrome_dirty();
+        if (result.mutated) {
+            render_.set_document_dirty();
+        }
+        return true;
+    }
+
     app_.navigate_and_reflect_url(*link);
     return true;
 }

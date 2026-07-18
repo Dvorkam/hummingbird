@@ -426,6 +426,55 @@ TEST(ScriptEngineTest, StopPropagationAndNonBubblingEvents) {
     EXPECT_TRUE(result.ok) << result.error;
 }
 
+TEST(ScriptEngineTest, LocationHashAndHashchange) {
+    Hummingbird::Core::ArenaAllocator arena(1024, 1);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/todo#/all");
+
+    auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "check('href', location.href === 'https://example.dev/todo#/all');"
+        "check('hash', location.hash === '#/all');"
+        "check('window.location', window.location === location);"
+        "globalThis.log = [];"
+        "window.addEventListener('hashchange', function(e) {"
+        "  globalThis.log.push(location.hash + '|' + e.oldURL + '|' + e.newURL);"
+        "});"
+        // Assigning location.hash fires hashchange, no reload.
+        "location.hash = '#/active';"
+        "check('href2', location.href === 'https://example.dev/todo#/active');"
+        "check('fired', globalThis.log.length === 1);"
+        "check('detail', globalThis.log[0] ==="
+        "  '#/active|https://example.dev/todo#/all|https://example.dev/todo#/active');"
+        // A no-op assignment (same hash) does not re-fire.
+        "location.hash = '#/active';"
+        "check('no-refire', globalThis.log.length === 1);"
+        // Bare 'x' normalizes to '#x'.
+        "location.hash = 'plain';"
+        "check('normalized', location.hash === '#plain' && globalThis.log.length === 2);"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+
+    // navigate_fragment (the app-facing entry) also fires hashchange.
+    EXPECT_TRUE(engine->navigate_fragment("https://example.dev/todo#/completed"));
+    auto after = engine->eval(
+        "if (globalThis.log.length !== 3) throw new Error('nf count ' + globalThis.log.length);"
+        "if (location.hash !== '#/completed') throw new Error('nf hash ' + location.hash);"
+        "true;",
+        "inline");
+    EXPECT_TRUE(after.ok) << after.error;
+
+    // Navigating to the same fragment reports no change.
+    EXPECT_FALSE(engine->navigate_fragment("https://example.dev/todo#/completed"));
+}
+
 TEST(ScriptEngineTest, ListenersTornDownOnNavigation) {
     Hummingbird::Core::ArenaAllocator arena(4096, 4);
     auto root = Hummingbird::DOM::Element::create(arena, "div");

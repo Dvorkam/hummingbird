@@ -47,6 +47,10 @@ public:
         bool default_prevented = false;  // a JS submit listener called preventDefault
         bool mutated = false;
     };
+    struct FragmentResult {
+        bool hash_changed = false;
+        bool mutated = false;
+    };
     Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
         std::unique_ptr<IScriptEngine> script_engine);
@@ -90,6 +94,9 @@ public:
     KeyResult handle_key_down(const InputEvent& event);
     KeyResult handle_key_up(const InputEvent& event);
     SubmitResult dispatch_submit(const DOM::Element* form);
+    // Same-document fragment navigation (7.2.5): fires hashchange without a
+    // reload; rebuilds if a listener mutated the DOM.
+    FragmentResult navigate_fragment(std::string_view url, IGraphicsContext& graphics, const Layout::Rect& viewport);
     std::optional<std::string> focused_input_value() const;
 
     std::optional<std::string> consume_navigation_commit_url();

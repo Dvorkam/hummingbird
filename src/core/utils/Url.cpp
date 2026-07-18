@@ -166,4 +166,14 @@ std::string resolve_url(std::string_view base_url, std::string_view href) {
     return resolved;
 }
 
+std::string_view url_fragment(std::string_view url) {
+    const auto pos = url.find('#');
+    return pos == std::string_view::npos ? std::string_view{} : url.substr(pos);
+}
+
+std::string_view url_without_fragment(std::string_view url) {
+    const auto pos = url.find('#');
+    return pos == std::string_view::npos ? url : url.substr(0, pos);
+}
+
 }  // namespace Hummingbird::Core

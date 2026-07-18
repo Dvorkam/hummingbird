@@ -243,6 +243,16 @@ Tab::SubmitResult Tab::dispatch_submit(const DOM::Element* form) {
     return {result.default_prevented, result.mutated};
 }
 
+Tab::FragmentResult Tab::navigate_fragment(std::string_view url, IGraphicsContext& graphics,
+                                           const Layout::Rect& viewport) {
+    auto result = document_pipeline_->navigate_fragment(url);
+    if (result.mutated) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "navigate_fragment:hashchange_mutation");
+        mark_dirty();
+    }
+    return {result.hash_changed, result.mutated};
+}
+
 std::optional<std::string> Tab::focused_input_value() const {
     return document_pipeline_->focused_input_value();
 }
@@ -345,6 +355,8 @@ bool Tab::all_external_scripts_resolved() const {
 }
 
 bool Tab::run_document_scripts_now() {
+    // Point window.location at the document URL before any script reads it (7.2.5).
+    document_pipeline_->set_location(navigation_lifecycle_.requested_url());
     return document_pipeline_->run_scripts([this](std::string_view src) -> std::optional<std::string_view> {
         auto resolved = ResourceRequestPlanning::resolve_request_url(navigation_lifecycle_.requested_url(), src);
         if (resolved.key.empty()) return std::nullopt;

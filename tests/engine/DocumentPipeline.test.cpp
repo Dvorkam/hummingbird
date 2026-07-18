@@ -684,6 +684,62 @@ TEST(DocumentPipelineTest, JsFocusMakesInputTheCaretTarget) {
     EXPECT_EQ(*value, "hello");
 }
 
+TEST(DocumentPipelineTest, FragmentNavigationFiresHashchangeWithoutTeardown) {
+    // navigate_fragment fires hashchange in place; the listener (and DOM) survive,
+    // so a second fragment change fires again (7.2.5).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } p { display: block; } </style></head>
+  <body>
+    <p id="status">start</p>
+    <script>
+      window.addEventListener('hashchange', function() {
+        document.getElementById('status').textContent = 'route:' + location.hash;
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+    const std::string base = "https://example.dev/todo";
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, base);
+    pipeline.set_location(base);
+    pipeline.run_scripts();  // registers the hashchange listener
+
+    const auto painted_has = [&](const char* text) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, base);
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), text) != graphics.drawn_texts.end();
+    };
+
+    auto r1 = pipeline.navigate_fragment(base + "#/active");
+    EXPECT_TRUE(r1.hash_changed);
+    EXPECT_TRUE(r1.mutated);
+    EXPECT_TRUE(painted_has("route:#/active"));
+
+    // The listener survived (no document teardown): a second change fires again.
+    auto r2 = pipeline.navigate_fragment(base + "#/completed");
+    EXPECT_TRUE(r2.hash_changed);
+    EXPECT_TRUE(painted_has("route:#/completed"));
+
+    // Navigating to the same fragment reports no change.
+    auto r3 = pipeline.navigate_fragment(base + "#/completed");
+    EXPECT_FALSE(r3.hash_changed);
+}
+
 TEST(DocumentPipelineTest, CheckboxClickTogglesAndFiresChange) {
     // Clicking a checkbox toggles its checkedness (default action) and fires a
     // change event whose handler sees the new value (7.2.6).

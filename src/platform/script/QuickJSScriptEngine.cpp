@@ -8,6 +8,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/utils/Log.h"
+#include "core/utils/Url.h"
 
 // The QuickJS engine is a thin adapter: it holds DOM nodes only as opaque
 // handles and performs every read/mutation through IScriptHost. The core/dom
@@ -32,14 +33,26 @@ DOM::Node* QuickJSScriptEngine::document_target() {
     return reinterpret_cast<DOM::Node*>(&document_target_marker_);
 }
 
+DOM::Node* QuickJSScriptEngine::window_target() {
+    return reinterpret_cast<DOM::Node*>(&window_target_marker_);
+}
+
 DOM::Node* QuickJSScriptEngine::resolve_event_target(JSValueConst this_val) {
-    // A node wrapper resolves to its node; the plain `document` object (not a
-    // node wrapper) resolves to the document sentinel.
-    DOM::Node* node = node_from_value(this_val);
-    return node ? node : document_target();
+    // A node wrapper resolves to its node; the plain `window`/`document` objects
+    // (not node wrappers) resolve to their sentinels.
+    if (DOM::Node* node = node_from_value(this_val)) {
+        return node;
+    }
+    if (JS_IsStrictEqual(context_, this_val, window_object_)) {
+        return window_target();
+    }
+    return document_target();
 }
 
 JSValue QuickJSScriptEngine::event_target_value(DOM::Node* target) {
+    if (target == window_target()) {
+        return JS_DupValue(context_, window_object_);
+    }
     if (target == document_target()) {
         return JS_DupValue(context_, document_object_);
     }
@@ -106,6 +119,39 @@ JSValue QuickJSScriptEngine::js_document_create_text_node(JSContext* ctx, JSValu
         JS_FreeCString(ctx, data);
     }
     return engine->wrap_node(text);
+}
+
+// --- window.location (7.2.5) -----------------------------------------------
+
+JSValue QuickJSScriptEngine::js_location_get_href(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/,
+                                                  JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    return JS_NewString(ctx, engine ? engine->location_url_.c_str() : "");
+}
+
+JSValue QuickJSScriptEngine::js_location_get_hash(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/,
+                                                  JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    const std::string hash = engine ? std::string(Core::url_fragment(engine->location_url_)) : std::string{};
+    return JS_NewString(ctx, hash.c_str());
+}
+
+JSValue QuickJSScriptEngine::js_location_set_hash(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                  JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || argc < 1) return JS_UNDEFINED;
+    const char* value = JS_ToCString(ctx, argv[0]);
+    if (!value) return JS_UNDEFINED;
+    std::string hash(value);
+    JS_FreeCString(ctx, value);
+    // Assigning `location.hash = "x"` normalizes to "#x" (empty clears the hash).
+    if (!hash.empty() && hash.front() != '#') {
+        hash.insert(hash.begin(), '#');
+    }
+    std::string new_url = std::string(Core::url_without_fragment(engine->location_url_));
+    new_url += hash;
+    engine->update_location(new_url);
+    return JS_UNDEFINED;
 }
 
 // --- Node property getters/setters ----------------------------------------
@@ -814,7 +860,9 @@ void QuickJSScriptEngine::dispatch_event(DOM::Node* target, const std::string& t
     // Propagation path: [target, parent, ..., root, document].
     std::vector<DOM::Node*> path;
     path.push_back(target);
-    if (target != document_target() && host_) {
+    // Only real DOM nodes have an ancestor chain; the window/document sentinels
+    // dispatch to themselves.
+    if (target != document_target() && target != window_target() && host_) {
         for (DOM::Node* n = host_->parent_node(target); n; n = host_->parent_node(n)) {
             path.push_back(n);
         }
@@ -960,6 +1008,8 @@ QuickJSScriptEngine::~QuickJSScriptEngine() {
         reset_bindings();
         JS_FreeValue(context_, document_object_);
         document_object_ = JS_UNDEFINED;
+        JS_FreeValue(context_, window_object_);
+        window_object_ = JS_UNDEFINED;
         JS_FreeContext(context_);
         context_ = nullptr;
     }
@@ -1193,6 +1243,60 @@ void QuickJSScriptEngine::install_document_bindings() {
     JS_SetPropertyStr(context_, global, "document", document);
     JS_FreeValue(context_, global);
     document_ready_ = true;
+
+    install_window_bindings();
+}
+
+void QuickJSScriptEngine::install_window_bindings() {
+    if (!context_ || !JS_IsUndefined(window_object_)) {
+        return;
+    }
+    JSValue global = JS_GetGlobalObject(context_);
+
+    // location: href (read) + hash (read/write; assigning fires hashchange).
+    JSValue location = JS_NewObject(context_);
+    define_accessor(location, "href", js_location_get_href, nullptr);
+    define_accessor(location, "hash", js_location_get_hash, js_location_set_hash);
+
+    // window is an EventTarget (hashchange fires here) and owns location.
+    JSValue window = JS_NewObject(context_);
+    JS_SetPropertyStr(context_, window, "location", JS_DupValue(context_, location));
+    JS_SetPropertyStr(context_, window, "addEventListener",
+                      JS_NewCFunction(context_, js_node_add_event_listener, "addEventListener", 3));
+    JS_SetPropertyStr(context_, window, "removeEventListener",
+                      JS_NewCFunction(context_, js_node_remove_event_listener, "removeEventListener", 3));
+    JS_SetPropertyStr(context_, window, "dispatchEvent",
+                      JS_NewCFunction(context_, js_node_dispatch_event, "dispatchEvent", 1));
+    window_object_ = JS_DupValue(context_, window);
+
+    // Both `window` and bare `location` are global (window.location === location).
+    JS_SetPropertyStr(context_, global, "location", location);  // transfers the ref
+    JS_SetPropertyStr(context_, global, "window", window);      // transfers the ref
+    JS_FreeValue(context_, global);
+}
+
+void QuickJSScriptEngine::set_location(std::string_view url) {
+    location_url_ = std::string(url);
+}
+
+bool QuickJSScriptEngine::navigate_fragment(std::string_view url) {
+    return update_location(url);
+}
+
+bool QuickJSScriptEngine::update_location(std::string_view url) {
+    const std::string old_url = location_url_;
+    const bool hash_changed = Core::url_fragment(old_url) != Core::url_fragment(url);
+    location_url_ = std::string(url);
+    if (!hash_changed || !context_) {
+        return false;
+    }
+    // Same-document fragment change: fire hashchange on window (no reload).
+    JSValue event = make_event("hashchange", window_target());
+    JS_SetPropertyStr(context_, event, "oldURL", JS_NewString(context_, old_url.c_str()));
+    JS_SetPropertyStr(context_, event, "newURL", JS_NewString(context_, location_url_.c_str()));
+    dispatch_event(window_target(), "hashchange", event);
+    JS_FreeValue(context_, event);
+    return true;
 }
 
 void QuickJSScriptEngine::install_extension_bindings() {

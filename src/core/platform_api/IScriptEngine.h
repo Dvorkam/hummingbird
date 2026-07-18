@@ -46,6 +46,15 @@ public:
     // target/bubble). Returns false when a listener called preventDefault (the
     // caller should skip the default action). Default: no-op returning true.
     virtual bool dispatch_dom_event(DOM::Node* /*target*/, const ScriptDomEvent& /*event*/) { return true; }
+
+    // Sets the document URL backing window.location (called on navigation/before
+    // scripts run). Does not fire hashchange. Default: no-op.
+    virtual void set_location(std::string_view /*url*/) {}
+
+    // Same-document fragment navigation (7.2.5): points window.location at `url`
+    // and fires `hashchange` when the fragment changed, WITHOUT reloading. Returns
+    // true when a hashchange fired. Default: no-op returning false.
+    virtual bool navigate_fragment(std::string_view /*url*/) { return false; }
 };
 
 using ScriptEnginePtr = std::unique_ptr<IScriptEngine>;

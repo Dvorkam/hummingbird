@@ -28,6 +28,8 @@ public:
     ScriptEvalResult eval(std::string_view source, std::string_view filename) override;
     void reset_bindings() override;
     bool dispatch_dom_event(DOM::Node* target, const ScriptDomEvent& event) override;
+    void set_location(std::string_view url) override;
+    bool navigate_fragment(std::string_view url) override;
 
 private:
     static QuickJSScriptEngine* engine_from_context(JSContext* ctx);
@@ -109,6 +111,11 @@ private:
     static JSValue js_node_remove_event_listener(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_dispatch_event(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    // window.location accessors (7.2.5).
+    static JSValue js_location_get_href(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_location_get_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_location_set_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
     // Event object methods (7.2.2). The Event is a plain object; these set flags
     // the C++ dispatch loop reads back (defaultPrevented / propagation state).
     static JSValue js_event_prevent_default(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
@@ -123,7 +130,13 @@ private:
     void install_string_map_class();
     void install_console_bindings();
     void install_document_bindings();
+    void install_window_bindings();
     void install_extension_bindings();
+
+    // window/location + hashchange (7.2.5).
+    DOM::Node* window_target();  // sentinel listeners_ key for window-level listeners
+    // Points location at `url` and fires `hashchange` when the fragment changed.
+    bool update_location(std::string_view url);
 
     void define_getter(JSValueConst proto, const char* name, JSCFunction* getter);
     void define_accessor(JSValueConst proto, const char* name, JSCFunction* getter, JSCFunction* setter);
@@ -170,8 +183,13 @@ private:
     // Retained reference to the `document` object, used as the EventTarget value
     // for document-level listeners. Freed in the destructor.
     JSValue document_object_ = JS_UNDEFINED;
-    // Address is the unique listeners_ key for document-level listeners.
+    // Retained reference to the `window` object (EventTarget for hashchange etc.).
+    JSValue window_object_ = JS_UNDEFINED;
+    // Unique listeners_ keys for document- and window-level listeners.
     char document_target_marker_ = 0;
+    char window_target_marker_ = 0;
+    // Current document URL backing window.location (7.2.5).
+    std::string location_url_;
     JSClassID node_class_id_ = 0;
     JSClassID token_list_class_id_ = 0;
     JSClassID string_map_class_id_ = 0;

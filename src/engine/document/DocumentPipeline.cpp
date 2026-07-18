@@ -308,6 +308,15 @@ DocumentPipeline::InputEditResult DocumentPipeline::handle_key_up(const InputEve
     return {dom.mutated, dom.mutated, dom.mutated, std::nullopt};
 }
 
+void DocumentPipeline::set_location(std::string_view url) {
+    scripting_->set_location(url);
+}
+
+DocumentPipeline::FragmentNavResult DocumentPipeline::navigate_fragment(std::string_view url) {
+    auto result = scripting_->navigate_fragment(*model_, url);
+    return {result.handled, result.mutated};
+}
+
 DocumentPipeline::SubmitDispatchResult DocumentPipeline::dispatch_submit(const DOM::Element* form) {
     if (!form) {
         return {};

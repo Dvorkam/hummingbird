@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <string_view>
 
 #include "core/platform_api/IScriptEngine.h"
 #include "engine/document/ExternalScriptLookup.h"
@@ -43,6 +44,9 @@ public:
     DispatchResult dispatch_load(DocumentModel& model);
     // Dispatches a DOM event (keyboard/input/etc.) to `target` node.
     DispatchResult dispatch_dom_event(DocumentModel& model, DOM::Node* target, const ScriptDomEvent& event);
+    // window.location / fragment navigation (7.2.5).
+    void set_location(std::string_view url);
+    DispatchResult navigate_fragment(DocumentModel& model, std::string_view url);
 
 private:
     std::unique_ptr<DocumentScriptController> controller_;

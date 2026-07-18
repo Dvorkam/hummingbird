@@ -49,6 +49,9 @@ public:
                                         const Layout::RenderObject* render_tree, const Layout::Rect& viewport,
                                         const Layout::Point& point, float scroll_y, int click_count = 1);
     ScriptDispatchResult dispatch_load(DOM::Node* dom_root, Core::ArenaAllocator* arena);
+    // window.location / fragment navigation (7.2.5).
+    void set_location(std::string_view url);
+    ScriptDispatchResult navigate_fragment(DOM::Node* dom_root, Core::ArenaAllocator* arena, std::string_view url);
     // Dispatches an already-built DOM event to `target` (keyboard/input/etc.);
     // the caller decides the target node and event fields.
     ScriptDispatchResult dispatch_dom_event(DOM::Node* dom_root, Core::ArenaAllocator* arena, DOM::Node* target,

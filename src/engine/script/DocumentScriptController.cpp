@@ -66,6 +66,23 @@ void DocumentScriptController::set_focus_sink(std::function<void(DOM::Element*, 
     script_host_.set_focus_sink(std::move(sink));
 }
 
+void DocumentScriptController::set_location(std::string_view url) {
+    if (script_engine_) {
+        script_engine_->set_location(url);
+    }
+}
+
+DocumentScriptController::ScriptDispatchResult DocumentScriptController::navigate_fragment(DOM::Node* dom_root,
+                                                                                           Core::ArenaAllocator* arena,
+                                                                                           std::string_view url) {
+    // Bind the host so a hashchange listener's DOM mutations are captured.
+    if (!bind_host(dom_root, arena) || !script_engine_) {
+        return {};
+    }
+    const bool hash_changed = script_engine_->navigate_fragment(url);
+    return {hash_changed, script_host_.consume_mutations(), false};
+}
+
 void DocumentScriptController::clear() {
     // Drop cached node wrappers before the host forgets the document: their
     // opaque pointers become dangling once the DOM arena is reset on navigation.
