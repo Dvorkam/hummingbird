@@ -632,8 +632,8 @@ TEST(DocumentPipelineTest, TodoDemoAssetsDriveTheFullFlow) {
     };
 
     // The external script seeded two todos via createElement/appendChild.
-    EXPECT_TRUE(painted_has("Click a task to cross it off"));
-    EXPECT_TRUE(painted_has("Type below and press Enter to add"));
+    EXPECT_TRUE(painted_has("Tick the checkbox to complete a task"));
+    EXPECT_TRUE(painted_has("This one starts completed"));
 
     // The input autofocuses; type a task and press Enter to add it.
     ASSERT_TRUE(pipeline.focus_autofocus_input());
@@ -646,6 +646,14 @@ TEST(DocumentPipelineTest, TodoDemoAssetsDriveTheFullFlow) {
     EXPECT_TRUE(result.mutated);  // the keydown listener added a todo
 
     EXPECT_TRUE(painted_has("Buy milk"));
+
+    // The hash-routed filter: switching to #/active hides the completed seed and
+    // keeps the active tasks (7.2.5 hashchange re-filters in place).
+    pipeline.set_location(base);
+    auto frag = pipeline.navigate_fragment(base + "#/active");
+    EXPECT_TRUE(frag.hash_changed);
+    EXPECT_TRUE(painted_has("Buy milk"));                    // active → shown
+    EXPECT_FALSE(painted_has("This one starts completed"));  // completed → hidden
 }
 
 TEST(DocumentPipelineTest, JsFocusMakesInputTheCaretTarget) {

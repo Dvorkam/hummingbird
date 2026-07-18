@@ -15,9 +15,14 @@
       #new-todo { display: block; width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px; border: 1px solid #c3ccdd; border-radius: 8px; background-color: #ffffff; color: #1d2433; }
       #new-todo:focus { border-color: #4285f4; }
       #count { color: #5a6478; font-size: 14px; margin: 12px 0 4px 0; }
+      .filters { margin: 10px 0 2px 0; }
+      .filters .filter { color: #4285f4; text-decoration: none; margin-right: 14px; font-size: 14px; }
+      .filters .filter.selected { font-weight: bold; text-decoration: underline; }
       ul { list-style: none; margin: 8px 0 0 0; padding: 0; }
-      li.todo { display: flex; flex-direction: row; align-items: center; justify-content: space-between; padding: 10px 12px; margin: 6px 0; border: 1px solid #dde3ee; border-radius: 8px; background-color: #fbfcff; }
-      li.todo .label { font-size: 16px; }
+      li.todo.hidden { display: none; }
+      li.todo { display: flex; flex-direction: row; align-items: center; padding: 10px 12px; margin: 6px 0; border: 1px solid #dde3ee; border-radius: 8px; background-color: #fbfcff; }
+      li.todo .toggle { margin: 0; flex: none; }
+      li.todo .label { font-size: 16px; flex: 1; margin: 0 12px; }
       li.todo.done .label { color: #9aa4b8; text-decoration: line-through; }
       li.todo .delete { border: none; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 4px 10px; font-size: 14px; font-weight: bold; }
     </style>
@@ -30,10 +35,17 @@
     <div class="page">
       <div class="card">
         <h2>A tiny todo app, driven entirely by JavaScript</h2>
-        <p class="hint">Click the field, type a task, and press <b>Enter</b> to add it.
-        Click a task to toggle it done. Click <b>x</b> to remove it.</p>
+        <p class="hint">Type a task and press <b>Enter</b> to add it. Tick the
+        <b>checkbox</b> to complete it, or click <b>x</b> to remove it. The
+        <b>All / Active / Completed</b> filters route through the URL hash
+        (<code>#/active</code>) and update live via <code>hashchange</code>.</p>
         <input id="new-todo" type="text" value="" placeholder="What needs doing?" autofocus>
         <p id="count">0 of 0 done</p>
+        <nav class="filters">
+          <a href="#/all" class="filter">All</a>
+          <a href="#/active" class="filter">Active</a>
+          <a href="#/completed" class="filter">Completed</a>
+        </nav>
         <ul id="list"></ul>
       </div>
       <div class="card">

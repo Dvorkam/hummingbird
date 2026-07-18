@@ -1,5 +1,6 @@
 // Interactive todo demo for Milestone 7. Exercises the DOM + event pipeline:
-// keydown on an input, DOM construction, click delegation, and classList restyle.
+// a checkbox per task, DOM construction, click delegation, classList restyle,
+// and hash-routed filters (window.location + hashchange).
 (function () {
   var input = document.getElementById("new-todo");
   var list = document.getElementById("list");
@@ -16,9 +17,45 @@
     count.textContent = done + " of " + items.length + " done";
   }
 
-  function addTodo(text) {
+  // Hash-routed filter: show all / only active / only completed tasks. Driven by
+  // the URL fragment, so it survives across the hashchange event.
+  function applyFilter() {
+    var hash = location.hash || "#/all";
+    var items = list.getElementsByTagName("li");
+    for (var i = 0; i < items.length; i++) {
+      var done = items[i].classList.contains("done");
+      var show = hash === "#/active" ? !done : hash === "#/completed" ? done : true;
+      if (show) {
+        items[i].classList.remove("hidden");
+      } else {
+        items[i].classList.add("hidden");
+      }
+    }
+    var links = document.getElementsByClassName("filter");
+    for (var j = 0; j < links.length; j++) {
+      if (links[j].getAttribute("href") === hash) {
+        links[j].classList.add("selected");
+      } else {
+        links[j].classList.remove("selected");
+      }
+    }
+  }
+
+  function update() {
+    refreshCount();
+    applyFilter();
+  }
+
+  function addTodo(text, done) {
     var li = document.createElement("li");
-    li.className = "todo";
+    li.className = done ? "todo done" : "todo";
+
+    var box = document.createElement("input");
+    box.setAttribute("type", "checkbox");
+    box.className = "toggle";
+    if (done) {
+      box.checked = true;
+    }
 
     var label = document.createElement("span");
     label.className = "label";
@@ -28,6 +65,7 @@
     del.className = "delete";
     del.appendChild(document.createTextNode("x"));
 
+    li.appendChild(box);
     li.appendChild(label);
     li.appendChild(del);
     list.appendChild(li);
@@ -38,34 +76,45 @@
     if (e.key === "Enter") {
       var text = input.value;
       if (text && text.length > 0) {
-        addTodo(text);
+        addTodo(text, false);
         input.value = "";
-        refreshCount();
+        update();
       }
     }
   });
 
-  // One delegated click listener on the list handles every item: the delete
-  // button removes its row; clicking anywhere else on a row toggles it done.
+  // Toggling a task's checkbox fires `change`, which bubbles here (delegation):
+  // sync the row's done state to the checkbox.
+  list.addEventListener("change", function (e) {
+    var li = e.target.closest("li");
+    if (!li) {
+      return;
+    }
+    if (e.target.checked) {
+      li.classList.add("done");
+    } else {
+      li.classList.remove("done");
+    }
+    update();
+  });
+
+  // A delegated click listener removes a row when its delete button is clicked.
   list.addEventListener("click", function (e) {
     var del = e.target.closest(".delete");
     if (del) {
       var row = del.closest("li");
       if (row) {
         list.removeChild(row);
-        refreshCount();
+        update();
       }
-      return;
-    }
-    var li = e.target.closest("li");
-    if (li) {
-      li.classList.toggle("done");
-      refreshCount();
     }
   });
 
-  // Seed a couple of tasks so the list is not empty on first load.
-  addTodo("Click a task to cross it off");
-  addTodo("Type below and press Enter to add");
-  refreshCount();
+  // Re-filter whenever the URL fragment changes (All / Active / Completed links).
+  window.addEventListener("hashchange", applyFilter);
+
+  // Seed a couple of tasks, then apply the current filter + count.
+  addTodo("Tick the checkbox to complete a task", false);
+  addTodo("This one starts completed", true);
+  update();
 })();
