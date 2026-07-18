@@ -10,6 +10,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
+#include "engine/document/DocumentInputUtils.h"
 #include "engine/document/DocumentInteraction.h"
 #include "engine/document/DocumentModel.h"
 #include "engine/document/DocumentRenderer.h"
@@ -185,16 +186,31 @@ std::optional<FormSubmission> DocumentPipeline::submit_form_at(const HitTestCont
 }
 
 bool DocumentPipeline::focus_input_at(const HitTestContext& context) {
-    return interaction_->focus_input_at(model_->render_tree(),
-                                        {context.point, context.viewport, context.base_url, context.scroll_y});
+    DOM::Element* before = const_cast<DOM::Element*>(interaction_->input_controller().focused_element());
+    bool result = interaction_->focus_input_at(model_->render_tree(),
+                                               {context.point, context.viewport, context.base_url, context.scroll_y});
+    DOM::Element* after = const_cast<DOM::Element*>(interaction_->input_controller().focused_element());
+    if (before != after) {
+        fire_focus_transition(before, after);
+    }
+    return result;
 }
 
 bool DocumentPipeline::focus_autofocus_input() {
-    return interaction_->focus_autofocus_input(model_->render_tree());
+    bool result = interaction_->focus_autofocus_input(model_->render_tree());
+    if (result) {
+        fire_focus_transition(nullptr, const_cast<DOM::Element*>(interaction_->input_controller().focused_element()));
+    }
+    return result;
 }
 
 bool DocumentPipeline::clear_input_focus() {
-    return interaction_->clear_input_focus();
+    DOM::Element* before = const_cast<DOM::Element*>(interaction_->input_controller().focused_element());
+    bool result = interaction_->clear_input_focus();
+    if (before) {
+        fire_focus_transition(before, nullptr);
+    }
+    return result;
 }
 
 bool DocumentPipeline::set_control_interaction_at(const HitTestContext& context) {
@@ -211,8 +227,43 @@ bool DocumentPipeline::has_focused_input() const {
 }
 
 DocumentPipeline::InputEditResult DocumentPipeline::handle_text_input(std::string_view text) {
+    const DOM::Element* focused = interaction_->input_controller().focused_element();
+    std::string before = focused ? input_value(*focused) : std::string{};
     auto result = interaction_->handle_text_input(text);
-    return {result.handled, result.needs_repaint, /*mutated*/ false, std::move(result.submitted_form)};
+    bool mutated = false;
+    if (focused && input_value(*focused) != before) {
+        // The field's value changed: fire a bubbling, non-cancelable `input`.
+        mutated = dispatch_element_event(const_cast<DOM::Element*>(focused), "input", true, false).mutated;
+    }
+    return {result.handled, result.needs_repaint, mutated, std::move(result.submitted_form)};
+}
+
+DocumentPipeline::KeyDispatchResult DocumentPipeline::dispatch_element_event(DOM::Node* target, const char* type,
+                                                                             bool bubbles, bool cancelable) {
+    if (!target) {
+        return {};
+    }
+    ScriptDomEvent event{type, bubbles, cancelable, "", ""};
+    auto result = scripting_->dispatch_dom_event(*model_, target, event);
+    return {result.mutated, result.default_prevented};
+}
+
+bool DocumentPipeline::fire_focus_transition(DOM::Element* before, DOM::Element* after) {
+    bool mutated = false;
+    if (before) {
+        // `change` fires only when the value was edited during this focus.
+        if (input_value(*before) != focus_snapshot_value_) {
+            mutated |= dispatch_element_event(before, "change", /*bubbles*/ true, /*cancelable*/ false).mutated;
+        }
+        mutated |= dispatch_element_event(before, "blur", /*bubbles*/ false, /*cancelable*/ false).mutated;
+    }
+    if (after) {
+        focus_snapshot_value_ = input_value(*after);
+        mutated |= dispatch_element_event(after, "focus", /*bubbles*/ false, /*cancelable*/ false).mutated;
+    } else {
+        focus_snapshot_value_.clear();
+    }
+    return mutated;
 }
 
 DocumentPipeline::KeyDispatchResult DocumentPipeline::dispatch_key_event(const char* type, const InputEvent& event) {
@@ -237,9 +288,15 @@ DocumentPipeline::InputEditResult DocumentPipeline::handle_key_down(const InputE
     if (dom.default_prevented) {
         return {/*handled*/ true, /*needs_repaint*/ dom.mutated, /*mutated*/ dom.mutated, std::nullopt};
     }
+    const DOM::Element* focused = interaction_->input_controller().focused_element();
+    std::string before = focused ? input_value(*focused) : std::string{};
     auto result = interaction_->handle_key_down(event, base_url);
-    return {result.handled || dom.mutated, result.needs_repaint || dom.mutated, dom.mutated,
-            std::move(result.submitted_form)};
+    bool mutated = dom.mutated;
+    if (focused && input_value(*focused) != before) {
+        // An editing key (backspace/delete) changed the value: fire `input`.
+        mutated |= dispatch_element_event(const_cast<DOM::Element*>(focused), "input", true, false).mutated;
+    }
+    return {result.handled || mutated, result.needs_repaint || mutated, mutated, std::move(result.submitted_form)};
 }
 
 DocumentPipeline::InputEditResult DocumentPipeline::handle_key_up(const InputEvent& event) {

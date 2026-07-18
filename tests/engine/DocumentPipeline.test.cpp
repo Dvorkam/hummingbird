@@ -485,6 +485,62 @@ TEST(DocumentPipelineTest, KeydownPreventDefaultSuppressesTextEdit) {
     EXPECT_EQ(*value, "ab");
 }
 
+TEST(DocumentPipelineTest, FormInputLifecycleEvents) {
+    // input on edit, change + blur on commit, focus on gain (7.2.4.3).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } input, p { display: block; } </style></head>
+  <body>
+    <input id="in" value="">
+    <p id="log">start</p>
+    <script>
+      var el = document.getElementById('in');
+      var log = document.getElementById('log');
+      el.addEventListener('focus', function() { log.textContent = 'focus'; });
+      el.addEventListener('input', function(e) { log.textContent = 'input:' + e.target.value; });
+      el.addEventListener('change', function() { log.textContent = 'change'; });
+      el.addEventListener('blur', function() { log.textContent = log.textContent + '+blur'; });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();
+
+    const auto painted_has = [&](const char* text) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), text) != graphics.drawn_texts.end();
+    };
+
+    // Focus fires on gain.
+    DocumentPipeline::HitTestContext focus{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
+    ASSERT_TRUE(pipeline.focus_input_at(focus));
+    EXPECT_TRUE(painted_has("focus"));
+
+    // Typing fires input with the new value.
+    pipeline.handle_text_input("hi");
+    EXPECT_TRUE(painted_has("input:hi"));
+
+    // Blurring a changed field fires change then blur.
+    ASSERT_TRUE(pipeline.clear_input_focus());
+    EXPECT_TRUE(painted_has("change+blur"));
+}
+
 TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {
     const std::string html = R"HTML(
 <!doctype html>

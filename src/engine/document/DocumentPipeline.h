@@ -21,6 +21,11 @@ class IScriptEngine;
 struct InputEvent;
 }  // namespace Hummingbird
 
+namespace Hummingbird::DOM {
+class Element;
+class Node;
+}  // namespace Hummingbird::DOM
+
 namespace Hummingbird::Engine {
 
 class ResourceStore;
@@ -125,6 +130,14 @@ private:
     };
     // Dispatches a DOM keyboard event (`type`) to the focused element / document.
     KeyDispatchResult dispatch_key_event(const char* type, const InputEvent& event);
+    // Dispatches a fieldless DOM event (`type`) to `target` (input/change/focus/blur).
+    KeyDispatchResult dispatch_element_event(DOM::Node* target, const char* type, bool bubbles, bool cancelable);
+    // On a focus move `before`→`after` (either may be null): fires `change` on
+    // `before` when its value changed since focus, then `blur` on `before` and
+    // `focus` on `after`, snapshotting the newly-focused value.
+    bool fire_focus_transition(DOM::Element* before, DOM::Element* after);
+
+    std::string focus_snapshot_value_;  // focused input's value when it gained focus
 
     std::unique_ptr<DocumentResources> resources_;
     std::unique_ptr<DocumentModel> model_;

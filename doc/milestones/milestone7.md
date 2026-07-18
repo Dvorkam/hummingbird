@@ -449,7 +449,10 @@ P0: DOM + Events (North Star)
       (route Platform KeyDown/KeyUp → focused element (else document) as bubbling
       keydown/keyup with key/code; preventDefault on keydown suppresses the default
       text-edit; a mutating key listener rebuilds the doc. New KeyUp routing path.)
-- [ ] 7.2.4.3: Form input lifecycle (input, change, focus, blur)
+- [x] 7.2.4.3: Form input lifecycle (input, change, focus, blur) — 2026-07-18
+      (input fires on edit (bubbling); focus/blur on focus transitions; change on
+      blur when the value changed since focus. Dispatched at the pipeline level by
+      diffing focus/value around the input-controller calls.)
 - [ ] 7.2.4.4: Submit event + preventDefault stops navigation
 - [ ] 7.2.6: Interactive Checkbox Control (render + click-toggle + change/input) — split from 7.1.5; needs 7.2.1–7.2.4
 - [ ] 7.2.5: Fragment Navigation + hashchange
