@@ -395,6 +395,74 @@
   click the entry, land on the page.
 * **Tests:** app-level bookmark store tests (persistence + add/dedupe).
 
+### 7.7 - P0 Review Follow-Ups (filed at the DOM+Events review, 2026-07-18)
+
+*A gap/smell review of the whole 7.0.1–7.2.6 slice fixed five defects inline
+(detached-node destruction on rebind, pipeline reset ordering, stale change
+baseline after JS `focus()`, a QuickJS exotic-setter misuse, post-dispatch event
+state) and filed these as stories. The M8-tagged spec-deviation ledger
+(T-EVENT-SPEC-GAPS-1) stays in `doc/TODOs.md`.*
+
+* **Story 7.7.1: Re-Entrant Script Dispatch (T-DISPATCH-REENTRANT-1)**
+* **Goal:** allow a dispatch to be triggered from inside another dispatch without
+  losing state.
+* **Scope:** `DocumentScriptController::bind_host` runs on every dispatch and
+  calls `DocumentScriptHost::reset`, which sets `mutated_ = false` — a nested
+  dispatch (e.g. a future JS-`focus()`-fires-`focus`-event path, or any host
+  callback that dispatches) would wipe the outer dispatch's accumulated mutation
+  flag, so the caller skips the rebuild. Make the flag accumulate across nested
+  binds (e.g. only reset at the outermost bind, or consume at the outermost
+  dispatch only).
+* **Why now:** today nothing re-enters, so this is latent — but it is a landmine
+  for 7.3.1 timers (a timer callback dispatching an event) and a hard
+  prerequisite for 7.7.2.
+* **Acceptance:** a dispatch nested inside another dispatch preserves the outer
+  `mutated` result.
+* **Tests:** controller unit test with a re-entrant host callback.
+
+* **Story 7.7.2: JS focus()/blur() Dispatch focus/blur Events (T-FOCUS-EVENTS-FROM-JS-1)**
+* **Goal:** `element.focus()` from JS fires the `focus` event (and `blur()`
+  fires `blur`, plus `change` when the value was edited), matching 7.2.4.3's
+  user-driven transitions.
+* **Scope:** the focus sink in `DocumentPipeline`'s constructor routes JS focus
+  to the input controller and syncs the change-detection snapshot, but
+  dispatches no events — the events fire only on user-driven focus changes
+  (`focus_input_at`/`clear_input_focus`). Dispatching from the sink means
+  dispatching while a JS eval is on the stack → **blocked on 7.7.1**.
+* **Acceptance:** `el.focus()` fires `focus` on `el`; TodoMVC-style edit flows
+  that listen for `focus` work.
+* **Tests:** pipeline dispatch tests.
+
+* **Story 7.7.3: JS-Initiated location.hash Reflects In Chrome + Tab State (T-LOCATION-URL-SYNC-1)**
+* **Goal:** `location.hash = "#/x"` from JS updates the URL bar and the tab's
+  requested URL, like clicking a fragment link does.
+* **Scope:** `QuickJSScriptEngine::update_location` fires `hashchange`
+  engine-side but nothing propagates the new URL outward — the URL bar goes
+  stale and `Tab`'s `navigation_lifecycle_` keeps the old URL. Note the click
+  path has the mirror-image half-gap:
+  `DocumentEventRouter::handle_document_hit_navigation` updates the URL bar text
+  but not `navigation_lifecycle_.requested_url()` (works today only because the
+  engine dedupes repeat fragments). Needs a location-changed notification from
+  engine to app (IScriptHost or a pipeline-level callback) + a `Tab`
+  fragment-URL update.
+* **Why now:** 7.6.1 back/forward wants fragment navigations as history entries
+  keyed off the tab's URL — land this before or with it.
+* **Acceptance:** after JS assigns `location.hash`, the URL bar shows the new
+  fragment and `tab.requested_url()` includes it.
+* **Tests:** tab + router integration tests.
+
+* **Story 7.7.4: key/code For Digits, Space, And Punctuation (T-KEY-FIELDS-COVERAGE-1)**
+* **Goal:** `keydown`/`keyup` events carry real `key`/`code` values for digits
+  and other printable keys.
+* **Scope:** `DocumentPipeline`'s `key_fields` maps A–Z plus a short editing-key
+  list; everything else (digits, space, `-`, `.`, …) dispatches with `key: ""`
+  because the platform `Key` enum has no entries for them (text insertion still
+  works via the separate text-input path). Extend the enum +
+  `SDLInputTranslation` + `key_fields`.
+* **Acceptance:** a `keydown` listener sees `key === "1"` and `key === " "`.
+* **Tests:** input translation + dispatch tests. *(Low urgency: TodoMVC/hn.js
+  only branch on Enter/Escape.)*
+
 ---
 
 ## Execution Order Checklist
@@ -469,6 +537,9 @@ P0: DOM + Events (North Star)
       reflects the URL bar. Demo filter bar showcases it.)
 
 P0: Scheduling + Invalidation (North Star)
+- [ ] 7.7.1: Re-Entrant Script Dispatch (T-DISPATCH-REENTRANT-1) — prereq for
+      7.3.1 (a timer callback that dispatches an event must not wipe the outer
+      dispatch's mutation flag)
 - [ ] 7.3.1: Task Queue (setTimeout/setInterval)
 - [ ] 7.3.2: Microtask Pump (Promise jobs)
 - [ ] 7.4.1: Batched Dirty Marking Per Task
@@ -482,5 +553,10 @@ P0: Guardrails
 
 P1: If Schedule Allows
 - [ ] 7.3.3: requestAnimationFrame
+- [ ] 7.7.3: JS location.hash → chrome/tab URL sync (T-LOCATION-URL-SYNC-1) —
+      land before/with 7.6.1 (history entries key off the tab URL)
 - [ ] 7.6.1: Back/Forward Navigation (T-UI-NAV-BACK-1)
 - [ ] 7.6.2: Bookmarks MVP (T-UI-BOOKMARKS-1)
+- [ ] 7.7.2: JS focus()/blur() dispatch focus/blur events (T-FOCUS-EVENTS-FROM-JS-1;
+      needs 7.7.1)
+- [ ] 7.7.4: key/code for digits/space/punctuation (T-KEY-FIELDS-COVERAGE-1)
