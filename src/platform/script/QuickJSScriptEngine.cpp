@@ -706,6 +706,55 @@ JSValue QuickJSScriptEngine::js_node_remove_event_listener(JSContext* ctx, JSVal
     return JS_UNDEFINED;
 }
 
+JSValue QuickJSScriptEngine::js_event_prevent_default(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                      JSValueConst* /*argv*/) {
+    JSValue cancelable = JS_GetPropertyStr(ctx, this_val, "cancelable");
+    if (JS_ToBool(ctx, cancelable)) {
+        JS_SetPropertyStr(ctx, this_val, "defaultPrevented", JS_TRUE);
+    }
+    JS_FreeValue(ctx, cancelable);
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_event_stop_propagation(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                       JSValueConst* /*argv*/) {
+    JS_SetPropertyStr(ctx, this_val, "__propagationStopped", JS_TRUE);
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_event_stop_immediate_propagation(JSContext* ctx, JSValueConst this_val, int /*argc*/,
+                                                                 JSValueConst* /*argv*/) {
+    JS_SetPropertyStr(ctx, this_val, "__propagationStopped", JS_TRUE);
+    JS_SetPropertyStr(ctx, this_val, "__immediateStopped", JS_TRUE);
+    return JS_UNDEFINED;
+}
+
+bool QuickJSScriptEngine::event_flag(JSValueConst event, const char* name) const {
+    JSValue value = JS_GetPropertyStr(context_, event, name);
+    const bool result = JS_ToBool(context_, value) != 0;
+    JS_FreeValue(context_, value);
+    return result;
+}
+
+JSValue QuickJSScriptEngine::make_event(const std::string& type, DOM::Node* target) {
+    JSValue event = JS_NewObject(context_);
+    JS_SetPropertyStr(context_, event, "type", JS_NewString(context_, type.c_str()));
+    JS_SetPropertyStr(context_, event, "target", wrap_node(target));
+    JS_SetPropertyStr(context_, event, "currentTarget", JS_NULL);
+    JS_SetPropertyStr(context_, event, "defaultPrevented", JS_FALSE);
+    JS_SetPropertyStr(context_, event, "bubbles", JS_FALSE);
+    JS_SetPropertyStr(context_, event, "cancelable", JS_TRUE);
+    JS_SetPropertyStr(context_, event, "key", JS_NewString(context_, ""));
+    JS_SetPropertyStr(context_, event, "code", JS_NewString(context_, ""));
+    JS_SetPropertyStr(context_, event, "preventDefault",
+                      JS_NewCFunction(context_, js_event_prevent_default, "preventDefault", 0));
+    JS_SetPropertyStr(context_, event, "stopPropagation",
+                      JS_NewCFunction(context_, js_event_stop_propagation, "stopPropagation", 0));
+    JS_SetPropertyStr(context_, event, "stopImmediatePropagation",
+                      JS_NewCFunction(context_, js_event_stop_immediate_propagation, "stopImmediatePropagation", 0));
+    return event;
+}
+
 void QuickJSScriptEngine::invoke_listeners(DOM::Node* node, const std::string& type, JSValueConst event) {
     auto it = listeners_.find(node);
     if (it == listeners_.end()) return;
@@ -722,15 +771,18 @@ void QuickJSScriptEngine::invoke_listeners(DOM::Node* node, const std::string& t
     JSValue current_target = wrap_node(node);
     JS_SetPropertyStr(context_, event, "currentTarget", JS_DupValue(context_, current_target));
     for (JSValue callback : to_call) {
-        JSValue ret = JS_Call(context_, callback, current_target, 1, &event);
-        if (JS_IsException(ret)) {
-            JSValue exc = JS_GetException(context_);
-            const char* message = JS_ToCString(context_, exc);
-            HB_LOG_WARN("[js] event listener threw: " << (message ? message : "unknown"));
-            if (message) JS_FreeCString(context_, message);
-            JS_FreeValue(context_, exc);
+        // stopImmediatePropagation halts the rest of this node's listeners.
+        if (!event_flag(event, "__immediateStopped")) {
+            JSValue ret = JS_Call(context_, callback, current_target, 1, &event);
+            if (JS_IsException(ret)) {
+                JSValue exc = JS_GetException(context_);
+                const char* message = JS_ToCString(context_, exc);
+                HB_LOG_WARN("[js] event listener threw: " << (message ? message : "unknown"));
+                if (message) JS_FreeCString(context_, message);
+                JS_FreeValue(context_, exc);
+            }
+            JS_FreeValue(context_, ret);
         }
-        JS_FreeValue(context_, ret);
         JS_FreeValue(context_, callback);
     }
     JS_FreeValue(context_, current_target);
@@ -743,10 +795,14 @@ JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst
     DOM::Node* node = engine->node_from_value(this_val);
     if (!node) return JS_FALSE;
 
-    // Accept either a type string or an event-like object carrying `type`.
+    // Accept either a type string or an init object carrying `type` (and,
+    // optionally, key/code/bubbles/cancelable — used by keyboard-event tests
+    // ahead of the platform routing in 7.2.4).
     std::string type;
+    JSValueConst init = JS_UNDEFINED;
     if (JS_IsObject(argv[0])) {
-        JSValue type_value = JS_GetPropertyStr(ctx, argv[0], "type");
+        init = argv[0];
+        JSValue type_value = JS_GetPropertyStr(ctx, init, "type");
         if (const char* text = JS_ToCString(ctx, type_value)) {
             type = text;
             JS_FreeCString(ctx, text);
@@ -758,14 +814,22 @@ JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst
     }
     if (type.empty()) return JS_FALSE;
 
-    // Minimal event object for handlers; the full Event (preventDefault /
-    // stopPropagation, capture/bubble phases) arrives in 7.2.2 / 7.2.3.
-    JSValue event = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, event, "type", JS_NewString(ctx, type.c_str()));
-    JS_SetPropertyStr(ctx, event, "target", engine->wrap_node(node));
+    JSValue event = engine->make_event(type, node);
+    if (JS_IsObject(init)) {
+        for (const char* field : {"key", "code", "bubbles", "cancelable"}) {
+            JSValue value = JS_GetPropertyStr(ctx, init, field);
+            if (!JS_IsUndefined(value)) {
+                JS_SetPropertyStr(ctx, event, field, value);  // takes ownership
+            } else {
+                JS_FreeValue(ctx, value);
+            }
+        }
+    }
+
     engine->invoke_listeners(node, type, event);
+    const bool not_canceled = !engine->event_flag(event, "defaultPrevented");
     JS_FreeValue(ctx, event);
-    return JS_TRUE;
+    return JS_NewBool(ctx, not_canceled ? 1 : 0);
 }
 
 JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /*this_val*/, int argc,

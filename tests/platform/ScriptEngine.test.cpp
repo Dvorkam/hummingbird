@@ -297,6 +297,52 @@ TEST(ScriptEngineTest, EventListenerAddRemoveDedupeAndDispatch) {
     EXPECT_TRUE(result.ok) << result.error;
 }
 
+TEST(ScriptEngineTest, EventObjectPreventDefaultAndStopImmediate) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto el = Hummingbird::DOM::Element::create(arena, "button");
+    el->set_attribute("id", "x");
+    root->append_child(std::move(el));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var el = document.getElementById('x');"
+        // dispatchEvent returns true when nothing cancels.
+        "el.addEventListener('a', function(e) {});"
+        "check('not-canceled', el.dispatchEvent('a') === true);"
+        // preventDefault -> defaultPrevented + dispatchEvent returns false.
+        "el.addEventListener('b', function(e) {"
+        "  check('type', e.type === 'b');"
+        "  check('target', e.target === el);"
+        "  check('currentTarget', e.currentTarget === el);"
+        "  check('not-prevented-yet', e.defaultPrevented === false);"
+        "  e.preventDefault();"
+        "  check('prevented', e.defaultPrevented === true);"
+        "});"
+        "check('canceled', el.dispatchEvent('b') === false);"
+        // stopImmediatePropagation halts the remaining listeners on this node.
+        "globalThis.n = 0;"
+        "el.addEventListener('c', function(e) { globalThis.n++; e.stopImmediatePropagation(); });"
+        "el.addEventListener('c', function(e) { globalThis.n++; });"
+        "el.dispatchEvent('c');"
+        "check('immediate-stop', globalThis.n === 1);"
+        // Keyboard fields flow from the init object (ahead of 7.2.4 routing).
+        "var seenKey = null;"
+        "el.addEventListener('keydown', function(e) { seenKey = e.key + '/' + e.code; });"
+        "el.dispatchEvent({ type: 'keydown', key: 'Enter', code: 'Enter' });"
+        "check('key', seenKey === 'Enter/Enter');"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+}
+
 TEST(ScriptEngineTest, ListenersTornDownOnNavigation) {
     Hummingbird::Core::ArenaAllocator arena(4096, 4);
     auto root = Hummingbird::DOM::Element::create(arena, "div");

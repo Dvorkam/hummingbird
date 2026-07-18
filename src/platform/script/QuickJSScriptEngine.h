@@ -108,6 +108,13 @@ private:
     static JSValue js_node_remove_event_listener(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_node_dispatch_event(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    // Event object methods (7.2.2). The Event is a plain object; these set flags
+    // the C++ dispatch loop reads back (defaultPrevented / propagation state).
+    static JSValue js_event_prevent_default(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_event_stop_propagation(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_event_stop_immediate_propagation(JSContext* ctx, JSValueConst this_val, int argc,
+                                                       JSValueConst* argv);
+
     static JSValue js_native_insert_css(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
     void install_node_prototype();
@@ -132,9 +139,16 @@ private:
     bool read_capture_flag(JSValueConst options) const;
     // Synchronously invokes every listener registered for `type` on `node`, in
     // registration order, with `this` == the node wrapper and `event` as the arg.
-    // (Target-phase only for 7.2.1; capture/bubble propagation arrives in 7.2.3.)
+    // Honors stopImmediatePropagation within the node. (Target-phase only for
+    // 7.2.1/7.2.2; capture/bubble propagation across ancestors arrives in 7.2.3.)
     void invoke_listeners(DOM::Node* node, const std::string& type, JSValueConst event);
     void free_listeners();
+
+    // Builds the Event object handed to listeners: `type`/`target` plus
+    // preventDefault/stopPropagation/stopImmediatePropagation and their flags.
+    JSValue make_event(const std::string& type, DOM::Node* target);
+    // Reads a boolean flag property off an Event object.
+    bool event_flag(JSValueConst event, const char* name) const;
 
     JSRuntime* runtime_ = nullptr;
     JSContext* context_ = nullptr;

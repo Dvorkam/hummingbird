@@ -378,7 +378,12 @@ P0: DOM + Events (North Star)
       in reset_bindings before wrappers, so none outlive the document. Minimal
       target-phase dispatchEvent for now — real Event objects=7.2.2, capture/bubble=7.2.3.
       document/window as EventTarget deferred to 7.2.3/7.2.4.)
-- [ ] 7.2.2: Event Objects
+- [x] 7.2.2: Event Objects — 2026-07-18
+      (real Event handed to listeners: type/target/currentTarget, key/code, bubbles/
+      cancelable; preventDefault→defaultPrevented (dispatchEvent returns false when
+      canceled), stopPropagation + stopImmediatePropagation (halts remaining listeners
+      on the node). Plain-object flags the C++ dispatch loop reads back — no native
+      struct. dispatchEvent accepts a type string or an init object with key/code.)
 - [ ] 7.2.3: Capture/Target/Bubble Propagation
 - [ ] 7.2.4: Input Event Coverage
 - [ ] 7.2.6: Interactive Checkbox Control (render + click-toggle + change/input) — split from 7.1.5; needs 7.2.1–7.2.4
