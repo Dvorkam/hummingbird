@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string_view>
 #include <vector>
 
@@ -13,7 +14,8 @@ class ArenaAllocator;
 
 namespace Hummingbird::DOM {
 class Node;
-}
+class Element;
+}  // namespace Hummingbird::DOM
 
 namespace Hummingbird::Layout {
 class RenderObject;
@@ -39,6 +41,8 @@ public:
     explicit DocumentScriptController(ScriptEnginePtr engine);
 
     void clear();
+    // Routes JS focus()/blur() to the caret target (wired by the pipeline).
+    void set_focus_sink(std::function<void(DOM::Element*, bool)> sink);
 
     bool run_scripts(const std::vector<ScriptSource>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);
     ScriptDispatchResult dispatch_click(DOM::Node* dom_root, Core::ArenaAllocator* arena,

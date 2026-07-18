@@ -1,10 +1,15 @@
 #pragma once
 
+#include <functional>
 #include <memory>
 
 #include "core/platform_api/IScriptEngine.h"
 #include "engine/document/ExternalScriptLookup.h"
 #include "layout/geometry/Geometry.h"
+
+namespace Hummingbird::DOM {
+class Element;
+}
 
 namespace Hummingbird::Engine {
 
@@ -28,6 +33,8 @@ public:
     DocumentScripting& operator=(DocumentScripting&&) = delete;
 
     void reset();
+    // Routes JS focus()/blur() to the caret target (wired once by DocumentPipeline).
+    void set_focus_sink(std::function<void(DOM::Element*, bool)> sink);
     // Runs the document's <script>s in document order, inline and external
     // interleaved (classic-script semantics, 7.0.1 MVP).
     bool run_document_scripts(DocumentModel& model, const ExternalScriptLookup& external_lookup);

@@ -74,7 +74,11 @@ DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvi
       interaction_(std::make_unique<DocumentInteraction>(*model_)),
       renderer_(std::make_unique<DocumentRenderer>(*model_, *interaction_)),
       style_coordinator_(std::make_unique<DocumentStyleCoordinator>(*model_, *resources_)),
-      scripting_(std::make_unique<DocumentScripting>(std::move(script_engine))) {}
+      scripting_(std::make_unique<DocumentScripting>(std::move(script_engine))) {
+    // Bridge JS focus()/blur() to the input controller's caret target (7.2.6).
+    scripting_->set_focus_sink(
+        [this](DOM::Element* element, bool focused) { interaction_->apply_script_focus(element, focused); });
+}
 
 DocumentPipeline::~DocumentPipeline() = default;
 

@@ -405,10 +405,14 @@ void DocumentScriptHost::set_disabled(DOM::Node* node, bool disabled) {
 void DocumentScriptHost::set_focused(DOM::Node* node, bool focused) {
     auto* element = dynamic_cast<DOM::Element*>(node);
     if (!element) return;
-    // Reflect focus as the :focus pseudo-state so styling responds; hooking
-    // focus() up to the text-edit caret target is deferred to 7.2.4.
+    // Reflect focus as the :focus pseudo-state so styling responds...
     if (element->set_pseudo_state(DOM::Element::PseudoState::Focus, focused)) {
         mutated_ = true;
+    }
+    // ...and route the request to the input controller so an editable field
+    // becomes the live caret target (7.2.6).
+    if (focus_sink_) {
+        focus_sink_(element, focused);
     }
 }
 

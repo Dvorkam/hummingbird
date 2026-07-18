@@ -18,6 +18,10 @@ void DocumentScripting::reset() {
     controller_->clear();
 }
 
+void DocumentScripting::set_focus_sink(std::function<void(DOM::Element*, bool)> sink) {
+    controller_->set_focus_sink(std::move(sink));
+}
+
 bool DocumentScripting::run_document_scripts(DocumentModel& model, const ExternalScriptLookup& external_lookup) {
     std::vector<DocumentScriptController::ScriptSource> sources;
     const auto& scripts = model.document_scripts();

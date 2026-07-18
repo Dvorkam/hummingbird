@@ -121,6 +121,31 @@ bool DocumentInputController::focus_autofocus_input(const Layout::RenderObject* 
     return true;
 }
 
+bool DocumentInputController::focus_element(DOM::Element* element) {
+    if (element == focused_input_) {
+        return false;
+    }
+    // A non-editable focus target (button, checkbox, ...) is not a caret target;
+    // drop any existing text focus so typing does not leak into a stale field.
+    if (!is_editable_input_element(element)) {
+        return clear_focus();
+    }
+    if (focused_input_) {
+        focused_input_->set_pseudo_state(DOM::Element::PseudoState::Focus, false);
+    }
+    focused_input_ = element;
+    focused_input_->set_pseudo_state(DOM::Element::PseudoState::Focus, true);
+    caret_ = input_value(*focused_input_).size();
+    return true;
+}
+
+bool DocumentInputController::blur_element(DOM::Element* element) {
+    if (element != focused_input_ || !focused_input_) {
+        return false;
+    }
+    return clear_focus();
+}
+
 bool DocumentInputController::clear_focus() {
     if (!focused_input_) {
         return false;

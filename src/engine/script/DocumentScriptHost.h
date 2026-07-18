@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -22,6 +23,11 @@ public:
     void reset(DOM::Node* root, Core::ArenaAllocator* arena);
     void clear();
     bool consume_mutations();
+
+    // Notified when JS calls element.focus()/blur(), so the caller can route the
+    // request to the input controller's caret target. Persists across reset().
+    using FocusSink = std::function<void(DOM::Element*, bool /*focused*/)>;
+    void set_focus_sink(FocusSink sink) { focus_sink_ = std::move(sink); }
 
     DOM::Element* get_element_by_id(std::string_view id) override;
     std::string get_text_content(const DOM::Node* node) override;
@@ -88,6 +94,7 @@ private:
     DOM::Node* root_ = nullptr;
     Core::ArenaAllocator* arena_ = nullptr;
     bool mutated_ = false;
+    FocusSink focus_sink_;
 
     // Nodes created by script but not yet attached, plus nodes removed from the
     // tree. Their arena storage stays valid until the arena resets, so they can

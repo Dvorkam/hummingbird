@@ -62,6 +62,10 @@ std::optional<std::string> resolve_onload_handler(const DOM::Node* node) {
 
 DocumentScriptController::DocumentScriptController(ScriptEnginePtr engine) : script_engine_(std::move(engine)) {}
 
+void DocumentScriptController::set_focus_sink(std::function<void(DOM::Element*, bool)> sink) {
+    script_host_.set_focus_sink(std::move(sink));
+}
+
 void DocumentScriptController::clear() {
     // Drop cached node wrappers before the host forgets the document: their
     // opaque pointers become dangling once the DOM arena is reset on navigation.

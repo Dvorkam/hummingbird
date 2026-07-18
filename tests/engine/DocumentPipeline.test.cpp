@@ -648,6 +648,42 @@ TEST(DocumentPipelineTest, TodoDemoAssetsDriveTheFullFlow) {
     EXPECT_TRUE(painted_has("Buy milk"));
 }
 
+TEST(DocumentPipelineTest, JsFocusMakesInputTheCaretTarget) {
+    // element.focus() from JS makes an editable input the live caret target, so
+    // subsequent typing lands in it (7.2.6).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } </style></head>
+  <body>
+    <input id="field">
+    <script> document.getElementById('field').focus(); </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();  // runs the inline focus() call
+
+    // The JS focus() routed to the input controller: the field is the caret target.
+    EXPECT_TRUE(pipeline.has_focused_input());
+    pipeline.handle_text_input("hello");
+    auto value = pipeline.focused_input_value();
+    ASSERT_TRUE(value.has_value());
+    EXPECT_EQ(*value, "hello");
+}
+
 TEST(DocumentPipelineTest, CheckboxClickTogglesAndFiresChange) {
     // Clicking a checkbox toggles its checkedness (default action) and fires a
     // change event whose handler sees the new value (7.2.6).

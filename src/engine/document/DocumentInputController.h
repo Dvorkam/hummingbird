@@ -31,6 +31,13 @@ public:
     bool focus_input_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
                         const Layout::Rect& viewport, float scroll_y);
     bool focus_autofocus_input(const Layout::RenderObject* render_tree);
+    // Focus a specific element (JS `element.focus()`): makes an editable input the
+    // caret target; a non-editable target just clears any text focus. Returns
+    // true if the focus state changed.
+    bool focus_element(DOM::Element* element);
+    // Blur a specific element (JS `element.blur()`): clears focus if it is the
+    // current caret target.
+    bool blur_element(DOM::Element* element);
     bool clear_focus();
     bool set_control_interaction_at(const Layout::RenderObject* render_tree, const Layout::Point& point,
                                     const Layout::Rect& viewport, float scroll_y);
