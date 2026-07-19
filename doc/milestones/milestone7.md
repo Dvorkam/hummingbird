@@ -592,7 +592,13 @@ P0: Scheduling + Invalidation (North Star)
       x≈100032 to on-screen; hit-testing/JS now reachable. Table regression test.)
 
 P0: Guardrails
-- [ ] 7.5.4: JS/Native Ownership Rules Documented
+- [x] 7.5.4: JS/Native Ownership Rules Documented — 2026-07-19
+      (finalized doc/dev_guide/dom_arena_ownership.md: the one-owner rule, detach-
+      never-free arena semantics, wrapper identity, and now timers (7.3.1) in the
+      navigation-teardown sweep + the JS-globals-persist gap. Consolidated
+      NavigationTeardownReleasesPerDocumentState test releases listeners/timers/
+      wrappers in one navigation and locks the global-persistence behavior. Global
+      isolation deferred + filed T-JS-GLOBAL-ISOLATION-1 [M8].)
 - [ ] 7.5.1: TodoMVC Snapshot Harness
 - [ ] 7.5.2: Missing-API Telemetry (fail-soft)
 - [ ] 7.5.3: Parser Fuzzing In CI

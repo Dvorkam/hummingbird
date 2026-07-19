@@ -1,9 +1,11 @@
 # DOM Arena Ownership (JS ⇄ native boundary)
 
-How arena-backed DOM nodes are owned once JavaScript can create, move, and
-remove them (Milestone 7). This is the seed of the fuller ownership contract
-that story 7.5.4 will finish; it captures the rules that are already enforced by
-code so new bindings don't accidentally break them.
+How arena-backed DOM nodes, their JS wrappers, event listeners, and timers are
+owned once JavaScript can create, move, and remove them (Milestone 7). This is
+the ownership contract completed by story 7.5.4; it captures the rules enforced
+by code so new bindings (and M8+ work) don't accidentally break them. Every
+binding that retains a JS reference to per-document state must release it in
+`reset_bindings()` — see [Navigation teardown](#navigation-teardown).
 
 ## The one-owner rule
 
@@ -61,8 +63,11 @@ cache holds one owning JS reference per node; it is dropped in `reset_bindings()
 `DOMStringMap`) whose opaque is the raw owner `Node*`. They are created fresh per
 access and are **not** in `node_wrappers_`, so — unlike node wrappers — they are
 not neutralized on navigation. This is safe for their normal transient use
-(`el.classList.add(...)`); stashing one in a global across navigation is a known
-gap folded into 7.5.4.
+(`el.classList.add(...)`). Stashing one in a global and using it *after*
+navigation would read a dangling `Node*`; that is the same class of gap as JS
+globals persisting (see below) and is covered by `T-JS-GLOBAL-ISOLATION-1`. Do
+not add APIs that hand long-lived `Node*`-backed wrappers to script without
+registering them for neutralization in `reset_bindings()`.
 
 ## Navigation teardown
 
@@ -71,15 +76,39 @@ On navigation, `DocumentScriptController::clear()` calls
 
 1. frees every registered event listener's callback (`listeners_`, 7.2.1) so no
    handler outlives the document (`ListenersTornDownOnNavigation`),
-2. neutralizes every cached wrapper (`JS_SetOpaque(..., nullptr)`) so any wrapper
+2. frees every pending timer's retained callback + args (`timers_`, 7.3.1) so a
+   `setTimeout`/`setInterval` scheduled by the old page can never fire against the
+   new one (`TimersAreCanceledOnNavigationTeardown`),
+3. neutralizes every cached wrapper (`JS_SetOpaque(..., nullptr)`) so any wrapper
    a script stashed in a global reads as an empty node instead of dereferencing a
    pointer into freed arena storage (`ResetBindingsNeutralizesStaleWrappers`), and
-3. releases the cache's references and clears `detached_`.
+4. releases the cache's references and clears `detached_`.
+
+`NavigationTeardownReleasesPerDocumentState` exercises all of these in one flow.
 
 The event listener registry (`listeners_`) is keyed by the raw arena `Node*`;
 each entry owns a reference to its JS callback. Listeners live for the document's
 lifetime (removing a node from the tree does not drop its listeners — matching the
 DOM, where a re-inserted node keeps them); the whole registry is swept on
-navigation.
+navigation. Timers (`timers_`) are owned the same way — each holds a retained
+callback (and any trailing args) and is dropped either by `clearTimeout`/
+`clearInterval`, by firing once (`setTimeout`), or by the navigation sweep.
 
-Full per-document JS global isolation and the teardown/leak test suite are 7.5.4.
+## What does NOT reset: the JS global object (known gap)
+
+`reset_bindings()` clears every *per-document* reference above, but the QuickJS
+`JSContext` — and therefore the global object — **persists for the tab's
+lifetime**. A property a script sets on the global (`globalThis.x = 1`,
+`var y = ...` at top level) is still visible after navigating to another page in
+the same tab. This is a **deliberate, bounded** shortcut for M7:
+
+- It cannot cause a use-after-free: any DOM wrapper reachable from a stale global
+  was neutralized in step 3, so it reads as an empty node, not freed memory.
+- The blast radius is name collisions between pages in one tab, which the proof
+  targets do not rely on.
+
+Full per-document global isolation (a fresh global per navigation, e.g. by
+recreating the context or clearing script-added globals) is deferred to M8 and
+tracked as `T-JS-GLOBAL-ISOLATION-1` in `doc/TODOs.md`. When it lands,
+`NavigationTeardownReleasesPerDocumentState` — which currently *documents* the
+persistence by asserting a stashed global survives — flips to assert it is gone.
