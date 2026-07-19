@@ -153,6 +153,14 @@ bool DocumentEventRouter::handle_document_hit_navigation(const Hummingbird::Layo
         return false;
     }
 
+    // A `javascript:` link never navigates (a real browser runs the script;
+    // `javascript:void(0)` is a no-op). The click's JS handler already ran during
+    // dispatch — clicking here must not fetch the bogus URL. hn.js's collapse
+    // toggle is exactly this: `<a href="javascript:void(0)">`.
+    if (Core::is_javascript_url(*link)) {
+        return true;
+    }
+
     // A fragment-only change within the current document (e.g. TodoMVC's
     // #/active filter): fire hashchange in place instead of reloading (7.2.5).
     const std::string_view current = tab.requested_url();

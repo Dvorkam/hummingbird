@@ -833,3 +833,44 @@ TEST(ScriptEngineTest, MissingApiTelemetryIsFailSoftAndDeduped) {
     engine->reset_bindings();
     EXPECT_TRUE(engine->missing_apis().empty());
 }
+
+// Minimal URL + URLSearchParams polyfill (needed for Hacker News' hn.js, which
+// does `new URL(el.href, location)` in its delegated click handler). It must
+// parse absolute + relative URLs, expose pathname/searchParams/hash, and — above
+// all — never throw, so the handler reaches its collapse branch.
+TEST(ScriptEngineTest, UrlPolyfillParsesAndNeverThrows) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var base = 'https://news.ycombinator.com/item?id=9';"
+        // Absolute pseudo-scheme (the collapse toggle's href) — base ignored, no throw.
+        "var j = new URL('javascript:void(0)', base);"
+        "check('js-proto', j.protocol === 'javascript:');"
+        "check('js-path', j.pathname === 'void(0)');"
+        "check('js-not-vote', j.pathname !== '/vote');"
+        // Relative resolved against the base document.
+        "var v = new URL('vote?id=9&how=up&goto=news', base);"
+        "check('vote-path', v.pathname === '/vote');"
+        "check('vote-id', v.searchParams.get('id') === '9');"
+        "check('vote-how', v.searchParams.get('how') === 'up');"
+        "check('vote-missing', v.searchParams.get('nope') === null);"
+        // Absolute http with query + fragment.
+        "var f = new URL('https://x.test/a/b?k=1#frag');"
+        "check('abs-path', f.pathname === '/a/b');"
+        "check('abs-hash', f.hash === '#frag');"
+        "check('abs-host', f.host === 'x.test');"
+        // Garbage must not throw — opaque pathname, empty params.
+        "var g = new URL('%%% not a url @@@', base);"
+        "check('garbage-params', g.searchParams.get('x') === null);"
+        "check('URLSearchParams', new URLSearchParams('a=1&b=2').get('b') === '2');"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+}

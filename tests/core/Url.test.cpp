@@ -41,3 +41,24 @@ TEST(UrlTest, ResolveUrlHandlesSpecialForms) {
     EXPECT_EQ(Hummingbird::Core::resolve_url(base, "?q=1"), "https://example.com:8080/dir/page.html?q=1");
     EXPECT_EQ(Hummingbird::Core::resolve_url(base, "#top"), "https://example.com:8080/dir/page.html#top");
 }
+
+TEST(UrlTest, ResolveUrlPreservesOpaquePseudoSchemes) {
+    // Opaque pseudo-schemes carry no path to join against the base, so they are
+    // returned verbatim instead of being mangled into "https://base/javascript:..."
+    // (the Hacker News `[-]` toggle bug).
+    std::string_view base = "https://news.ycombinator.com/item?id=1";
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "javascript:void(0)"), "javascript:void(0)");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "JavaScript:foo()"), "JavaScript:foo()");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "mailto:a@b.com"), "mailto:a@b.com");
+    // A bare host:port href is ambiguous and left to the normal logic (unchanged).
+    EXPECT_EQ(Hummingbird::Core::resolve_url(base, "vote?id=9"), "https://news.ycombinator.com/vote?id=9");
+}
+
+TEST(UrlTest, IsJavascriptUrl) {
+    EXPECT_TRUE(Hummingbird::Core::is_javascript_url("javascript:void(0)"));
+    EXPECT_TRUE(Hummingbird::Core::is_javascript_url("JavaScript:doThing()"));
+    EXPECT_TRUE(Hummingbird::Core::is_javascript_url("  javascript:x"));  // leading space trimmed
+    EXPECT_FALSE(Hummingbird::Core::is_javascript_url("https://example.com/javascript:x"));
+    EXPECT_FALSE(Hummingbird::Core::is_javascript_url("mailto:a@b.com"));
+    EXPECT_FALSE(Hummingbird::Core::is_javascript_url(""));
+}

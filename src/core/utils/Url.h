@@ -29,4 +29,9 @@ std::string_view url_fragment(std::string_view url);
 // comparison during fragment navigation).
 std::string_view url_without_fragment(std::string_view url);
 
+// True when |url| is a `javascript:` URL (case-insensitive). Clicking one must
+// not navigate — a real browser evaluates the script (and `javascript:void(0)`
+// yields no navigation); we treat it as a no-op link.
+bool is_javascript_url(std::string_view url);
+
 }  // namespace Hummingbird::Core

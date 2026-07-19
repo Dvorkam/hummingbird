@@ -22,6 +22,7 @@
 #include "engine/document/DocumentModel.h"
 #include "engine/document/DocumentScripting.h"
 #include "engine/resources/ResourceStore.h"
+#include "layout/RenderObject.h"
 #include "layout/geometry/Geometry.h"
 #include "test_utils/TestGraphicsContext.h"
 
@@ -64,6 +65,35 @@ public:
     int image_calls = 0;
     std::vector<std::string> drawn_texts;
 };
+
+// Absolute-space center of the first render box whose element carries `token`.
+std::optional<Point> center_by_class(const Hummingbird::Layout::RenderObject* node, std::string_view token,
+                                     float ox = 0.0f, float oy = 0.0f) {
+    if (!node) return std::nullopt;
+    Rect r = node->get_rect();
+    r.x += ox;
+    r.y += oy;
+    const auto* el = dynamic_cast<const Hummingbird::DOM::Element*>(node->get_dom_node());
+    if (el) {
+        const auto* attr = el->find_attribute("class");
+        if (attr) {
+            std::string_view classes(*attr);
+            size_t pos = 0;
+            while (pos < classes.size()) {
+                size_t end = classes.find(' ', pos);
+                if (end == std::string_view::npos) end = classes.size();
+                if (classes.substr(pos, end - pos) == token) {
+                    return Point{r.x + r.width * 0.5f, r.y + r.height * 0.5f};
+                }
+                pos = end + 1;
+            }
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (auto p = center_by_class(child.get(), token, r.x, r.y)) return p;
+    }
+    return std::nullopt;
+}
 }  // namespace
 
 TEST(DocumentPipelineTest, DispatchesLoadHandler) {
@@ -853,6 +883,119 @@ TEST(DocumentPipelineTest, InnerHtmlInChangeHandlerDoesNotCorruptDispatch) {
     EXPECT_TRUE(r.mutated);
     EXPECT_TRUE(painted_has("changed"));  // status updated (no crash)
     EXPECT_TRUE(painted_has("rebuilt"));  // #box rebuilt from innerHTML
+}
+
+TEST(DocumentPipelineTest, HackerNewsStyleCommentCollapse) {
+    // Secondary proof (M7): reproduces Hacker News' hn.js comment-collapse exactly
+    // — a document-delegated click handler that does `new URL(el.href, location)`
+    // (needs the URL polyfill), routes a `.togg` click to a class-based collapse
+    // (add `coll`, hide the `.comment` + child rows via `.noshow`, flip the toggle
+    // label), then calls preventDefault. This exercises the two fixes that make
+    // the real page work: the URL polyfill (so the handler doesn't throw before
+    // collapsing) and preventDefault reporting (so the `javascript:void(0)` href
+    // doesn't navigate).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>
+    body { margin: 0; padding: 0; }
+    .noshow { display: none; }
+    .nosee { visibility: hidden; }
+  </style></head>
+  <body>
+    <table><tbody>
+      <tr class="athing comtr" id="c1"><td>
+        <span class="ind" indent="0"></span>
+        <a class="togg clicky" id="c1" n="1" href="javascript:void(0)">[-]</a>
+        <div class="comment">Parent comment body</div>
+      </td></tr>
+      <tr class="athing comtr" id="c2"><td>
+        <span class="ind" indent="1"></span>
+        <a class="togg clicky" id="c2" n="1" href="javascript:void(0)">[-]</a>
+        <div class="comment">Child comment body</div>
+      </td></tr>
+    </tbody></table>
+    <script>
+      function $(id){return document.getElementById(id);}
+      function byClass(el,cl){return el?el.getElementsByClassName(cl):[];}
+      function hasClass(el,cl){return el&&el.className?((' '+el.className+' ').indexOf(' '+cl+' ')>=0):false;}
+      function addClass(el,cl){if(el&&!hasClass(el,cl))el.className=((el.className||'')+' '+cl).replace(/^ /,'');}
+      function remClass(el,cl){if(el)el.className=(' '+(el.className||'')+' ').split(' '+cl+' ').join(' ').replace(/^ +| +$/g,'');}
+      function upclass(el,cl){while(el){if(el.getAttribute&&hasClass(el,cl))return el;el=el.parentNode;}return null;}
+      function vis(el,on){if(el){(on?remClass:addClass)(el,'nosee');}}
+      function setshow(el,on){(on?remClass:addClass)(el,'noshow');}
+      function nextcomm(el){while(el=el.nextElementSibling){if(hasClass(el,'comtr'))return el;}return null;}
+      function ind(tr){var e=byClass(tr,'ind')[0];return e?parseInt(e.getAttribute('indent'),10):0;}
+      function collstate(tr,coll){
+        (coll?addClass:remClass)(tr,'coll');
+        vis(byClass(tr,'votelinks')[0],!coll);
+        setshow(byClass(tr,'comment')[0],!coll);
+        var el=byClass(tr,'togg')[0];
+        el.innerHTML=coll?('['+el.getAttribute('n')+' more]'):'[-]';
+      }
+      function kids(tr,show){var n=ind(tr);while((tr=nextcomm(tr))&&ind(tr)>n){setshow(tr,show);}}
+      function toggleCollapse(id){var tr=$(id),coll=!hasClass(tr,'coll');collstate(tr,coll);kids(tr,!coll);}
+      function onclick(ev){
+        var el=upclass(ev.target,'clicky');
+        if(el){
+          var u=new URL(el.href,location);
+          if(u.pathname=='/vote'){}
+          else if(hasClass(el,'togg')){toggleCollapse(el.getAttribute('id'));}
+          ev.preventDefault();
+        }
+      }
+      document.addEventListener('click',onclick);
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    const Rect viewport{0, 0, 800, 600};
+    const std::string base = "https://news.ycombinator.com/item?id=1";
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.set_location(base);
+    pipeline.apply_styles_and_layout(graphics, viewport, base);
+    pipeline.run_scripts();
+
+    const auto painted = [&](const char* needle) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, base);
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        std::string joined;
+        for (const auto& t : graphics.drawn_texts) joined += t;
+        return joined.find(needle) != std::string::npos;
+    };
+
+    // Before collapse: both comments visible.
+    EXPECT_TRUE(painted("Parent comment body"));
+    EXPECT_TRUE(painted("Child comment body"));
+
+    // Click the parent's [-] toggle.
+    pipeline.apply_styles_and_layout(graphics, viewport, base);
+    auto toggle = center_by_class(pipeline.render_root(), "togg");
+    ASSERT_TRUE(toggle.has_value()) << "collapse toggle not found";
+    auto result = pipeline.dispatch_click({*toggle, viewport, base, 0.0f, 1});
+
+    // The handler ran the collapse and called preventDefault, so the bogus
+    // javascript:void(0) navigation is suppressed.
+    EXPECT_TRUE(result.mutated);
+    EXPECT_TRUE(result.default_prevented)
+        << "preventDefault not reported — the page would navigate to javascript:void(0)";
+
+    // After collapse: the parent's body and the child row are hidden; the toggle
+    // label flips to the collapsed count.
+    EXPECT_FALSE(painted("Parent comment body"));
+    EXPECT_FALSE(painted("Child comment body"));
+    EXPECT_TRUE(painted("1 more"));
 }
 
 TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {

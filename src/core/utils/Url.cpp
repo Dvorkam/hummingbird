@@ -13,6 +13,28 @@ bool has_scheme(std::string_view url) {
     return url.find("://") != std::string_view::npos;
 }
 
+// Case-insensitive check that |url| begins with |prefix| (an ASCII scheme like
+// "javascript:").
+bool starts_with_ci(std::string_view url, std::string_view lower_prefix) {
+    if (url.size() < lower_prefix.size()) return false;
+    for (size_t i = 0; i < lower_prefix.size(); ++i) {
+        char c = url[i];
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+        if (c != lower_prefix[i]) return false;
+    }
+    return true;
+}
+
+// Pseudo-schemes that must never be resolved as a relative path: they are opaque
+// (no authority/path to join against a base). Curated rather than "any scheme"
+// so an ambiguous bare `host:port` href is left to the existing logic.
+bool is_opaque_scheme_url(std::string_view url) {
+    for (std::string_view scheme : {"javascript:", "mailto:", "tel:", "data:", "about:", "blob:"}) {
+        if (starts_with_ci(url, scheme)) return true;
+    }
+    return false;
+}
+
 std::string normalize_path(std::string_view path) {
     std::string out;
     out.reserve(path.size());
@@ -121,6 +143,13 @@ std::string resolve_url(std::string_view base_url, std::string_view href) {
     href = Utils::trim_ascii_whitespace(href);
     if (href.empty()) return {};
 
+    // Opaque pseudo-schemes (javascript:, mailto:, ...) are not resolved against
+    // the base — they carry no path to join. Returned verbatim so callers can
+    // recognize them (e.g. skip navigating a javascript: link).
+    if (is_opaque_scheme_url(href)) {
+        return std::string(href);
+    }
+
     if (has_scheme(href)) {
         return std::string(href);
     }
@@ -174,6 +203,10 @@ std::string_view url_fragment(std::string_view url) {
 std::string_view url_without_fragment(std::string_view url) {
     const auto pos = url.find('#');
     return pos == std::string_view::npos ? url : url.substr(0, pos);
+}
+
+bool is_javascript_url(std::string_view url) {
+    return starts_with_ci(Utils::trim_ascii_whitespace(url), "javascript:");
 }
 
 }  // namespace Hummingbird::Core

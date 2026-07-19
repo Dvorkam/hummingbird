@@ -1547,6 +1547,69 @@ void QuickJSScriptEngine::install_failsoft_stubs() {
                addEventListener: function () {}, removeEventListener: function () {} };
     };
   }
+  // Minimal, real (not fail-soft) URL + URLSearchParams. Enough for pages that
+  // parse link hrefs — e.g. Hacker News' hn.js does `new URL(el.href, location)`
+  // in its delegated click handler before deciding vote/hide/collapse. Never
+  // throws: unparseable input yields an opaque pathname so the caller's routing
+  // still runs. Not spec-complete (opaque vs special schemes, IDNA, etc.).
+  function makeSearchParams(qs) {
+    var pairs = [];
+    if (qs) {
+      var parts = qs.split('&');
+      for (var i = 0; i < parts.length; i++) {
+        if (!parts[i]) continue;
+        var eq = parts[i].indexOf('=');
+        var k = eq < 0 ? parts[i] : parts[i].slice(0, eq);
+        var v = eq < 0 ? '' : parts[i].slice(eq + 1);
+        try { k = decodeURIComponent(k.replace(/\+/g, ' ')); } catch (e) {}
+        try { v = decodeURIComponent(v.replace(/\+/g, ' ')); } catch (e) {}
+        pairs.push([k, v]);
+      }
+    }
+    return {
+      get: function (name) {
+        for (var i = 0; i < pairs.length; i++) if (pairs[i][0] === name) return pairs[i][1];
+        return null;
+      },
+      has: function (name) {
+        for (var i = 0; i < pairs.length; i++) if (pairs[i][0] === name) return true;
+        return false;
+      },
+      toString: function () { return qs || ''; }
+    };
+  }
+  function URLImpl(url, base) {
+    url = String(url);
+    var abs = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/.test(url);
+    var full = url;
+    if (!abs && base != null) {
+      base = String(base);
+      var bm = base.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*:\/\/[^\/?#]*)([^?#]*)/);
+      var origin = bm ? bm[1] : '';
+      var path = bm ? (bm[2] || '/') : '/';
+      if (url.charAt(0) === '/') full = origin + url;
+      else if (url.charAt(0) === '#' || url.charAt(0) === '?') full = origin + path + url;
+      else full = origin + path.replace(/[^\/]*$/, '') + url;
+    }
+    var m = full.match(/^([a-zA-Z][a-zA-Z0-9+.\-]*:)(\/\/([^\/?#]*))?([^?#]*)(\?[^#]*)?(#.*)?$/);
+    this.href = full;
+    if (m) {
+      this.protocol = m[1];
+      this.host = m[3] || '';
+      this.hostname = this.host.split(':')[0];
+      this.pathname = m[4] || '';
+      this.search = m[5] || '';
+      this.hash = m[6] || '';
+    } else {
+      this.protocol = ''; this.host = ''; this.hostname = '';
+      this.pathname = full; this.search = ''; this.hash = '';
+    }
+    this.searchParams = makeSearchParams(this.search.replace(/^\?/, ''));
+  }
+  if (typeof g.URL === 'undefined') { g.URL = URLImpl; }
+  if (typeof g.URLSearchParams === 'undefined') {
+    g.URLSearchParams = function (init) { return makeSearchParams(String(init == null ? '' : init).replace(/^\?/, '')); };
+  }
 })(globalThis);
 )JS";
     JSValue result =

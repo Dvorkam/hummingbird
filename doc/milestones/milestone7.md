@@ -629,7 +629,20 @@ P0: Guardrails
       the targets and runs each ~45s, uploading reproducers on crash. NOTE the
       libFuzzer build + CI job are config-only-verified locally — no clang/Linux
       here; harness+corpus+smoke+gated-OFF build fully verified.)
-- [ ] Secondary proof: HN item-page snapshot — comment collapse works
+- [x] Secondary proof: HN item-page snapshot — comment collapse works — 2026-07-19
+      (diagnosed against live hn.js: the delegated click handler does
+      `new URL(el.href, location)` before routing to collapse, so a missing `URL`
+      threw and aborted before collapsing; and the `[-]` is
+      `<a href="javascript:void(0)">`, which we navigated to (404). FIXES: (1)
+      minimal real URL + URLSearchParams polyfill in the QuickJS prelude (parses
+      absolute/relative, pathname/searchParams/hash, never throws); the handler now
+      completes and calls preventDefault — which already suppresses the nav. (2)
+      defensive: Core::is_javascript_url + resolve_url preserves opaque pseudo-
+      schemes (javascript:/mailto:/...), and the app router skips navigating a
+      javascript: link. Regression tests: URL polyfill unit test + a faithful
+      reproduction of hn.js's collapse (class-based hide + preventDefault) proving
+      collapse works and nav is suppressed + Url helper tests. NOTE headless proof
+      uses a self-authored reproduction of the pattern, not vendored hn.js.)
 
 P1: If Schedule Allows
 - [ ] 7.3.3: requestAnimationFrame
