@@ -101,6 +101,9 @@ public:
     std::optional<std::string> focused_input_value() const;
 
     std::optional<std::string> consume_navigation_commit_url();
+    // Returns/clears a URL a script set via location.hash, so the app can update
+    // the URL bar (7.7.3). The tab's requested_url() is already updated in place.
+    std::optional<std::string> consume_url_bar_update();
     bool insert_extension_css(std::string_view css_text);
 
     void scroll_by(float delta_px, float viewport_height);
@@ -132,6 +135,9 @@ private:
     // Fires due JS timers (7.3.1) on the document-relative clock and rebuilds if
     // a callback mutated the DOM.
     void process_timer_updates(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    // Picks up a script-initiated location.hash change (7.7.3): syncs the tab's
+    // requested URL and queues a URL-bar update for the app.
+    void process_script_url_change();
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view reason);
     void begin_navigation_session(std::string_view url);
@@ -170,6 +176,9 @@ private:
     Core::Clock::time_point timer_last_tick_{};
     bool timer_has_tick_ = false;
     double timer_clock_ms_ = 0.0;
+
+    // A URL a script set via location.hash, awaiting the app's URL-bar sync (7.7.3).
+    std::optional<std::string> pending_url_bar_update_;
 
     bool dirty_ = true;
 };

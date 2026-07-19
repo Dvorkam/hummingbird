@@ -2,6 +2,8 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 
 #include "core/platform_api/IScriptEngine.h"
@@ -50,6 +52,8 @@ public:
     // Timers (7.3.1): fire due setTimeout/setInterval callbacks at `now_ms`.
     DispatchResult run_timers(DocumentModel& model, double now_ms);
     bool has_pending_timers() const;
+    // Script-initiated location.hash change to reflect in chrome/history (7.7.3).
+    std::optional<std::string> consume_location_change();
 
 private:
     std::unique_ptr<DocumentScriptController> controller_;

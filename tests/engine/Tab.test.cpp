@@ -1308,6 +1308,35 @@ TEST(EngineTabTest, ManyMutationsInOneHandlerProduceExactlyOnePass) {
     EXPECT_EQ(harness.tab().style_layout_pass_count(), passes_before + 1);
 }
 
+TEST(EngineTabTest, ScriptLocationHashSyncsTabUrlAndQueuesUrlBarUpdate) {
+    // 7.7.3: a script assigning location.hash must update the tab's requested URL
+    // in place and queue a URL-bar update for the app (no reload).
+    const std::string html = R"HTML(
+<!doctype html>
+<html><body onload="location.hash = '#/active';"><p>hi</p></body></html>
+)HTML";
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://todomvc.test/", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+    harness.navigate("https://todomvc.test/");
+    harness.tick();
+    harness.tick();  // ensure the onload + script-URL poll have both run
+
+    // The tab's requested URL now carries the script-set fragment.
+    EXPECT_NE(std::string(harness.tab().requested_url()).find("#/active"), std::string::npos)
+        << "requested_url=" << harness.tab().requested_url();
+
+    // ...and the URL-bar update is queued exactly once.
+    auto update = harness.tab().consume_url_bar_update();
+    ASSERT_TRUE(update.has_value());
+    EXPECT_NE(update->find("#/active"), std::string::npos);
+    EXPECT_FALSE(harness.tab().consume_url_bar_update().has_value());  // consumed once
+}
+
 TEST(EngineTabTest, M7DemoPageLoadsExternalScriptFromAssets) {
     // Guards the shipped example.dev/m7 demo: its <script src> must resolve
     // through the bundled-asset probe and register Ready so the page's

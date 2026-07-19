@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -30,6 +31,7 @@ public:
     bool dispatch_dom_event(DOM::Node* target, const ScriptDomEvent& event) override;
     void set_location(std::string_view url) override;
     bool navigate_fragment(std::string_view url) override;
+    std::optional<std::string> consume_location_change() override;
     bool run_due_timers(double now_ms) override;
     bool has_pending_timers() const override { return !timers_.empty(); }
     std::vector<std::string> missing_apis() const override { return missing_apis_; }
@@ -224,6 +226,9 @@ private:
     char window_target_marker_ = 0;
     // Current document URL backing window.location (7.2.5).
     std::string location_url_;
+    // Set when a script assigns location.hash; consumed by the app to sync the
+    // URL bar + tab history (7.7.3). Not set by app-initiated navigation.
+    std::optional<std::string> script_location_change_;
     JSClassID node_class_id_ = 0;
     JSClassID token_list_class_id_ = 0;
     JSClassID string_map_class_id_ = 0;

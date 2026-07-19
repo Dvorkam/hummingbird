@@ -151,7 +151,11 @@ JSValue QuickJSScriptEngine::js_location_set_hash(JSContext* ctx, JSValueConst /
     }
     std::string new_url = std::string(Core::url_without_fragment(engine->location_url_));
     new_url += hash;
-    engine->update_location(new_url);
+    if (engine->update_location(new_url)) {
+        // A script-initiated fragment change: record it so the app can reflect
+        // the new URL in the chrome + tab history (7.7.3).
+        engine->script_location_change_ = engine->location_url_;
+    }
     return JS_UNDEFINED;
 }
 
@@ -1108,7 +1112,8 @@ void QuickJSScriptEngine::reset_bindings() {
     // to free.
     free_listeners();
     free_timers();
-    missing_apis_.clear();  // telemetry is per-document (7.5.2)
+    missing_apis_.clear();            // telemetry is per-document (7.5.2)
+    script_location_change_.reset();  // per-document location state (7.7.3)
     if (context_) {
         for (auto& [node, value] : node_wrappers_) {
             (void)node;
@@ -1320,10 +1325,23 @@ void QuickJSScriptEngine::install_window_bindings() {
 
 void QuickJSScriptEngine::set_location(std::string_view url) {
     location_url_ = std::string(url);
+    // App-initiated: the caller already knows this URL, so drop any pending
+    // script-initiated change (a stale value from the previous document).
+    script_location_change_.reset();
 }
 
 bool QuickJSScriptEngine::navigate_fragment(std::string_view url) {
-    return update_location(url);
+    // App-initiated fragment nav: fire hashchange but do not report it back as a
+    // script change (the app is the one driving it).
+    bool changed = update_location(url);
+    script_location_change_.reset();
+    return changed;
+}
+
+std::optional<std::string> QuickJSScriptEngine::consume_location_change() {
+    std::optional<std::string> out = std::move(script_location_change_);
+    script_location_change_.reset();
+    return out;
 }
 
 bool QuickJSScriptEngine::update_location(std::string_view url) {

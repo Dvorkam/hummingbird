@@ -339,6 +339,10 @@ bool DocumentPipeline::has_pending_timers() const {
     return scripting_->has_pending_timers();
 }
 
+std::optional<std::string> DocumentPipeline::consume_location_change() {
+    return scripting_->consume_location_change();
+}
+
 DocumentPipeline::SubmitDispatchResult DocumentPipeline::dispatch_submit(const DOM::Element* form) {
     if (!form) {
         return {};

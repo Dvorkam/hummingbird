@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -56,6 +57,12 @@ public:
     // and fires `hashchange` when the fragment changed, WITHOUT reloading. Returns
     // true when a hashchange fired. Default: no-op returning false.
     virtual bool navigate_fragment(std::string_view /*url*/) { return false; }
+
+    // Returns and clears the URL a *script* set via `location.hash = ...` since
+    // the last consume, so the app can reflect it in the URL bar / tab history
+    // (7.7.3). App-initiated navigation (navigate_fragment / set_location) does
+    // NOT report here. Default: nothing.
+    virtual std::optional<std::string> consume_location_change() { return std::nullopt; }
 
     // Timer scheduling (7.3.1). `run_due_timers` fires every setTimeout/setInterval
     // callback whose deadline has passed at `now_ms` — a monotonically

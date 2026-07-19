@@ -151,6 +151,7 @@ bool BrowserApp::tick() {
         tick_active_tab(viewport);
         emit_navigation_commit_events();
         sync_active_tab_security_state();
+        sync_active_tab_url();
         sync_tab_text_input_mode();
     }
     render_coordinator_->render_if_needed();
@@ -174,6 +175,13 @@ void BrowserApp::emit_navigation_commit_events() {
 
 void BrowserApp::sync_active_tab_security_state() {
     if (browser_chrome_.url_bar().set_security_state(active_tab().security_state())) {
+        render_coordinator_->set_chrome_dirty();
+    }
+}
+
+void BrowserApp::sync_active_tab_url() {
+    if (auto url = active_tab().consume_url_bar_update()) {
+        browser_chrome_.url_bar().set_text(*url);
         render_coordinator_->set_chrome_dirty();
     }
 }

@@ -81,4 +81,8 @@ bool DocumentScripting::has_pending_timers() const {
     return controller_->has_pending_timers();
 }
 
+std::optional<std::string> DocumentScripting::consume_location_change() {
+    return controller_->consume_location_change();
+}
+
 }  // namespace Hummingbird::Engine

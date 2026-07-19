@@ -646,8 +646,16 @@ P0: Guardrails
 
 P1: If Schedule Allows
 - [ ] 7.3.3: requestAnimationFrame
-- [ ] 7.7.3: JS location.hash → chrome/tab URL sync (T-LOCATION-URL-SYNC-1) —
-      land before/with 7.6.1 (history entries key off the tab URL)
+- [x] 7.7.3: JS location.hash → chrome/tab URL sync (T-LOCATION-URL-SYNC-1) — 2026-07-19
+      (engine records a script-initiated location.hash change (not app-initiated
+      navigate_fragment/set_location) in script_location_change_, exposed via
+      IScriptEngine::consume_location_change(); threaded controller→scripting→
+      pipeline→Tab. Tab::tick polls it, updates navigation_lifecycle_ in place
+      (new update_fragment_url → TabNavigationState::update_requested_url, no
+      reload) and queues a URL-bar update the app drains in
+      BrowserApp::sync_active_tab_url. Also fixed the click-path mirror gap:
+      Tab::navigate_fragment now updates the requested URL too. Tab integration
+      test. Unblocks 7.6.1 history.)
 - [ ] 7.6.1: Back/Forward Navigation (T-UI-NAV-BACK-1)
 - [ ] 7.6.2: Bookmarks MVP (T-UI-BOOKMARKS-1)
 - [ ] 7.7.2: JS focus()/blur() dispatch focus/blur events (T-FOCUS-EVENTS-FROM-JS-1;

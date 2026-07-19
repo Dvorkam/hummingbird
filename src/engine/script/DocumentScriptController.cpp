@@ -232,6 +232,10 @@ bool DocumentScriptController::has_pending_timers() const {
     return script_engine_ && script_engine_->has_pending_timers();
 }
 
+std::optional<std::string> DocumentScriptController::consume_location_change() {
+    return script_engine_ ? script_engine_->consume_location_change() : std::nullopt;
+}
+
 bool DocumentScriptController::bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena) {
     if (!script_engine_) {
         return false;

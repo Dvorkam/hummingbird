@@ -66,6 +66,8 @@ private:
     void tick_active_tab(const Hummingbird::Layout::Rect& viewport);
     void emit_navigation_commit_events();
     void sync_active_tab_security_state();
+    // Reflects a script-initiated location.hash change in the URL bar (7.7.3).
+    void sync_active_tab_url();
 
     void on_active_tab_changed();
     void sync_tab_text_input_mode();

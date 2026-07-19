@@ -100,6 +100,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     relayout_if_viewport_changed(graphics, viewport);
     process_animation_updates();
     process_timer_updates(graphics, viewport);
+    process_script_url_change();
 
     bool dirty = dirty_;
     dirty_ = false;
@@ -172,6 +173,22 @@ void Tab::process_timer_updates(IGraphicsContext& graphics, const Layout::Rect& 
 
 size_t Tab::style_layout_pass_count() const {
     return document_pipeline_->style_layout_pass_count();
+}
+
+void Tab::process_script_url_change() {
+    // A script assigned location.hash (7.7.3): reflect it in the tab's requested
+    // URL in place (no reload) and queue the URL-bar text for the app.
+    if (auto url = document_pipeline_->consume_location_change()) {
+        navigation_lifecycle_.update_fragment_url(*url);
+        pending_url_bar_update_ = std::move(url);
+        mark_dirty("script_location_change");
+    }
+}
+
+std::optional<std::string> Tab::consume_url_bar_update() {
+    std::optional<std::string> out = std::move(pending_url_bar_update_);
+    pending_url_bar_update_.reset();
+    return out;
 }
 
 void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool debug_outlines) {
@@ -271,6 +288,12 @@ Tab::SubmitResult Tab::dispatch_submit(const DOM::Element* form) {
 Tab::FragmentResult Tab::navigate_fragment(std::string_view url, IGraphicsContext& graphics,
                                            const Layout::Rect& viewport) {
     auto result = document_pipeline_->navigate_fragment(url);
+    if (result.hash_changed) {
+        // Same-document fragment nav: keep the tab's requested URL in sync so
+        // back/forward history and the URL bar reflect it (7.7.3 mirror of the
+        // click path's URL-bar update).
+        navigation_lifecycle_.update_fragment_url(url);
+    }
     if (result.mutated) {
         (void)rebuild_document_and_sync_layout(graphics, viewport, "navigate_fragment:hashchange_mutation");
         mark_dirty();

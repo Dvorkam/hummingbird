@@ -144,6 +144,8 @@ public:
     };
     void set_location(std::string_view url);
     FragmentNavResult navigate_fragment(std::string_view url);
+    // Returns/clears a script-initiated location.hash change (7.7.3).
+    std::optional<std::string> consume_location_change();
 
     // Count of completed style+layout passes (7.4.1 invalidation instrumentation).
     // Batching guarantee: a task making N DOM mutations advances this by exactly 1.
