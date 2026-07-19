@@ -331,6 +331,24 @@
   instrumentation, in the spirit of M5's injection budget).
 * **Tests:** invalidation budget tests.
 
+* **Story 7.4.2: Table Cell Intrinsic Width From Content, Not Stretch
+  (T-LAYOUT-TABLE-INTRINSIC-BLOCK-1)** — pulled into M7 mid-milestone because it is
+  a *validation blocker*: it, not any 7.x story, is why the Hacker News proof target
+  renders as blank rows.
+* **Goal:** measure a table cell's intrinsic (max-content) width from its content,
+  not from a block child's *stretched* width.
+* **Scope:** `RenderTableCell::measure_intrinsic_width` laid the cell's children out
+  in a 100000px probe box and read back their rendered width; a `display:block`
+  child fills that box, so the column ballooned to ~100000px and shoved every later
+  column (and its clickable links) off-screen — breaking not just rendering but
+  hit-testing / JS interaction on any table page. A recursive `max_content_width`
+  trusts inline-level widths (already content-sized) and derives block-level widths
+  from content, so an empty block collapses to its insets.
+* **Acceptance:** a table row with a `display:block` child in a narrow cell keeps its
+  other columns on-screen; HN's nested item-list rows lay the title column at a
+  normal x. No table-layout regressions.
+* **Tests:** table layout regression test (block child does not balloon the column).
+
 ### 7.5 - Guardrails (standing, start here)
 
 * **Story 7.5.1: TodoMVC Snapshot Harness (T-TODOMVC-E2E-1)**
@@ -566,6 +584,12 @@ P0: Scheduling + Invalidation (North Star)
       Tab accessor to *prove* it. Budget test: a click handler doing 100
       mutations advances the counter by exactly 1. In the spirit of M5's
       injection budget.)
+- [x] 7.4.2: Table Cell Intrinsic Width From Content (T-LAYOUT-TABLE-INTRINSIC-BLOCK-1)
+      — 2026-07-19 (pulled into M7: validation blocker for the HN proof. Recursive
+      max_content_width in RenderTable trusts inline-level widths and derives
+      block-level widths from content, so a display:block child no longer stretches
+      to the 100000px measure box and balloons its column. HN titles move from
+      x≈100032 to on-screen; hit-testing/JS now reachable. Table regression test.)
 
 P0: Guardrails
 - [ ] 7.5.4: JS/Native Ownership Rules Documented

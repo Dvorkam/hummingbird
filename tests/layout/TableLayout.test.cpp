@@ -9,6 +9,7 @@
 #include "layout/TreeBuilder.h"
 #include "layout/table/RenderTable.h"
 #include "style/compute/StyleEngine.h"
+#include "style/parser/CssParser.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
@@ -80,6 +81,63 @@ TEST(TableLayoutTest, AlignsCellsIntoColumns) {
     EXPECT_FLOAT_EQ(cell12_render->get_rect().x, cell11_render->get_rect().width);
     EXPECT_FLOAT_EQ(cell22_render->get_rect().x, cell21_render->get_rect().width);
     EXPECT_FLOAT_EQ(second_row->get_rect().y, first_row->get_rect().height);
+}
+
+TEST(TableLayoutTest, BlockChildDoesNotBalloonCellIntrinsicWidth) {
+    // Regression for T-LAYOUT-TABLE-INTRINSIC-BLOCK-1: a table cell whose child is
+    // display:block must be measured at its content width, not stretched to the
+    // 100000px intrinsic-measurement box. Otherwise that column balloons and
+    // pushes every later column off-screen (the Hacker News front-page failure:
+    // `.votelinks a { display:block }` shoved story titles to x~100032).
+    Hummingbird::Core::ArenaAllocator arena(8192);
+    auto body = DomFactory::create_element(arena, TagNames::Body);
+    auto table = DomFactory::create_element(arena, TagNames::Table);
+    auto row = DomFactory::create_element(arena, TagNames::Tr);
+
+    auto rank = DomFactory::create_element(arena, TagNames::Td);
+    rank->append_child(DomFactory::create_text(arena, "1."));
+    row->append_child(std::move(rank));
+
+    // Middle cell: an <a class="vote"> (display:block via CSS) wrapping an empty div.
+    auto votelinks = DomFactory::create_element(arena, TagNames::Td);
+    auto vote_anchor = DomFactory::create_element(arena, "a");
+    vote_anchor->set_attribute("class", "vote");
+    vote_anchor->append_child(DomFactory::create_element(arena, "div"));
+    votelinks->append_child(std::move(vote_anchor));
+    row->append_child(std::move(votelinks));
+
+    auto title = DomFactory::create_element(arena, TagNames::Td);
+    title->append_child(DomFactory::create_text(arena, "A story title"));
+    row->append_child(std::move(title));
+
+    table->append_child(std::move(row));
+    body->append_child(std::move(table));
+
+    Parser css_parser(".vote { display: block; }");
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 400, 200};
+    render_root->layout(context, viewport);
+
+    auto* table_render = dynamic_cast<RenderTable*>(render_root->get_children()[0].get());
+    ASSERT_NE(table_render, nullptr);
+    auto* row_render = dynamic_cast<RenderTableRow*>(table_render->get_children()[0].get());
+    ASSERT_NE(row_render, nullptr);
+    ASSERT_EQ(row_render->get_children().size(), 3u);
+    auto* title_cell = dynamic_cast<RenderTableCell*>(row_render->get_children()[2].get());
+    ASSERT_NE(title_cell, nullptr);
+
+    // The title column must sit within the table, not ~100000px to the right.
+    EXPECT_LT(title_cell->get_rect().x, 200.0f) << "title column pushed off-screen at x=" << title_cell->get_rect().x;
+    // ...and the block-bearing column must not balloon the whole table.
+    EXPECT_LT(table_render->get_rect().width, 1000.0f) << "table width ballooned to " << table_render->get_rect().width;
 }
 
 TEST(TableLayoutTest, ExpandsColumnsWhenTableIsPercentWidth) {
