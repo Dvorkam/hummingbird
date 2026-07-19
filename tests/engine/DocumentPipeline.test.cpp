@@ -800,6 +800,61 @@ TEST(DocumentPipelineTest, CheckboxClickTogglesAndFiresChange) {
     EXPECT_TRUE(painted_has("changed:false"));
 }
 
+TEST(DocumentPipelineTest, InnerHtmlInChangeHandlerDoesNotCorruptDispatch) {
+    // Regression: a checkbox `change` handler that rebuilds an ancestor via
+    // innerHTML destroys the event target's own subtree mid-dispatch. The click's
+    // trailing hit-test (and the stale render tree) must not then dereference a
+    // freed node. innerHTML detaches the old subtree (keeps it alive) rather than
+    // destroying it, so the dispatch completes and the container rebuilds cleanly.
+    // This is the hazard the pinned TodoMVC harness surfaced (render() re-emits the
+    // list on every change).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } </style></head>
+  <body>
+    <div id="box"><input type="checkbox" id="cb"></div>
+    <p id="status">start</p>
+    <script>
+      document.getElementById('cb').addEventListener('change', function() {
+        document.getElementById('status').textContent = 'changed';
+        document.getElementById('box').innerHTML = '<span>rebuilt</span>';
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();
+
+    const auto painted_has = [&](const char* text) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), text) != graphics.drawn_texts.end();
+    };
+
+    // Click the checkbox (top-left 13x13 box): change fires, the handler wipes and
+    // rebuilds #box while #cb (the event target) is inside it.
+    DocumentPipeline::HitTestContext click{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
+    auto r = pipeline.dispatch_click(click);
+    EXPECT_TRUE(r.mutated);
+    EXPECT_TRUE(painted_has("changed"));  // status updated (no crash)
+    EXPECT_TRUE(painted_has("rebuilt"));  // #box rebuilt from innerHTML
+}
+
 TEST(DocumentPipelineTest, CollectsBackgroundImageLinksFromStyles) {
     const std::string html = R"HTML(
 <!doctype html>

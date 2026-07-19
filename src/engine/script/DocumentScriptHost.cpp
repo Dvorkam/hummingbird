@@ -258,11 +258,20 @@ void DocumentScriptHost::set_text_content(DOM::Node* node, std::string_view text
         return;
     }
     if (!arena_) return;
-    node->clear_children();
+    detach_children(node);
     if (!text.empty()) {
         node->append_child(DOM::Text::create(*arena_, text));
     }
     mutated_ = true;
+}
+
+void DocumentScriptHost::detach_children(DOM::Node* node) {
+    if (!node) return;
+    while (DOM::Node* first = node->first_child()) {
+        Core::ArenaPtr<DOM::Node> owned = node->remove_child_node(first);
+        if (!owned) break;  // defensive: first_child() said there is one
+        detached_.emplace_back(std::move(owned));
+    }
 }
 
 void DocumentScriptHost::set_attribute(DOM::Node* node, std::string_view name, std::string_view value) {
@@ -347,7 +356,7 @@ void DocumentScriptHost::set_inner_html(DOM::Node* node, std::string_view html) 
     Html::Parser parser(*arena_, html);
     auto parsed = parser.parse();
 
-    node->clear_children();
+    detach_children(node);
     if (parsed.dom) {
         // Transfer parsed nodes in order; the synthetic root is left empty and
         // reclaimed with the arena.

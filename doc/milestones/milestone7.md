@@ -599,7 +599,17 @@ P0: Guardrails
       NavigationTeardownReleasesPerDocumentState test releases listeners/timers/
       wrappers in one navigation and locks the global-persistence behavior. Global
       isolation deferred + filed T-JS-GLOBAL-ISOLATION-1 [M8].)
-- [ ] 7.5.1: TodoMVC Snapshot Harness
+- [x] 7.5.1: TodoMVC Snapshot Harness (T-TODOMVC-E2E-1) — 2026-07-19
+      (pinned self-contained vanilla-JS TodoMVC fixture in tests/fixtures/todomvc/
+      — standard .todoapp/.toggle/.destroy/.filters contract, in-memory state
+      since localStorage is not yet supported. TodoMvcTest.FullFlowDrivesThePinnedFixture
+      drives add(keydown)→toggle(checkbox change)→filter(hashchange ×3)→
+      clear-completed→delete headlessly through the real pipeline, locating live
+      JS-built elements via a new DocumentPipeline::render_root() accessor.
+      SURFACED + FIXED a latent heap-corruption bug: innerHTML/textContent
+      *destroyed* the old subtree, so a change handler doing list.innerHTML=''
+      freed the in-flight event target — they now DETACH instead (detach-never-free).
+      Focused guard: InnerHtmlInChangeHandlerDoesNotCorruptDispatch.)
 - [ ] 7.5.2: Missing-API Telemetry (fail-soft)
 - [ ] 7.5.3: Parser Fuzzing In CI
 - [ ] Secondary proof: HN item-page snapshot — comment collapse works

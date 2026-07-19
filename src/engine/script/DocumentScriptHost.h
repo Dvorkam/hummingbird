@@ -102,6 +102,14 @@ private:
     // when the node cannot be located or has no owning arena.
     Core::ArenaPtr<DOM::Node> take_ownership(DOM::Node* node);
 
+    // Moves every child of `node` into the detached set instead of destroying it.
+    // innerHTML / textContent replace a subtree, and either can run mid-event-
+    // dispatch (a `change` handler that does `list.innerHTML = ''` also clears the
+    // node the event is being dispatched to). Detaching keeps those nodes valid —
+    // "removal detaches, never frees" — so the in-flight dispatch and the stale
+    // render tree never dereference a destroyed node (dom_arena_ownership.md).
+    void detach_children(DOM::Node* node);
+
     DOM::Node* root_ = nullptr;
     Core::ArenaAllocator* arena_ = nullptr;
     bool mutated_ = false;

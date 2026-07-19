@@ -36,6 +36,13 @@ freed** — the arena is only ever reset wholesale on navigation. So:
 - A node created by `document.createElement` and never attached lives in
   `detached_` until the document tears down. That is a bounded, known leak — the
   arena reset reclaims it — which is acceptable per the M7 non-goals.
+- Replacing a subtree wholesale — `innerHTML = ...` or `textContent = ...` —
+  **detaches** the old children into `detached_` too, it does not destroy them.
+  This matters because either can run *inside* an event dispatch (a `change`
+  handler doing `list.innerHTML = ''` also clears the node the event is being
+  dispatched to). Destroying mid-dispatch would leave the in-flight dispatch and
+  the not-yet-rebuilt render tree holding dangling pointers; detaching keeps every
+  node valid until the next navigation (`InnerHtmlInChangeHandlerDoesNotCorruptDispatch`).
 
 Tree surgery goes through the `Node` primitives (`append_child_node`,
 `insert_child_before`, `remove_child_node`) which keep `m_parent` consistent, and

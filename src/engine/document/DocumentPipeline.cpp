@@ -352,6 +352,10 @@ std::optional<std::string> DocumentPipeline::focused_input_value() const {
     return interaction_->focused_input_value();
 }
 
+const Layout::RenderObject* DocumentPipeline::render_root() const {
+    return model_->render_tree();
+}
+
 bool DocumentPipeline::has_dom_tree() const {
     return model_->has_dom_tree();
 }

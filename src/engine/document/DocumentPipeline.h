@@ -26,6 +26,10 @@ class Element;
 class Node;
 }  // namespace Hummingbird::DOM
 
+namespace Hummingbird::Layout {
+class RenderObject;
+}  // namespace Hummingbird::Layout
+
 namespace Hummingbird::Engine {
 
 class ResourceStore;
@@ -99,6 +103,9 @@ public:
     void paint_controls(IGraphicsContext& graphics, const PaintContext& context, bool repaint_background);
     bool has_dom_tree() const;
     bool has_render_tree() const;
+    // Root of the current render tree (read-only). Lets tests/inspection locate a
+    // laid-out element's box — e.g. to synthesize a click at its coordinates.
+    const Layout::RenderObject* render_root() const;
     float content_height() const;
     size_t render_tree_children() const;
     const std::vector<std::string>& stylesheet_links() const;

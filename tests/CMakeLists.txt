@@ -59,6 +59,7 @@ add_executable(HummingbirdTests
     engine/ResourceLoader.test.cpp
     engine/ScriptHost.test.cpp
     engine/ScriptController.test.cpp
+    engine/TodoMvc.test.cpp
     platform/ResourceProvider.test.cpp
     platform/ImageDecoder.test.cpp
     platform/ScriptEngine.test.cpp
