@@ -619,7 +619,16 @@ P0: Guardrails
       via IScriptEngine::missing_apis(); reset per document. Registry+fail-soft
       unit test. NOTE curated list, not an arbitrary-global trap (bare-global
       lookups can't be Proxy-trapped in QuickJS).)
-- [ ] 7.5.3: Parser Fuzzing In CI
+- [x] 7.5.3: Parser Fuzzing In CI (T-FUZZ-1) — 2026-07-19
+      (libFuzzer harnesses for HtmlParser + CssParser (tests/fuzz), shared
+      fuzz_html/fuzz_css bodies so a cross-platform smoke test — corpus + adversarial
+      snippets — runs the exact same harness in every build (verified green). Seed
+      corpus in tests/fuzz/corpus/{html,css}; check crash reproducers back in
+      (fix-forward). Gated by HB_ENABLE_FUZZING (top-level, clang-only: instruments
+      the whole build with coverage+ASan). New CI `fuzz` job (ubuntu+clang) builds
+      the targets and runs each ~45s, uploading reproducers on crash. NOTE the
+      libFuzzer build + CI job are config-only-verified locally — no clang/Linux
+      here; harness+corpus+smoke+gated-OFF build fully verified.)
 - [ ] Secondary proof: HN item-page snapshot — comment collapse works
 
 P1: If Schedule Allows
