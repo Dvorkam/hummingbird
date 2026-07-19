@@ -13,6 +13,7 @@
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
 #include "engine/resources/ResourceStore.h"
+#include "engine/tab/NavigationHistory.h"
 #include "engine/tab/NavigationLifecycle.h"
 #include "engine/tab/TabAnimationTicker.h"
 #include "engine/tab/TabLayoutState.h"
@@ -66,6 +67,14 @@ public:
 
     void navigate(std::string_view url);
     void navigate(const FormSubmission& submission);
+
+    // Back/forward navigation over the per-tab history (7.6.1). Returns false when
+    // there is nowhere to go. A same-document target navigates by fragment (no
+    // reload); otherwise it reloads the entry.
+    bool go_back(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    bool go_forward(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    bool can_go_back() const { return history_.can_go_back(); }
+    bool can_go_forward() const { return history_.can_go_forward(); }
 
     // Processes pending navigation results and keeps layout in sync with the viewport.
     // Returns true if the document changed in a way that needs repainting.
@@ -141,6 +150,8 @@ private:
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view reason);
     void begin_navigation_session(std::string_view url);
+    // Navigates to a history entry without pushing a new one (back/forward).
+    void navigate_history_entry(const std::string& url, IGraphicsContext& graphics, const Layout::Rect& viewport);
     bool prepare_document_from_response(std::string_view html);
     void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     // External <script src> gating (7.0.1): scripts run once every external
@@ -166,6 +177,10 @@ private:
     // load event (cleared by maybe_run_deferred_scripts or navigation reset).
     bool scripts_pending_ = false;
     NavigationLifecycle navigation_lifecycle_{};
+    NavigationHistory history_{};
+    // True while navigating via back/forward, so those navigations don't push a
+    // new history entry (7.6.1).
+    bool in_history_navigation_ = false;
     TabLayoutState layout_state_{};
     TabAnimationTicker animation_ticker_{};
 

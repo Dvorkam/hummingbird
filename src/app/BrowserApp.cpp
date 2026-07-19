@@ -266,6 +266,28 @@ void BrowserApp::navigate_and_reflect_submission(const Hummingbird::Engine::Form
     render_coordinator_->set_chrome_dirty();
 }
 
+void BrowserApp::navigate_back() {
+    if (!window_ || !graphics_) return;
+    auto [win_w, win_h] = window_->get_size();
+    const auto viewport = browser_chrome_.content_viewport(win_w, win_h);
+    if (active_tab().go_back(*graphics_, viewport)) {
+        browser_chrome_.url_bar().set_text(active_tab().requested_url());
+        render_coordinator_->set_document_dirty();
+        render_coordinator_->set_chrome_dirty();
+    }
+}
+
+void BrowserApp::navigate_forward() {
+    if (!window_ || !graphics_) return;
+    auto [win_w, win_h] = window_->get_size();
+    const auto viewport = browser_chrome_.content_viewport(win_w, win_h);
+    if (active_tab().go_forward(*graphics_, viewport)) {
+        browser_chrome_.url_bar().set_text(active_tab().requested_url());
+        render_coordinator_->set_document_dirty();
+        render_coordinator_->set_chrome_dirty();
+    }
+}
+
 void BrowserApp::notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url) {
     extension_host_->notify_tab_created(tab_id, url);
 }

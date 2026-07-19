@@ -656,7 +656,14 @@ P1: If Schedule Allows
       BrowserApp::sync_active_tab_url. Also fixed the click-path mirror gap:
       Tab::navigate_fragment now updates the requested URL too. Tab integration
       test. Unblocks 7.6.1 history.)
-- [ ] 7.6.1: Back/Forward Navigation (T-UI-NAV-BACK-1)
+- [x] 7.6.1: Back/Forward Navigation (T-UI-NAV-BACK-1) — 2026-07-19
+      (per-tab NavigationHistory stack: full navs + fragment navs + JS hash routes
+      all push (truncate-forward on a new nav from mid-stack, dedupe exact reloads).
+      Tab::go_back/go_forward with an in_history_navigation_ guard so replaying an
+      entry doesn't re-push; same-document target navigates by fragment in place,
+      else reloads. Alt+Left/Alt+Right in ChromeEventRouter → BrowserApp::navigate_
+      back/forward (reflects the URL bar). Tab tests: full-page A→B→back/forward +
+      forward-truncation, and fragment-route walking.)
 - [ ] 7.6.2: Bookmarks MVP (T-UI-BOOKMARKS-1)
 - [ ] 7.7.2: JS focus()/blur() dispatch focus/blur events (T-FOCUS-EVENTS-FROM-JS-1;
       needs 7.7.1)

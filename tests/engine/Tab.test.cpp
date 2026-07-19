@@ -1308,6 +1308,75 @@ TEST(EngineTabTest, ManyMutationsInOneHandlerProduceExactlyOnePass) {
     EXPECT_EQ(harness.tab().style_layout_pass_count(), passes_before + 1);
 }
 
+TEST(EngineTabTest, BackForwardNavigatesFullPageHistory) {
+    // 7.6.1: navigating A -> B, then back returns to A and forward returns to B;
+    // a fresh navigation from a mid-history point truncates the forward entries.
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://a.test/", "<html><body><p>PageA</p></body></html>");
+    network->set_response("https://b.test/", "<html><body><p>PageB</p></body></html>");
+    network->set_response("https://c.test/", "<html><body><p>PageC</p></body></html>");
+    auto fallback = std::make_unique<RoutingNetwork>();
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+
+    harness.navigate("https://a.test/");
+    harness.tick();
+    EXPECT_FALSE(harness.tab().can_go_back());
+    EXPECT_FALSE(harness.tab().can_go_forward());
+
+    harness.navigate("https://b.test/");
+    harness.tick();
+    EXPECT_TRUE(harness.tab().can_go_back());
+    EXPECT_FALSE(harness.tab().can_go_forward());
+
+    EXPECT_TRUE(harness.go_back());
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://a.test/");
+    EXPECT_TRUE(harness.tab().can_go_forward());
+
+    EXPECT_TRUE(harness.go_forward());
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://b.test/");
+
+    // Go back to A, then navigate C: the forward entry (B) is discarded.
+    EXPECT_TRUE(harness.go_back());
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://a.test/");
+    harness.navigate("https://c.test/");
+    harness.tick();
+    EXPECT_FALSE(harness.tab().can_go_forward());  // B was truncated
+    EXPECT_TRUE(harness.tab().can_go_back());
+    EXPECT_TRUE(harness.go_back());
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://a.test/");
+    EXPECT_FALSE(harness.tab().can_go_back());  // A is the start
+}
+
+TEST(EngineTabTest, BackForwardWalksFragmentRoutes) {
+    // 7.6.1 + 7.2.5: fragment navigations are history entries, so back walks the
+    // hash routes in place (no reload).
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://spa.test/", "<html><body><p>App</p></body></html>");
+    auto fallback = std::make_unique<RoutingNetwork>();
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+
+    harness.navigate("https://spa.test/");
+    harness.tick();
+    harness.navigate_fragment("https://spa.test/#/active");
+    harness.navigate_fragment("https://spa.test/#/completed");
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/#/completed");
+
+    EXPECT_TRUE(harness.go_back());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/#/active");
+    EXPECT_TRUE(harness.go_back());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/");
+    EXPECT_FALSE(harness.tab().can_go_back());
+
+    EXPECT_TRUE(harness.go_forward());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/#/active");
+}
+
 TEST(EngineTabTest, ScriptLocationHashSyncsTabUrlAndQueuesUrlBarUpdate) {
     // 7.7.3: a script assigning location.hash must update the tab's requested URL
     // in place and queue a URL-bar update for the app (no reload).

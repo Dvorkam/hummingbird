@@ -12,6 +12,7 @@
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
+#include "core/utils/Url.h"
 #include "engine/document/DocumentPipeline.h"
 #include "engine/resources/ResourceLoader.h"
 #include "engine/resources/ResourceRequestPlanner.h"
@@ -75,13 +76,44 @@ void Tab::navigate(std::string_view url) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     begin_navigation_session(url);
+    if (!in_history_navigation_) {
+        history_.push(std::string(navigation_lifecycle_.requested_url()));
+    }
     resource_loader_->navigate(navigation_lifecycle_.requested_url());
+}
+
+bool Tab::go_back(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    if (shutting_down_.load(std::memory_order_relaxed) || !history_.can_go_back()) return false;
+    navigate_history_entry(history_.go_back(), graphics, viewport);
+    return true;
+}
+
+bool Tab::go_forward(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    if (shutting_down_.load(std::memory_order_relaxed) || !history_.can_go_forward()) return false;
+    navigate_history_entry(history_.go_forward(), graphics, viewport);
+    return true;
+}
+
+void Tab::navigate_history_entry(const std::string& url, IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    in_history_navigation_ = true;
+    const std::string_view current = navigation_lifecycle_.requested_url();
+    if (Core::url_without_fragment(url) == Core::url_without_fragment(current) &&
+        Core::url_fragment(url) != Core::url_fragment(current)) {
+        // Same document, only the fragment differs: navigate in place (no reload).
+        (void)navigate_fragment(url, graphics, viewport);
+    } else {
+        navigate(url);  // different document (or exact reload): full (re)load
+    }
+    in_history_navigation_ = false;
 }
 
 void Tab::navigate(const FormSubmission& submission) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     begin_navigation_session(submission.url);
+    if (!in_history_navigation_) {
+        history_.push(std::string(navigation_lifecycle_.requested_url()));
+    }
 
     ResourceLoader::DocumentRequest request{};
     if (submission.method == FormSubmitMethod::Post) {
@@ -180,6 +212,9 @@ void Tab::process_script_url_change() {
     // URL in place (no reload) and queue the URL-bar text for the app.
     if (auto url = document_pipeline_->consume_location_change()) {
         navigation_lifecycle_.update_fragment_url(*url);
+        if (!in_history_navigation_) {
+            history_.push(*url);  // JS hash routing is a history entry too (7.6.1)
+        }
         pending_url_bar_update_ = std::move(url);
         mark_dirty("script_location_change");
     }
@@ -293,6 +328,9 @@ Tab::FragmentResult Tab::navigate_fragment(std::string_view url, IGraphicsContex
         // back/forward history and the URL bar reflect it (7.7.3 mirror of the
         // click path's URL-bar update).
         navigation_lifecycle_.update_fragment_url(url);
+        if (!in_history_navigation_) {
+            history_.push(std::string(url));  // fragment routes are history entries (7.6.1)
+        }
     }
     if (result.mutated) {
         (void)rebuild_document_and_sync_layout(graphics, viewport, "navigate_fragment:hashchange_mutation");

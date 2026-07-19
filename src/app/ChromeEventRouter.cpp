@@ -74,6 +74,17 @@ bool ChromeEventRouter::handle_tab_shortcut(const Hummingbird::InputEvent& event
             }
             return true;
         }
+
+        // Alt+Left / Alt+Right: back / forward over the tab's history (7.6.1).
+        if (event.mods.alt && !event.mods.ctrl && event.key.key == Key::Left) {
+            app_.navigate_back();
+            return true;
+        }
+
+        if (event.mods.alt && !event.mods.ctrl && event.key.key == Key::Right) {
+            app_.navigate_forward();
+            return true;
+        }
     }
     return false;
 }
