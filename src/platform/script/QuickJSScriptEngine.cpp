@@ -957,6 +957,7 @@ bool QuickJSScriptEngine::dispatch_dom_event(DOM::Node* target, const ScriptDomE
     dispatch_event(target, event.type, js_event);
     const bool not_canceled = !event_flag(js_event, "defaultPrevented");
     JS_FreeValue(context_, js_event);
+    drain_microtasks();  // microtask checkpoint after the dispatch task (7.3.2)
     return not_canceled;
 }
 
@@ -1063,10 +1064,30 @@ ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_
         }
         JS_FreeValue(context_, exception);
         JS_FreeValue(context_, result);
+        // Even on a top-level error, promise jobs it queued before throwing run.
+        drain_microtasks();
         return error_result(std::move(error));
     }
     JS_FreeValue(context_, result);
+    drain_microtasks();  // microtask checkpoint after the script task (7.3.2)
     return ok_result();
+}
+
+void QuickJSScriptEngine::drain_microtasks() {
+    if (!runtime_) return;
+    for (;;) {
+        JSContext* job_ctx = nullptr;
+        int rc = JS_ExecutePendingJob(runtime_, &job_ctx);
+        if (rc == 0) break;  // queue empty
+        if (rc < 0 && job_ctx) {
+            // A promise reaction threw: report it and keep draining the rest.
+            JSValue exc = JS_GetException(job_ctx);
+            const char* message = JS_ToCString(job_ctx, exc);
+            HB_LOG_WARN("[js] microtask threw: " << (message ? message : "unknown"));
+            if (message) JS_FreeCString(job_ctx, message);
+            JS_FreeValue(job_ctx, exc);
+        }
+    }
 }
 
 void QuickJSScriptEngine::free_listeners() {
@@ -1315,6 +1336,7 @@ bool QuickJSScriptEngine::update_location(std::string_view url) {
     JS_SetPropertyStr(context_, event, "newURL", JS_NewString(context_, location_url_.c_str()));
     dispatch_event(window_target(), "hashchange", event);
     JS_FreeValue(context_, event);
+    drain_microtasks();  // checkpoint after hashchange listeners (7.3.2)
     return true;
 }
 
@@ -1446,6 +1468,8 @@ bool QuickJSScriptEngine::run_due_timers(double now_ms) {
         JS_FreeValue(context_, ret);
         JS_FreeValue(context_, callback);
         for (JSValue arg : call_args) JS_FreeValue(context_, arg);
+        // Each timer callback is its own task: drain microtasks before the next.
+        drain_microtasks();
         fired = true;
     }
     return fired;

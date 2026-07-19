@@ -552,7 +552,13 @@ P0: Scheduling + Invalidation (North Star)
       via DocumentPipeline/Scripting/controller (DispatchScope-bracketed, mutation
       -> rebuild); timers die with the document (reset_bindings). Unit + teardown
       + re-entrancy tests; example.dev/timers live demo.)
-- [ ] 7.3.2: Microtask Pump (Promise jobs)
+- [x] 7.3.2: Microtask Pump (Promise jobs) — 2026-07-19
+      (drain_microtasks() runs the QuickJS job queue to exhaustion at the end of
+      every script entry point — eval, DOM-event dispatch, hashchange, and after
+      each timer callback — so Promise reactions run before control returns to
+      layout/paint or the next task. A throwing job is logged and draining
+      continues. Interleaving tests: microtask-after-script, microtask-before-
+      next-timer-task, chained-microtask FIFO drain.)
 - [ ] 7.4.1: Batched Dirty Marking Per Task
 
 P0: Guardrails

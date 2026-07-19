@@ -149,6 +149,13 @@ private:
     void remove_timer(int64_t id);
     void free_timers();
 
+    // Runs the QuickJS job queue to exhaustion (Promise reaction jobs, 7.3.2) —
+    // the microtask checkpoint. Called at the end of every script entry point
+    // (eval, event dispatch, each timer callback) so queued microtasks run before
+    // control returns to layout/paint or the next task. A throwing job is logged
+    // and draining continues.
+    void drain_microtasks();
+
     // window/location + hashchange (7.2.5).
     DOM::Node* window_target();  // sentinel listeners_ key for window-level listeners
     // Points location at `url` and fires `hashchange` when the fragment changed.

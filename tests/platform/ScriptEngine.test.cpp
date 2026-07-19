@@ -683,3 +683,53 @@ TEST(ScriptEngineTest, TimerCallbackCanScheduleAndClearReentrantly) {
     EXPECT_EQ(fx.log(), "12");
     EXPECT_FALSE(fx.engine->has_pending_timers());
 }
+
+TEST(ScriptEngineTest, MicrotasksDrainAfterScriptTask) {
+    TimerFixture fx;
+    // Synchronous code runs first; the promise reaction is a microtask that runs
+    // at the checkpoint after the script task, before eval returns (7.3.2).
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "log('1');"
+        "Promise.resolve().then(function(){ log('3'); });"
+        "log('2');",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_EQ(fx.log(), "123");  // 1,2 synchronous, then the drained microtask 3
+}
+
+TEST(ScriptEngineTest, MicrotaskRunsBeforeNextTimerTask) {
+    TimerFixture fx;
+    // Interleaving: a microtask queued in the script must run before the next
+    // task (the timer callback); a microtask queued inside the timer callback
+    // runs before that callback's checkpoint returns.
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "log('s');"
+        "Promise.resolve().then(function(){ log('m'); });"
+        "setTimeout(function(){ log('t'); Promise.resolve().then(function(){ log('u'); }); }, 0);",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_EQ(fx.log(), "sm");  // script 's', then its microtask 'm' — timer not yet due
+    EXPECT_TRUE(fx.engine->has_pending_timers());
+
+    EXPECT_TRUE(fx.engine->run_due_timers(0));  // fires 't', then drains its microtask 'u'
+    EXPECT_EQ(fx.log(), "smtu");
+}
+
+TEST(ScriptEngineTest, ChainedMicrotasksAllDrainInOrder) {
+    TimerFixture fx;
+    // A microtask that queues another microtask: the checkpoint keeps draining
+    // until the queue is empty, in FIFO order.
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "Promise.resolve().then(function(){ log('a');"
+        "  Promise.resolve().then(function(){ log('c'); }); });"
+        "Promise.resolve().then(function(){ log('b'); });",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_EQ(fx.log(), "abc");  // a,b at depth 1 (FIFO), then c queued by a
+}
