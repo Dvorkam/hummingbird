@@ -32,6 +32,7 @@ public:
     bool navigate_fragment(std::string_view url) override;
     bool run_due_timers(double now_ms) override;
     bool has_pending_timers() const override { return !timers_.empty(); }
+    std::vector<std::string> missing_apis() const override { return missing_apis_; }
 
 private:
     static QuickJSScriptEngine* engine_from_context(JSContext* ctx);
@@ -133,6 +134,10 @@ private:
     static JSValue js_set_interval(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_clear_timer(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    // Missing-API telemetry (7.5.2): the fail-soft stubs call this to record a
+    // touched-but-unimplemented API name.
+    static JSValue js_report_missing_api(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
     void install_node_prototype();
     void install_token_list_class();
     void install_string_map_class();
@@ -140,6 +145,12 @@ private:
     void install_document_bindings();
     void install_window_bindings();
     void install_extension_bindings();
+    // Installs fail-soft stubs for commonly-referenced but unimplemented JS APIs
+    // (fetch, XMLHttpRequest, localStorage, ...) so a page that touches one logs
+    // once via js_report_missing_api and no-ops instead of throwing (7.5.2).
+    void install_failsoft_stubs();
+    // Records a deduped missing-API name (first-touch order) and logs it once.
+    void record_missing_api(std::string name);
 
     // Registers a timer (repeating for setInterval) and returns its numeric id;
     // reads the callback, delay (ms, clamped to >= 0), and any trailing args from
@@ -249,6 +260,11 @@ private:
     std::vector<Timer> timers_;
     int64_t next_timer_id_ = 1;
     double now_ms_ = 0.0;  // last clock value seen by run_due_timers
+
+    // Deduped names of unimplemented JS APIs the current page touched (7.5.2),
+    // in first-touch order. Cleared per document by reset_bindings.
+    std::vector<std::string> missing_apis_;
+    bool failsoft_ready_ = false;
 };
 
 }  // namespace Hummingbird::Platform

@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "core/platform_api/IExtensionApiHost.h"
 #include "core/platform_api/IScriptHost.h"
@@ -65,6 +66,12 @@ public:
     // no-op.
     virtual bool run_due_timers(double /*now_ms*/) { return false; }
     virtual bool has_pending_timers() const { return false; }
+
+    // Missing-API telemetry (7.5.2): names of unimplemented JS APIs the current
+    // page touched, deduped and in first-touch order. Fail-soft — touching such
+    // an API logs once and no-ops rather than throwing, so the rest of the script
+    // still runs. Reset per document. Empty by default.
+    virtual std::vector<std::string> missing_apis() const { return {}; }
 };
 
 using ScriptEnginePtr = std::unique_ptr<IScriptEngine>;

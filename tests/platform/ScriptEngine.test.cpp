@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 
+#include <string>
+#include <vector>
+
 #include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
@@ -798,4 +801,35 @@ TEST(ScriptEngineTest, ChainedMicrotasksAllDrainInOrder) {
         "inline");
     ASSERT_TRUE(r.ok) << r.error;
     EXPECT_EQ(fx.log(), "abc");  // a,b at depth 1 (FIFO), then c queued by a
+}
+
+// Missing-API telemetry (7.5.2): touching an unimplemented API logs once
+// (deduped, first-touch order) and no-ops instead of throwing, so the rest of the
+// script keeps running — the fail-soft contract that keeps hn.js's fetch/XHR
+// references from killing its collapse handlers.
+TEST(ScriptEngineTest, MissingApiTelemetryIsFailSoftAndDeduped) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    auto result = engine->eval(
+        "globalThis.ran = 0;"
+        "fetch('/a'); fetch('/b');"                                    // reported once
+        "localStorage.setItem('k', 'v'); localStorage.getItem('k');"   // reported once
+        "var x = new XMLHttpRequest(); x.open('GET', '/'); x.send();"  // reported once
+        "globalThis.ran = 1;",                                         // proves no abort
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+    ASSERT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
+
+    // Deduped, in first-touch order.
+    EXPECT_EQ(engine->missing_apis(), (std::vector<std::string>{"fetch", "localStorage", "XMLHttpRequest"}));
+
+    // Telemetry is per-document: navigation teardown clears it.
+    engine->reset_bindings();
+    EXPECT_TRUE(engine->missing_apis().empty());
 }

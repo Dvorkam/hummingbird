@@ -1108,6 +1108,7 @@ void QuickJSScriptEngine::reset_bindings() {
     // to free.
     free_listeners();
     free_timers();
+    missing_apis_.clear();  // telemetry is per-document (7.5.2)
     if (context_) {
         for (auto& [node, value] : node_wrappers_) {
             (void)node;
@@ -1313,6 +1314,8 @@ void QuickJSScriptEngine::install_window_bindings() {
     JS_SetPropertyStr(context_, global, "clearTimeout", JS_NewCFunction(context_, js_clear_timer, "clearTimeout", 1));
     JS_SetPropertyStr(context_, global, "clearInterval", JS_NewCFunction(context_, js_clear_timer, "clearInterval", 1));
     JS_FreeValue(context_, global);
+
+    install_failsoft_stubs();  // fail-soft stubs for unimplemented APIs (7.5.2)
 }
 
 void QuickJSScriptEngine::set_location(std::string_view url) {
@@ -1473,6 +1476,90 @@ bool QuickJSScriptEngine::run_due_timers(double now_ms) {
         fired = true;
     }
     return fired;
+}
+
+JSValue QuickJSScriptEngine::js_report_missing_api(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (engine && argc >= 1) {
+        const char* name = JS_ToCString(ctx, argv[0]);
+        if (name) {
+            engine->record_missing_api(name);
+            JS_FreeCString(ctx, name);
+        }
+    }
+    return JS_UNDEFINED;
+}
+
+void QuickJSScriptEngine::record_missing_api(std::string name) {
+    if (name.empty()) return;
+    if (std::find(missing_apis_.begin(), missing_apis_.end(), name) != missing_apis_.end()) {
+        return;  // already reported this page — dedupe
+    }
+    HB_LOG_INFO("[js] unimplemented API touched (fail-soft): " << name);
+    missing_apis_.push_back(std::move(name));
+}
+
+void QuickJSScriptEngine::install_failsoft_stubs() {
+    if (failsoft_ready_ || !context_) {
+        return;
+    }
+    JSValue global = JS_GetGlobalObject(context_);
+    JS_SetPropertyStr(context_, global, "__hb_reportMissingApi",
+                      JS_NewCFunction(context_, js_report_missing_api, "__hb_reportMissingApi", 1));
+    JS_FreeValue(context_, global);
+
+    // Define benign stand-ins for high-value APIs a page may touch that we do not
+    // implement yet. Each is guarded by `typeof === 'undefined'`, so when the real
+    // API lands later it wins; each reports once (record_missing_api dedupes) and
+    // returns a no-op instead of throwing, so the rest of the script keeps running.
+    static constexpr const char* kPrelude = R"JS(
+(function (g) {
+  var report = g.__hb_reportMissingApi;
+  function store(name) {
+    return {
+      getItem: function () { report(name); return null; },
+      setItem: function () { report(name); },
+      removeItem: function () { report(name); },
+      clear: function () { report(name); },
+      key: function () { report(name); return null; },
+      length: 0
+    };
+  }
+  if (typeof g.fetch === 'undefined') {
+    g.fetch = function () { report('fetch'); return new Promise(function () {}); };
+  }
+  if (typeof g.XMLHttpRequest === 'undefined') {
+    g.XMLHttpRequest = function () { report('XMLHttpRequest'); };
+    g.XMLHttpRequest.prototype.open = function () {};
+    g.XMLHttpRequest.prototype.send = function () {};
+    g.XMLHttpRequest.prototype.abort = function () {};
+    g.XMLHttpRequest.prototype.setRequestHeader = function () {};
+    g.XMLHttpRequest.prototype.getResponseHeader = function () { return null; };
+    g.XMLHttpRequest.prototype.addEventListener = function () {};
+    g.XMLHttpRequest.prototype.removeEventListener = function () {};
+  }
+  if (typeof g.localStorage === 'undefined') { g.localStorage = store('localStorage'); }
+  if (typeof g.sessionStorage === 'undefined') { g.sessionStorage = store('sessionStorage'); }
+  if (typeof g.matchMedia === 'undefined') {
+    g.matchMedia = function () {
+      report('matchMedia');
+      return { matches: false, media: '', addListener: function () {}, removeListener: function () {},
+               addEventListener: function () {}, removeEventListener: function () {} };
+    };
+  }
+})(globalThis);
+)JS";
+    JSValue result =
+        JS_Eval(context_, kPrelude, std::char_traits<char>::length(kPrelude), "<failsoft-stubs>", JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(result)) {
+        JSValue exc = JS_GetException(context_);
+        const char* message = JS_ToCString(context_, exc);
+        HB_LOG_WARN("[js] fail-soft stub install failed: " << (message ? message : "unknown"));
+        if (message) JS_FreeCString(context_, message);
+        JS_FreeValue(context_, exc);
+    }
+    JS_FreeValue(context_, result);
+    failsoft_ready_ = true;
 }
 
 void QuickJSScriptEngine::install_extension_bindings() {

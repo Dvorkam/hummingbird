@@ -610,7 +610,15 @@ P0: Guardrails
       *destroyed* the old subtree, so a change handler doing list.innerHTML=''
       freed the in-flight event target — they now DETACH instead (detach-never-free).
       Focused guard: InnerHtmlInChangeHandlerDoesNotCorruptDispatch.)
-- [ ] 7.5.2: Missing-API Telemetry (fail-soft)
+- [x] 7.5.2: Missing-API Telemetry (fail-soft) — 2026-07-19
+      (fail-soft stubs for high-value unimplemented APIs — fetch, XMLHttpRequest,
+      localStorage, sessionStorage, matchMedia — installed once (typeof-guarded so
+      the real API wins later); touching one calls __hb_reportMissingApi, which
+      dedupes + logs once and no-ops instead of throwing, so the rest of the
+      script keeps running. Engine records the deduped first-touch list, exposed
+      via IScriptEngine::missing_apis(); reset per document. Registry+fail-soft
+      unit test. NOTE curated list, not an arbitrary-global trap (bare-global
+      lookups can't be Proxy-trapped in QuickJS).)
 - [ ] 7.5.3: Parser Fuzzing In CI
 - [ ] Secondary proof: HN item-page snapshot — comment collapse works
 
