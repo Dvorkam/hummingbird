@@ -138,6 +138,10 @@ public:
     void set_location(std::string_view url);
     FragmentNavResult navigate_fragment(std::string_view url);
 
+    // Count of completed style+layout passes (7.4.1 invalidation instrumentation).
+    // Batching guarantee: a task making N DOM mutations advances this by exactly 1.
+    size_t style_layout_pass_count() const { return style_layout_passes_; }
+
     // Timers (7.3.1).
     struct TimerRunResult {
         bool fired = false;    // at least one timer callback ran
@@ -170,6 +174,7 @@ private:
     std::unique_ptr<DocumentStyleCoordinator> style_coordinator_;
     std::unique_ptr<DocumentScripting> scripting_;
     std::unordered_set<std::string> visited_urls_;
+    size_t style_layout_passes_ = 0;  // 7.4.1 invalidation budget instrumentation
 };
 
 }  // namespace Hummingbird::Engine

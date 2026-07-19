@@ -153,6 +153,9 @@ void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const
     }
 
     update_image_resources(base_url);
+    // One completed style+layout pass. The counter proves batching: a task that
+    // makes N DOM mutations produces exactly one pass, not N (7.4.1).
+    ++style_layout_passes_;
     relayout(graphics, viewport);
 }
 

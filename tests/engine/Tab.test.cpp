@@ -1268,6 +1268,46 @@ TEST(EngineTabTest, DefersScriptExecutionAndLoadUntilExternalScriptArrives) {
     EXPECT_GT(harness.tab().content_height(), height_before);
 }
 
+TEST(EngineTabTest, ManyMutationsInOneHandlerProduceExactlyOnePass) {
+    // 7.4.1 invalidation budget: a click handler that makes 100 DOM mutations
+    // must produce exactly one style+layout pass, not one per mutation.
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p id="hit">click me</p>
+    <ul id="list"></ul>
+    <script>
+      // Delegate on document so any bubbling click triggers it (7.4.1 test).
+      document.addEventListener('click', function () {
+        var list = document.getElementById('list');
+        for (var i = 0; i < 100; i++) {
+          var li = document.createElement('li');
+          li.textContent = 'n' + i;
+          list.appendChild(li);
+        }
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+    harness.navigate("https://acme.test");
+    ASSERT_TRUE(harness.tick());  // build + run scripts (registers the handler)
+
+    // Baseline after load; the click's 100 mutations should add exactly one pass.
+    const size_t passes_before = harness.tab().style_layout_pass_count();
+    auto result = harness.dispatch_click({12.0f, 12.0f});  // over the top-left "click me" text
+    EXPECT_TRUE(result.mutated);                           // the handler ran and changed the DOM
+    EXPECT_EQ(harness.tab().style_layout_pass_count(), passes_before + 1);
+}
+
 TEST(EngineTabTest, M7DemoPageLoadsExternalScriptFromAssets) {
     // Guards the shipped example.dev/m7 demo: its <script src> must resolve
     // through the bundled-asset probe and register Ready so the page's

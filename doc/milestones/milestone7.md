@@ -559,7 +559,13 @@ P0: Scheduling + Invalidation (North Star)
       layout/paint or the next task. A throwing job is logged and draining
       continues. Interleaving tests: microtask-after-script, microtask-before-
       next-timer-task, chained-microtask FIFO drain.)
-- [ ] 7.4.1: Batched Dirty Marking Per Task
+- [x] 7.4.1: Batched Dirty Marking Per Task — 2026-07-19
+      (the mutated_ flag already coalesces a task's DOM mutations into one
+      end-of-task rebuild; added a style_layout_pass_count() counter on
+      DocumentPipeline (advanced once per completed apply_styles_and_layout) +
+      Tab accessor to *prove* it. Budget test: a click handler doing 100
+      mutations advances the counter by exactly 1. In the spirit of M5's
+      injection budget.)
 
 P0: Guardrails
 - [ ] 7.5.4: JS/Native Ownership Rules Documented

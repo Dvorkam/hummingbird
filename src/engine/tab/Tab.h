@@ -107,6 +107,8 @@ public:
 
     float scroll_y() const { return layout_state_.scroll_y; }
     float content_height() const { return layout_state_.content_height; }
+    // Completed style+layout passes (7.4.1 invalidation budget instrumentation).
+    size_t style_layout_pass_count() const;
     std::string_view requested_url() const { return navigation_lifecycle_.requested_url(); }
     SecurityState security_state() const { return navigation_lifecycle_.security_state(); }
     std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;

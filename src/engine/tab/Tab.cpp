@@ -170,6 +170,10 @@ void Tab::process_timer_updates(IGraphicsContext& graphics, const Layout::Rect& 
     }
 }
 
+size_t Tab::style_layout_pass_count() const {
+    return document_pipeline_->style_layout_pass_count();
+}
+
 void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool debug_outlines) {
     if (!document_pipeline_->has_render_tree()) return;
     graphics.set_text_cache_owner(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(this)));

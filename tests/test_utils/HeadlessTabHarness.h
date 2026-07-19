@@ -28,6 +28,12 @@ public:
     bool tick() { return tab_.tick(context_, viewport_); }
     void paint(bool debug_outlines = false) { tab_.paint(context_, viewport_, debug_outlines); }
 
+    // Dispatches a click at a window-space point through the real hit-test +
+    // event pipeline (rebuilds on script mutation).
+    Engine::Tab::ClickResult dispatch_click(const Layout::Point& point, int click_count = 1) {
+        return tab_.dispatch_click(point, viewport_, context_, click_count);
+    }
+
     std::optional<Engine::ResourceView> resource_view(std::string_view url, Engine::ResourceType type) const {
         return tab_.resource_view(url, type);
     }
