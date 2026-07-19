@@ -173,7 +173,7 @@ Detailed doc: [milestone6.md](milestone6.md)
 
 ---
 
-## Milestone 7: The Programmable Document (DOM + Events + Scheduling) — Next
+## Milestone 7: The Programmable Document (DOM + Events + Scheduling) — In Progress
 
 Detailed doc: [milestone7.md](milestone7.md)
 
