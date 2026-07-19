@@ -36,10 +36,20 @@ public:
         if (on_dispatch) on_dispatch(host_);
         return true;
     }
+    bool run_due_timers(double now_ms) override {
+        last_now_ms = now_ms;
+        if (on_run_timers) on_run_timers(host_);
+        return fired_timers;
+    }
+    bool has_pending_timers() const override { return pending_timers; }
 
     IScriptHost* host_ = nullptr;
     std::function<void(IScriptHost*)> on_eval;
     std::function<void(IScriptHost*)> on_dispatch;
+    std::function<void(IScriptHost*)> on_run_timers;
+    bool pending_timers = false;
+    bool fired_timers = false;
+    double last_now_ms = -1.0;
 };
 }  // namespace
 
@@ -101,4 +111,40 @@ TEST(DocumentScriptControllerTest, NestedDispatchDoesNotStealMutation) {
 
     EXPECT_FALSE(nested_result.mutated);  // nested does not report the mutation...
     EXPECT_TRUE(mutated);                 // ...the outermost dispatch does
+}
+
+// run_timers must skip binding/firing entirely when no timer is scheduled (7.3.1).
+TEST(DocumentScriptControllerTest, RunTimersSkippedWhenNonePending) {
+    ArenaAllocator arena(1024, 1);
+    auto root = Element::create(arena, "div");
+
+    auto engine = std::make_unique<FakeScriptEngine>();
+    auto* engine_raw = engine.get();
+    engine_raw->pending_timers = false;
+    DocumentScriptController controller(std::move(engine));
+
+    auto result = controller.run_timers(root.get(), &arena, 100.0);
+    EXPECT_FALSE(result.handled);
+    EXPECT_FALSE(result.mutated);
+    EXPECT_EQ(engine_raw->last_now_ms, -1.0);  // run_due_timers was never called
+    EXPECT_FALSE(controller.has_pending_timers());
+}
+
+// A firing timer callback's DOM mutation is reported so the tab rebuilds (7.3.1).
+TEST(DocumentScriptControllerTest, RunTimersReportsCallbackMutation) {
+    ArenaAllocator arena(1024, 1);
+    auto root = Element::create(arena, "div");
+
+    auto engine = std::make_unique<FakeScriptEngine>();
+    auto* engine_raw = engine.get();
+    engine_raw->pending_timers = true;
+    engine_raw->fired_timers = true;
+    DocumentScriptController controller(std::move(engine));
+
+    engine_raw->on_run_timers = [&](IScriptHost* host) { host->set_attribute(root.get(), "data-x", "1"); };
+
+    auto result = controller.run_timers(root.get(), &arena, 50.0);
+    EXPECT_TRUE(result.handled);  // a callback ran
+    EXPECT_TRUE(result.mutated);  // ...and mutated the DOM
+    EXPECT_EQ(engine_raw->last_now_ms, 50.0);
 }

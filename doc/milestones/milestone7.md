@@ -543,7 +543,15 @@ P0: Scheduling + Invalidation (North Star)
       mutation epoch — the inner bind_host/reset no longer wipes the outer's
       `mutated_`, and only the outermost dispatch consumes it. Unblocks 7.3.1
       timers + 7.7.2. Controller unit tests drive a re-entrant host callback.)
-- [ ] 7.3.1: Task Queue (setTimeout/setInterval)
+- [x] 7.3.1: Task Queue (setTimeout/setInterval) — 2026-07-19
+      (engine-owned timer store in QuickJSScriptEngine: setTimeout/setInterval/
+      clearTimeout/clearInterval on window + global; run_due_timers(now_ms) fires
+      due callbacks in deadline-then-registration order on a document-relative
+      clock, reschedules intervals, snapshots the due set so a callback that
+      (re)schedules/clears can't storm or corrupt the pass. Driven from Tab::tick
+      via DocumentPipeline/Scripting/controller (DispatchScope-bracketed, mutation
+      -> rebuild); timers die with the document (reset_bindings). Unit + teardown
+      + re-entrancy tests; example.dev/timers live demo.)
 - [ ] 7.3.2: Microtask Pump (Promise jobs)
 - [ ] 7.4.1: Batched Dirty Marking Per Task
 

@@ -56,6 +56,11 @@ public:
     // the caller decides the target node and event fields.
     ScriptDispatchResult dispatch_dom_event(DOM::Node* dom_root, Core::ArenaAllocator* arena, DOM::Node* target,
                                             const ScriptDomEvent& event);
+    // Fires every timer whose deadline has passed at `now_ms` (7.3.1). `handled`
+    // is true when at least one callback ran; `mutated` when the DOM changed.
+    ScriptDispatchResult run_timers(DOM::Node* dom_root, Core::ArenaAllocator* arena, double now_ms);
+    // True while a timer is still scheduled, so the tab keeps ticking.
+    bool has_pending_timers() const;
 
 private:
     bool bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena);

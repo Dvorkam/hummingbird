@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/SecurityState.h"
+#include "core/utils/Timing.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
 #include "engine/resources/ResourceStore.h"
@@ -126,6 +127,9 @@ private:
     void apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_animation_updates();
+    // Fires due JS timers (7.3.1) on the document-relative clock and rebuilds if
+    // a callback mutated the DOM.
+    void process_timer_updates(IGraphicsContext& graphics, const Layout::Rect& viewport);
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view reason);
     void begin_navigation_session(std::string_view url);
@@ -156,6 +160,14 @@ private:
     NavigationLifecycle navigation_lifecycle_{};
     TabLayoutState layout_state_{};
     TabAnimationTicker animation_ticker_{};
+
+    // Document-relative clock (ms) for JS timers (7.3.1). Advanced by the
+    // wall-clock delta only while timers are pending (held otherwise so a freshly
+    // scheduled timer measures its delay from now), and reset to 0 on navigation
+    // so timers die with the document.
+    Core::Clock::time_point timer_last_tick_{};
+    bool timer_has_tick_ = false;
+    double timer_clock_ms_ = 0.0;
 
     bool dirty_ = true;
 };

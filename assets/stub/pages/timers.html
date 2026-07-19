@@ -1,0 +1,105 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird M7 Demo - Timers</title>
+    <style>
+      body { margin: 0; padding: 0 0 30px 0; background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; }
+      .top { background-color: #14213d; color: #ffffff; padding: 14px 24px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+      .top-title { font-size: 20px; font-weight: bold; margin: 0; }
+      .top a { color: #fca311; }
+      .page { max-width: 860px; margin: 0 auto; padding: 16px 24px; }
+      .section { background-color: #ffffff; border: 1px solid #dde3ee; border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+      .section h2 { margin: 4px 0 10px 0; font-size: 17px; }
+      code { background-color: #e8ecf4; padding: 1px 5px; border-radius: 4px; }
+      .readout { font-size: 15px; margin: 6px 0; padding: 6px 10px; border-left: 4px solid #dde3ee; }
+      .big { font-size: 26px; font-weight: bold; color: #14213d; }
+      .btn { display: inline-block; background-color: #14213d; color: #ffffff; padding: 8px 16px; border-radius: 6px; margin-top: 8px; }
+      .hint { color: #5a6478; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="top-title">M7: Scheduling - setTimeout / setInterval (7.3.1)</p>
+      <a href="https://example.dev">&laquo; back to example.dev</a>
+    </div>
+    <div class="page">
+      <div class="section">
+        <h2>Time now exists</h2>
+        <p class="hint">Before M7 there was no clock: <code>setTimeout</code> and
+        <code>setInterval</code> did not exist, so nothing could run "later". These readouts are
+        driven by real timers firing on the main-loop tick.</p>
+
+        <p class="readout">Ticking every second (setInterval):
+          <span id="ticks" class="big">0</span></p>
+
+        <p class="readout">Countdown that clears itself at zero (clearInterval):
+          <span id="countdown" class="big">5</span></p>
+
+        <p class="readout" id="oneshot">One-shot after 3 seconds (setTimeout): waiting&hellip;</p>
+
+        <p class="readout" id="toggle-state">Ticking timer is: RUNNING</p>
+        <a href="#" id="toggle" class="btn">Pause / resume the ticking timer</a>
+      </div>
+
+      <div class="section">
+        <h2>What to look for</h2>
+        <p>The first number climbs by one every second and never stops. The countdown
+        counts <code>5,4,3,2,1,0</code> then freezes because its callback calls
+        <code>clearInterval</code> on itself. The one-shot line changes exactly once, three
+        seconds after load. Clicking the button flips the ticking timer on and off via
+        <code>clearInterval</code> / <code>setInterval</code>.</p>
+        <p class="hint">Navigating away cancels every timer on this page (timers die with the
+        document), so nothing leaks into the next page.</p>
+      </div>
+
+      <script>
+        (function () {
+          // 1. A plain repeating timer: increment a counter every second.
+          var ticks = 0;
+          var tickEl = document.getElementById("ticks");
+          var intervalId = setInterval(function () {
+            ticks++;
+            tickEl.textContent = "" + ticks;
+          }, 1000);
+
+          // 2. A self-clearing countdown: stops itself when it reaches zero.
+          var remaining = 5;
+          var cdEl = document.getElementById("countdown");
+          var cdId = setInterval(function () {
+            remaining--;
+            cdEl.textContent = "" + remaining;
+            if (remaining <= 0) {
+              clearInterval(cdId);
+            }
+          }, 1000);
+
+          // 3. A one-shot timer that fires a single time after 3 seconds.
+          setTimeout(function () {
+            var el = document.getElementById("oneshot");
+            el.textContent = "One-shot after 3 seconds (setTimeout): fired [OK]";
+          }, 3000);
+
+          // 4. Timers + events: a click toggles the ticking timer on/off.
+          var running = true;
+          var stateEl = document.getElementById("toggle-state");
+          document.getElementById("toggle").addEventListener("click", function (e) {
+            e.preventDefault();
+            if (running) {
+              clearInterval(intervalId);
+              running = false;
+              stateEl.textContent = "Ticking timer is: PAUSED";
+            } else {
+              intervalId = setInterval(function () {
+                ticks++;
+                tickEl.textContent = "" + ticks;
+              }, 1000);
+              running = true;
+              stateEl.textContent = "Ticking timer is: RUNNING";
+            }
+          });
+        })();
+      </script>
+    </div>
+  </body>
+</html>

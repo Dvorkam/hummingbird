@@ -47,6 +47,9 @@ public:
     // window.location / fragment navigation (7.2.5).
     void set_location(std::string_view url);
     DispatchResult navigate_fragment(DocumentModel& model, std::string_view url);
+    // Timers (7.3.1): fire due setTimeout/setInterval callbacks at `now_ms`.
+    DispatchResult run_timers(DocumentModel& model, double now_ms);
+    bool has_pending_timers() const;
 
 private:
     std::unique_ptr<DocumentScriptController> controller_;

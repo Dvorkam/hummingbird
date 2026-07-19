@@ -30,6 +30,8 @@ public:
     bool dispatch_dom_event(DOM::Node* target, const ScriptDomEvent& event) override;
     void set_location(std::string_view url) override;
     bool navigate_fragment(std::string_view url) override;
+    bool run_due_timers(double now_ms) override;
+    bool has_pending_timers() const override { return !timers_.empty(); }
 
 private:
     static QuickJSScriptEngine* engine_from_context(JSContext* ctx);
@@ -125,6 +127,12 @@ private:
 
     static JSValue js_native_insert_css(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    // Timers (7.3.1): window.setTimeout/setInterval/clearTimeout/clearInterval.
+    // clearTimeout and clearInterval share one trampoline (both just cancel by id).
+    static JSValue js_set_timeout(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_set_interval(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_clear_timer(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
     void install_node_prototype();
     void install_token_list_class();
     void install_string_map_class();
@@ -132,6 +140,14 @@ private:
     void install_document_bindings();
     void install_window_bindings();
     void install_extension_bindings();
+
+    // Registers a timer (repeating for setInterval) and returns its numeric id;
+    // reads the callback, delay (ms, clamped to >= 0), and any trailing args from
+    // argv. remove_timer cancels by id (a no-op if unknown). free_timers drops
+    // every timer's retained callback/args (called on reset_bindings).
+    JSValue add_timer(int argc, JSValueConst* argv, bool repeating);
+    void remove_timer(int64_t id);
+    void free_timers();
 
     // window/location + hashchange (7.2.5).
     DOM::Node* window_target();  // sentinel listeners_ key for window-level listeners
@@ -211,6 +227,21 @@ private:
         bool capture;
     };
     std::unordered_map<DOM::Node*, std::vector<EventListener>> listeners_;
+
+    // Pending timers (7.3.1). Each owns a retained callback plus any trailing
+    // args; `fire_at_ms` is on the document-relative clock advanced by
+    // run_due_timers. Freed on reset_bindings — timers die with the document.
+    struct Timer {
+        int64_t id = 0;
+        JSValue callback = JS_UNDEFINED;
+        std::vector<JSValue> args;
+        double interval_ms = 0.0;  // reschedule step for setInterval
+        double fire_at_ms = 0.0;
+        bool repeating = false;
+    };
+    std::vector<Timer> timers_;
+    int64_t next_timer_id_ = 1;
+    double now_ms_ = 0.0;  // last clock value seen by run_due_timers
 };
 
 }  // namespace Hummingbird::Platform

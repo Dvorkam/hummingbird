@@ -138,6 +138,15 @@ public:
     void set_location(std::string_view url);
     FragmentNavResult navigate_fragment(std::string_view url);
 
+    // Timers (7.3.1).
+    struct TimerRunResult {
+        bool fired = false;    // at least one timer callback ran
+        bool mutated = false;  // a callback changed the DOM (caller must rebuild)
+    };
+    // Fires due setTimeout/setInterval callbacks on the document-relative clock.
+    TimerRunResult run_timers(double now_ms);
+    bool has_pending_timers() const;
+
 private:
     struct KeyDispatchResult {
         bool mutated = false;

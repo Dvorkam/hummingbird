@@ -1,5 +1,6 @@
 #include "platform/script/QuickJSScriptEngine.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -1081,9 +1082,11 @@ void QuickJSScriptEngine::free_listeners() {
 }
 
 void QuickJSScriptEngine::reset_bindings() {
-    // Drop event callbacks first: no listener may outlive the document, and a
-    // callback could otherwise still reference a wrapper we are about to free.
+    // Drop event callbacks and timers first: neither may outlive the document,
+    // and their callbacks could otherwise still reference a wrapper we are about
+    // to free.
     free_listeners();
+    free_timers();
     if (context_) {
         for (auto& [node, value] : node_wrappers_) {
             (void)node;
@@ -1274,11 +1277,20 @@ void QuickJSScriptEngine::install_window_bindings() {
                       JS_NewCFunction(context_, js_node_remove_event_listener, "removeEventListener", 3));
     JS_SetPropertyStr(context_, window, "dispatchEvent",
                       JS_NewCFunction(context_, js_node_dispatch_event, "dispatchEvent", 1));
+    // Timers (7.3.1): available as both window.* and bare globals.
+    JS_SetPropertyStr(context_, window, "setTimeout", JS_NewCFunction(context_, js_set_timeout, "setTimeout", 2));
+    JS_SetPropertyStr(context_, window, "setInterval", JS_NewCFunction(context_, js_set_interval, "setInterval", 2));
+    JS_SetPropertyStr(context_, window, "clearTimeout", JS_NewCFunction(context_, js_clear_timer, "clearTimeout", 1));
+    JS_SetPropertyStr(context_, window, "clearInterval", JS_NewCFunction(context_, js_clear_timer, "clearInterval", 1));
     window_object_ = JS_DupValue(context_, window);
 
     // Both `window` and bare `location` are global (window.location === location).
     JS_SetPropertyStr(context_, global, "location", location);  // transfers the ref
     JS_SetPropertyStr(context_, global, "window", window);      // transfers the ref
+    JS_SetPropertyStr(context_, global, "setTimeout", JS_NewCFunction(context_, js_set_timeout, "setTimeout", 2));
+    JS_SetPropertyStr(context_, global, "setInterval", JS_NewCFunction(context_, js_set_interval, "setInterval", 2));
+    JS_SetPropertyStr(context_, global, "clearTimeout", JS_NewCFunction(context_, js_clear_timer, "clearTimeout", 1));
+    JS_SetPropertyStr(context_, global, "clearInterval", JS_NewCFunction(context_, js_clear_timer, "clearInterval", 1));
     JS_FreeValue(context_, global);
 }
 
@@ -1304,6 +1316,139 @@ bool QuickJSScriptEngine::update_location(std::string_view url) {
     dispatch_event(window_target(), "hashchange", event);
     JS_FreeValue(context_, event);
     return true;
+}
+
+JSValue QuickJSScriptEngine::js_set_timeout(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine) return JS_NewInt64(ctx, 0);
+    return engine->add_timer(argc, argv, /*repeating=*/false);
+}
+
+JSValue QuickJSScriptEngine::js_set_interval(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine) return JS_NewInt64(ctx, 0);
+    return engine->add_timer(argc, argv, /*repeating=*/true);
+}
+
+JSValue QuickJSScriptEngine::js_clear_timer(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (engine && argc >= 1) {
+        int64_t id = 0;
+        if (JS_ToInt64(ctx, &id, argv[0]) == 0) {
+            engine->remove_timer(id);
+        }
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::add_timer(int argc, JSValueConst* argv, bool repeating) {
+    if (!context_) return JS_NewInt64(context_, 0);
+    if (argc < 1 || !JS_IsFunction(context_, argv[0])) {
+        // Fail-soft: a non-callable handler is ignored rather than throwing.
+        HB_LOG_WARN("[js] setTimeout/setInterval ignored: handler is not a function");
+        return JS_NewInt64(context_, 0);
+    }
+
+    double delay_ms = 0.0;
+    if (argc >= 2 && JS_ToFloat64(context_, &delay_ms, argv[1]) < 0) {
+        JS_FreeValue(context_, JS_GetException(context_));  // treat an unconvertible delay as 0
+        delay_ms = 0.0;
+    }
+    if (!(delay_ms >= 0.0)) delay_ms = 0.0;  // clamp negatives and NaN
+
+    Timer timer;
+    const int64_t id = next_timer_id_++;
+    timer.id = id;
+    timer.callback = JS_DupValue(context_, argv[0]);
+    for (int i = 2; i < argc; ++i) {
+        timer.args.push_back(JS_DupValue(context_, argv[i]));
+    }
+    timer.interval_ms = delay_ms;
+    timer.fire_at_ms = now_ms_ + delay_ms;
+    timer.repeating = repeating;
+    timers_.push_back(std::move(timer));
+    return JS_NewInt64(context_, id);
+}
+
+void QuickJSScriptEngine::remove_timer(int64_t id) {
+    auto it = std::find_if(timers_.begin(), timers_.end(), [&](const Timer& t) { return t.id == id; });
+    if (it == timers_.end()) return;
+    if (context_) {
+        JS_FreeValue(context_, it->callback);
+        for (JSValue arg : it->args) JS_FreeValue(context_, arg);
+    }
+    timers_.erase(it);
+}
+
+void QuickJSScriptEngine::free_timers() {
+    if (context_) {
+        for (auto& timer : timers_) {
+            JS_FreeValue(context_, timer.callback);
+            for (JSValue arg : timer.args) JS_FreeValue(context_, arg);
+        }
+    }
+    timers_.clear();
+    next_timer_id_ = 1;
+    now_ms_ = 0.0;
+}
+
+bool QuickJSScriptEngine::run_due_timers(double now_ms) {
+    if (!context_) return false;
+    now_ms_ = now_ms;
+
+    // Snapshot the due timers in fire order (deadline, then registration id) so a
+    // callback that (re)schedules or clears timers cannot disturb this pass; any
+    // new timer it adds runs on a later tick, which avoids a same-tick storm from
+    // a zero-delay setInterval.
+    struct DueRef {
+        double fire_at;
+        int64_t id;
+    };
+    std::vector<DueRef> due;
+    for (const auto& timer : timers_) {
+        if (timer.fire_at_ms <= now_ms_) due.push_back({timer.fire_at_ms, timer.id});
+    }
+    std::sort(due.begin(), due.end(), [](const DueRef& a, const DueRef& b) {
+        return a.fire_at != b.fire_at ? a.fire_at < b.fire_at : a.id < b.id;
+    });
+
+    bool fired = false;
+    for (const auto& ref : due) {
+        // Re-find by id: an earlier callback in this pass may have cleared it.
+        auto it = std::find_if(timers_.begin(), timers_.end(), [&](const Timer& t) { return t.id == ref.id; });
+        if (it == timers_.end()) continue;
+
+        // Own copies of the callback + args so a re-entrant clear during the call
+        // cannot free them out from under JS_Call.
+        JSValue callback = JS_DupValue(context_, it->callback);
+        std::vector<JSValue> call_args;
+        call_args.reserve(it->args.size());
+        for (JSValue arg : it->args) call_args.push_back(JS_DupValue(context_, arg));
+
+        // Reschedule (interval) or drop (one-shot) BEFORE invoking, so a
+        // clearInterval(self) inside the callback still wins.
+        if (it->repeating) {
+            it->fire_at_ms = now_ms_ + it->interval_ms;
+        } else {
+            JS_FreeValue(context_, it->callback);
+            for (JSValue arg : it->args) JS_FreeValue(context_, arg);
+            timers_.erase(it);
+        }
+
+        JSValue ret = JS_Call(context_, callback, JS_UNDEFINED, static_cast<int>(call_args.size()), call_args.data());
+        if (JS_IsException(ret)) {
+            JSValue exc = JS_GetException(context_);
+            const char* message = JS_ToCString(context_, exc);
+            HB_LOG_WARN("[js] timer callback threw: " << (message ? message : "unknown"));
+            if (message) JS_FreeCString(context_, message);
+            JS_FreeValue(context_, exc);
+        }
+        JS_FreeValue(context_, ret);
+        JS_FreeValue(context_, callback);
+        for (JSValue arg : call_args) JS_FreeValue(context_, arg);
+        fired = true;
+    }
+    return fired;
 }
 
 void QuickJSScriptEngine::install_extension_bindings() {

@@ -562,3 +562,124 @@ TEST(ScriptEngineTest, ResetBindingsNeutralizesStaleWrappers) {
         "inline");
     EXPECT_TRUE(result.ok) << result.error;
 }
+
+namespace {
+// Builds <div><div id=out data-log=""></div></div> bound to a fresh engine, so
+// timer callbacks can append to `out`'s data-log and the test reads it from C++.
+struct TimerFixture {
+    Hummingbird::Core::ArenaAllocator arena{8192, 8};
+    Hummingbird::Engine::DocumentScriptHost host;
+    Hummingbird::ScriptEnginePtr engine;
+    // `root` must outlive the fixture: ArenaPtr destruction runs the DOM tree's
+    // destructors, so caching it here keeps `out` and the bound host valid.
+    Hummingbird::Core::ArenaPtr<Hummingbird::DOM::Element> root;
+    Hummingbird::DOM::Element* out = nullptr;
+
+    TimerFixture() {
+        root = Hummingbird::DOM::Element::create(arena, "div");
+        auto out_el = Hummingbird::DOM::Element::create(arena, "div");
+        out_el->set_attribute("id", "out");
+        out_el->set_attribute("data-log", "");
+        out = out_el.get();
+        root->append_child(std::move(out_el));
+        host.reset(root.get(), &arena);
+        engine = Hummingbird::create_script_engine();
+        engine->bind_host(&host);
+    }
+    std::string log() { return host.get_attribute(out, "data-log"); }
+};
+}  // namespace
+
+TEST(ScriptEngineTest, TimersFireInDeadlineThenRegistrationOrder) {
+    TimerFixture fx;
+    // Schedule out of deadline order; two share a deadline (registration breaks the tie).
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "setTimeout(function(){log('B');}, 20);"
+        "setTimeout(function(){log('A');}, 10);"
+        "setTimeout(function(){log('C');}, 20);",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_TRUE(fx.engine->has_pending_timers());
+
+    EXPECT_FALSE(fx.engine->run_due_timers(5));  // nothing due yet
+    EXPECT_EQ(fx.log(), "");
+    EXPECT_TRUE(fx.engine->run_due_timers(10));  // A (deadline 10)
+    EXPECT_EQ(fx.log(), "A");
+    EXPECT_TRUE(fx.engine->run_due_timers(25));  // B then C (deadline 20, registration order)
+    EXPECT_EQ(fx.log(), "ABC");
+    EXPECT_FALSE(fx.engine->has_pending_timers());
+    EXPECT_FALSE(fx.engine->run_due_timers(50));  // one-shots are gone
+}
+
+TEST(ScriptEngineTest, ClearTimeoutCancelsBeforeItFires) {
+    TimerFixture fx;
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "var id = setTimeout(function(){log('X');}, 10);"
+        "clearTimeout(id);",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_FALSE(fx.engine->has_pending_timers());
+    EXPECT_FALSE(fx.engine->run_due_timers(100));
+    EXPECT_EQ(fx.log(), "");
+}
+
+TEST(ScriptEngineTest, SetIntervalRepeatsUntilCleared) {
+    TimerFixture fx;
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "var id = setInterval(function(){log('t');}, 10);"
+        "setTimeout(function(){clearInterval(id);}, 35);",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+
+    EXPECT_TRUE(fx.engine->run_due_timers(10));  // t (reschedules to 20)
+    EXPECT_TRUE(fx.engine->run_due_timers(20));  // t (reschedules to 30)
+    EXPECT_TRUE(fx.engine->run_due_timers(30));  // t (reschedules to 40)
+    EXPECT_EQ(fx.log(), "ttt");
+    fx.engine->run_due_timers(35);  // clearInterval fires; interval (next at 40) removed
+    EXPECT_FALSE(fx.engine->has_pending_timers());
+    EXPECT_FALSE(fx.engine->run_due_timers(100));
+    EXPECT_EQ(fx.log(), "ttt");
+}
+
+TEST(ScriptEngineTest, TimersAreCanceledOnNavigationTeardown) {
+    TimerFixture fx;
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "setTimeout(function(){log('X');}, 10);"
+        "setInterval(function(){log('Y');}, 10);",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_TRUE(fx.engine->has_pending_timers());
+
+    // Navigation teardown sweeps the document's timers.
+    fx.engine->reset_bindings();
+    EXPECT_FALSE(fx.engine->has_pending_timers());
+    EXPECT_FALSE(fx.engine->run_due_timers(1000));
+    EXPECT_EQ(fx.log(), "");
+}
+
+TEST(ScriptEngineTest, TimerCallbackCanScheduleAndClearReentrantly) {
+    TimerFixture fx;
+    // A one-shot that, when it fires, schedules another one-shot: the new timer
+    // must not fire in the same pass (avoids a same-tick storm) but on a later run.
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "setTimeout(function(){ log('1'); setTimeout(function(){ log('2'); }, 0); }, 10);",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+
+    EXPECT_TRUE(fx.engine->run_due_timers(10));  // fires '1' and schedules the nested timer
+    EXPECT_EQ(fx.log(), "1");                    // '2' did NOT fire in this pass
+    EXPECT_TRUE(fx.engine->has_pending_timers());
+    EXPECT_TRUE(fx.engine->run_due_timers(10));  // now the nested timer (deadline 10) fires
+    EXPECT_EQ(fx.log(), "12");
+    EXPECT_FALSE(fx.engine->has_pending_timers());
+}

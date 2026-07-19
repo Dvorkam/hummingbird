@@ -214,6 +214,24 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatc
     return {true, script_host_.consume_mutations(), !not_prevented};
 }
 
+DocumentScriptController::ScriptDispatchResult DocumentScriptController::run_timers(DOM::Node* dom_root,
+                                                                                    Core::ArenaAllocator* arena,
+                                                                                    double now_ms) {
+    if (!script_engine_ || !script_engine_->has_pending_timers()) {
+        return {};
+    }
+    DispatchScope scope(script_host_);
+    if (!bind_host(dom_root, arena)) {
+        return {};
+    }
+    const bool fired = script_engine_->run_due_timers(now_ms);
+    return {fired, script_host_.consume_mutations()};
+}
+
+bool DocumentScriptController::has_pending_timers() const {
+    return script_engine_ && script_engine_->has_pending_timers();
+}
+
 bool DocumentScriptController::bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena) {
     if (!script_engine_) {
         return false;

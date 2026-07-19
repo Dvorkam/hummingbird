@@ -72,4 +72,13 @@ DocumentScripting::DispatchResult DocumentScripting::navigate_fragment(DocumentM
     return {result.handled, result.mutated, result.default_prevented};
 }
 
+DocumentScripting::DispatchResult DocumentScripting::run_timers(DocumentModel& model, double now_ms) {
+    auto result = controller_->run_timers(model.dom_root(), model.dom_arena(), now_ms);
+    return {result.handled, result.mutated, result.default_prevented};
+}
+
+bool DocumentScripting::has_pending_timers() const {
+    return controller_->has_pending_timers();
+}
+
 }  // namespace Hummingbird::Engine

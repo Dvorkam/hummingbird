@@ -99,6 +99,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     apply_extension_css_if_needed(graphics, viewport);
     relayout_if_viewport_changed(graphics, viewport);
     process_animation_updates();
+    process_timer_updates(graphics, viewport);
 
     bool dirty = dirty_;
     dirty_ = false;
@@ -147,6 +148,26 @@ bool Tab::advance_animation_tick() {
         updated = document_pipeline_->update_image_resources(navigation_lifecycle_.requested_url());
     }
     return updated;
+}
+
+void Tab::process_timer_updates(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    const auto now = Core::Clock::now();
+    const bool active = document_pipeline_->has_dom_tree() && document_pipeline_->has_pending_timers();
+    if (!timer_has_tick_ || !active) {
+        // First tick, or idle: hold the clock and keep the baseline current so a
+        // newly scheduled timer measures its delay from now, not document load.
+        timer_last_tick_ = now;
+        timer_has_tick_ = true;
+        if (!active) return;
+    }
+    timer_clock_ms_ += Core::duration_ms(timer_last_tick_, now);
+    timer_last_tick_ = now;
+
+    auto result = document_pipeline_->run_timers(timer_clock_ms_);
+    if (result.mutated) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:timer_mutation");
+        mark_dirty("timer_mutation");
+    }
 }
 
 void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool debug_outlines) {
@@ -541,6 +562,8 @@ void Tab::reset_document_state() {
     layout_state_.reset();
     navigation_lifecycle_.clear_pending_commit_url();
     animation_ticker_.reset();
+    timer_has_tick_ = false;
+    timer_clock_ms_ = 0.0;
     scripts_pending_ = false;
     mark_dirty();
 }

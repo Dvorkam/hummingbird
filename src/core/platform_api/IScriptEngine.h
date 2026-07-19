@@ -55,6 +55,16 @@ public:
     // and fires `hashchange` when the fragment changed, WITHOUT reloading. Returns
     // true when a hashchange fired. Default: no-op returning false.
     virtual bool navigate_fragment(std::string_view /*url*/) { return false; }
+
+    // Timer scheduling (7.3.1). `run_due_timers` fires every setTimeout/setInterval
+    // callback whose deadline has passed at `now_ms` — a monotonically
+    // non-decreasing, document-relative clock in milliseconds — in deadline then
+    // registration order; it returns true if any callback ran. `has_pending_timers`
+    // reports whether any timer is still scheduled, so the driver knows to keep
+    // ticking. Timers are per-document and are dropped by reset_bindings. Defaults:
+    // no-op.
+    virtual bool run_due_timers(double /*now_ms*/) { return false; }
+    virtual bool has_pending_timers() const { return false; }
 };
 
 using ScriptEnginePtr = std::unique_ptr<IScriptEngine>;

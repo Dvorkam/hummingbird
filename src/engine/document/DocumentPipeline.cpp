@@ -327,6 +327,15 @@ DocumentPipeline::FragmentNavResult DocumentPipeline::navigate_fragment(std::str
     return {result.handled, result.mutated};
 }
 
+DocumentPipeline::TimerRunResult DocumentPipeline::run_timers(double now_ms) {
+    auto result = scripting_->run_timers(*model_, now_ms);
+    return {result.handled, result.mutated};
+}
+
+bool DocumentPipeline::has_pending_timers() const {
+    return scripting_->has_pending_timers();
+}
+
 DocumentPipeline::SubmitDispatchResult DocumentPipeline::dispatch_submit(const DOM::Element* form) {
     if (!form) {
         return {};
