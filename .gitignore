@@ -43,3 +43,6 @@ debug.log
 # Folders
 tmp
 .claude
+
+#files
+assets/config/bookmarks.tsv
