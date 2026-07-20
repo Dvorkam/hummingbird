@@ -722,6 +722,69 @@ TEST(DocumentPipelineTest, JsFocusMakesInputTheCaretTarget) {
     EXPECT_EQ(*value, "hello");
 }
 
+TEST(DocumentPipelineTest, JsFocusBlurDispatchFocusEvents) {
+    // element.focus()/blur() from JS fire focus/blur (and change when the value
+    // was edited), matching user-driven transitions (T-FOCUS-EVENTS-FROM-JS-1,
+    // 7.7.2). The blur is triggered from a click handler, so it dispatches
+    // re-entrantly while the click dispatch is still on the stack (7.7.1).
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } input, p { display: block; } </style></head>
+  <body>
+    <input id="in" value="">
+    <p id="log">start</p>
+    <script>
+      var el = document.getElementById('in');
+      var log = document.getElementById('log');
+      el.addEventListener('focus', function() { log.textContent = 'focus'; });
+      el.addEventListener('input', function(e) { log.textContent = 'input:' + e.target.value; });
+      el.addEventListener('change', function() { log.textContent = 'change'; });
+      el.addEventListener('blur', function() { log.textContent = log.textContent + '+blur'; });
+      document.addEventListener('click', function() { el.blur(); });
+      el.focus();
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();  // registers listeners and calls el.focus()
+
+    const auto painted_has = [&](const char* text) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), text) != graphics.drawn_texts.end();
+    };
+
+    // The inline el.focus() made the field the caret target and fired `focus`.
+    EXPECT_TRUE(pipeline.has_focused_input());
+    EXPECT_TRUE(painted_has("focus"));
+
+    // Type into the (JS-)focused field: `input` fires with the new value.
+    pipeline.handle_text_input("hi");
+    EXPECT_TRUE(painted_has("input:hi"));
+
+    // A click runs the document listener, which calls el.blur() while the click
+    // dispatch is on the stack. The edited field fires change then blur.
+    DocumentPipeline::HitTestContext click{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
+    pipeline.dispatch_click(click);
+    EXPECT_FALSE(pipeline.has_focused_input());
+    EXPECT_TRUE(painted_has("change+blur"));
+}
+
 TEST(DocumentPipelineTest, FragmentNavigationFiresHashchangeWithoutTeardown) {
     // navigate_fragment fires hashchange in place; the listener (and DOM) survive,
     // so a second fragment change fires again (7.2.5).

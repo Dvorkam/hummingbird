@@ -683,6 +683,13 @@ P1: If Schedule Allows
       opens the page (Edge/Firefox parity). Store tests (seed/dedupe/persist/render)
       + a ResourceLoader about:bookmarks integration test. NOTE title = URL for now
       (no title accessor yet).)
-- [ ] 7.7.2: JS focus()/blur() dispatch focus/blur events (T-FOCUS-EVENTS-FROM-JS-1;
-      needs 7.7.1)
+- [x] 7.7.2: JS focus()/blur() dispatch focus/blur events (T-FOCUS-EVENTS-FROM-JS-1) — 2026-07-20
+      (DocumentPipeline's focus sink now reuses fire_focus_transition — the same
+      helper user-driven focus_input_at/clear_input_focus use — so el.focus() fires
+      `focus`, el.blur() fires `blur` (+ `change` when the value was edited), keeping
+      the change-detection snapshot in one place. The sink runs while the JS
+      element.focus() call is on the stack, so the dispatch is re-entrant; safe
+      because the controller's DispatchScope shares the outer mutation epoch (7.7.1).
+      Pipeline test drives focus via inline el.focus() and blur re-entrantly from a
+      click handler, asserting focus / input:hi / change+blur.)
 - [ ] 7.7.4: key/code for digits/space/punctuation (T-KEY-FIELDS-COVERAGE-1)

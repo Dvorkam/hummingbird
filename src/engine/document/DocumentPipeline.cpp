@@ -75,15 +75,19 @@ DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvi
       renderer_(std::make_unique<DocumentRenderer>(*model_, *interaction_)),
       style_coordinator_(std::make_unique<DocumentStyleCoordinator>(*model_, *resources_)),
       scripting_(std::make_unique<DocumentScripting>(std::move(script_engine))) {
-    // Bridge JS focus()/blur() to the input controller's caret target (7.2.6).
+    // Bridge JS focus()/blur() to the input controller's caret target (7.2.6) and
+    // fire the same focus/blur (+ change) events a user-driven focus change does
+    // (T-FOCUS-EVENTS-FROM-JS-1, 7.7.2). The sink runs while a JS call
+    // (element.focus()) is on the stack, so fire_focus_transition dispatches
+    // re-entrantly — safe because the controller's DispatchScope shares the outer
+    // mutation epoch (7.7.1).
     scripting_->set_focus_sink([this](DOM::Element* element, bool focused) {
+        DOM::Element* before = const_cast<DOM::Element*>(interaction_->input_controller().focused_element());
         interaction_->apply_script_focus(element, focused);
-        // Keep the change-detection baseline in sync: a later blur compares the
-        // field's value against this snapshot to decide whether `change` fires.
-        // (Dispatching focus/blur events from here is T-FOCUS-EVENTS-FROM-JS-1 —
-        // blocked on making event dispatch re-entrant.)
-        const DOM::Element* focused_now = interaction_->input_controller().focused_element();
-        focus_snapshot_value_ = focused_now ? input_value(*focused_now) : std::string{};
+        DOM::Element* after = const_cast<DOM::Element*>(interaction_->input_controller().focused_element());
+        if (before != after) {
+            fire_focus_transition(before, after);
+        }
     });
 }
 
