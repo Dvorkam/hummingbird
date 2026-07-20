@@ -157,6 +157,10 @@ bool DocumentInteraction::clear_input_focus() {
     return input_controller_.clear_focus();
 }
 
+bool DocumentInteraction::apply_script_focus(DOM::Element* element, bool focused) {
+    return focused ? input_controller_.focus_element(element) : input_controller_.blur_element(element);
+}
+
 bool DocumentInteraction::set_control_interaction_at(const Layout::RenderObject* render_tree,
                                                      const HitTestContext& context) {
     return input_controller_.set_control_interaction_at(render_tree, context.point, context.viewport, context.scroll_y);

@@ -42,6 +42,18 @@ bool is_editable_input_element(const DOM::Element* element) {
            !Core::Utils::equals_ignore_case(*type, "hidden") && !Core::Utils::equals_ignore_case(*type, "image");
 }
 
+bool is_checkbox_input_element(const DOM::Element* element) {
+    if (!is_input_element(element)) {
+        return false;
+    }
+    const auto* type = element->find_attribute(Hummingbird::Html::AttributeNames::Type);
+    return type && Core::Utils::equals_ignore_case(*type, "checkbox");
+}
+
+bool is_checkbox_checked(const DOM::Element& element) {
+    return element.find_attribute("checked") != nullptr;
+}
+
 bool is_autofocus_input_element(const DOM::Element* element) {
     if (!is_editable_input_element(element)) {
         return false;

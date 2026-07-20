@@ -15,6 +15,13 @@ inline std::string to_lower(std::string_view input) {
     return out;
 }
 
+inline std::string to_upper(std::string_view input) {
+    std::string out(input);
+    std::transform(out.begin(), out.end(), out.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::toupper(c)); });
+    return out;
+}
+
 inline bool equals_ignore_case(std::string_view a, std::string_view b) {
     if (a.size() != b.size()) return false;
     for (size_t i = 0; i < a.size(); ++i) {

@@ -1266,3 +1266,211 @@ TEST(EngineTabTest, AllowsInsecureReloadForCurrentHost) {
     EXPECT_TRUE(network_ptr->last_allow_insecure());
     EXPECT_EQ(harness.tab().security_state(), Hummingbird::SecurityState::InsecureTls);
 }
+
+TEST(EngineTabTest, DefersScriptExecutionAndLoadUntilExternalScriptArrives) {
+    // 7.0.1: with an external <script src> still in flight, no script (and no
+    // load event) runs; once the fetch completes, scripts run in document
+    // order and their DOM writes reach layout. Observable via content height:
+    // the script fills #out with enough text to wrap into multiple lines.
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p id="out">x</p>
+    <script src="app.js"></script>
+  </body>
+</html>
+)HTML";
+
+    std::string filler;
+    for (int i = 0; i < 60; ++i) filler += "wrapped words grow the layout ";
+    const std::string script = "document.getElementById('out').textContent = '" + filler + "';";
+
+    auto network = std::make_unique<DeferredNetwork>();
+    auto* network_ptr = network.get();
+    network->set_response("https://acme.test", html);
+    network->defer_response("https://acme.test/app.js", script);
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::move(network), std::make_unique<DeferredNetwork>(), std::move(provider), nullptr);
+
+    harness.navigate("https://acme.test");
+    harness.tick();  // document ready: parse, request script, defer execution
+    harness.tick();  // nothing new: script still in flight
+
+    auto pending = harness.resource_view("https://acme.test/app.js", Hummingbird::Engine::ResourceType::Script);
+    ASSERT_TRUE(pending.has_value());
+    EXPECT_NE(pending->state, Hummingbird::Engine::ResourceState::Ready);
+    const float height_before = harness.tab().content_height();
+
+    network_ptr->complete("https://acme.test/app.js");
+    harness.tick();  // script batch: run deferred scripts, rebuild, dispatch load
+
+    auto ready = harness.resource_view("https://acme.test/app.js", Hummingbird::Engine::ResourceType::Script);
+    ASSERT_TRUE(ready.has_value());
+    EXPECT_EQ(ready->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_GT(harness.tab().content_height(), height_before);
+}
+
+TEST(EngineTabTest, ManyMutationsInOneHandlerProduceExactlyOnePass) {
+    // 7.4.1 invalidation budget: a click handler that makes 100 DOM mutations
+    // must produce exactly one style+layout pass, not one per mutation.
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <body>
+    <p id="hit">click me</p>
+    <ul id="list"></ul>
+    <script>
+      // Delegate on document so any bubbling click triggers it (7.4.1 test).
+      document.addEventListener('click', function () {
+        var list = document.getElementById('list');
+        for (var i = 0; i < 100; i++) {
+          var li = document.createElement('li');
+          li.textContent = 'n' + i;
+          list.appendChild(li);
+        }
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://acme.test", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+    harness.navigate("https://acme.test");
+    ASSERT_TRUE(harness.tick());  // build + run scripts (registers the handler)
+
+    // Baseline after load; the click's 100 mutations should add exactly one pass.
+    const size_t passes_before = harness.tab().style_layout_pass_count();
+    auto result = harness.dispatch_click({12.0f, 12.0f});  // over the top-left "click me" text
+    EXPECT_TRUE(result.mutated);                           // the handler ran and changed the DOM
+    EXPECT_EQ(harness.tab().style_layout_pass_count(), passes_before + 1);
+}
+
+TEST(EngineTabTest, BackForwardNavigatesFullPageHistory) {
+    // 7.6.1: navigating A -> B, then back returns to A and forward returns to B;
+    // a fresh navigation from a mid-history point truncates the forward entries.
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://a.test/", "<html><body><p>PageA</p></body></html>");
+    network->set_response("https://b.test/", "<html><body><p>PageB</p></body></html>");
+    network->set_response("https://c.test/", "<html><body><p>PageC</p></body></html>");
+    auto fallback = std::make_unique<RoutingNetwork>();
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+
+    harness.navigate("https://a.test/");
+    harness.tick();
+    EXPECT_FALSE(harness.tab().can_go_back());
+    EXPECT_FALSE(harness.tab().can_go_forward());
+
+    harness.navigate("https://b.test/");
+    harness.tick();
+    EXPECT_TRUE(harness.tab().can_go_back());
+    EXPECT_FALSE(harness.tab().can_go_forward());
+
+    EXPECT_TRUE(harness.go_back());
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://a.test/");
+    EXPECT_TRUE(harness.tab().can_go_forward());
+
+    EXPECT_TRUE(harness.go_forward());
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://b.test/");
+
+    // Go back to A, then navigate C: the forward entry (B) is discarded.
+    EXPECT_TRUE(harness.go_back());
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://a.test/");
+    harness.navigate("https://c.test/");
+    harness.tick();
+    EXPECT_FALSE(harness.tab().can_go_forward());  // B was truncated
+    EXPECT_TRUE(harness.tab().can_go_back());
+    EXPECT_TRUE(harness.go_back());
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://a.test/");
+    EXPECT_FALSE(harness.tab().can_go_back());  // A is the start
+}
+
+TEST(EngineTabTest, BackForwardWalksFragmentRoutes) {
+    // 7.6.1 + 7.2.5: fragment navigations are history entries, so back walks the
+    // hash routes in place (no reload).
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://spa.test/", "<html><body><p>App</p></body></html>");
+    auto fallback = std::make_unique<RoutingNetwork>();
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+
+    harness.navigate("https://spa.test/");
+    harness.tick();
+    harness.navigate_fragment("https://spa.test/#/active");
+    harness.navigate_fragment("https://spa.test/#/completed");
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/#/completed");
+
+    EXPECT_TRUE(harness.go_back());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/#/active");
+    EXPECT_TRUE(harness.go_back());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/");
+    EXPECT_FALSE(harness.tab().can_go_back());
+
+    EXPECT_TRUE(harness.go_forward());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/#/active");
+}
+
+TEST(EngineTabTest, ScriptLocationHashSyncsTabUrlAndQueuesUrlBarUpdate) {
+    // 7.7.3: a script assigning location.hash must update the tab's requested URL
+    // in place and queue a URL-bar update for the app (no reload).
+    const std::string html = R"HTML(
+<!doctype html>
+<html><body onload="location.hash = '#/active';"><p>hi</p></body></html>
+)HTML";
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://todomvc.test/", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+    harness.navigate("https://todomvc.test/");
+    harness.tick();
+    harness.tick();  // ensure the onload + script-URL poll have both run
+
+    // The tab's requested URL now carries the script-set fragment.
+    EXPECT_NE(std::string(harness.tab().requested_url()).find("#/active"), std::string::npos)
+        << "requested_url=" << harness.tab().requested_url();
+
+    // ...and the URL-bar update is queued exactly once.
+    auto update = harness.tab().consume_url_bar_update();
+    ASSERT_TRUE(update.has_value());
+    EXPECT_NE(update->find("#/active"), std::string::npos);
+    EXPECT_FALSE(harness.tab().consume_url_bar_update().has_value());  // consumed once
+}
+
+TEST(EngineTabTest, M7DemoPageLoadsExternalScriptFromAssets) {
+    // Guards the shipped example.dev/m7 demo: its <script src> must resolve
+    // through the bundled-asset probe and register Ready so the page's
+    // document-order sequence actually runs in the app.
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto html = provider->load_text("assets/stub/pages/m7.html");
+    ASSERT_TRUE(html.has_value()) << "demo page asset missing";
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(*html), std::make_unique<InlineNetwork>(*html),
+                               Hummingbird::create_resource_provider(), nullptr);
+
+    harness.navigate("https://example.dev/m7");
+    harness.tick();
+    harness.tick();
+
+    auto script =
+        harness.resource_view("https://example.dev/assets/stub/pages/m7.js", Hummingbird::Engine::ResourceType::Script);
+    ASSERT_TRUE(script.has_value()) << "external demo script was never requested";
+    EXPECT_EQ(script->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_NE(script->body.find("step-external"), std::string::npos);
+}

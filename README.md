@@ -68,6 +68,50 @@ HB_ASSET_ROOT="$PWD/usr/share/hummingbird" ./usr/bin/hummingbird
 
 Keep the `assets/` folder next to the executable (fonts, UA stylesheet, etc).
 
+## Usage / controls
+
+Hummingbird has currently minimal chrome, so most actions are keyboard
+shortcuts.
+
+### Keyboard shortcuts
+
+**Navigation**
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+L` | Focus the URL bar |
+| `Enter` | Navigate to the typed URL (in the URL bar); submit a focused form |
+| `Esc` | Unfocus the URL bar |
+| `Alt+Left` | Back |
+| `Alt+Right` | Forward |
+
+**Tabs**
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+T` | New tab |
+| `Ctrl+W` | Close the active tab |
+| `Ctrl+Left` / `Ctrl+Right` | Switch to the previous / next tab |
+
+**Bookmarks**
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+D` | Bookmark the current page |
+| `Ctrl+Shift+O` | Open the bookmarks page (`about:bookmarks`) |
+
+**Other**
+
+| Shortcut | Action |
+| --- | --- |
+| Mouse wheel | Scroll |
+| `F1` | Toggle debug outlines |
+
+Built-in pages: `about:bookmarks` shows your saved bookmarks. Startup defaults to
+`https://example.dev`, a built-in demo hub with sub-pages such as `/todo`,
+`/timers`, `/m7`, and `/js`. Loading arbitrary sites is best-effort and
+incomplete.
+
 ## Building from source
 
 This project uses a `vcpkg.json` manifest; dependencies are installed by vcpkg during CMake configure.
@@ -143,20 +187,6 @@ For debugging only, you can bypass verification entirely:
 ```bash
 HB_TLS_INSECURE=1 ./build/Release/Hummingbird
 ```
-
-## Usage / controls
-
-- `Ctrl+L`: focus URL bar
-- `Enter`: navigate
-- `Esc`: unfocus URL bar
-- Mouse wheel: scroll
-- `F1`: toggle debug outlines
-- `Ctrl+T`: new tab
-- `Ctrl+W`: close active tab
-- `Ctrl+Left` / `Ctrl+Right`: switch tabs
-
-Startup defaults to `https://example.dev` (a built-in demo page). Loading arbitrary sites is best-effort and incomplete.
-JS demo page: `https://example.dev/js`.
 
 ## Extensions (MVP)
 

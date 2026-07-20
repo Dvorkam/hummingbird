@@ -9,8 +9,11 @@
 #include <vector>
 
 #include "core/SecurityState.h"
+#include "core/utils/Timing.h"
 #include "engine/forms/FormSubmission.h"
+#include "engine/resources/ResourceLoader.h"
 #include "engine/resources/ResourceStore.h"
+#include "engine/tab/NavigationHistory.h"
 #include "engine/tab/NavigationLifecycle.h"
 #include "engine/tab/TabAnimationTicker.h"
 #include "engine/tab/TabLayoutState.h"
@@ -34,10 +37,20 @@ public:
     struct KeyResult {
         bool handled = false;
         bool needs_repaint = false;
+        bool mutated = false;  // a JS key listener changed the DOM (document repainted)
         std::optional<FormSubmission> submitted_form;
     };
     struct ClickResult {
         bool handled = false;
+        bool mutated = false;
+        bool default_prevented = false;  // a JS click listener called preventDefault
+    };
+    struct SubmitResult {
+        bool default_prevented = false;  // a JS submit listener called preventDefault
+        bool mutated = false;
+    };
+    struct FragmentResult {
+        bool hash_changed = false;
         bool mutated = false;
     };
     Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
@@ -55,6 +68,14 @@ public:
     void navigate(std::string_view url);
     void navigate(const FormSubmission& submission);
 
+    // Back/forward navigation over the per-tab history (7.6.1). Returns false when
+    // there is nowhere to go. A same-document target navigates by fragment (no
+    // reload); otherwise it reloads the entry.
+    bool go_back(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    bool go_forward(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    bool can_go_back() const { return history_.can_go_back(); }
+    bool can_go_forward() const { return history_.can_go_forward(); }
+
     // Processes pending navigation results and keeps layout in sync with the viewport.
     // Returns true if the document changed in a way that needs repainting.
     bool tick(IGraphicsContext& graphics, const Layout::Rect& viewport);
@@ -70,7 +91,8 @@ public:
     // F1 debug inspection: describe the topmost element under the point
     // (T-DEBUG-INSPECT-1).
     std::optional<std::string> inspect_at(const Layout::Point& point, const Layout::Rect& viewport) const;
-    ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics);
+    ClickResult dispatch_click(const Layout::Point& point, const Layout::Rect& viewport, IGraphicsContext& graphics,
+                               int click_count = 1);
     std::optional<FormSubmission> submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const;
     bool focus_input_at(const Layout::Point& point, const Layout::Rect& viewport);
     bool clear_input_focus();
@@ -80,15 +102,25 @@ public:
     bool has_focused_input() const;
     bool handle_text_input(std::string_view text);
     KeyResult handle_key_down(const InputEvent& event);
+    KeyResult handle_key_up(const InputEvent& event);
+    SubmitResult dispatch_submit(const DOM::Element* form);
+    // Same-document fragment navigation (7.2.5): fires hashchange without a
+    // reload; rebuilds if a listener mutated the DOM.
+    FragmentResult navigate_fragment(std::string_view url, IGraphicsContext& graphics, const Layout::Rect& viewport);
     std::optional<std::string> focused_input_value() const;
 
     std::optional<std::string> consume_navigation_commit_url();
+    // Returns/clears a URL a script set via location.hash, so the app can update
+    // the URL bar (7.7.3). The tab's requested_url() is already updated in place.
+    std::optional<std::string> consume_url_bar_update();
     bool insert_extension_css(std::string_view css_text);
 
     void scroll_by(float delta_px, float viewport_height);
 
     float scroll_y() const { return layout_state_.scroll_y; }
     float content_height() const { return layout_state_.content_height; }
+    // Completed style+layout passes (7.4.1 invalidation budget instrumentation).
+    size_t style_layout_pass_count() const;
     std::string_view requested_url() const { return navigation_lifecycle_.requested_url(); }
     SecurityState security_state() const { return navigation_lifecycle_.security_state(); }
     std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
@@ -97,8 +129,8 @@ public:
 
 private:
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
-    void process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, bool font_ready,
-                                              IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void process_incremental_resource_updates(const ResourceLoader::BatchResult& batch, IGraphicsContext& graphics,
+                                              const Layout::Rect& viewport);
     void sync_extension_styles_before_stylesheet_update();
     void handle_document_ready(std::string_view document_url, std::string_view effective_url,
                                NetworkError document_error, IGraphicsContext& graphics, const Layout::Rect& viewport);
@@ -109,11 +141,24 @@ private:
     void apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_animation_updates();
+    // Fires due JS timers (7.3.1) + requestAnimationFrame callbacks (7.3.3) once
+    // per frame on the shared document-relative clock; rebuilds on DOM mutation.
+    void process_scheduled_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    // Picks up a script-initiated location.hash change (7.7.3): syncs the tab's
+    // requested URL and queues a URL-bar update for the app.
+    void process_script_url_change();
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view reason);
     void begin_navigation_session(std::string_view url);
+    // Navigates to a history entry without pushing a new one (back/forward).
+    void navigate_history_entry(const std::string& url, IGraphicsContext& graphics, const Layout::Rect& viewport);
     bool prepare_document_from_response(std::string_view html);
     void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    // External <script src> gating (7.0.1): scripts run once every external
+    // body is Ready or Failed, then the load event dispatches.
+    void maybe_run_deferred_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    bool all_external_scripts_resolved() const;
+    bool run_document_scripts_now();
     void apply_autofocus_after_rebuild();
     void mark_dirty(std::string_view reason = {});
     void reset_document_state();
@@ -128,9 +173,27 @@ private:
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;
     bool extension_css_dirty_ = false;
+    // True while external <script src> fetches block script execution and the
+    // load event (cleared by maybe_run_deferred_scripts or navigation reset).
+    bool scripts_pending_ = false;
     NavigationLifecycle navigation_lifecycle_{};
+    NavigationHistory history_{};
+    // True while navigating via back/forward, so those navigations don't push a
+    // new history entry (7.6.1).
+    bool in_history_navigation_ = false;
     TabLayoutState layout_state_{};
     TabAnimationTicker animation_ticker_{};
+
+    // Document-relative clock (ms) for JS timers (7.3.1). Advanced by the
+    // wall-clock delta only while timers are pending (held otherwise so a freshly
+    // scheduled timer measures its delay from now), and reset to 0 on navigation
+    // so timers die with the document.
+    Core::Clock::time_point timer_last_tick_{};
+    bool timer_has_tick_ = false;
+    double timer_clock_ms_ = 0.0;
+
+    // A URL a script set via location.hash, awaiting the app's URL-bar sync (7.7.3).
+    std::optional<std::string> pending_url_bar_update_;
 
     bool dirty_ = true;
 };

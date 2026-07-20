@@ -55,6 +55,52 @@ public:
         m_attributes[Core::Utils::to_lower(key)] = std::string(value);
     }
 
+    bool has_attribute(std::string_view key) const { return m_attributes.find(key) != m_attributes.end(); }
+
+    void remove_attribute(std::string_view key) { m_attributes.erase(Core::Utils::to_lower(key)); }
+
+    // --- class attribute helpers (classList, 7.1.2) ---
+    // Tokens are space-separated and case-sensitive, matching how the selector
+    // matcher reads the class attribute (SelectorMatcher::has_all_classes).
+    bool class_contains(std::string_view token) const {
+        if (token.empty()) return false;
+        const auto* value = find_attribute("class");
+        if (!value) return false;
+        for (auto existing : Core::Utils::split_ascii_whitespace(*value)) {
+            if (existing == token) return true;
+        }
+        return false;
+    }
+
+    // Adds a token if absent; returns true when the class list changed.
+    bool class_add(std::string_view token) {
+        if (token.empty() || class_contains(token)) return false;
+        auto& value = m_attributes[std::string("class")];
+        if (!value.empty()) value.push_back(' ');
+        value.append(token);
+        return true;
+    }
+
+    // Removes every occurrence of a token; returns true when the list changed.
+    bool class_remove(std::string_view token) {
+        if (token.empty()) return false;
+        const auto* value = find_attribute("class");
+        if (!value) return false;
+        std::string rebuilt;
+        bool removed = false;
+        for (auto existing : Core::Utils::split_ascii_whitespace(*value)) {
+            if (existing == token) {
+                removed = true;
+                continue;
+            }
+            if (!rebuilt.empty()) rebuilt.push_back(' ');
+            rebuilt.append(existing);
+        }
+        if (!removed) return false;
+        m_attributes[std::string("class")] = std::move(rebuilt);
+        return true;
+    }
+
     std::optional<std::string_view> get_accessibility_role() const {
         if (const auto* explicit_role = find_attribute("role"); explicit_role && !explicit_role->empty()) {
             return std::string_view(*explicit_role);

@@ -118,7 +118,10 @@ float RenderTableCell::measure_intrinsic_width(IGraphicsContext& context) {
     for (const auto& child : m_children) {
         const auto* child_style = child->get_computed_style();
         float margin_right = child_style ? child_style->margin.right : 0.0f;
-        float right = child->get_rect().x + child->get_rect().width + margin_right;
+        // Use the child's content width, not its rendered width: a display:block
+        // child stretched to fill the measurement box would otherwise report
+        // ~100000px and balloon this column (T-LAYOUT-TABLE-INTRINSIC-BLOCK-1).
+        float right = child->get_rect().x + Metrics::max_content_width(*child) + margin_right;
         content_right = std::max(content_right, right);
     }
 

@@ -12,8 +12,10 @@
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
+#include "core/utils/Url.h"
 #include "engine/document/DocumentPipeline.h"
 #include "engine/resources/ResourceLoader.h"
+#include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/tab/TabDocumentReadyPolicy.h"
 
 namespace Hummingbird {
@@ -74,13 +76,44 @@ void Tab::navigate(std::string_view url) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     begin_navigation_session(url);
+    if (!in_history_navigation_) {
+        history_.push(std::string(navigation_lifecycle_.requested_url()));
+    }
     resource_loader_->navigate(navigation_lifecycle_.requested_url());
+}
+
+bool Tab::go_back(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    if (shutting_down_.load(std::memory_order_relaxed) || !history_.can_go_back()) return false;
+    navigate_history_entry(history_.go_back(), graphics, viewport);
+    return true;
+}
+
+bool Tab::go_forward(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    if (shutting_down_.load(std::memory_order_relaxed) || !history_.can_go_forward()) return false;
+    navigate_history_entry(history_.go_forward(), graphics, viewport);
+    return true;
+}
+
+void Tab::navigate_history_entry(const std::string& url, IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    in_history_navigation_ = true;
+    const std::string_view current = navigation_lifecycle_.requested_url();
+    if (Core::url_without_fragment(url) == Core::url_without_fragment(current) &&
+        Core::url_fragment(url) != Core::url_fragment(current)) {
+        // Same document, only the fragment differs: navigate in place (no reload).
+        (void)navigate_fragment(url, graphics, viewport);
+    } else {
+        navigate(url);  // different document (or exact reload): full (re)load
+    }
+    in_history_navigation_ = false;
 }
 
 void Tab::navigate(const FormSubmission& submission) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     begin_navigation_session(submission.url);
+    if (!in_history_navigation_) {
+        history_.push(std::string(navigation_lifecycle_.requested_url()));
+    }
 
     ResourceLoader::DocumentRequest request{};
     if (submission.method == FormSubmitMethod::Post) {
@@ -98,6 +131,8 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     apply_extension_css_if_needed(graphics, viewport);
     relayout_if_viewport_changed(graphics, viewport);
     process_animation_updates();
+    process_scheduled_scripts(graphics, viewport);
+    process_script_url_change();
 
     bool dirty = dirty_;
     dirty_ = false;
@@ -148,6 +183,54 @@ bool Tab::advance_animation_tick() {
     return updated;
 }
 
+void Tab::process_scheduled_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    const auto now = Core::Clock::now();
+    const bool active = document_pipeline_->has_dom_tree() && (document_pipeline_->has_pending_timers() ||
+                                                               document_pipeline_->has_pending_animation_frames());
+    if (!timer_has_tick_ || !active) {
+        // First tick, or idle: hold the clock and keep the baseline current so a
+        // newly scheduled timer/frame measures its delay from now, not document load.
+        timer_last_tick_ = now;
+        timer_has_tick_ = true;
+        if (!active) return;
+    }
+    timer_clock_ms_ += Core::duration_ms(timer_last_tick_, now);
+    timer_last_tick_ = now;
+
+    bool mutated = false;
+    // requestAnimationFrame callbacks run once per frame before paint; timers are
+    // ordinary tasks. Run the frame callbacks first, then any due timers.
+    mutated |= document_pipeline_->run_animation_frames(timer_clock_ms_).mutated;
+    mutated |= document_pipeline_->run_timers(timer_clock_ms_).mutated;
+    if (mutated) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:scheduled_script_mutation");
+        mark_dirty("scheduled_script_mutation");
+    }
+}
+
+size_t Tab::style_layout_pass_count() const {
+    return document_pipeline_->style_layout_pass_count();
+}
+
+void Tab::process_script_url_change() {
+    // A script assigned location.hash (7.7.3): reflect it in the tab's requested
+    // URL in place (no reload) and queue the URL-bar text for the app.
+    if (auto url = document_pipeline_->consume_location_change()) {
+        navigation_lifecycle_.update_fragment_url(*url);
+        if (!in_history_navigation_) {
+            history_.push(*url);  // JS hash routing is a history entry too (7.6.1)
+        }
+        pending_url_bar_update_ = std::move(url);
+        mark_dirty("script_location_change");
+    }
+}
+
+std::optional<std::string> Tab::consume_url_bar_update() {
+    std::optional<std::string> out = std::move(pending_url_bar_update_);
+    pending_url_bar_update_.reset();
+    return out;
+}
+
 void Tab::paint(IGraphicsContext& graphics, const Layout::Rect& viewport, bool debug_outlines) {
     if (!document_pipeline_->has_render_tree()) return;
     graphics.set_text_cache_owner(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(this)));
@@ -175,14 +258,16 @@ std::optional<std::string> Tab::inspect_at(const Layout::Point& point, const Lay
 }
 
 Tab::ClickResult Tab::dispatch_click(const Layout::Point& point, const Layout::Rect& viewport,
-                                     IGraphicsContext& graphics) {
-    auto result = document_pipeline_->dispatch_click(
-        make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y));
+                                     IGraphicsContext& graphics, int click_count) {
+    auto context =
+        make_hit_test_context(point, viewport, navigation_lifecycle_.requested_url(), layout_state_.scroll_y);
+    context.click_count = click_count;
+    auto result = document_pipeline_->dispatch_click(context);
     if (result.mutated) {
         (void)rebuild_document_and_sync_layout(graphics, viewport, "dispatch_click:script_mutation");
         mark_dirty();
     }
-    return {result.handled, result.mutated};
+    return {result.handled, result.mutated, result.default_prevented};
 }
 
 std::optional<FormSubmission> Tab::submit_form_at(const Layout::Point& point, const Layout::Rect& viewport) const {
@@ -226,7 +311,37 @@ bool Tab::handle_text_input(std::string_view text) {
 
 Tab::KeyResult Tab::handle_key_down(const InputEvent& event) {
     auto result = document_pipeline_->handle_key_down(event, navigation_lifecycle_.requested_url());
-    return {result.handled, result.needs_repaint, std::move(result.submitted_form)};
+    return {result.handled, result.needs_repaint, result.mutated, std::move(result.submitted_form)};
+}
+
+Tab::KeyResult Tab::handle_key_up(const InputEvent& event) {
+    auto result = document_pipeline_->handle_key_up(event);
+    // keyup has no default action; a listener may still have mutated the DOM.
+    return {result.mutated, result.needs_repaint, result.mutated, std::move(result.submitted_form)};
+}
+
+Tab::SubmitResult Tab::dispatch_submit(const DOM::Element* form) {
+    auto result = document_pipeline_->dispatch_submit(form);
+    return {result.default_prevented, result.mutated};
+}
+
+Tab::FragmentResult Tab::navigate_fragment(std::string_view url, IGraphicsContext& graphics,
+                                           const Layout::Rect& viewport) {
+    auto result = document_pipeline_->navigate_fragment(url);
+    if (result.hash_changed) {
+        // Same-document fragment nav: keep the tab's requested URL in sync so
+        // back/forward history and the URL bar reflect it (7.7.3 mirror of the
+        // click path's URL-bar update).
+        navigation_lifecycle_.update_fragment_url(url);
+        if (!in_history_navigation_) {
+            history_.push(std::string(url));  // fragment routes are history entries (7.6.1)
+        }
+    }
+    if (result.mutated) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "navigate_fragment:hashchange_mutation");
+        mark_dirty();
+    }
+    return {result.hash_changed, result.mutated};
 }
 
 std::optional<std::string> Tab::focused_input_value() const {
@@ -269,16 +384,18 @@ void Tab::consume_pending_resources(IGraphicsContext& graphics, const Layout::Re
     auto result = resource_loader_->consume_pending_updates();
     if (result.pending_count == 0) return;
 
-    if (result.document_ready) {
+    if (result.is_ready(ResourceType::Document)) {
         handle_document_ready(result.document_url, result.effective_url, result.document_error, graphics, viewport);
         return;
     }
-    process_incremental_resource_updates(result.stylesheet_ready, result.image_ready, result.font_ready, graphics,
-                                         viewport);
+    process_incremental_resource_updates(result, graphics, viewport);
 }
 
-void Tab::process_incremental_resource_updates(bool stylesheet_ready, bool image_ready, bool font_ready,
-                                               IGraphicsContext& graphics, const Layout::Rect& viewport) {
+void Tab::process_incremental_resource_updates(const ResourceLoader::BatchResult& batch, IGraphicsContext& graphics,
+                                               const Layout::Rect& viewport) {
+    const bool stylesheet_ready = batch.is_ready(ResourceType::Stylesheet);
+    const bool font_ready = batch.is_ready(ResourceType::Font);
+    const bool image_ready = batch.is_ready(ResourceType::Image);
     if (stylesheet_ready && document_pipeline_->has_dom_tree()) {
         sync_extension_styles_before_stylesheet_update();
         handle_stylesheet_ready(graphics, viewport);
@@ -292,6 +409,52 @@ void Tab::process_incremental_resource_updates(bool stylesheet_ready, bool image
     if (image_ready && document_pipeline_->has_render_tree()) {
         handle_image_ready(graphics, viewport);
     }
+    // Checked on every batch (not just script arrivals) so a failed fetch —
+    // which sets no ready flag — still unblocks deferred execution.
+    if (scripts_pending_) {
+        maybe_run_deferred_scripts(graphics, viewport);
+    }
+}
+
+void Tab::maybe_run_deferred_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    if (!document_pipeline_->has_dom_tree()) return;
+    if (!all_external_scripts_resolved()) return;
+    scripts_pending_ = false;
+
+    const auto scripts_start = Core::Clock::now();
+    const bool mutated = run_document_scripts_now();
+    HB_LOG_INFO("[perf] deferred run_scripts ms=" << Core::duration_ms(scripts_start, Core::Clock::now())
+                                                  << " mutated=" << mutated);
+    if (mutated) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "scripts_ready:mutation");
+    }
+    apply_load_mutations_after_document_ready(graphics, viewport);
+    mark_dirty("scripts_ready");
+}
+
+bool Tab::all_external_scripts_resolved() const {
+    for (const auto& src : document_pipeline_->external_script_srcs()) {
+        auto resolved = ResourceRequestPlanning::resolve_request_url(navigation_lifecycle_.requested_url(), src);
+        if (resolved.key.empty()) continue;
+        const auto* entry = resource_loader_->find(resolved.key, ResourceType::Script);
+        if (!entry) continue;  // never registered (rejected url) — nothing to wait for
+        if (entry->state == ResourceState::Requested || entry->state == ResourceState::Loading) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Tab::run_document_scripts_now() {
+    // Point window.location at the document URL before any script reads it (7.2.5).
+    document_pipeline_->set_location(navigation_lifecycle_.requested_url());
+    return document_pipeline_->run_scripts([this](std::string_view src) -> std::optional<std::string_view> {
+        auto resolved = ResourceRequestPlanning::resolve_request_url(navigation_lifecycle_.requested_url(), src);
+        if (resolved.key.empty()) return std::nullopt;
+        const auto* entry = resource_loader_->find(resolved.key, ResourceType::Script);
+        if (!entry || entry->state != ResourceState::Ready) return std::nullopt;
+        return std::string_view(entry->body);
+    });
 }
 
 void Tab::sync_extension_styles_before_stylesheet_update() {
@@ -356,7 +519,12 @@ void Tab::rebuild_after_document_ready(IGraphicsContext& graphics, const Layout:
     if (has_render_tree) {
         timed("autofocus", [&] { apply_autofocus_after_rebuild(); });
     }
-    timed("load_mutations", [&] { apply_load_mutations_after_document_ready(graphics, viewport); });
+    // The load event fires only after every document-order script has run;
+    // with external scripts still in flight it is dispatched from
+    // maybe_run_deferred_scripts instead.
+    if (!scripts_pending_) {
+        timed("load_mutations", [&] { apply_load_mutations_after_document_ready(graphics, viewport); });
+    }
 }
 
 void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -387,8 +555,22 @@ bool Tab::prepare_document_from_response(std::string_view html) {
     navigation_lifecycle_.set_pending_commit_url();
     document_pipeline_->set_extension_style_blocks(extension_style_blocks_);
     extension_css_dirty_ = false;
+
+    // External <script src> bodies must be fetched before any script runs so
+    // inline and external scripts execute in document order (7.0.1). Asset- or
+    // failed-synchronously resources resolve immediately; network fetches
+    // arrive via the pending-update queue, so execution (and the load event,
+    // see rebuild_after_document_ready) defers to maybe_run_deferred_scripts.
+    const auto external_srcs = document_pipeline_->external_script_srcs();
+    if (!external_srcs.empty()) {
+        resource_loader_->request_scripts(external_srcs, navigation_lifecycle_.requested_url());
+    }
+    if (!all_external_scripts_resolved()) {
+        scripts_pending_ = true;
+        return true;
+    }
     const auto scripts_start = Core::Clock::now();
-    document_pipeline_->run_scripts();
+    (void)run_document_scripts_now();
     HB_LOG_INFO("[perf] rebuild step run_scripts ms=" << Core::duration_ms(scripts_start, Core::Clock::now()));
     return true;
 }
@@ -450,6 +632,9 @@ void Tab::reset_document_state() {
     layout_state_.reset();
     navigation_lifecycle_.clear_pending_commit_url();
     animation_ticker_.reset();
+    timer_has_tick_ = false;
+    timer_clock_ms_ = 0.0;
+    scripts_pending_ = false;
     mark_dirty();
 }
 

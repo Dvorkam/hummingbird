@@ -1,5 +1,10 @@
-> **Status: Planned** — pre-written 2026-07, two milestones ahead. Sanity-check scope
-> against the M6 outcome before kickoff; story structure is expected to hold.
+> **Status: Complete** — 2026-07-20. All stories delivered, including the kickoff
+> additions: external script loading (7.0.1), real-world secondary proof (HN
+> comment collapse), form-control JS surface + checkbox MVP (7.1.5), fragment
+> navigation (7.2.5), and browser-chrome conveniences (7.6: back/forward,
+> bookmarks). Deferred with tickets: per-document JS global isolation
+> (T-JS-GLOBAL-ISOLATION-1 → M8) and enumerated event-spec deviations
+> (T-EVENT-SPEC-GAPS-1 → M8). Scope revalidated at kickoff 2026-07-17.
 
 ## Milestone 7 North Star Deliverable
 
@@ -27,13 +32,24 @@
   style/layout/paint pass.
 * **Proof target:** a pinned **vanilla-JS TodoMVC snapshot** is fully usable — add,
   toggle, edit, filter, clear-completed — in a CI harness.
+* **Real-world secondary proof:** on a **Hacker News item page** (pinned snapshot;
+  live as a manual check), `hn.js` initializes and **comment collapse/expand ([–]/[+])
+  works**. Verified against the live `hn.js` (2026-07-17): the collapse path needs
+  exactly M7's surface — `addEventListener` delegation on `document`, event objects
+  (`target`, `stopPropagation`, `preventDefault`), `className` manipulation with
+  restyle, `getAttribute`, `nextElementSibling` traversal, `getElementsByClassName` —
+  plus fail-soft stubs for the APIs we don't do yet (`fetch`/XHR for voting → M8/M9,
+  `scrollIntoView` → no-op). Voting/login staying broken is expected and fine; it is
+  M8's proof target.
 
 ---
 
 ## Non-Goals (keep the blast radius controlled)
 
 * No fetch/XHR or any networking JS API (M9). No cookies/storage bindings (M8).
-* No History API, no observer APIs (`MutationObserver` etc.), no custom elements (M12).
+* No History API (`pushState` etc. — M12); the only same-document navigation in scope
+  is the fragment/`hashchange` slice (7.2.5). No observer APIs (`MutationObserver`
+  etc.), no custom elements (M12).
 * No Shadow DOM.
 * No exhaustive event-type coverage — an enumerated set (see 7.2.4) is the contract.
 * `innerHTML` reuses the existing recovery-oriented parser on a fragment; no separate
@@ -48,10 +64,17 @@
 
 **Must-have**
 
+* External script loading (7.0.1) — both proof targets ship their JS as separate
+  files; carries the T-RESOURCE-TYPE-TABLE-1 paydown (Script is the 5th resource type).
 * DOM construction/mutation primitives with arena ownership (7.1.1) + `innerHTML` (7.1.4).
 * `querySelector`/`querySelectorAll` over the existing SelectorMatcher (7.1.3).
+* Form-control JS surface (7.1.5) — every TodoMVC flow reads/writes `.value` and
+  `.checked`.
 * EventTarget with propagation and real event objects (7.2.1–7.2.3).
 * Keyboard/input/submit event routing (7.2.4) — TodoMVC is keyboard-driven.
+* Interactive checkbox control (7.2.6) — TodoMVC's toggle is a checkbox whose
+  `change` handler drives the re-render (split from 7.1.5; needs 7.2.1–7.2.4).
+* Fragment navigation + `hashchange` (7.2.5) — TodoMVC's filters are hash-routed.
 * Task + microtask queues in the main loop (7.3.1–7.3.2).
 * Batched invalidation per task (7.4.1).
 * TodoMVC snapshot harness in CI (7.5.1).
@@ -61,6 +84,8 @@
 * `requestAnimationFrame` (7.3.3) — cheap once the frame tick owns the queues.
 * `classList`/`dataset` conveniences beyond what TodoMVC touches (7.1.2 minimum scope
   is what the target needs).
+* Browser chrome: back/forward (7.6.1) and bookmarks MVP (7.6.2) — dev-convenience,
+  independent of the engine-side critical path; good interleave work.
 
 ---
 
@@ -68,6 +93,9 @@
 
 * TodoMVC (pinned snapshot) passes a scripted add/toggle/edit/filter/clear flow in the
   headless harness, and CI fails on regression.
+* On a pinned Hacker News item-page snapshot, comment collapse/expand works end-to-end
+  (secondary proof; live-site check stays a manual gate). Voting/login remain broken
+  by design (M8/M9).
 * Capture/target/bubble order is correct for nested listeners (event-order tests).
 * A handler performing many mutations triggers exactly one style/layout/paint pass.
 * `setTimeout(fn, 0)` and Promise jobs interleave in spec order (task vs microtask
@@ -80,11 +108,32 @@
 
 ## Stories
 
+### 7.0 - Script Loading (prerequisite — both proof targets ship external JS)
+
+* **Story 7.0.1: External Script Loading (T-SCRIPT-SRC-1)**
+* **Goal:** fetch and execute `<script src="...">` — TodoMVC's `app.js` and HN's
+  `hn.js` are external files; today only inline `<script>` bodies run
+  (`DocumentLinkDiscovery` ignores the `src` attribute).
+* **Scope:** `ResourceType::Script` through the store/loader/update-processor
+  pipeline; execution-order MVP: after parse, scripts run in document order with
+  inline and external interleaved (classic-script semantics approximated; `async`/
+  `defer` may collapse to that same order), all before `load` dispatch. **Pay down
+  T-RESOURCE-TYPE-TABLE-1 here:** Script is the 5th resource type — introduce the
+  per-type descriptor table instead of hand-mirroring the Image/Font boilerplate a
+  fifth time.
+* **Acceptance:** a page whose behavior lives in an external .js file works
+  identically to the same script inlined; script order is deterministic.
+* **Tests:** resource pipeline tests + script execution-order tests + the
+  table-drives-dispatch test from T-RESOURCE-TYPE-TABLE-1.
+
 ### 7.1 - DOM Core (JS can build UI)
 
 * **Story 7.1.1: Mutation Primitives With Arena Ownership**
 * **Goal:** `createElement`, `createTextNode`, `appendChild`, `insertBefore`,
-  `removeChild`, `replaceChild`.
+  `removeChild`, `replaceChild`; read-only traversal accessors (`parentNode`,
+  `children`/`childNodes`, `firstChild`/`lastChild`,
+  `nextElementSibling`/`previousElementSibling`) — real-page delegation patterns
+  (hn.js) walk siblings, so traversal ships with mutation, not later.
 * **Scope:** core/dom node factories + tree surgery; document the rule for nodes
   created after initial parse (same arena; removal detaches, never frees).
 * **Acceptance:** JS builds a list of elements from scratch; removing/reinserting nodes
@@ -99,7 +148,10 @@
 * **Tests:** DOM + style invalidation tests.
 
 * **Story 7.1.3: querySelector / querySelectorAll**
-* **Goal:** subtree selector queries reusing SelectorMatcher.
+* **Goal:** subtree selector queries reusing SelectorMatcher; plus the cheap
+  derivatives once the matcher entry point exists — `Element.matches`,
+  `Element.closest`, and legacy `getElementsByClassName`/`getElementsByTagName`
+  (hn.js and most pre-framework pages use the legacy forms, not `querySelector`).
 * **Scope:** traversal + matcher entry point + JS bindings (static NodeList snapshot).
 * **Acceptance:** the selector subset supported by the style engine works identically
   from JS.
@@ -112,6 +164,23 @@
   matches document parsing.
 * **Acceptance:** TodoMVC's template-string rendering path works.
 * **Tests:** fragment parse + mutation tests, including malformed input.
+
+* **Story 7.1.5: Form Control JS Surface** — *(the interactive checkbox control
+  originally bundled here moved to Story 7.2.6, which depends on the event system;
+  see the note there. This story is now the JS-surface half only.)*
+* **Goal:** JS read/write of `input.value`, `input.checked`, `disabled`;
+  `element.focus()`/`blur()`.
+* **Scope:** JS bindings over the existing form-control state. `.value` reflects
+  the `value` attribute; `.checked`/`.disabled` reflect boolean-attribute state;
+  `focus()`/`blur()` reflect the `:focus` pseudo-state (hooking `focus()` to the
+  live text-edit caret target is part of 7.2.6). Radio groups, `<select>`, and
+  everything else stay in M11 forms v2.
+* **Why now:** every TodoMVC interaction runs through this — add reads+clears
+  `.value`, toggle reads/writes `.checked`, edit mode calls `.focus()`. Without
+  this the North Star is unreachable no matter how good DOM/events are.
+* **Acceptance:** JS reads what the user typed, clears the field, reads/writes
+  `.checked` and `.disabled`, and `focus()`/`blur()` flip `:focus`.
+* **Tests:** binding unit tests (host + end-to-end). **DONE 2026-07-17.**
 
 ### 7.2 - Event System v1
 
@@ -137,13 +206,97 @@
 * **Acceptance:** listener order matches spec for nested capture/bubble combinations.
 * **Tests:** event-order integration tests.
 
-* **Story 7.2.4: Input Event Coverage (enumerated)**
-* **Goal:** route `keydown`, `keyup`, `input`, `change`, `submit`, `dblclick`,
-  `focus`, `blur` from Platform through the dispatch pipeline.
+* **Story 7.2.4: Input Event Coverage (enumerated)** — *split into 7.2.4.1–7.2.4.4
+  (below), which together cover the whole enumerated set. This heading stays as the
+  umbrella; the substories are the units of work.*
+* **Goal:** route `click`, `keydown`, `keyup`, `input`, `change`, `submit`,
+  `dblclick`, `focus`, `blur` from Platform through the DOM dispatch pipeline
+  (7.2.3's `dispatch_event`), honoring `preventDefault` on the default action.
 * **Scope:** app/engine event routing → DOM dispatch; keep the Platform → Core
-  interface boundary intact.
-* **Acceptance:** TodoMVC's Enter-to-add, dblclick-to-edit, blur-to-commit flows work.
+  interface boundary intact (platform stays opaque; a new
+  `IScriptEngine::dispatch_dom_event(target, {...})` is the seam).
+* **Acceptance (whole set):** TodoMVC's Enter-to-add, dblclick-to-edit,
+  blur-to-commit flows work; `preventDefault` on a submit stops navigation.
+* **Tests:** input-controller + dispatch integration tests (per substory).
+
+* **Story 7.2.4.1: Dispatch Spine + Pointer Events (click, dblclick)**
+* **Goal:** stand up the reusable dispatch seam and route real pointer input:
+  `IScriptEngine::dispatch_dom_event(DOM::Node* target, {type, bubbles, cancelable,
+  key, code}) -> bool` (false ⇒ a listener called `preventDefault`), plumbed
+  DocumentScriptController → DocumentPipeline → Tab. A real mouse click
+  hit-tests to the topmost DOM node and dispatches a **bubbling, cancelable**
+  `click` (and `dblclick` on double-click); `preventDefault` suppresses the
+  default action (link navigation, onclick).
+* **Why first:** every other substory reuses this seam; click delegation is the
+  hn.js secondary-proof path and TodoMVC's destroy/toggle buttons.
+* **Acceptance:** a JS `click` listener on an ancestor fires for a click on a
+  descendant (delegation); `preventDefault` on a link click stops navigation.
+* **Tests:** dispatch-seam unit + click-routing integration tests.
+
+* **Story 7.2.4.2: Keyboard Events (keydown, keyup)**
+* **Goal:** route Platform `KeyDown`/`KeyUp` to the focused element (falling back
+  to `document`/`body`) as bubbling `keydown`/`keyup` events with `key`/`code`
+  populated; `preventDefault` suppresses the default key action (e.g. character
+  insertion into a focused field).
+* **Why:** TodoMVC's new-todo input is Enter-driven; hn.js reads `key`.
+* **Acceptance:** a `keydown` listener sees `key === 'Enter'`; `preventDefault`
+  in it stops the default text-edit insertion.
 * **Tests:** input-controller + dispatch integration tests.
+
+* **Story 7.2.4.3: Form Input Lifecycle (input, change, focus, blur)**
+* **Goal:** fire `input` as the user edits a text field, `change` on commit
+  (blur/Enter), and `focus`/`blur` on focus transitions (click-focus,
+  programmatic `focus()`/`blur()`, blur-on-commit) — routed from the input
+  controller.
+* **Why:** TodoMVC's blur-to-commit and edit flows depend on these.
+* **Acceptance:** editing a field fires `input`; committing fires `change`;
+  focusing/blurring fire `focus`/`blur` on the right element.
+* **Tests:** input-controller + dispatch integration tests.
+
+* **Story 7.2.4.4: Submit Event + preventDefault-Stops-Navigation**
+* **Goal:** dispatch a cancelable `submit` when a form is submitted (Enter in a
+  field / submit button); `preventDefault` halts the form navigation so a JS
+  handler can take over.
+* **Why:** completes the 7.2.2 acceptance ("preventDefault on submit stops
+  navigation"); most JS-driven forms cancel the native submit.
+* **Acceptance:** submitting a form fires `submit`; `preventDefault` stops the
+  navigation that would otherwise occur.
+* **Tests:** form-submit + dispatch integration tests.
+
+* **Story 7.2.5: Fragment Navigation + hashchange**
+* **Goal:** `location.hash` read/write, clicking `href="#/..."` links, and the
+  `hashchange` event — same-document, **no reload, no document teardown**.
+* **Scope:** navigation path special-case for fragment-only URL changes + a minimal
+  `window.location` binding (`hash`, `href` read). Full History API stays in M12.
+* **Why now:** vanilla TodoMVC's filter bar (All/Active/Completed) is hash-routed;
+  without this the "filter" step of the North Star flow silently reloads or 404s.
+* **Acceptance:** clicking a `#/active` filter link fires `hashchange`, the handler
+  re-renders, and the document (timers, listeners, DOM) survives untouched.
+* **Tests:** navigation + event integration tests.
+
+* **Story 7.2.6: Interactive Checkbox Control (T-FORM-CHECKBOX-1)**
+* **Split from 7.1.5:** the JS-visible checkbox state (`.checked` get/set) shipped
+  with 7.1.5; this story adds the *interactive control* — render + click + the
+  events. It lives here (not in 7.1) because its acceptance depends on the event
+  pipeline from 7.2.1–7.2.4 (a click must fire `change`/`input`), so it must land
+  **after 7.2.4**.
+* **Goal:** a working `<input type=checkbox>`: render checked/unchecked, a click
+  toggles it, and toggling (by click or by JS setting `.checked`) fires `change`
+  (and `input`) through the 7.2 dispatch pipeline. Also wire `element.focus()` to
+  the live text-edit caret target (7.1.5 only reflects `:focus` styling).
+* **Scope:** a bounded checkbox control — checkbox is currently excluded from input
+  semantics in `DocumentInputUtils::is_editable_input_element` and has no
+  interactive rendering (M4 forms MVP was text input + button only). Adds: box +
+  checkmark paint (`DocumentInputPainter`), hit-test/click-toggle in the input
+  controller, and `change`/`input` dispatch. Checkedness stays reflected by the
+  `checked` attribute (the 7.1.5 MVP). Radio groups, `<select>`, and everything
+  else stay in M11 forms v2.
+* **Why it matters:** TodoMVC's per-todo toggle *is* a checkbox whose `change`
+  handler drives the re-render; the North Star's toggle step needs this.
+* **Acceptance:** a user click toggles the box visibly and fires `change`; setting
+  `.checked` from JS updates the rendering; TodoMVC's toggle-complete flow works.
+* **Tests:** control interaction tests (click → toggle → `change` dispatched) +
+  paint/render tests.
 
 ### 7.3 - Scheduling
 
@@ -180,6 +333,24 @@
   instrumentation, in the spirit of M5's injection budget).
 * **Tests:** invalidation budget tests.
 
+* **Story 7.4.2: Table Cell Intrinsic Width From Content, Not Stretch
+  (T-LAYOUT-TABLE-INTRINSIC-BLOCK-1)** — pulled into M7 mid-milestone because it is
+  a *validation blocker*: it, not any 7.x story, is why the Hacker News proof target
+  renders as blank rows.
+* **Goal:** measure a table cell's intrinsic (max-content) width from its content,
+  not from a block child's *stretched* width.
+* **Scope:** `RenderTableCell::measure_intrinsic_width` laid the cell's children out
+  in a 100000px probe box and read back their rendered width; a `display:block`
+  child fills that box, so the column ballooned to ~100000px and shoved every later
+  column (and its clickable links) off-screen — breaking not just rendering but
+  hit-testing / JS interaction on any table page. A recursive `max_content_width`
+  trusts inline-level widths (already content-sized) and derives block-level widths
+  from content, so an empty block collapses to its insets.
+* **Acceptance:** a table row with a `display:block` child in a narrow cell keeps its
+  other columns on-screen; HN's nested item-list rows lay the title column at a
+  normal x. No table-layout regressions.
+* **Tests:** table layout regression test (block child does not balloon the column).
+
 ### 7.5 - Guardrails (standing, start here)
 
 * **Story 7.5.1: TodoMVC Snapshot Harness (T-TODOMVC-E2E-1)**
@@ -191,9 +362,13 @@
 * **Story 7.5.2: Missing-API Telemetry (T-JS-REG-1)**
 * **Goal:** once-per-page logging of unimplemented JS APIs/DOM properties touched by a
   page (the JS-era T-SUPPORT-REG-1).
-* **Scope:** binding-layer trap/registry + report output.
+* **Scope:** binding-layer trap/registry + report output. **Fail-soft contract:**
+  touching a missing API logs once and returns undefined / no-ops — it must not
+  throw in a way that aborts the rest of the script (hn.js references `fetch`/XHR
+  for voting; that must not prevent the collapse handlers from registering).
 * **Acceptance:** loading a proof target emits a deduped missing-API list; this list
-  feeds the M12 backlog.
+  feeds the M12 backlog; a script touching an unimplemented API still runs its
+  remaining statements/handlers.
 * **Tests:** registry unit tests.
 
 * **Story 7.5.3: Parser Fuzzing In CI (T-FUZZ-1)**
@@ -205,35 +380,326 @@
 
 * **Story 7.5.4: JS/Native Ownership Rules Documented**
 * **Goal:** write down who owns what across the boundary (arena nodes vs JS wrappers
-  vs listener registry) before M8/M9 build on it.
+  vs listener registry) before M8/M9 build on it. Include the **wrapper identity
+  rule**: the same DOM node must yield the same JS object (`event.target === myEl`
+  and `Set`-of-nodes patterns depend on it) — this is a design constraint on the
+  binding layer, not a nice-to-have.
 * **Scope:** `doc/dev_guide/` entry + assertions where cheap.
 * **Acceptance:** rules doc exists; teardown tests reference it.
 * **Tests:** teardown/leak tests.
+
+### 7.6 - Browser Chrome (P1, dev-convenience — off the North Star critical path)
+
+* **Story 7.6.1: Back/Forward Navigation (T-UI-NAV-BACK-1)**
+* **Goal:** let the user return to the previous page (Alt+Left / a back button)
+  instead of being stranded after clicking a link (came up repeatedly while
+  evaluating DDG: clicking the logo/results navigates away with no way back).
+* **Scope:** a per-tab ordered navigation history stack (the visited-URL set from
+  T-HIST-1 is a starting point) + a chrome shortcut/button. Chrome-side only; the
+  JS History API stays in M12. Fragment navigations (7.2.5) should push entries so
+  back works across hash routes too.
+* **Acceptance:** after navigating A→B, back returns to A; forward returns to B.
+* **Tests:** tab navigation tests. *(Moved from `doc/TODOs.md` 2026-07-17; filed
+  2026-07-16 on user request.)*
+
+* **Story 7.6.2: Bookmarks MVP (T-UI-BOOKMARKS-1)**
+* **Goal:** keep the reference pages we test against (html.duckduckgo.com today,
+  the TodoMVC/HN fixtures tomorrow) one action away instead of retyped every session.
+* **Scope:** a file-backed bookmark list (URL + title) in the user data dir,
+  seeded with `https://html.duckduckgo.com/html/`; Ctrl+D bookmarks the current
+  page; an internal bookmarks page (e.g. `about:bookmarks`, reachable from the URL
+  bar) rendered as plain HTML links through the engine's own pipeline — no new UI
+  surface needed. Chrome-side only: no folders, no favicons, no sync, no web-visible
+  API.
+* **Acceptance:** bookmark a page, restart the browser, open `about:bookmarks`,
+  click the entry, land on the page.
+* **Tests:** app-level bookmark store tests (persistence + add/dedupe).
+
+### 7.7 - P0 Review Follow-Ups (filed at the DOM+Events review, 2026-07-18)
+
+*A gap/smell review of the whole 7.0.1–7.2.6 slice fixed five defects inline
+(detached-node destruction on rebind, pipeline reset ordering, stale change
+baseline after JS `focus()`, a QuickJS exotic-setter misuse, post-dispatch event
+state) and filed these as stories. The M8-tagged spec-deviation ledger
+(T-EVENT-SPEC-GAPS-1) stays in `doc/TODOs.md`.*
+
+* **Story 7.7.1: Re-Entrant Script Dispatch (T-DISPATCH-REENTRANT-1)**
+* **Goal:** allow a dispatch to be triggered from inside another dispatch without
+  losing state.
+* **Scope:** `DocumentScriptController::bind_host` runs on every dispatch and
+  calls `DocumentScriptHost::reset`, which sets `mutated_ = false` — a nested
+  dispatch (e.g. a future JS-`focus()`-fires-`focus`-event path, or any host
+  callback that dispatches) would wipe the outer dispatch's accumulated mutation
+  flag, so the caller skips the rebuild. Make the flag accumulate across nested
+  binds (e.g. only reset at the outermost bind, or consume at the outermost
+  dispatch only).
+* **Why now:** today nothing re-enters, so this is latent — but it is a landmine
+  for 7.3.1 timers (a timer callback dispatching an event) and a hard
+  prerequisite for 7.7.2.
+* **Acceptance:** a dispatch nested inside another dispatch preserves the outer
+  `mutated` result.
+* **Tests:** controller unit test with a re-entrant host callback.
+
+* **Story 7.7.2: JS focus()/blur() Dispatch focus/blur Events (T-FOCUS-EVENTS-FROM-JS-1)**
+* **Goal:** `element.focus()` from JS fires the `focus` event (and `blur()`
+  fires `blur`, plus `change` when the value was edited), matching 7.2.4.3's
+  user-driven transitions.
+* **Scope:** the focus sink in `DocumentPipeline`'s constructor routes JS focus
+  to the input controller and syncs the change-detection snapshot, but
+  dispatches no events — the events fire only on user-driven focus changes
+  (`focus_input_at`/`clear_input_focus`). Dispatching from the sink means
+  dispatching while a JS eval is on the stack → **blocked on 7.7.1**.
+* **Acceptance:** `el.focus()` fires `focus` on `el`; TodoMVC-style edit flows
+  that listen for `focus` work.
+* **Tests:** pipeline dispatch tests.
+
+* **Story can you : JS-Initiated location.hash Reflects In Chrome + Tab State (T-LOCATION-URL-SYNC-1)**
+* **Goal:** `location.hash = "#/x"` from JS updates the URL bar and the tab's
+  requested URL, like clicking a fragment link does.
+* **Scope:** `QuickJSScriptEngine::update_location` fires `hashchange`
+  engine-side but nothing propagates the new URL outward — the URL bar goes
+  stale and `Tab`'s `navigation_lifecycle_` keeps the old URL. Note the click
+  path has the mirror-image half-gap:
+  `DocumentEventRouter::handle_document_hit_navigation` updates the URL bar text
+  but not `navigation_lifecycle_.requested_url()` (works today only because the
+  engine dedupes repeat fragments). Needs a location-changed notification from
+  engine to app (IScriptHost or a pipeline-level callback) + a `Tab`
+  fragment-URL update.
+* **Why now:** 7.6.1 back/forward wants fragment navigations as history entries
+  keyed off the tab's URL — land this before or with it.
+* **Acceptance:** after JS assigns `location.hash`, the URL bar shows the new
+  fragment and `tab.requested_url()` includes it.
+* **Tests:** tab + router integration tests.
+
+* **Story 7.7.4: key/code For Digits, Space, And Punctuation (T-KEY-FIELDS-COVERAGE-1)**
+* **Goal:** `keydown`/`keyup` events carry real `key`/`code` values for digits
+  and other printable keys.
+* **Scope:** `DocumentPipeline`'s `key_fields` maps A–Z plus a short editing-key
+  list; everything else (digits, space, `-`, `.`, …) dispatches with `key: ""`
+  because the platform `Key` enum has no entries for them (text insertion still
+  works via the separate text-input path). Extend the enum +
+  `SDLInputTranslation` + `key_fields`.
+* **Acceptance:** a `keydown` listener sees `key === "1"` and `key === " "`.
+* **Tests:** input translation + dispatch tests. *(Low urgency: TodoMVC/hn.js
+  only branch on Enter/Escape.)*
 
 ---
 
 ## Execution Order Checklist
 
 P0: DOM + Events (North Star)
-- [ ] 7.1.1: Mutation Primitives With Arena Ownership
-- [ ] 7.1.2: Attributes, classList, dataset
-- [ ] 7.1.3: querySelector / querySelectorAll
-- [ ] 7.1.4: innerHTML (fragment parse)
-- [ ] 7.2.1: EventTarget + Listener Registry
-- [ ] 7.2.2: Event Objects
-- [ ] 7.2.3: Capture/Target/Bubble Propagation
-- [ ] 7.2.4: Input Event Coverage
+- [x] 7.0.1: External Script Loading (+ T-RESOURCE-TYPE-TABLE-1 paydown) — 2026-07-17
+- [x] 7.1.1: Mutation Primitives With Arena Ownership (+ traversal accessors) — 2026-07-17
+      (createElement/createTextNode/appendChild/insertBefore/removeChild/replaceChild;
+      parentNode/children/childNodes/first-last-child/next-prev-(element-)sibling;
+      wrapper identity + `doc/dev_guide/dom_arena_ownership.md`)
+- [x] 7.1.2: Attributes, classList, dataset — 2026-07-17
+      (getAttribute/removeAttribute + className; classList add/remove/toggle/contains
+      via a DOMTokenList; dataset read/write via an exotic DOMStringMap with the
+      camelCase<->data-* mapping; class changes feed selector re-match — pipeline
+      test shows a JS class toggle restyling an element to display:none)
+- [x] 7.1.3: querySelector / querySelectorAll (+ matches/closest/getElementsBy*) — 2026-07-17
+      (reuses the CssParser + SelectorMatcher so the supported selector subset is
+      identical to CSS; static document-order snapshots; document- and element-scoped;
+      matches/closest + legacy getElementsByClassName/getElementsByTagName)
+- [x] 7.1.4: innerHTML (fragment parse) — 2026-07-17
+      (setter reuses the document HtmlParser in fragment mode — recovery matches
+      document parsing; getter serializes children with text/attr escaping and
+      void-element handling)
+- [x] 7.1.5: Form Control JS Surface — 2026-07-17
+      (.value/.checked/.disabled get+set, focus()/blur() reflecting :focus).
+      The interactive checkbox control split out to 7.2.6 (needs the event system).
+- [x] 7.2.1: EventTarget + Listener Registry — 2026-07-18
+      (addEventListener/removeEventListener with capture flag + spec dedupe; per-node
+      registry keyed by arena node, each entry owns its JS callback; callbacks freed
+      in reset_bindings before wrappers, so none outlive the document. Minimal
+      target-phase dispatchEvent for now — real Event objects=7.2.2, capture/bubble=7.2.3.
+      document/window as EventTarget deferred to 7.2.3/7.2.4.)
+- [x] 7.2.2: Event Objects — 2026-07-18
+      (real Event handed to listeners: type/target/currentTarget, key/code, bubbles/
+      cancelable; preventDefault→defaultPrevented (dispatchEvent returns false when
+      canceled), stopPropagation + stopImmediatePropagation (halts remaining listeners
+      on the node). Plain-object flags the C++ dispatch loop reads back — no native
+      struct. dispatchEvent accepts a type string or an init object with key/code.)
+- [x] 7.2.3: Capture/Target/Bubble Propagation — 2026-07-18
+      (three-phase dispatch along the ancestor path target→…→root→document: capture
+      down, target (all listeners), bubble up when the event bubbles; consumes
+      stopPropagation/stopImmediatePropagation + eventPhase. `document` is now an
+      EventTarget (sentinel key) so delegation works — listener order verified for
+      nested capture/bubble, incl. document catching a bubbled event.)
+- [x] 7.2.4.1: Dispatch spine + pointer events (click, dblclick) — 2026-07-18
+      (`IScriptEngine::dispatch_dom_event(target, {type,bubbles,cancelable,key,code})→bool`
+      seam; threaded controller→scripting→pipeline→tab→app router; real click hit-tests
+      the topmost node and dispatches a bubbling/cancelable `click` (+`dblclick` on
+      double, via SDL button.clicks); preventDefault reported up and gates link nav.
+      Delegation + dblclick + preventDefault verified through the real pipeline.)
+- [x] 7.2.4.2: Keyboard events (keydown, keyup) on the focused element — 2026-07-18
+      (route Platform KeyDown/KeyUp → focused element (else document) as bubbling
+      keydown/keyup with key/code; preventDefault on keydown suppresses the default
+      text-edit; a mutating key listener rebuilds the doc. New KeyUp routing path.)
+- [x] 7.2.4.3: Form input lifecycle (input, change, focus, blur) — 2026-07-18
+      (input fires on edit (bubbling); focus/blur on focus transitions; change on
+      blur when the value changed since focus. Dispatched at the pipeline level by
+      diffing focus/value around the input-controller calls.)
+- [x] 7.2.4.4: Submit event + preventDefault stops navigation — 2026-07-18
+      (FormSubmission carries the form element; the app router fires a cancelable
+      `submit` before navigating and skips navigation on preventDefault. Both
+      submit paths (click submit button + Enter) covered. **Completes 7.2.4.**)
+- [x] 7.2.6: Interactive Checkbox Control (render + click-toggle + change/input) — 2026-07-18
+      (fixed 13px box; paints box + checkmark, checked=accent fill + white check;
+      click = default action → toggle checked + fire input/change; JS `.checked`
+      reflects on rebuild; also wired element.focus()/blur() → input-controller caret
+      target. Native-look only — CSS restyling is T-FORM-CONTROL-CSS-1 [M11].)
+- [x] 7.2.5: Fragment Navigation + hashchange — 2026-07-18
+      (window.location.hash read/write + href; window is an EventTarget; assigning
+      location.hash or clicking an href="#/..." link fires hashchange in place with
+      no reload/teardown; app routes fragment-only clicks to navigate_fragment +
+      reflects the URL bar. Demo filter bar showcases it.)
 
 P0: Scheduling + Invalidation (North Star)
-- [ ] 7.3.1: Task Queue (setTimeout/setInterval)
-- [ ] 7.3.2: Microtask Pump (Promise jobs)
-- [ ] 7.4.1: Batched Dirty Marking Per Task
+- [x] 7.7.1: Re-Entrant Script Dispatch (T-DISPATCH-REENTRANT-1) — 2026-07-18
+      (dispatch-depth counter in DocumentScriptHost + a DispatchScope RAII guard
+      around each controller entry point: a nested dispatch shares the outer's
+      mutation epoch — the inner bind_host/reset no longer wipes the outer's
+      `mutated_`, and only the outermost dispatch consumes it. Unblocks 7.3.1
+      timers + 7.7.2. Controller unit tests drive a re-entrant host callback.)
+- [x] 7.3.1: Task Queue (setTimeout/setInterval) — 2026-07-19
+      (engine-owned timer store in QuickJSScriptEngine: setTimeout/setInterval/
+      clearTimeout/clearInterval on window + global; run_due_timers(now_ms) fires
+      due callbacks in deadline-then-registration order on a document-relative
+      clock, reschedules intervals, snapshots the due set so a callback that
+      (re)schedules/clears can't storm or corrupt the pass. Driven from Tab::tick
+      via DocumentPipeline/Scripting/controller (DispatchScope-bracketed, mutation
+      -> rebuild); timers die with the document (reset_bindings). Unit + teardown
+      + re-entrancy tests; example.dev/timers live demo.)
+- [x] 7.3.2: Microtask Pump (Promise jobs) — 2026-07-19
+      (drain_microtasks() runs the QuickJS job queue to exhaustion at the end of
+      every script entry point — eval, DOM-event dispatch, hashchange, and after
+      each timer callback — so Promise reactions run before control returns to
+      layout/paint or the next task. A throwing job is logged and draining
+      continues. Interleaving tests: microtask-after-script, microtask-before-
+      next-timer-task, chained-microtask FIFO drain.)
+- [x] 7.4.1: Batched Dirty Marking Per Task — 2026-07-19
+      (the mutated_ flag already coalesces a task's DOM mutations into one
+      end-of-task rebuild; added a style_layout_pass_count() counter on
+      DocumentPipeline (advanced once per completed apply_styles_and_layout) +
+      Tab accessor to *prove* it. Budget test: a click handler doing 100
+      mutations advances the counter by exactly 1. In the spirit of M5's
+      injection budget.)
+- [x] 7.4.2: Table Cell Intrinsic Width From Content (T-LAYOUT-TABLE-INTRINSIC-BLOCK-1)
+      — 2026-07-19 (pulled into M7: validation blocker for the HN proof. Recursive
+      max_content_width in RenderTable trusts inline-level widths and derives
+      block-level widths from content, so a display:block child no longer stretches
+      to the 100000px measure box and balloons its column. HN titles move from
+      x≈100032 to on-screen; hit-testing/JS now reachable. Table regression test.)
 
 P0: Guardrails
-- [ ] 7.5.4: JS/Native Ownership Rules Documented
-- [ ] 7.5.1: TodoMVC Snapshot Harness
-- [ ] 7.5.2: Missing-API Telemetry
-- [ ] 7.5.3: Parser Fuzzing In CI
+- [x] 7.5.4: JS/Native Ownership Rules Documented — 2026-07-19
+      (finalized doc/dev_guide/dom_arena_ownership.md: the one-owner rule, detach-
+      never-free arena semantics, wrapper identity, and now timers (7.3.1) in the
+      navigation-teardown sweep + the JS-globals-persist gap. Consolidated
+      NavigationTeardownReleasesPerDocumentState test releases listeners/timers/
+      wrappers in one navigation and locks the global-persistence behavior. Global
+      isolation deferred + filed T-JS-GLOBAL-ISOLATION-1 [M8].)
+- [x] 7.5.1: TodoMVC Snapshot Harness (T-TODOMVC-E2E-1) — 2026-07-19
+      (pinned self-contained vanilla-JS TodoMVC fixture in tests/fixtures/todomvc/
+      — standard .todoapp/.toggle/.destroy/.filters contract, in-memory state
+      since localStorage is not yet supported. TodoMvcTest.FullFlowDrivesThePinnedFixture
+      drives add(keydown)→toggle(checkbox change)→filter(hashchange ×3)→
+      clear-completed→delete headlessly through the real pipeline, locating live
+      JS-built elements via a new DocumentPipeline::render_root() accessor.
+      SURFACED + FIXED a latent heap-corruption bug: innerHTML/textContent
+      *destroyed* the old subtree, so a change handler doing list.innerHTML=''
+      freed the in-flight event target — they now DETACH instead (detach-never-free).
+      Focused guard: InnerHtmlInChangeHandlerDoesNotCorruptDispatch.)
+- [x] 7.5.2: Missing-API Telemetry (fail-soft) — 2026-07-19
+      (fail-soft stubs for high-value unimplemented APIs — fetch, XMLHttpRequest,
+      localStorage, sessionStorage, matchMedia — installed once (typeof-guarded so
+      the real API wins later); touching one calls __hb_reportMissingApi, which
+      dedupes + logs once and no-ops instead of throwing, so the rest of the
+      script keeps running. Engine records the deduped first-touch list, exposed
+      via IScriptEngine::missing_apis(); reset per document. Registry+fail-soft
+      unit test. NOTE curated list, not an arbitrary-global trap (bare-global
+      lookups can't be Proxy-trapped in QuickJS).)
+- [x] 7.5.3: Parser Fuzzing In CI (T-FUZZ-1) — 2026-07-19
+      (libFuzzer harnesses for HtmlParser + CssParser (tests/fuzz), shared
+      fuzz_html/fuzz_css bodies so a cross-platform smoke test — corpus + adversarial
+      snippets — runs the exact same harness in every build (verified green). Seed
+      corpus in tests/fuzz/corpus/{html,css}; check crash reproducers back in
+      (fix-forward). Gated by HB_ENABLE_FUZZING (top-level, clang-only: instruments
+      the whole build with coverage+ASan). New CI `fuzz` job (ubuntu+clang) builds
+      the targets and runs each ~45s, uploading reproducers on crash. NOTE the
+      libFuzzer build + CI job are config-only-verified locally — no clang/Linux
+      here; harness+corpus+smoke+gated-OFF build fully verified.)
+- [x] Secondary proof: HN item-page snapshot — comment collapse works — 2026-07-19
+      (diagnosed against live hn.js: the delegated click handler does
+      `new URL(el.href, location)` before routing to collapse, so a missing `URL`
+      threw and aborted before collapsing; and the `[-]` is
+      `<a href="javascript:void(0)">`, which we navigated to (404). FIXES: (1)
+      minimal real URL + URLSearchParams polyfill in the QuickJS prelude (parses
+      absolute/relative, pathname/searchParams/hash, never throws); the handler now
+      completes and calls preventDefault — which already suppresses the nav. (2)
+      defensive: Core::is_javascript_url + resolve_url preserves opaque pseudo-
+      schemes (javascript:/mailto:/...), and the app router skips navigating a
+      javascript: link. Regression tests: URL polyfill unit test + a faithful
+      reproduction of hn.js's collapse (class-based hide + preventDefault) proving
+      collapse works and nav is suppressed + Url helper tests. NOTE headless proof
+      uses a self-authored reproduction of the pattern, not vendored hn.js.)
 
 P1: If Schedule Allows
-- [ ] 7.3.3: requestAnimationFrame
+- [x] 7.3.3: requestAnimationFrame — 2026-07-20
+      (window.requestAnimationFrame/cancelAnimationFrame in QuickJS; run_animation_
+      frames(now_ms) snapshots the frame's callbacks and clears the queue up front
+      so a callback re-requesting rAF registers for the NEXT frame — one per frame,
+      no queue growth; passes now_ms as the frame timestamp; drains microtasks per
+      callback; dies with the document. Threaded controller→scripting→pipeline;
+      Tab merges timers + rAF into process_scheduled_scripts on the shared
+      doc-relative clock, running rAF before timers each frame. Engine tests:
+      once-per-frame+timestamp, re-request-without-growth, cancel, teardown.)
+- [x] 7.7.3: JS location.hash → chrome/tab URL sync (T-LOCATION-URL-SYNC-1) — 2026-07-19
+      (engine records a script-initiated location.hash change (not app-initiated
+      navigate_fragment/set_location) in script_location_change_, exposed via
+      IScriptEngine::consume_location_change(); threaded controller→scripting→
+      pipeline→Tab. Tab::tick polls it, updates navigation_lifecycle_ in place
+      (new update_fragment_url → TabNavigationState::update_requested_url, no
+      reload) and queues a URL-bar update the app drains in
+      BrowserApp::sync_active_tab_url. Also fixed the click-path mirror gap:
+      Tab::navigate_fragment now updates the requested URL too. Tab integration
+      test. Unblocks 7.6.1 history.)
+- [x] 7.6.1: Back/Forward Navigation (T-UI-NAV-BACK-1) — 2026-07-19
+      (per-tab NavigationHistory stack: full navs + fragment navs + JS hash routes
+      all push (truncate-forward on a new nav from mid-stack, dedupe exact reloads).
+      Tab::go_back/go_forward with an in_history_navigation_ guard so replaying an
+      entry doesn't re-push; same-document target navigates by fragment in place,
+      else reloads. Alt+Left/Alt+Right in ChromeEventRouter → BrowserApp::navigate_
+      back/forward (reflects the URL bar). Tab tests: full-page A→B→back/forward +
+      forward-truncation, and fragment-route walking.)
+- [x] 7.6.2: Bookmarks MVP (T-UI-BOOKMARKS-1) — 2026-07-20
+      (core::BookmarkStore: file-backed TSV (url+title), add-dedupes-by-url +
+      refreshes title, seeds DuckDuckGo when the file is missing, render_html for
+      the about:bookmarks page; path from HB_BOOKMARKS_FILE or assets/config.
+      Shared via the file: app writes (Ctrl+D → BrowserApp::bookmark_active_tab +
+      save), ResourceLoader reads a fresh store to serve about:bookmarks
+      synchronously (no network). normalize_input_url + resolve_url preserve the
+      about: (opaque) scheme so the URL bar routes it. Ctrl+D bookmarks, Ctrl+Shift+O
+      opens the page (Edge/Firefox parity). Store tests (seed/dedupe/persist/render)
+      + a ResourceLoader about:bookmarks integration test. NOTE title = URL for now
+      (no title accessor yet).)
+- [x] 7.7.2: JS focus()/blur() dispatch focus/blur events (T-FOCUS-EVENTS-FROM-JS-1) — 2026-07-20
+      (DocumentPipeline's focus sink now reuses fire_focus_transition — the same
+      helper user-driven focus_input_at/clear_input_focus use — so el.focus() fires
+      `focus`, el.blur() fires `blur` (+ `change` when the value was edited), keeping
+      the change-detection snapshot in one place. The sink runs while the JS
+      element.focus() call is on the stack, so the dispatch is re-entrant; safe
+      because the controller's DispatchScope shares the outer mutation epoch (7.7.1).
+      Pipeline test drives focus via inline el.focus() and blur re-entrantly from a
+      click handler, asserting focus / input:hi / change+blur.)
+- [x] 7.7.4: key/code for digits/space/punctuation (T-KEY-FIELDS-COVERAGE-1) — 2026-07-20
+      (Extended the platform Key enum with a contiguous Num0..Num9 digit block plus
+      Space and the printable US punctuation keys (- = [ ] \ ; ' ` , . /) and Tab;
+      SDLInputTranslation maps SDLK_0..9 arithmetically and the punctuation keycodes
+      by switch; DocumentPipeline::key_fields fills key (unshifted char) + code (UI
+      Events names: Digit1, Space, Minus, Equal, BracketLeft, Period, ...). Shifted
+      symbols (Shift+1 → "!") stay out of scope — layout-dependent, and no proof
+      target needs them. Pipeline test asserts a keydown listener sees 1/Digit1,
+      0/Digit0, ' '/Space, -/Minus, ./Period, //Slash.)

@@ -50,6 +50,8 @@ public:
 
     bool focus_input_at(const Layout::RenderObject* render_tree, const HitTestContext& context);
     bool focus_autofocus_input(const Layout::RenderObject* render_tree);
+    // Applies a JS focus()/blur() request to the input controller's caret target.
+    bool apply_script_focus(DOM::Element* element, bool focused);
     bool clear_input_focus();
 
     bool set_control_interaction_at(const Layout::RenderObject* render_tree, const HitTestContext& context);

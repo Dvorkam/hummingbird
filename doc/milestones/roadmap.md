@@ -173,7 +173,7 @@ Detailed doc: [milestone6.md](milestone6.md)
 
 ---
 
-## Milestone 7: The Programmable Document (DOM + Events + Scheduling) — In Progress
+## Milestone 7: The Programmable Document (DOM + Events + Scheduling) — Complete (2026-07-20)
 
 Detailed doc: [milestone7.md](milestone7.md)
 
@@ -185,7 +185,8 @@ Detailed doc: [milestone7.md](milestone7.md)
 * **Scheduling:** `setTimeout`/`setInterval` task queue; microtask queue (Promise jobs) integrated with the main-loop tick; `requestAnimationFrame`. *(Microtasks are a hard prerequisite for M9's `fetch` — Promises don't work without them.)*
 * **Invalidation Model:** mutations mark style/layout/paint dirty regions (no "rebuild everything").
 * **Guardrails start:** missing-API telemetry; parser fuzzing in CI; GC/ownership rules documented (who owns what; arena-backed native nodes).
-* **Proof target:** **TodoMVC (vanilla-JS build, pinned snapshot)** is fully usable — add, toggle, edit, filter, clear — with stable performance and no DOM corruption.
+* **Proof target:** **TodoMVC (vanilla-JS build, pinned snapshot)** is fully usable — add, toggle, edit, filter, clear — with stable performance and no DOM corruption. Secondary real-world proof: **Hacker News comment collapse/expand works** on an item page (voting/login stay broken until M8/M9).
+* **Chrome conveniences (P1):** per-tab back/forward and a bookmarks MVP (seeded with the reference pages).
 
 ---
 

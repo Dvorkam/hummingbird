@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -13,7 +16,8 @@ class ArenaAllocator;
 
 namespace Hummingbird::DOM {
 class Node;
-}
+class Element;
+}  // namespace Hummingbird::DOM
 
 namespace Hummingbird::Layout {
 class RenderObject;
@@ -26,17 +30,45 @@ public:
     struct ScriptDispatchResult {
         bool handled = false;
         bool mutated = false;
+        bool default_prevented = false;  // a listener called preventDefault
+    };
+
+    // One script body ready to eval; views must stay valid for the run_scripts
+    // call (they point into the document model / resource store).
+    struct ScriptSource {
+        std::string_view text;
+        std::string_view context_name;
     };
 
     explicit DocumentScriptController(ScriptEnginePtr engine);
 
     void clear();
+    // Routes JS focus()/blur() to the caret target (wired by the pipeline).
+    void set_focus_sink(std::function<void(DOM::Element*, bool)> sink);
 
-    bool run_inline_scripts(const std::vector<std::string>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);
+    bool run_scripts(const std::vector<ScriptSource>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);
     ScriptDispatchResult dispatch_click(DOM::Node* dom_root, Core::ArenaAllocator* arena,
                                         const Layout::RenderObject* render_tree, const Layout::Rect& viewport,
-                                        const Layout::Point& point, float scroll_y);
+                                        const Layout::Point& point, float scroll_y, int click_count = 1);
     ScriptDispatchResult dispatch_load(DOM::Node* dom_root, Core::ArenaAllocator* arena);
+    // window.location / fragment navigation (7.2.5).
+    void set_location(std::string_view url);
+    ScriptDispatchResult navigate_fragment(DOM::Node* dom_root, Core::ArenaAllocator* arena, std::string_view url);
+    // Dispatches an already-built DOM event to `target` (keyboard/input/etc.);
+    // the caller decides the target node and event fields.
+    ScriptDispatchResult dispatch_dom_event(DOM::Node* dom_root, Core::ArenaAllocator* arena, DOM::Node* target,
+                                            const ScriptDomEvent& event);
+    // Fires every timer whose deadline has passed at `now_ms` (7.3.1). `handled`
+    // is true when at least one callback ran; `mutated` when the DOM changed.
+    ScriptDispatchResult run_timers(DOM::Node* dom_root, Core::ArenaAllocator* arena, double now_ms);
+    // True while a timer is still scheduled, so the tab keeps ticking.
+    bool has_pending_timers() const;
+    // Fires this frame's requestAnimationFrame callbacks (7.3.3).
+    ScriptDispatchResult run_animation_frames(DOM::Node* dom_root, Core::ArenaAllocator* arena, double now_ms);
+    bool has_pending_animation_frames() const;
+    // Returns/clears a script-initiated location.hash change to reflect in the
+    // chrome + tab history (7.7.3).
+    std::optional<std::string> consume_location_change();
 
 private:
     bool bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena);

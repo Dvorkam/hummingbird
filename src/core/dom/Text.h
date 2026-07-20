@@ -15,6 +15,7 @@ public:
 
     const std::string& get_text() const { return m_text; }
     void append(std::string_view extra) { m_text.append(extra); }
+    void set_text(std::string_view text) { m_text.assign(text); }
 
 private:
     template <typename T, typename... Args>
