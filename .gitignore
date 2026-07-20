@@ -39,3 +39,7 @@ Testing/Temporary/*
 cmake_test_discovery_*.json
 .gemini/settings.json
 debug.log
+
+# Folders
+tmp
+.claude
