@@ -451,7 +451,7 @@ state) and filed these as stories. The M8-tagged spec-deviation ledger
   that listen for `focus` work.
 * **Tests:** pipeline dispatch tests.
 
-* **Story 7.7.3: JS-Initiated location.hash Reflects In Chrome + Tab State (T-LOCATION-URL-SYNC-1)**
+* **Story can you : JS-Initiated location.hash Reflects In Chrome + Tab State (T-LOCATION-URL-SYNC-1)**
 * **Goal:** `location.hash = "#/x"` from JS updates the URL bar and the tab's
   requested URL, like clicking a fragment link does.
 * **Scope:** `QuickJSScriptEngine::update_location` fires `hashchange`
@@ -645,7 +645,15 @@ P0: Guardrails
       uses a self-authored reproduction of the pattern, not vendored hn.js.)
 
 P1: If Schedule Allows
-- [ ] 7.3.3: requestAnimationFrame
+- [x] 7.3.3: requestAnimationFrame — 2026-07-20
+      (window.requestAnimationFrame/cancelAnimationFrame in QuickJS; run_animation_
+      frames(now_ms) snapshots the frame's callbacks and clears the queue up front
+      so a callback re-requesting rAF registers for the NEXT frame — one per frame,
+      no queue growth; passes now_ms as the frame timestamp; drains microtasks per
+      callback; dies with the document. Threaded controller→scripting→pipeline;
+      Tab merges timers + rAF into process_scheduled_scripts on the shared
+      doc-relative clock, running rAF before timers each frame. Engine tests:
+      once-per-frame+timestamp, re-request-without-growth, cancel, teardown.)
 - [x] 7.7.3: JS location.hash → chrome/tab URL sync (T-LOCATION-URL-SYNC-1) — 2026-07-19
       (engine records a script-initiated location.hash change (not app-initiated
       navigate_fragment/set_location) in script_location_change_, exposed via

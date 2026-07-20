@@ -131,7 +131,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     apply_extension_css_if_needed(graphics, viewport);
     relayout_if_viewport_changed(graphics, viewport);
     process_animation_updates();
-    process_timer_updates(graphics, viewport);
+    process_scheduled_scripts(graphics, viewport);
     process_script_url_change();
 
     bool dirty = dirty_;
@@ -183,12 +183,13 @@ bool Tab::advance_animation_tick() {
     return updated;
 }
 
-void Tab::process_timer_updates(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+void Tab::process_scheduled_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto now = Core::Clock::now();
-    const bool active = document_pipeline_->has_dom_tree() && document_pipeline_->has_pending_timers();
+    const bool active = document_pipeline_->has_dom_tree() && (document_pipeline_->has_pending_timers() ||
+                                                               document_pipeline_->has_pending_animation_frames());
     if (!timer_has_tick_ || !active) {
         // First tick, or idle: hold the clock and keep the baseline current so a
-        // newly scheduled timer measures its delay from now, not document load.
+        // newly scheduled timer/frame measures its delay from now, not document load.
         timer_last_tick_ = now;
         timer_has_tick_ = true;
         if (!active) return;
@@ -196,10 +197,14 @@ void Tab::process_timer_updates(IGraphicsContext& graphics, const Layout::Rect& 
     timer_clock_ms_ += Core::duration_ms(timer_last_tick_, now);
     timer_last_tick_ = now;
 
-    auto result = document_pipeline_->run_timers(timer_clock_ms_);
-    if (result.mutated) {
-        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:timer_mutation");
-        mark_dirty("timer_mutation");
+    bool mutated = false;
+    // requestAnimationFrame callbacks run once per frame before paint; timers are
+    // ordinary tasks. Run the frame callbacks first, then any due timers.
+    mutated |= document_pipeline_->run_animation_frames(timer_clock_ms_).mutated;
+    mutated |= document_pipeline_->run_timers(timer_clock_ms_).mutated;
+    if (mutated) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:scheduled_script_mutation");
+        mark_dirty("scheduled_script_mutation");
     }
 }
 

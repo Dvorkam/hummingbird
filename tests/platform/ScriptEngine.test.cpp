@@ -874,3 +874,66 @@ TEST(ScriptEngineTest, UrlPolyfillParsesAndNeverThrows) {
         "inline");
     EXPECT_TRUE(result.ok) << result.error;
 }
+
+TEST(ScriptEngineTest, RequestAnimationFrameFiresOncePerFrameWithTimestamp) {
+    TimerFixture fx;
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "requestAnimationFrame(function(ts){ log(ts >= 16 ? 'A' : 'F'); });",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_TRUE(fx.engine->has_pending_animation_frames());
+
+    EXPECT_TRUE(fx.engine->run_animation_frames(16.0));       // fires with the frame timestamp
+    EXPECT_EQ(fx.log(), "A");                                 // ts was passed (>= 16)
+    EXPECT_FALSE(fx.engine->has_pending_animation_frames());  // one-shot
+    EXPECT_FALSE(fx.engine->run_animation_frames(32.0));      // nothing re-registered
+    EXPECT_EQ(fx.log(), "A");
+}
+
+TEST(ScriptEngineTest, RafReRequestAnimatesWithoutQueueGrowth) {
+    TimerFixture fx;
+    // A callback that re-requests rAF: it must run once per frame and never let
+    // the queue grow (the "animate without queue growth" contract).
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "function frame(ts){ log('x'); requestAnimationFrame(frame); }"
+        "requestAnimationFrame(frame);",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    for (int i = 0; i < 3; ++i) {
+        EXPECT_TRUE(fx.engine->has_pending_animation_frames());
+        EXPECT_TRUE(fx.engine->run_animation_frames(i * 16.0));  // exactly one callback each frame
+    }
+    EXPECT_EQ(fx.log(), "xxx");
+    EXPECT_TRUE(fx.engine->has_pending_animation_frames());  // still exactly one queued
+}
+
+TEST(ScriptEngineTest, CancelAnimationFrameStopsTheCallback) {
+    TimerFixture fx;
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "var id = requestAnimationFrame(function(){ log('n'); });"
+        "cancelAnimationFrame(id);",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_FALSE(fx.engine->has_pending_animation_frames());
+    EXPECT_FALSE(fx.engine->run_animation_frames(16.0));
+    EXPECT_EQ(fx.log(), "");
+}
+
+TEST(ScriptEngineTest, AnimationFramesCanceledOnNavigationTeardown) {
+    TimerFixture fx;
+    ASSERT_TRUE(fx.engine
+                    ->eval("requestAnimationFrame(function(){});"
+                           "requestAnimationFrame(function(){});",
+                           "inline")
+                    .ok);
+    EXPECT_TRUE(fx.engine->has_pending_animation_frames());
+    fx.engine->reset_bindings();
+    EXPECT_FALSE(fx.engine->has_pending_animation_frames());
+    EXPECT_FALSE(fx.engine->run_animation_frames(16.0));
+}

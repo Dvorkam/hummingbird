@@ -232,6 +232,23 @@ bool DocumentScriptController::has_pending_timers() const {
     return script_engine_ && script_engine_->has_pending_timers();
 }
 
+DocumentScriptController::ScriptDispatchResult DocumentScriptController::run_animation_frames(
+    DOM::Node* dom_root, Core::ArenaAllocator* arena, double now_ms) {
+    if (!script_engine_ || !script_engine_->has_pending_animation_frames()) {
+        return {};
+    }
+    DispatchScope scope(script_host_);
+    if (!bind_host(dom_root, arena)) {
+        return {};
+    }
+    const bool fired = script_engine_->run_animation_frames(now_ms);
+    return {fired, script_host_.consume_mutations()};
+}
+
+bool DocumentScriptController::has_pending_animation_frames() const {
+    return script_engine_ && script_engine_->has_pending_animation_frames();
+}
+
 std::optional<std::string> DocumentScriptController::consume_location_change() {
     return script_engine_ ? script_engine_->consume_location_change() : std::nullopt;
 }

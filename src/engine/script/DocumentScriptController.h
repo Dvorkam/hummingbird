@@ -63,6 +63,9 @@ public:
     ScriptDispatchResult run_timers(DOM::Node* dom_root, Core::ArenaAllocator* arena, double now_ms);
     // True while a timer is still scheduled, so the tab keeps ticking.
     bool has_pending_timers() const;
+    // Fires this frame's requestAnimationFrame callbacks (7.3.3).
+    ScriptDispatchResult run_animation_frames(DOM::Node* dom_root, Core::ArenaAllocator* arena, double now_ms);
+    bool has_pending_animation_frames() const;
     // Returns/clears a script-initiated location.hash change to reflect in the
     // chrome + tab history (7.7.3).
     std::optional<std::string> consume_location_change();

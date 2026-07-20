@@ -74,6 +74,15 @@ public:
     virtual bool run_due_timers(double /*now_ms*/) { return false; }
     virtual bool has_pending_timers() const { return false; }
 
+    // requestAnimationFrame (7.3.3). run_animation_frames fires every callback
+    // registered as of this frame exactly once, passing `now_ms` as the frame
+    // timestamp; callbacks that re-request run on the *next* frame (so rAF-driven
+    // animation does not grow the queue). Returns true if any callback ran.
+    // has_pending_animation_frames keeps the driver ticking. Per-document; dropped
+    // by reset_bindings. Defaults: no-op.
+    virtual bool run_animation_frames(double /*now_ms*/) { return false; }
+    virtual bool has_pending_animation_frames() const { return false; }
+
     // Missing-API telemetry (7.5.2): names of unimplemented JS APIs the current
     // page touched, deduped and in first-touch order. Fail-soft — touching such
     // an API logs once and no-ops rather than throwing, so the rest of the script

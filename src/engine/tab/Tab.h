@@ -141,9 +141,9 @@ private:
     void apply_extension_css_if_needed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void relayout_if_viewport_changed(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_animation_updates();
-    // Fires due JS timers (7.3.1) on the document-relative clock and rebuilds if
-    // a callback mutated the DOM.
-    void process_timer_updates(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    // Fires due JS timers (7.3.1) + requestAnimationFrame callbacks (7.3.3) once
+    // per frame on the shared document-relative clock; rebuilds on DOM mutation.
+    void process_scheduled_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport);
     // Picks up a script-initiated location.hash change (7.7.3): syncs the tab's
     // requested URL and queues a URL-bar update for the app.
     void process_script_url_change();

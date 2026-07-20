@@ -81,6 +81,15 @@ bool DocumentScripting::has_pending_timers() const {
     return controller_->has_pending_timers();
 }
 
+DocumentScripting::DispatchResult DocumentScripting::run_animation_frames(DocumentModel& model, double now_ms) {
+    auto result = controller_->run_animation_frames(model.dom_root(), model.dom_arena(), now_ms);
+    return {result.handled, result.mutated, result.default_prevented};
+}
+
+bool DocumentScripting::has_pending_animation_frames() const {
+    return controller_->has_pending_animation_frames();
+}
+
 std::optional<std::string> DocumentScripting::consume_location_change() {
     return controller_->consume_location_change();
 }

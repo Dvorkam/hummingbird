@@ -159,6 +159,9 @@ public:
     // Fires due setTimeout/setInterval callbacks on the document-relative clock.
     TimerRunResult run_timers(double now_ms);
     bool has_pending_timers() const;
+    // requestAnimationFrame (7.3.3): fires this frame's callbacks with `now_ms`.
+    TimerRunResult run_animation_frames(double now_ms);
+    bool has_pending_animation_frames() const;
 
 private:
     struct KeyDispatchResult {

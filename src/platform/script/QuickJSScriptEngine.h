@@ -34,6 +34,8 @@ public:
     std::optional<std::string> consume_location_change() override;
     bool run_due_timers(double now_ms) override;
     bool has_pending_timers() const override { return !timers_.empty(); }
+    bool run_animation_frames(double now_ms) override;
+    bool has_pending_animation_frames() const override { return !animation_frames_.empty(); }
     std::vector<std::string> missing_apis() const override { return missing_apis_; }
 
 private:
@@ -136,6 +138,10 @@ private:
     static JSValue js_set_interval(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_clear_timer(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    // requestAnimationFrame / cancelAnimationFrame (7.3.3).
+    static JSValue js_request_animation_frame(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_cancel_animation_frame(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
     // Missing-API telemetry (7.5.2): the fail-soft stubs call this to record a
     // touched-but-unimplemented API name.
     static JSValue js_report_missing_api(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
@@ -161,6 +167,7 @@ private:
     JSValue add_timer(int argc, JSValueConst* argv, bool repeating);
     void remove_timer(int64_t id);
     void free_timers();
+    void free_animation_frames();
 
     // Runs the QuickJS job queue to exhaustion (Promise reaction jobs, 7.3.2) —
     // the microtask checkpoint. Called at the end of every script entry point
@@ -265,6 +272,15 @@ private:
     std::vector<Timer> timers_;
     int64_t next_timer_id_ = 1;
     double now_ms_ = 0.0;  // last clock value seen by run_due_timers
+
+    // requestAnimationFrame callbacks pending for the next frame (7.3.3). Each
+    // owns a retained callback; fired once per frame then dropped.
+    struct AnimationFrameCallback {
+        int64_t id = 0;
+        JSValue callback = JS_UNDEFINED;
+    };
+    std::vector<AnimationFrameCallback> animation_frames_;
+    int64_t next_raf_id_ = 1;
 
     // Deduped names of unimplemented JS APIs the current page touched (7.5.2),
     // in first-touch order. Cleared per document by reset_bindings.

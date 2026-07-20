@@ -339,6 +339,15 @@ bool DocumentPipeline::has_pending_timers() const {
     return scripting_->has_pending_timers();
 }
 
+DocumentPipeline::TimerRunResult DocumentPipeline::run_animation_frames(double now_ms) {
+    auto result = scripting_->run_animation_frames(*model_, now_ms);
+    return {result.handled, result.mutated};
+}
+
+bool DocumentPipeline::has_pending_animation_frames() const {
+    return scripting_->has_pending_animation_frames();
+}
+
 std::optional<std::string> DocumentPipeline::consume_location_change() {
     return scripting_->consume_location_change();
 }

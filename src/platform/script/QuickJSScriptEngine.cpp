@@ -1112,6 +1112,7 @@ void QuickJSScriptEngine::reset_bindings() {
     // to free.
     free_listeners();
     free_timers();
+    free_animation_frames();
     missing_apis_.clear();            // telemetry is per-document (7.5.2)
     script_location_change_.reset();  // per-document location state (7.7.3)
     if (context_) {
@@ -1309,6 +1310,10 @@ void QuickJSScriptEngine::install_window_bindings() {
     JS_SetPropertyStr(context_, window, "setInterval", JS_NewCFunction(context_, js_set_interval, "setInterval", 2));
     JS_SetPropertyStr(context_, window, "clearTimeout", JS_NewCFunction(context_, js_clear_timer, "clearTimeout", 1));
     JS_SetPropertyStr(context_, window, "clearInterval", JS_NewCFunction(context_, js_clear_timer, "clearInterval", 1));
+    JS_SetPropertyStr(context_, window, "requestAnimationFrame",
+                      JS_NewCFunction(context_, js_request_animation_frame, "requestAnimationFrame", 1));
+    JS_SetPropertyStr(context_, window, "cancelAnimationFrame",
+                      JS_NewCFunction(context_, js_cancel_animation_frame, "cancelAnimationFrame", 1));
     window_object_ = JS_DupValue(context_, window);
 
     // Both `window` and bare `location` are global (window.location === location).
@@ -1318,6 +1323,10 @@ void QuickJSScriptEngine::install_window_bindings() {
     JS_SetPropertyStr(context_, global, "setInterval", JS_NewCFunction(context_, js_set_interval, "setInterval", 2));
     JS_SetPropertyStr(context_, global, "clearTimeout", JS_NewCFunction(context_, js_clear_timer, "clearTimeout", 1));
     JS_SetPropertyStr(context_, global, "clearInterval", JS_NewCFunction(context_, js_clear_timer, "clearInterval", 1));
+    JS_SetPropertyStr(context_, global, "requestAnimationFrame",
+                      JS_NewCFunction(context_, js_request_animation_frame, "requestAnimationFrame", 1));
+    JS_SetPropertyStr(context_, global, "cancelAnimationFrame",
+                      JS_NewCFunction(context_, js_cancel_animation_frame, "cancelAnimationFrame", 1));
     JS_FreeValue(context_, global);
 
     install_failsoft_stubs();  // fail-soft stubs for unimplemented APIs (7.5.2)
@@ -1494,6 +1503,67 @@ bool QuickJSScriptEngine::run_due_timers(double now_ms) {
         fired = true;
     }
     return fired;
+}
+
+JSValue QuickJSScriptEngine::js_request_animation_frame(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->context_) return JS_NewInt64(ctx, 0);
+    if (argc < 1 || !JS_IsFunction(ctx, argv[0])) {
+        return JS_NewInt64(ctx, 0);  // fail-soft: ignore a non-callable request
+    }
+    const int64_t id = engine->next_raf_id_++;
+    engine->animation_frames_.push_back({id, JS_DupValue(engine->context_, argv[0])});
+    return JS_NewInt64(ctx, id);
+}
+
+JSValue QuickJSScriptEngine::js_cancel_animation_frame(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (engine && engine->context_ && argc >= 1) {
+        int64_t id = 0;
+        if (JS_ToInt64(ctx, &id, argv[0]) == 0) {
+            auto& list = engine->animation_frames_;
+            auto it = std::find_if(list.begin(), list.end(), [&](const auto& c) { return c.id == id; });
+            if (it != list.end()) {
+                JS_FreeValue(engine->context_, it->callback);
+                list.erase(it);
+            }
+        }
+    }
+    return JS_UNDEFINED;
+}
+
+bool QuickJSScriptEngine::run_animation_frames(double now_ms) {
+    if (!context_ || animation_frames_.empty()) return false;
+    // Snapshot this frame's callbacks and clear the queue up front, so a callback
+    // that re-requests rAF registers for the NEXT frame — one callback per frame,
+    // no queue growth.
+    std::vector<AnimationFrameCallback> frame = std::move(animation_frames_);
+    animation_frames_.clear();
+
+    JSValue arg = JS_NewFloat64(context_, now_ms);
+    for (auto& cb : frame) {
+        JSValue ret = JS_Call(context_, cb.callback, JS_UNDEFINED, 1, &arg);
+        if (JS_IsException(ret)) {
+            JSValue exc = JS_GetException(context_);
+            const char* message = JS_ToCString(context_, exc);
+            HB_LOG_WARN("[js] requestAnimationFrame callback threw: " << (message ? message : "unknown"));
+            if (message) JS_FreeCString(context_, message);
+            JS_FreeValue(context_, exc);
+        }
+        JS_FreeValue(context_, ret);
+        JS_FreeValue(context_, cb.callback);
+        drain_microtasks();  // microtask checkpoint after the callback (7.3.2)
+    }
+    JS_FreeValue(context_, arg);
+    return true;
+}
+
+void QuickJSScriptEngine::free_animation_frames() {
+    if (context_) {
+        for (auto& cb : animation_frames_) JS_FreeValue(context_, cb.callback);
+    }
+    animation_frames_.clear();
+    next_raf_id_ = 1;
 }
 
 JSValue QuickJSScriptEngine::js_report_missing_api(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
