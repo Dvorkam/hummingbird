@@ -7,6 +7,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/dom/Text.h"
+#include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "style/types/ComputedStyle.h"
@@ -32,7 +33,10 @@ void collect_script_text_recursive(const DOM::Node* node, std::string& out) {
 bool is_runnable_script_type(const DOM::Element& element) {
     const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
     if (!type || type->empty()) return true;
-    return type->find("javascript") != std::string::npos || *type == "text/js";
+    // Attribute values (unlike names) aren't lower-cased on parse, so a MIME
+    // type like "text/JavaScript" must be compared case-insensitively.
+    std::string lower = Core::Utils::to_lower(*type);
+    return lower.find("javascript") != std::string::npos || lower == "text/js";
 }
 
 void collect_document_scripts_recursive(const DOM::Node* node, std::vector<DocumentScriptRef>& scripts) {

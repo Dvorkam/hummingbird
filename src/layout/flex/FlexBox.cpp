@@ -49,27 +49,6 @@ bool is_inline_level(RenderObject& box) {
     return static_cast<bool>(box.Inline());
 }
 
-// After laying out at an oversized width, derive the content-driven width the same
-// way InlineBlockBox shrinks to fit: furthest child right edge plus insets.
-float shrink_to_fit_width(const RenderObject& box) {
-    const auto* style = box.get_computed_style();
-    if (style && style->width.has_value()) {
-        return box.get_rect().width;
-    }
-    if (box.get_children().empty()) {
-        return box.get_rect().width;
-    }
-    Metrics::Insets insets = Metrics::compute_insets(style);
-    float content_right = insets.left;
-    for (const auto& child : box.get_children()) {
-        const auto* child_style = child->get_computed_style();
-        float margin_right = child_style ? child_style->margin.right : 0.0f;
-        float right = child->get_rect().x + child->get_rect().width + margin_right;
-        content_right = std::max(content_right, right);
-    }
-    return std::min(box.get_rect().width, content_right + insets.right);
-}
-
 std::optional<float> resolve_definite_content_height(const ComputedStyle* style, const Rect& bounds,
                                                      const Metrics::Insets& insets) {
     if (!style || !style->height.has_value()) {
@@ -191,7 +170,11 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
                     basis = item.box->get_rect().width;
                 } else {
                     item.box->layout(context, {0.0f, 0.0f, kIntrinsicMeasureWidth, 0.0f});
-                    basis = shrink_to_fit_width(*item.box);
+                    // A display:block item stretches to fill this oversized probe
+                    // box; derive its width from content instead, or it balloons
+                    // to ~kIntrinsicMeasureWidth (T-LAYOUT-SHRINK-TO-FIT-1, same
+                    // bug as T-LAYOUT-TABLE-INTRINSIC-BLOCK-1).
+                    basis = Metrics::max_content_width(*item.box);
                 }
             } else {
                 float available = std::max(0.0f, metrics.content_width - item.margins.left - item.margins.right);
@@ -305,7 +288,7 @@ void FlexBox::layout(IGraphicsContext& context, const Rect& bounds) {
                 bool has_width = child_style && child_style->width.has_value();
                 if (align != ComputedStyle::AlignItems::Stretch && !has_width && !is_inline_level(*item.box)) {
                     item.box->layout(context, {0.0f, 0.0f, kIntrinsicMeasureWidth, 0.0f});
-                    layout_width = std::min(cross_avail, shrink_to_fit_width(*item.box));
+                    layout_width = std::min(cross_avail, Metrics::max_content_width(*item.box));
                 }
                 item.box->layout(context, {0.0f, 0.0f, layout_width, 0.0f});
                 apply_explicit_height(*item.box, child_style, std::nullopt);

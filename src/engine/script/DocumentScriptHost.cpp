@@ -228,6 +228,10 @@ void DocumentScriptHost::clear() {
 bool DocumentScriptHost::consume_mutations() {
     // A nested dispatch does not drain the flag: the outermost dispatch reports
     // and clears the accumulated mutations for the whole re-entrant chain.
+    // Safe today because every nested caller (see fire_focus_transition's
+    // re-entrant dispatch) discards this return value — a future nested caller
+    // that inspects it directly would always see false, even if the nested
+    // dispatch mutated the DOM.
     if (dispatch_depth_ >= 2) {
         return false;
     }
@@ -557,6 +561,13 @@ DOM::Node* DocumentScriptHost::insert_before(DOM::Node* parent, DOM::Node* child
     }
     if (reference && reference->get_parent() != parent) {
         return nullptr;
+    }
+    // Per spec: inserting a node before itself re-targets the reference to its
+    // next sibling first — otherwise take_ownership() below detaches `child`
+    // from `parent` before insert_child_before() looks for `reference` (== the
+    // now-detached `child`), fails to find it, and drops the node on the floor.
+    if (reference == child) {
+        reference = child->next_sibling();
     }
     Core::ArenaPtr<DOM::Node> owned = take_ownership(child);
     if (!owned) {

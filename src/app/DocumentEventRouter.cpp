@@ -164,8 +164,12 @@ bool DocumentEventRouter::handle_document_hit_navigation(const Hummingbird::Layo
     // A fragment-only change within the current document (e.g. TodoMVC's
     // #/active filter): fire hashchange in place instead of reloading (7.2.5).
     const std::string_view current = tab.requested_url();
-    if (Core::url_without_fragment(*link) == Core::url_without_fragment(current) &&
-        Core::url_fragment(*link) != Core::url_fragment(current)) {
+    if (Core::url_without_fragment(*link) == Core::url_without_fragment(current)) {
+        if (Core::url_fragment(*link) == Core::url_fragment(current)) {
+            // Same document, same fragment: a real browser no-ops (no reload,
+            // no hashchange refire).
+            return true;
+        }
         auto result = tab.navigate_fragment(*link, *graphics_, viewport);
         chrome_.url_bar().set_text(*link);
         render_.set_chrome_dirty();

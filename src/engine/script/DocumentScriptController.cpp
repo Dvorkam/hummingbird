@@ -153,6 +153,15 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatc
 
     bool default_prevented = false;
     if (target && script_engine_) {
+        // Checkbox pre-click activation: flip checkedness before the click event
+        // fires, so listeners observe the post-toggle state (matches real UAs).
+        // If the click is cancelled, the toggle is reverted below.
+        bool is_checkbox = is_checkbox_input_element(dynamic_cast<DOM::Element*>(*target));
+        bool checked_before_click = is_checkbox && script_host_.get_checked(*target);
+        if (is_checkbox) {
+            script_host_.set_checked(*target, !checked_before_click);
+        }
+
         // A real DOM click (bubbling, cancelable): addEventListener('click') runs
         // through the full capture/target/bubble pipeline; preventDefault cancels
         // the default action (link navigation, handled by the caller).
@@ -163,12 +172,13 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::dispatc
             script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"dblclick", true, true, "", ""});
         }
 
-        // Default action of an un-cancelled click on a checkbox: toggle its
-        // checkedness, then fire input + change through the dispatch pipeline (7.2.6).
-        if (!default_prevented && is_checkbox_input_element(dynamic_cast<DOM::Element*>(*target))) {
-            script_host_.set_checked(*target, !script_host_.get_checked(*target));
-            script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"input", true, false, "", ""});
-            script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"change", true, false, "", ""});
+        if (is_checkbox) {
+            if (default_prevented) {
+                script_host_.set_checked(*target, checked_before_click);
+            } else {
+                script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"input", true, false, "", ""});
+                script_engine_->dispatch_dom_event(*target, ScriptDomEvent{"change", true, false, "", ""});
+            }
         }
     }
 

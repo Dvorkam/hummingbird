@@ -16,40 +16,6 @@ namespace Hummingbird::Layout {
 namespace {
 constexpr float kTableMeasureWidth = 100000.0f;
 
-// Max-content (preferred) width of `box`, which has already been laid out at the
-// oversized kTableMeasureWidth so inline content sits at its natural, unwrapped
-// positions. Reading a child's rendered rect width is wrong for a block-level
-// child: a block stretches to fill the measurement box (~100000px), which
-// balloons its table column and shoves later columns off-screen
-// (T-LAYOUT-TABLE-INTRINSIC-BLOCK-1). Inline-level boxes (inline, inline-block,
-// replaced, text) are already sized to their content, so their width is trusted;
-// only block-level boxes are derived from their content — the furthest child
-// margin-box right edge, so an empty block collapses to its own insets. The
-// furthest-right rule captures both formatting contexts because the measurement
-// layout encodes them in the child x positions: inline siblings advance rightward
-// (max = end of line = their sum), block siblings stack at the same left edge
-// (max = the widest one).
-float max_content_width(RenderObject& box) {
-    const auto* style = box.get_computed_style();
-    // An explicit, non-percentage width is authoritative; the box was laid out to it.
-    if (style && style->width.has_value() && !style->width->has_percent) {
-        return box.get_rect().width;
-    }
-    // Inline-level content does not stretch at the measurement width — trust it.
-    if (static_cast<bool>(box.Inline())) {
-        return box.get_rect().width;
-    }
-    // Block-level: it stretched to fill, so size it from its content instead.
-    Metrics::Insets insets = Metrics::compute_insets(style);
-    float content_right = insets.left;
-    for (const auto& child : box.get_children()) {
-        const auto* child_style = child->get_computed_style();
-        float margin_right = child_style ? child_style->margin.right : 0.0f;
-        content_right = std::max(content_right, child->get_rect().x + max_content_width(*child) + margin_right);
-    }
-    return content_right + insets.right;
-}
-
 float layout_table_children(RenderTable& table, IGraphicsContext& context, const Metrics::Insets& insets,
                             float content_width, const std::vector<float>& column_widths) {
     float cursor_y = insets.top;
@@ -155,7 +121,7 @@ float RenderTableCell::measure_intrinsic_width(IGraphicsContext& context) {
         // Use the child's content width, not its rendered width: a display:block
         // child stretched to fill the measurement box would otherwise report
         // ~100000px and balloon this column (T-LAYOUT-TABLE-INTRINSIC-BLOCK-1).
-        float right = child->get_rect().x + max_content_width(*child) + margin_right;
+        float right = child->get_rect().x + Metrics::max_content_width(*child) + margin_right;
         content_right = std::max(content_right, right);
     }
 

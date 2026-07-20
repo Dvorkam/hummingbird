@@ -413,3 +413,53 @@ TEST(FlexLayoutTest, CheckboxInputIsFixedSquareInFlexRow) {
     EXPECT_NEAR(r.width, 16.0f, 0.5f);
     EXPECT_NEAR(r.height, 16.0f, 0.5f);
 }
+
+TEST(FlexLayoutTest, BlockDescendantDoesNotBalloonRowItemShrinkToFitWidth) {
+    // Regression for T-LAYOUT-SHRINK-TO-FIT-1: same root cause as
+    // T-LAYOUT-TABLE-INTRINSIC-BLOCK-1, but for a flex row item instead of a
+    // table cell. A row-direction flex item with no explicit width/basis is
+    // measured by laying it out at an oversized probe width; if it contains an
+    // auto-width display:block descendant, that descendant stretches to fill
+    // the probe unless the shrink-to-fit width is derived recursively from
+    // content.
+    Hummingbird::Core::ArenaAllocator arena(8192);
+    auto body = DomFactory::create_element(arena, "body");
+    auto container = DomFactory::create_element(arena, "div");
+    container->set_attribute("id", "c");
+
+    auto item_a = DomFactory::create_element(arena, "div");
+    item_a->set_attribute("id", "a");
+    auto nested_block = DomFactory::create_element(arena, "div");
+    nested_block->append_child(DomFactory::create_text(arena, "x"));
+    item_a->append_child(std::move(nested_block));
+    container->append_child(std::move(item_a));
+
+    auto item_b = DomFactory::create_element(arena, "div");
+    item_b->set_attribute("id", "b");
+    item_b->append_child(DomFactory::create_text(arena, "y"));
+    container->append_child(std::move(item_b));
+
+    body->append_child(std::move(container));
+
+    Parser parser("body, div { margin: 0; padding: 0; } #c { display: flex; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto root = builder.build(body.get());
+    ASSERT_NE(root, nullptr);
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    root->layout(context, viewport);
+
+    auto* a = find_by_id(root.get(), "a");
+    auto* b = find_by_id(root.get(), "b");
+    ASSERT_NE(a, nullptr);
+    ASSERT_NE(b, nullptr);
+
+    // Item "a" must shrink to its (short) text content, not the ~100000px
+    // measurement probe, and item "b" must sit right beside it.
+    EXPECT_LT(a->get_rect().width, 200.0f) << "flex item ballooned to " << a->get_rect().width;
+    EXPECT_FLOAT_EQ(b->get_rect().x, a->get_rect().width);
+}

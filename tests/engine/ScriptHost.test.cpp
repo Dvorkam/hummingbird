@@ -86,6 +86,36 @@ TEST(DocumentScriptHostTest, InsertBeforeOrdersChildren) {
     EXPECT_EQ(root->get_children().back().get(), d);
 }
 
+TEST(DocumentScriptHostTest, InsertBeforeSelfIsNoOp) {
+    ArenaAllocator arena(4096, 4);
+    auto root = Element::create(arena, "ul");
+    DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+
+    auto* a = host.create_element("li");
+    auto* b = host.create_element("li");
+    auto* c = host.create_element("li");
+    host.append_child(root.get(), a);
+    host.append_child(root.get(), b);
+    host.append_child(root.get(), c);
+
+    // node.insertBefore(node, node) must be a no-op (spec: the reference is
+    // re-targeted to node's next sibling before the move), not drop the node.
+    EXPECT_EQ(host.insert_before(root.get(), b, b), b);
+
+    ASSERT_EQ(root->get_children().size(), 3u);
+    EXPECT_EQ(root->get_children()[0].get(), a);
+    EXPECT_EQ(root->get_children()[1].get(), b);
+    EXPECT_EQ(root->get_children()[2].get(), c);
+    EXPECT_EQ(host.parent_node(b), root.get());
+
+    // Same case when node is the last child: reference becomes null (append),
+    // which must also land the node back in the same place.
+    EXPECT_EQ(host.insert_before(root.get(), c, c), c);
+    ASSERT_EQ(root->get_children().size(), 3u);
+    EXPECT_EQ(root->get_children()[2].get(), c);
+}
+
 TEST(DocumentScriptHostTest, RemoveThenReinsertKeepsNodeValid) {
     ArenaAllocator arena(4096, 4);
     auto root = Element::create(arena, "ul");

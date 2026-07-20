@@ -288,11 +288,16 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     float inset_left = insets.left;
     float inset_right = insets.right;
 
+    // Children were laid out at the oversized kInlineAtomicLayoutWidth probe
+    // above; a display:block child stretches to fill it, so derive its width
+    // from content instead, or it balloons this inline-block's shrink-to-fit
+    // width to ~kInlineAtomicLayoutWidth (T-LAYOUT-SHRINK-TO-FIT-1, same bug as
+    // T-LAYOUT-TABLE-INTRINSIC-BLOCK-1).
     float content_right = inset_left;
     for (const auto& child : m_children) {
         const auto* child_style = child->get_computed_style();
         float margin_right = child_style ? child_style->margin.right : 0.0f;
-        float right = child->get_rect().x + child->get_rect().width + margin_right;
+        float right = child->get_rect().x + Metrics::max_content_width(*child) + margin_right;
         content_right = std::max(content_right, right);
     }
 
