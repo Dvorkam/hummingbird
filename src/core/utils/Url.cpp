@@ -169,6 +169,14 @@ std::string resolve_url(std::string_view base_url, std::string_view href) {
         return base->scheme + ":" + std::string(href);
     }
 
+    // parse_absolute_url keeps the base's query and fragment inside `path`, but a
+    // relative reference must not inherit them wholesale (RFC 3986 §5.3): a #frag
+    // reference replaces the fragment (keeping the query); a ?query or path
+    // reference drops both. Split them out so each branch appends cleanly.
+    std::string_view base_path = base->path;
+    std::string_view path_no_fragment = base_path.substr(0, base_path.find('#'));
+    std::string_view path_only = base_path.substr(0, base_path.find_first_of("?#"));
+
     if (href.front() == '/') {
         std::string path = normalize_path(href);
         std::string resolved = base->scheme + "://" + base->host;
@@ -184,12 +192,13 @@ std::string resolve_url(std::string_view base_url, std::string_view href) {
         if (base->port) {
             resolved += ":" + std::to_string(*base->port);
         }
-        resolved += base->path;
+        // #frag keeps the base query and swaps the fragment; ?query drops both.
+        resolved += href.front() == '#' ? std::string(path_no_fragment) : std::string(path_only);
         resolved += std::string(href);
         return resolved;
     }
 
-    std::string dir = base_dir(base->path);
+    std::string dir = base_dir(path_only);
     std::string combined = dir + std::string(href);
     std::string path = normalize_path(combined);
 

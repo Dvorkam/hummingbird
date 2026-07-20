@@ -42,6 +42,23 @@ TEST(UrlTest, ResolveUrlHandlesSpecialForms) {
     EXPECT_EQ(Hummingbird::Core::resolve_url(base, "#top"), "https://example.com:8080/dir/page.html#top");
 }
 
+TEST(UrlTest, ResolveUrlReplacesExistingFragmentAndQuery) {
+    // A relative reference must not inherit the base's fragment (RFC 3986 §5.3):
+    // a #frag reference replaces the fragment, it does not append. Regression for
+    // the todo filters producing "todo#/active#/completed" (T-URL-FRAGMENT-REPLACE-1).
+    std::string_view fragged = "https://example.dev/todo#/active";
+    EXPECT_EQ(Hummingbird::Core::resolve_url(fragged, "#/completed"), "https://example.dev/todo#/completed");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(fragged, "#/all"), "https://example.dev/todo#/all");
+
+    // #frag keeps the base query but swaps the fragment; ?query drops both.
+    std::string_view queried = "https://example.dev/todo?x=1#/active";
+    EXPECT_EQ(Hummingbird::Core::resolve_url(queried, "#/done"), "https://example.dev/todo?x=1#/done");
+    EXPECT_EQ(Hummingbird::Core::resolve_url(queried, "?y=2"), "https://example.dev/todo?y=2");
+
+    // A path reference also drops the base's query and fragment.
+    EXPECT_EQ(Hummingbird::Core::resolve_url(queried, "other.html"), "https://example.dev/other.html");
+}
+
 TEST(UrlTest, ResolveUrlPreservesOpaquePseudoSchemes) {
     // Opaque pseudo-schemes carry no path to join against the base, so they are
     // returned verbatim instead of being mangled into "https://base/javascript:..."
