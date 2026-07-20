@@ -31,7 +31,8 @@ inline bool needs_text_baseline(const DOM::Element* element, bool has_children) 
     if (!element) {
         return false;
     }
-    return element->get_tag_name() == Hummingbird::Html::TagNames::Input;
+    return element->get_tag_name() == Hummingbird::Html::TagNames::Input ||
+           element->get_tag_name() == Hummingbird::Html::TagNames::Textarea;
 }
 
 }  // namespace Hummingbird::Layout::InlineBaselineUtils

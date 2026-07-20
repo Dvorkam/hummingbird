@@ -106,6 +106,15 @@ TEST(HtmlParserTest, SemanticTagsAreSupported) {
     EXPECT_FALSE(unsupported.count("article"));
 }
 
+TEST(HtmlParserTest, TextareaIsSupported) {
+    std::string_view html = "<form><textarea name=\"text\"></textarea></form>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    EXPECT_FALSE(result.unsupported_tags.count("textarea"));
+}
+
 TEST(HtmlParserTest, CustomElementsAreSupported) {
     std::string_view html = "<my-widget><x-child></x-child></my-widget>";
     Hummingbird::Core::ArenaAllocator arena(4096);

@@ -131,6 +131,10 @@ bool DocumentInputController::clear_focus() {
     return true;
 }
 
+bool DocumentInputController::focused_is_multiline() const {
+    return is_textarea_element(focused_input_);
+}
+
 DocumentInputController::EditResult DocumentInputController::handle_text_input(std::string_view text) {
     EditResult result;
     if (!focused_input_ || text.empty()) return result;
@@ -152,6 +156,15 @@ DocumentInputController::EditResult DocumentInputController::handle_key_down(con
     if (!focused_input_) return result;
 
     std::string value = input_value(*focused_input_);
+
+    if (event.key.key == Key::Enter && focused_is_multiline()) {
+        result.handled = true;
+        if (Core::Utils::TextEditBuffer::insert_text(value, caret_, "\n")) {
+            set_input_value(*focused_input_, value);
+        }
+        result.needs_repaint = true;
+        return result;
+    }
 
     if (event.key.key == Key::Backspace) {
         result.handled = true;
@@ -225,7 +238,7 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
             }
 
             auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
-            if (!is_input_element(element)) {
+            if (!is_input_element(element) && !is_textarea_element(element)) {
                 return Layout::Traversal::TraverseAction::Continue;
             }
 

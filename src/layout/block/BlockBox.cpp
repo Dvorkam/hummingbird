@@ -39,7 +39,8 @@ std::optional<float> resolve_height_constraint(const Css::ComputedStyle* style,
 
 bool is_input_element(const RenderObject& node) {
     const auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
-    return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
+    return element && (element->get_tag_name() == Hummingbird::Html::TagNames::Input ||
+                       element->get_tag_name() == Hummingbird::Html::TagNames::Textarea);
 }
 
 void enforce_min_input_content_box(RenderObject& node, const Metrics::Insets& insets) {

@@ -32,6 +32,7 @@ TEST(StubNetworkTest, ReturnsExampleBody) {
     EXPECT_NE(body.find("https://example.dev/m4"), std::string::npos);
     EXPECT_NE(body.find("https://example.dev/m5"), std::string::npos);
     EXPECT_NE(body.find("https://example.dev/m6"), std::string::npos);
+    EXPECT_NE(body.find("https://example.dev/m8"), std::string::npos);
     EXPECT_NE(body.find("https://example.dev/search"), std::string::npos);
 }
 

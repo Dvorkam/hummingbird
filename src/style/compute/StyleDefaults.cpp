@@ -1,5 +1,6 @@
 #include "style/compute/StyleDefaults.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -17,6 +18,12 @@
 namespace Hummingbird::Css::StyleDefaults {
 
 namespace {
+constexpr float kTextareaDefaultWidth = 360.0f;
+constexpr float kTextareaDefaultLineHeight = 16.0f;
+constexpr float kTextareaDefaultVerticalPadding = 4.0f;
+constexpr long kTextareaDefaultRows = 4;
+constexpr long kTextareaMaxRows = 100;
+
 bool input_type_is_text_like(const DOM::Element& element) {
     const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
     if (!type || type->empty()) {
@@ -26,6 +33,16 @@ bool input_type_is_text_like(const DOM::Element& element) {
            !Core::Utils::equals_ignore_case(*type, "reset") && !Core::Utils::equals_ignore_case(*type, "checkbox") &&
            !Core::Utils::equals_ignore_case(*type, "radio") && !Core::Utils::equals_ignore_case(*type, "file") &&
            !Core::Utils::equals_ignore_case(*type, "hidden") && !Core::Utils::equals_ignore_case(*type, "image");
+}
+
+float textarea_default_height(const DOM::Element& element) {
+    long rows = kTextareaDefaultRows;
+    if (const auto* rows_attribute = element.find_attribute(Hummingbird::Html::AttributeNames::Rows)) {
+        if (auto parsed = Core::Utils::parse_long(*rows_attribute, Core::Utils::NumberParseMode::Strict)) {
+            rows = std::clamp(*parsed, 1L, kTextareaMaxRows);
+        }
+    }
+    return static_cast<float>(rows) * kTextareaDefaultLineHeight + 2.0f * kTextareaDefaultVerticalPadding;
 }
 }  // namespace
 
@@ -46,7 +63,8 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
             tag == Hummingbird::Html::TagNames::Code || tag == Hummingbird::Html::TagNames::Img ||
             tag == Hummingbird::Html::TagNames::Svg || tag == Hummingbird::Html::TagNames::Font) {
             style.display = ComputedStyle::Display::Inline;
-        } else if (tag == Hummingbird::Html::TagNames::Input || tag == Hummingbird::Html::TagNames::Button) {
+        } else if (tag == Hummingbird::Html::TagNames::Input || tag == Hummingbird::Html::TagNames::Textarea ||
+                   tag == Hummingbird::Html::TagNames::Button) {
             style.display = ComputedStyle::Display::InlineBlock;
         } else if (tag == Hummingbird::Html::TagNames::Li) {
             style.display = ComputedStyle::Display::ListItem;
@@ -120,6 +138,17 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
             style.border_style = ComputedStyle::BorderStyle::Outset;
             style.background = Color{236, 236, 236, 255};
         }
+    } else if (tag == Hummingbird::Html::TagNames::Textarea) {
+        style.border_style = ComputedStyle::BorderStyle::Inset;
+        style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
+        style.border_color = {125, 125, 125, 255};
+        style.border_edge_color = {style.border_color, style.border_color, style.border_color, style.border_color};
+        style.border_radius.set_all({2.0f, false});
+        style.padding.left = style.padding.right = 8.0f;
+        style.padding.top = style.padding.bottom = kTextareaDefaultVerticalPadding;
+        style.width = ComputedStyle::LengthValue::from_px(kTextareaDefaultWidth);
+        style.height = ComputedStyle::LengthValue::from_px(textarea_default_height(element));
+        style.background = Color{255, 255, 255, 255};
     } else if (tag == Hummingbird::Html::TagNames::Button) {
         style.border_style = ComputedStyle::BorderStyle::Outset;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};

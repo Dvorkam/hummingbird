@@ -104,6 +104,26 @@ struct InputButtonRenderTree {
         render_root->append_child(std::move(button_box));
     }
 };
+
+struct TextareaRenderTree {
+    ArenaAllocator arena;
+    ArenaPtr<Element> root;
+    Element* textarea = nullptr;
+    std::unique_ptr<BlockBox> render_root;
+
+    TextareaRenderTree() : arena(1024) {
+        root = Element::create(arena, "div");
+        auto textarea_node = Element::create(arena, "textarea");
+        textarea = textarea_node.get();
+        root->append_child(std::move(textarea_node));
+
+        render_root = BlockBox::create(root.get());
+        auto textarea_box = BlockBox::create(textarea);
+        textarea_box->set_rect(Rect{10.0f, 5.0f, 160.0f, 64.0f});
+        render_root->set_rect(Rect{0.0f, 0.0f, 200.0f, 80.0f});
+        render_root->append_child(std::move(textarea_box));
+    }
+};
 }  // namespace
 
 TEST(DocumentInputControllerTest, FocusesAndClearsInput) {
@@ -206,6 +226,25 @@ TEST(DocumentInputControllerTest, FocusStateTracksFocusedInputPseudoClass) {
     EXPECT_TRUE(tree.input->has_pseudo_state(Element::PseudoState::Focus));
     EXPECT_TRUE(controller.clear_focus());
     EXPECT_FALSE(tree.input->has_pseudo_state(Element::PseudoState::Focus));
+}
+
+TEST(DocumentInputControllerTest, TextareaEnterAddsNewlineInsteadOfSubmitting) {
+    TextareaRenderTree tree;
+    DocumentInputController controller;
+    Rect viewport{0.0f, 0.0f, 200.0f, 80.0f};
+    Point hit{15.0f, 10.0f};
+
+    ASSERT_TRUE(controller.focus_input_at(tree.render_root.get(), hit, viewport, 0.0f));
+    EXPECT_TRUE(controller.focused_is_multiline());
+    EXPECT_TRUE(controller.handle_text_input("first line").handled);
+
+    auto enter = controller.handle_key_down(make_key_event(Key::Enter));
+    EXPECT_TRUE(enter.handled);
+    EXPECT_TRUE(enter.needs_repaint);
+    EXPECT_TRUE(controller.handle_text_input("second line").handled);
+
+    ASSERT_TRUE(controller.focused_value().has_value());
+    EXPECT_EQ(*controller.focused_value(), "first line\nsecond line");
 }
 
 TEST(DocumentInputControllerTest, InteractionStateTracksHoverAndActiveOnButton) {

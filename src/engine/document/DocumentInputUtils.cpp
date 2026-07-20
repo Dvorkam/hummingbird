@@ -11,15 +11,22 @@ bool is_input_element(const DOM::Element* element) {
     return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
 }
 
+bool is_textarea_element(const DOM::Element* element) {
+    return element && element->get_tag_name() == Hummingbird::Html::TagNames::Textarea;
+}
+
 bool is_button_element(const DOM::Element* element) {
     return element && element->get_tag_name() == Hummingbird::Html::TagNames::Button;
 }
 
 bool is_interactive_control_element(const DOM::Element* element) {
-    return is_input_element(element) || is_button_element(element);
+    return is_input_element(element) || is_textarea_element(element) || is_button_element(element);
 }
 
 bool is_editable_input_element(const DOM::Element* element) {
+    if (is_textarea_element(element)) {
+        return true;
+    }
     if (!is_input_element(element)) {
         return false;
     }

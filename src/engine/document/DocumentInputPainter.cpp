@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "core/dom/Element.h"
 #include "core/utils/Log.h"
@@ -29,6 +30,7 @@ struct InputPaintData {
     float text_x;
     float text_y;
     float text_height;
+    bool multiline = false;
 };
 
 // Inputs with `background: none` (DDG) paint nothing themselves, so erasing a
@@ -104,26 +106,46 @@ std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element
             text_style.color = high_contrast_text(background);
         }
     }
+    const bool multiline = is_textarea_element(&element);
     std::string value = input_value(element);
     TextMetrics metrics = graphics.measure_text(value, text_style);
-    TextMetrics caret_metrics =
-        metrics.height > 0.0f ? metrics : graphics.measure_text(kCaretFallbackGlyph, text_style);
-    float text_height = metrics.height > 0.0f ? metrics.height : caret_metrics.height;
+    TextMetrics caret_metrics = graphics.measure_text(kCaretFallbackGlyph, text_style);
+    float text_height =
+        multiline ? caret_metrics.height : (metrics.height > 0.0f ? metrics.height : caret_metrics.height);
     float text_x = content.x;
-    float text_y = content.y + std::max(0.0f, (content.height - text_height) * 0.5f);
+    float text_y = multiline ? content.y : content.y + std::max(0.0f, (content.height - text_height) * 0.5f);
     if (!is_editable_input_element(&element)) {
         text_style.bold = true;
         text_x = content.x + std::max(0.0f, (content.width - metrics.width) * 0.5f);
     }
 
     return InputPaintData{
-        absolute, content, std::move(text_style), std::move(value), text_x, text_y, text_height,
+        absolute, content, std::move(text_style), std::move(value), text_x, text_y, text_height, multiline,
     };
 }
 
 void paint_input_value(const InputPaintData& data, IGraphicsContext& graphics) {
-    if (!data.value.empty()) {
-        graphics.draw_text(data.value, data.text_x, data.text_y, data.text_style);
+    if (!data.multiline) {
+        if (!data.value.empty()) {
+            graphics.draw_text(data.value, data.text_x, data.text_y, data.text_style);
+        }
+        return;
+    }
+
+    size_t line_start = 0;
+    float line_y = data.text_y;
+    while (line_start <= data.value.size()) {
+        const size_t line_end = data.value.find('\n', line_start);
+        const std::string line = line_end == std::string::npos ? data.value.substr(line_start)
+                                                               : data.value.substr(line_start, line_end - line_start);
+        if (!line.empty()) {
+            graphics.draw_text(line, data.text_x, line_y, data.text_style);
+        }
+        if (line_end == std::string::npos) {
+            return;
+        }
+        line_start = line_end + 1;
+        line_y += data.text_height;
     }
 }
 
@@ -131,13 +153,23 @@ void paint_input_caret(const InputPaintData& data, IGraphicsContext& graphics, s
                        bool repaint_background) {
     caret = Core::Utils::TextEditBuffer::clamp_caret_for(data.value, caret);
     std::string prefix = data.value.substr(0, caret);
+    float caret_y = data.text_y;
+    if (data.multiline) {
+        const size_t line_count = static_cast<size_t>(std::count(prefix.begin(), prefix.end(), '\n'));
+        caret_y += static_cast<float>(line_count) * data.text_height;
+        if (const size_t line_start = prefix.rfind('\n'); line_start != std::string::npos) {
+            prefix.erase(0, line_start + 1);
+        }
+    }
     float caret_offset = graphics.measure_text(prefix, data.text_style).width;
     float caret_x = data.text_x + caret_offset;
     float max_caret_x = data.content.x + std::max(0.0f, data.content.width - 1.0f);
     if (caret_x > max_caret_x) {
         caret_x = max_caret_x;
     }
-    Layout::Rect caret_rect{caret_x, data.text_y, kCaretWidth, data.text_height};
+    float max_caret_y = data.content.y + std::max(0.0f, data.content.height - data.text_height);
+    caret_y = std::min(caret_y, max_caret_y);
+    Layout::Rect caret_rect{caret_x, caret_y, kCaretWidth, data.text_height};
     graphics.fill_rect(caret_rect, data.text_style.color);
     HB_LOG_DEBUG("[input] paint focused rect=" << data.absolute.x << "," << data.absolute.y << " "
                                                << data.absolute.width << "x" << data.absolute.height
