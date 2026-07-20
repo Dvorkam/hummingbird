@@ -52,6 +52,7 @@ public:
         response.effective_url = url;
         response.body = body;
         response.error = error;
+        response.headers = response_headers;
         if (callback) callback(std::move(response));
     }
 
@@ -63,6 +64,7 @@ public:
         response.effective_url = url;
         response.body = body;
         response.error = error;
+        response.headers = response_headers;
         if (callback) callback(std::move(response));
     }
 
@@ -77,6 +79,7 @@ public:
 
     std::vector<Request> requests;
     std::string body;
+    Hummingbird::Core::HttpHeaders response_headers;
     NetworkError error = NetworkError::None;
 };
 
@@ -374,4 +377,94 @@ TEST(ResourceLoaderTest, StoresAnimatedImagesWhenDecoderProvidesFrames) {
     ASSERT_TRUE(second.has_value());
     ASSERT_NE(second->image, nullptr);
     EXPECT_EQ(second->image->pixels[0], 1);
+}
+
+// --- cookie wiring (8.1.1) ---------------------------------------------------
+// The jar itself is covered by CookieJar.test.cpp; these prove it is actually
+// attached to real requests, which is the half a jar-only test cannot show.
+
+TEST(ResourceLoaderTest, ServerSetCookieComesBackOnTheNextRequest) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html><body>ok</body></html>";
+    network_ptr->response_headers.add("Set-Cookie", "session=abc; Path=/");
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+
+    loader.navigate("https://example.test/login");
+    ASSERT_EQ(jar->size(), 1u);
+    // The first request could not have carried it yet.
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Cookie").empty());
+
+    loader.navigate("https://example.test/account");
+    ASSERT_EQ(network_ptr->requests.size(), 2u);
+    EXPECT_EQ(network_ptr->requests[1].options.headers.get("Cookie"), "session=abc");
+}
+
+TEST(ResourceLoaderTest, CookiesAttachToSubresourceRequestsToo) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.request_stylesheets({"https://example.test/site.css"}, "https://example.test/");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "session=abc");
+}
+
+TEST(ResourceLoaderTest, CookiesAttachToFormPostsToo) {
+    // The login POST is exactly the request the North Star depends on.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html>ok</html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "csrf=t0ken", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "user=me&pw=secret";
+    request.content_type = "application/x-www-form-urlencoded";
+    loader.navigate("https://example.test/login", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].method, "POST");
+    EXPECT_EQ(network_ptr->requests[0].body, "user=me&pw=secret");
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "csrf=t0ken");
+}
+
+TEST(ResourceLoaderTest, CookiesAreNotSentToADifferentSite) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.request_stylesheets({"https://cdn.other-site.test/x.css"}, "https://example.test/");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Cookie").empty());
+}
+
+TEST(ResourceLoaderTest, WithoutAJarNoCookieHeaderIsEverAdded) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+    network_ptr->response_headers.add("Set-Cookie", "session=abc");
+
+    // Null jar: cookies disabled, and a Set-Cookie response must not crash.
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, nullptr);
+    loader.navigate("https://example.test/login");
+    loader.navigate("https://example.test/account");
+
+    ASSERT_EQ(network_ptr->requests.size(), 2u);
+    EXPECT_TRUE(network_ptr->requests[1].options.headers.get("Cookie").empty());
 }

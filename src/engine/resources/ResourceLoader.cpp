@@ -28,11 +28,12 @@ bool is_builtin_demo_url(std::string_view url) {
 }  // namespace
 
 ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
-                               ImageDecoderPtr image_decoder)
+                               ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar)
     : network_(std::move(network)),
       fallback_network_(std::move(fallback_network)),
       resource_provider_(std::move(resource_provider)),
-      image_decoder_(std::move(image_decoder)) {
+      image_decoder_(std::move(image_decoder)),
+      cookie_jar_(std::move(cookie_jar)) {
     if (!network_ || !fallback_network_) {
         HB_LOG_ERROR("[network] failed to create network backend(s)");
     }
@@ -41,6 +42,34 @@ ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, 
     }
     if (!image_decoder_) {
         HB_LOG_WARN("[image] no decoder available");
+    }
+}
+
+void ResourceLoader::send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
+                                  std::function<void(NetworkResponse)> callback, const std::string* post_body) {
+    if (cookie_jar_) {
+        std::lock_guard<std::mutex> lg(cookie_mutex_);
+        const std::string cookies = cookie_jar_->cookie_header_for(url, Core::CookieClock::now());
+        if (!cookies.empty()) {
+            options.headers.set("Cookie", cookies);
+        }
+    }
+
+    auto with_cookie_capture = [this, url, callback = std::move(callback)](NetworkResponse response) mutable {
+        if (cookie_jar_ && !response.headers.empty()) {
+            // Attribute Set-Cookie to the URL that actually served the response,
+            // which is what the redirect chain landed on.
+            const std::string& origin = response.effective_url.empty() ? url : response.effective_url;
+            std::lock_guard<std::mutex> lg(cookie_mutex_);
+            cookie_jar_->store_from_response(origin, response.headers, Core::CookieClock::now());
+        }
+        if (callback) callback(std::move(response));
+    };
+
+    if (post_body) {
+        network.post(url, *post_body, std::move(with_cookie_capture), options);
+    } else {
+        network.get(url, std::move(with_cookie_capture), options);
     }
 }
 
@@ -90,13 +119,10 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
                                     std::move(response.effective_url), response.error);
         };
-        if (request.method == DocumentRequest::Method::Post) {
-            NetworkRequestOptions post_options{};
-            post_options.content_type = request.content_type;
-            fallback_network_->post(url_copy, request.body, std::move(callback), post_options);
-        } else {
-            fallback_network_->get(url_copy, std::move(callback));
-        }
+        NetworkRequestOptions options{};
+        options.content_type = request.content_type;
+        const bool is_post = request.method == DocumentRequest::Method::Post;
+        send_request(*fallback_network_, url_copy, options, std::move(callback), is_post ? &request.body : nullptr);
         return;
     }
 
@@ -109,13 +135,10 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                 enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
                                         std::move(response.effective_url), response.error);
             };
-            if (request.method == DocumentRequest::Method::Post) {
-                NetworkRequestOptions post_options{};
-                post_options.content_type = request.content_type;
-                fallback_network_->post(url_copy, request.body, std::move(callback), post_options);
-            } else {
-                fallback_network_->get(url_copy, std::move(callback));
-            }
+            NetworkRequestOptions options{};
+            options.content_type = request.content_type;
+            const bool is_post = request.method == DocumentRequest::Method::Post;
+            send_request(*fallback_network_, url_copy, options, std::move(callback), is_post ? &request.body : nullptr);
         } else {
             enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
         }
@@ -139,26 +162,17 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             } else {
                 HB_LOG_WARN("[network] curl returned empty for " << url_copy << ", using stub");
                 if (!fallback_network_) return;
-                if (request_method == DocumentRequest::Method::Post) {
-                    NetworkRequestOptions post_options{};
-                    post_options.content_type = post_content_type;
-                    fallback_network_->post(
-                        url_copy, post_body,
-                        [this, id, url_copy](NetworkResponse fallback) {
-                            if (id != active_nav_.load(std::memory_order_acquire)) return;
-                            bool success = !fallback.body.empty();
-                            enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
-                                                    std::move(fallback.effective_url), fallback.error);
-                        },
-                        post_options);
-                } else {
-                    fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse fallback) {
+                NetworkRequestOptions fallback_options{};
+                fallback_options.content_type = post_content_type;
+                send_request(
+                    *fallback_network_, url_copy, fallback_options,
+                    [this, id, url_copy](NetworkResponse fallback) {
                         if (id != active_nav_.load(std::memory_order_acquire)) return;
                         bool success = !fallback.body.empty();
                         enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
                                                 std::move(fallback.effective_url), fallback.error);
-                    });
-                }
+                    },
+                    request_method == DocumentRequest::Method::Post ? &post_body : nullptr);
             }
             return;
         }
@@ -168,11 +182,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                                 std::move(response.effective_url), response.error);
     };
 
-    if (request.method == DocumentRequest::Method::Post) {
-        network_->post(url_copy, request.body, std::move(callback), options);
-    } else {
-        network_->get(url_copy, std::move(callback), options);
-    }
+    const bool is_post = request.method == DocumentRequest::Method::Post;
+    send_request(*network_, url_copy, options, std::move(callback), is_post ? &request.body : nullptr);
 }
 
 void ResourceLoader::allow_insecure_host(std::string_view host) {
@@ -318,17 +329,15 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         HB_LOG_DEBUG("[resource] fetching " << options.type_label << ": " << url);
         NetworkRequestOptions request_options{};
         request_options.allow_insecure = security_policy_.is_insecure_allowed_for_url(url);
-        fetcher->get(
-            url,
-            [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
-                if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
-                bool success = !response.body.empty();
-                if (!success) {
-                    HB_LOG_WARN("[resource] " << type_label << " fetch failed: " << url);
-                }
-                enqueue_resource_update(type, url, std::move(response.body), success, {}, response.error);
-            },
-            request_options);
+        send_request(*fetcher, url, request_options,
+                     [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
+                         if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
+                         bool success = !response.body.empty();
+                         if (!success) {
+                             HB_LOG_WARN("[resource] " << type_label << " fetch failed: " << url);
+                         }
+                         enqueue_resource_update(type, url, std::move(response.body), success, {}, response.error);
+                     });
     }
 }
 

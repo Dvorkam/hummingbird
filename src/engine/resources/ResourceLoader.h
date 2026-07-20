@@ -5,12 +5,15 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <functional>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include "core/net/CookieJar.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
@@ -54,8 +57,11 @@ public:
         bool is_ready(ResourceType type) const { return ready[static_cast<size_t>(type)]; }
     };
 
+    // `cookie_jar` is shared across every tab of a profile (see TabManager): a
+    // per-loader jar would mean logging in on one tab left another logged out.
+    // Null disables cookies entirely, which is what most unit tests want.
     ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
-                   ImageDecoderPtr image_decoder);
+                   ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr);
 
     ResourceLoader(const ResourceLoader&) = delete;
     ResourceLoader& operator=(const ResourceLoader&) = delete;
@@ -83,7 +89,17 @@ public:
     IResourceProvider* resource_provider() const { return resource_provider_.get(); }
     IImageDecoder* image_decoder() const { return image_decoder_.get(); }
 
+    Core::CookieJar* cookie_jar() const { return cookie_jar_.get(); }
+
 private:
+    // The single choke point for cookies. `send_request` attaches the jar's
+    // Cookie header for `url` and wraps `callback` so the response's Set-Cookie
+    // headers land in the jar before anything else sees the response — every
+    // request (document, subresource, POST, and the stub fallbacks) goes through
+    // it so no call site can silently skip cookies.
+    void send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
+                      std::function<void(NetworkResponse)> callback, const std::string* post_body = nullptr);
+
     void request_resources(const std::vector<std::string>& links, std::string_view base_url,
                            const ResourceRequestPlanning::ResourceRequestOptions& options);
     void enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success,
@@ -98,6 +114,10 @@ private:
 
     NetworkPtr network_;
     NetworkPtr fallback_network_;
+    // Shared per profile. Network callbacks arrive on backend threads, so every
+    // touch is guarded by cookie_mutex_.
+    std::shared_ptr<Core::CookieJar> cookie_jar_;
+    mutable std::mutex cookie_mutex_;
     ResourceProviderPtr resource_provider_;
     ImageDecoderPtr image_decoder_;
     ResourceStore resource_store_;

@@ -6,6 +6,7 @@
 #include <optional>
 #include <vector>
 
+#include "core/net/CookieJar.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
@@ -61,8 +62,15 @@ private:
 
     size_t index_for_id(TabId id) const;
 
+public:
+    // The profile's single cookie jar, handed to every tab this manager creates.
+    // Shared rather than per-tab so a login survives opening a second tab; 8.1.4
+    // persists it and 8.1.5 exposes it to `document.cookie`.
+    const std::shared_ptr<Core::CookieJar>& cookie_jar() const { return cookie_jar_; }
+
 private:
     TabFactory factory_;
+    std::shared_ptr<Core::CookieJar> cookie_jar_ = std::make_shared<Core::CookieJar>();
     std::vector<Entry> tabs_;
     std::optional<TabId> active_id_;
     TabId next_id_ = 1;

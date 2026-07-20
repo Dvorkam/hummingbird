@@ -53,9 +53,10 @@ public:
         bool hash_changed = false;
         bool mutated = false;
     };
+    // `cookie_jar` is shared by every tab of a profile; null disables cookies.
     Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
-        std::unique_ptr<IScriptEngine> script_engine);
+        std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr);
     ~Tab();
 
     Tab(const Tab&) = delete;

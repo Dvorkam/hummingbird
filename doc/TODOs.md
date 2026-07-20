@@ -28,6 +28,8 @@ Milestone defined in `doc/milestones/milestone7.md`. Scope revalidated at kickof
 
 Milestone defined in `doc/milestones/milestone8.md`.
 
+- [ ] **[M8 P1] T-COOKIE-PUBLIC-SUFFIX-1: Reject Cookies Scoped To A Public Suffix**; Goal: stop a site setting a cookie for a registry-level domain; Scope: a public-suffix check in `parse_set_cookie`'s Domain handling (`core/net/Cookie.cpp`), backed by a bundled PSL subset or a curated list of common multi-label suffixes; Acceptance: `Set-Cookie: a=1; Domain=co.uk` from `example.co.uk` is rejected, while `Domain=example.co.uk` is accepted; Tests: parse-level matrix over `com`/`co.uk`/`github.io`. *(Found reviewing 8.1.1: RFC 6265 §5.3's domain-match check alone lets `example.co.uk` set a cookie for `co.uk`, which every other site under `co.uk` would then receive — a supercookie. libcurl avoids this by linking libpsl; our engine-owned jar has to carry the equivalent. Not exploitable via the current demo/HN targets, which are single-label-suffix hosts, but it must land before any untrusted browsing.)*
+
 ## Milestone 9 (The Fetcher)
 
 Draft defined in `doc/milestones/milestone9.md` — revalidate scope at kickoff.
