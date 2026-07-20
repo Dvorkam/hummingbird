@@ -2,7 +2,9 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -29,6 +31,16 @@ class RectRecordingContext : public TestGraphicsContext {
 public:
     void fill_rect(const Rect& rect, const Color& color) override { rects.emplace_back(rect, color); }
     std::vector<std::pair<Rect, Color>> rects;
+};
+
+class TextMeasuringContext : public TestGraphicsContext {
+public:
+    Hummingbird::TextMetrics measure_text(const std::string& text, const Hummingbird::TextStyle& style) override {
+        measured_text.push_back(text);
+        return TestGraphicsContext::measure_text(text, style);
+    }
+
+    std::vector<std::string> measured_text;
 };
 }  // namespace
 
@@ -92,6 +104,23 @@ TEST(DocumentInputPainterTest, FocusRingFollowsBorderRadius) {
 
     EXPECT_GT(ring_rects, 0);     // the ring was drawn
     EXPECT_FALSE(covers_corner);  // ...and its corner is rounded, not filled square
+}
+
+TEST(DocumentInputPainterTest, TextareaNewlinesAreNotSentToFontMeasurement) {
+    ArenaAllocator arena(1024);
+    ArenaPtr<Element> textarea = Element::create(arena, "textarea");
+    textarea->set_attribute("value", "first line\nsecond line");
+    auto node = BlockBox::create(textarea.get());
+    const Rect absolute{10.0f, 10.0f, 120.0f, 48.0f};
+    node->set_rect(absolute);
+
+    TextMeasuringContext graphics;
+    Hummingbird::Engine::paint_input_control(*textarea, *node, absolute, {0.0f, 0.0f}, graphics,
+                                             /*repaint_background*/ false, /*focused*/ false, /*caret*/ 0,
+                                             /*scroll_y*/ 0.0f);
+
+    EXPECT_TRUE(std::all_of(graphics.measured_text.begin(), graphics.measured_text.end(),
+                            [](const std::string& text) { return text.find('\n') == std::string::npos; }));
 }
 
 TEST(DocumentInputPainterTest, CheckboxRendersBoxAndCheckmark) {

@@ -110,7 +110,10 @@ std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element
     }
     const bool multiline = is_textarea_element(&element);
     std::string value = input_value(element);
-    TextMetrics metrics = graphics.measure_text(value, text_style);
+    // Newlines delimit textarea lines; they are not glyphs. Measuring the complete
+    // value would pass U+000A to the font shaper and produce a false missing-glyph
+    // warning before paint_input_value splits it into drawable lines.
+    TextMetrics metrics = multiline ? TextMetrics{} : graphics.measure_text(value, text_style);
     TextMetrics caret_metrics = graphics.measure_text(kCaretFallbackGlyph, text_style);
     float text_height =
         multiline ? caret_metrics.height : (metrics.height > 0.0f ? metrics.height : caret_metrics.height);
