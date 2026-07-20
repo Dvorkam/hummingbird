@@ -13,6 +13,7 @@
 #include "core/utils/Url.h"
 #include "core/utils/UrlEncoding.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlTagMetadata.h"
 #include "html/HtmlTagNames.h"
 
 namespace Hummingbird::Engine {
@@ -55,8 +56,9 @@ const DOM::Element* find_form_by_id(const DOM::Node* node, std::string_view id) 
 
 void maybe_add_form_field(const DOM::Element& element, std::unordered_set<const DOM::Element*>& visited,
                           std::vector<FormField>& fields) {
-    const auto& tag = element.get_tag_name();
-    if (tag != Hummingbird::Html::TagNames::Input && tag != Hummingbird::Html::TagNames::Textarea) {
+    // <textarea> submits through the same `value` attribute as <input>: the
+    // parser folds its content into one there (see Parser::handle_character_data).
+    if (!Hummingbird::Html::TagMetadata::is_text_control_tag(element.get_tag_name())) {
         return;
     }
     if (!visited.insert(&element).second) {

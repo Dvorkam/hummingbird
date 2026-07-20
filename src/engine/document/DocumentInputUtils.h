@@ -11,6 +11,8 @@ namespace Hummingbird::Engine {
 
 bool is_input_element(const DOM::Element* element);
 bool is_textarea_element(const DOM::Element* element);
+// <input> or <textarea>: the controls the engine paints as a native overlay.
+bool is_text_control_element(const DOM::Element* element);
 bool is_button_element(const DOM::Element* element);
 bool is_interactive_control_element(const DOM::Element* element);
 bool is_editable_input_element(const DOM::Element* element);

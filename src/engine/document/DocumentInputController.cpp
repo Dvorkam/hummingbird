@@ -263,7 +263,7 @@ void DocumentInputController::paint_controls(const Layout::RenderObject* render_
             }
 
             auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
-            if (!is_input_element(element) && !is_textarea_element(element)) {
+            if (!is_text_control_element(element)) {
                 return Layout::Traversal::TraverseAction::Continue;
             }
 

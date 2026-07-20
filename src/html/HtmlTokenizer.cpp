@@ -147,9 +147,10 @@ bool Tokenizer::handle_tag_open_state(Token& out) {
         consume_char();
     }
     if (peek_char() == '>') consume_char();
-    // Script/style bodies are raw text: switch modes so their content (which may
-    // contain '<' inside string literals) is not tokenized as markup.
-    if (!self_closing && TagMetadata::is_raw_text_tag(tag_name)) {
+    // Script/style bodies (raw text) and textarea content (escapable raw text)
+    // are consumed literally: switch modes so a '<' inside them — a JS string
+    // literal, or a user-typed comment — is not tokenized as markup.
+    if (!self_closing && TagMetadata::suspends_markup(tag_name)) {
         m_state = State::RawText;
         m_rawtext_tag = tag_name;
     } else {

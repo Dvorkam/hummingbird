@@ -19,9 +19,10 @@ namespace Hummingbird::Css::StyleDefaults {
 
 namespace {
 constexpr float kTextareaDefaultWidth = 360.0f;
-constexpr float kTextareaDefaultLineHeight = 16.0f;
 constexpr float kTextareaDefaultVerticalPadding = 4.0f;
-constexpr long kTextareaDefaultRows = 4;
+constexpr float kTextareaLineHeightFactor = 1.2f;
+constexpr long kTextareaDefaultRows = 2;
+// `rows` is author input: cap it so a typo cannot demand a pathological box.
 constexpr long kTextareaMaxRows = 100;
 
 bool input_type_is_text_like(const DOM::Element& element) {
@@ -35,14 +36,16 @@ bool input_type_is_text_like(const DOM::Element& element) {
            !Core::Utils::equals_ignore_case(*type, "hidden") && !Core::Utils::equals_ignore_case(*type, "image");
 }
 
-float textarea_default_height(const DOM::Element& element) {
-    long rows = kTextareaDefaultRows;
-    if (const auto* rows_attribute = element.find_attribute(Hummingbird::Html::AttributeNames::Rows)) {
-        if (auto parsed = Core::Utils::parse_long(*rows_attribute, Core::Utils::NumberParseMode::Strict)) {
-            rows = std::clamp(*parsed, 1L, kTextareaMaxRows);
-        }
+long textarea_rows(const DOM::Element& element) {
+    const auto* rows_attribute = element.find_attribute(Hummingbird::Html::AttributeNames::Rows);
+    if (!rows_attribute) {
+        return kTextareaDefaultRows;
     }
-    return static_cast<float>(rows) * kTextareaDefaultLineHeight + 2.0f * kTextareaDefaultVerticalPadding;
+    auto parsed = Core::Utils::parse_long(*rows_attribute, Core::Utils::NumberParseMode::Strict);
+    if (!parsed) {
+        return kTextareaDefaultRows;
+    }
+    return std::clamp(*parsed, 1L, kTextareaMaxRows);
 }
 
 bool input_type_is_toggle(const DOM::Element& element) {
@@ -162,9 +165,24 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
         style.border_radius.set_all({2.0f, false});
         style.padding.left = style.padding.right = 8.0f;
         style.padding.top = style.padding.bottom = kTextareaDefaultVerticalPadding;
-        style.width = ComputedStyle::LengthValue::from_px(kTextareaDefaultWidth);
-        style.height = ComputedStyle::LengthValue::from_px(textarea_default_height(element));
         style.background = Color{255, 255, 255, 255};
+        // Reserve one row per `rows`, and publish the row height as line_height so
+        // DocumentInputPainter advances by exactly what was reserved instead of
+        // guessing from font metrics. UA defaults run before inheritance, so the
+        // basis is the parent's font size — the size this textarea will inherit
+        // unless it is restyled. Author width/height/line-height still win by
+        // normal cascade order.
+        // KNOWN GAP (T-FORM-TEXTAREA-LAYOUT-1): an author `font-size` or
+        // `line-height` set on the textarea itself changes the painted row height
+        // but not this reserved box, so a `rows`-sized control can then hold
+        // slightly fewer lines. `cols` is unimplemented for the same reason.
+        if (style.line_height <= 0.0f) {
+            const float basis = parent_style ? parent_style->font_size : style.font_size;
+            style.line_height = basis * kTextareaLineHeightFactor;
+        }
+        style.width = ComputedStyle::LengthValue::from_px(kTextareaDefaultWidth);
+        style.height = ComputedStyle::LengthValue::from_px(
+            static_cast<float>(textarea_rows(element)) * style.line_height + 2.0f * kTextareaDefaultVerticalPadding);
     } else if (tag == Hummingbird::Html::TagNames::Button) {
         style.border_style = ComputedStyle::BorderStyle::Outset;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};

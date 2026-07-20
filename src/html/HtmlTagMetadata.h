@@ -9,9 +9,31 @@ namespace Hummingbird::Html::TagMetadata {
 
 // Raw-text elements: their content is consumed literally up to the matching end
 // tag, so `<` inside (e.g. JS/CSS string literals) is never treated as markup.
+// Character references are NOT expanded here — `&amp;` in a script body is two
+// literal tokens to the JS engine, not an ampersand.
 inline bool is_raw_text_tag(std::string_view name) {
     return Core::Utils::equals_ignore_case(name, Hummingbird::Html::TagNames::Script) ||
            Core::Utils::equals_ignore_case(name, Hummingbird::Html::TagNames::Style);
+}
+
+// Escapable raw-text (RCDATA) elements: markup is likewise not recognized, but
+// character references ARE expanded, because the content is human-readable text
+// that had to escape `<` and `&` to survive serialization.
+inline bool is_escapable_raw_text_tag(std::string_view name) {
+    return Core::Utils::equals_ignore_case(name, Hummingbird::Html::TagNames::Textarea);
+}
+
+// Either flavor suspends markup tokenization until the matching end tag.
+inline bool suspends_markup(std::string_view name) {
+    return is_raw_text_tag(name) || is_escapable_raw_text_tag(name);
+}
+
+// Native text-entry controls: the engine paints them itself and drives editing
+// through one shared caret/value path, and layout sizes them as atomic boxes
+// rather than from child content. Kept here so layout, style, and the engine
+// agree on one list.
+inline bool is_text_control_tag(std::string_view name) {
+    return name == Hummingbird::Html::TagNames::Input || name == Hummingbird::Html::TagNames::Textarea;
 }
 
 inline bool is_void_tag(std::string_view name) {

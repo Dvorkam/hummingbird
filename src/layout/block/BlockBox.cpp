@@ -8,6 +8,7 @@
 #include "core/dom/Element.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlTagMetadata.h"
 #include "html/HtmlTagNames.h"
 #include "layout/block/FloatLayoutUtils.h"
 #include "layout/flow/FlowLayoutUtils.h"
@@ -41,10 +42,9 @@ std::optional<float> resolve_height_constraint(const Css::ComputedStyle* style,
     return Metrics::resolve_border_box_height(style, resolved, insets);
 }
 
-bool is_input_element(const RenderObject& node) {
+bool is_text_control(const RenderObject& node) {
     const auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
-    return element && (element->get_tag_name() == Hummingbird::Html::TagNames::Input ||
-                       element->get_tag_name() == Hummingbird::Html::TagNames::Textarea);
+    return element && Html::TagMetadata::is_text_control_tag(element->get_tag_name());
 }
 
 bool is_checkbox_input(const RenderObject& node) {
@@ -66,7 +66,7 @@ void enforce_min_input_content_box(RenderObject& node, const Metrics::Insets& in
         node.set_rect(rect);
         return;
     }
-    if (!is_input_element(node)) {
+    if (!is_text_control(node)) {
         return;
     }
     auto rect = node.get_rect();

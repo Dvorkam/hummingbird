@@ -4,7 +4,7 @@
 
 #include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
-#include "html/HtmlTagNames.h"
+#include "html/HtmlTagMetadata.h"
 #include "layout/geometry/metrics/LayoutMetricsUtils.h"
 #include "layout/geometry/metrics/TextMetricsUtils.h"
 #include "style/types/ComputedStyle.h"
@@ -31,8 +31,7 @@ inline bool needs_text_baseline(const DOM::Element* element, bool has_children) 
     if (!element) {
         return false;
     }
-    return element->get_tag_name() == Hummingbird::Html::TagNames::Input ||
-           element->get_tag_name() == Hummingbird::Html::TagNames::Textarea;
+    return Html::TagMetadata::is_text_control_tag(element->get_tag_name());
 }
 
 }  // namespace Hummingbird::Layout::InlineBaselineUtils

@@ -43,6 +43,9 @@ private:
     struct ParseState {
         std::vector<DOM::Node*> open_elements;
         bool in_style = false;
+        // Whether the currently open <textarea> has already absorbed a chunk of
+        // content, so only the first one drops the spec's leading newline.
+        bool textarea_has_value = false;
     };
 
     void handle_start_tag(const StartTagToken& tag_data, ParseState& state);

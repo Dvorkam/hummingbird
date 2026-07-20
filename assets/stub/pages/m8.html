@@ -33,13 +33,14 @@
       <div class="comment-card">
         <form action="https://example.dev/search" method="post">
           <label for="comment">Comment</label>
-          <textarea id="comment" name="text" rows="4"></textarea>
+          <textarea id="comment" name="text" rows="4">Edit this saved draft &mdash; 3 &lt; 4 &amp; markup like &lt;b&gt; stays literal.</textarea>
           <input type="submit" value="Submit comment">
         </form>
       </div>
       <p class="note"><strong>Added in M8:</strong> focus the field, type text, use <code>Enter</code> for a new line,
-      and submit the current <code>name=value</code> payload. Selection, clipboard, wrapping, scrolling, resize, and
-      general textarea DOM APIs remain M11 follow-ups.</p>
+      and submit the current <code>name=value</code> payload. The field above arrives prefilled, so it also shows a
+      textarea's content becoming its default value with character references decoded and markup left literal.
+      Selection, clipboard, wrapping, scrolling, resize, and general textarea DOM APIs remain M11 follow-ups.</p>
       <p><a href="https://example.dev">&laquo; Back to the demo hub</a></p>
     </div>
   </body>
