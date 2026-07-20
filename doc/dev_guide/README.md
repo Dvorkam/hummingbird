@@ -7,6 +7,7 @@ This folder contains implementation workflow guides for recurring engineering ta
 - `css_property_workflow.md`: how to add CSS properties with the registry-based parser/applier system.
 - `architecture_diagrams.md`: how the clang-uml architecture diagrams are scoped, and how to regenerate them.
 - `dom_arena_ownership.md`: who owns arena-backed DOM nodes once JS can create/move/remove them, and how wrappers survive navigation (M7).
+- `spec_conformance_strategy.md`: why we build demo-driven now vs. conformance-first later, and the disciplines (deviation register, per-module conformance slices, WPT) that make the eventual turn cheap.
 
 ## Usage rule
 
