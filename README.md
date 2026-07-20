@@ -146,17 +146,47 @@ HB_TLS_INSECURE=1 ./build/Release/Hummingbird
 
 ## Usage / controls
 
-- `Ctrl+L`: focus URL bar
-- `Enter`: navigate
-- `Esc`: unfocus URL bar
-- Mouse wheel: scroll
-- `F1`: toggle debug outlines
-- `Ctrl+T`: new tab
-- `Ctrl+W`: close active tab
-- `Ctrl+Left` / `Ctrl+Right`: switch tabs
+Hummingbird has a deliberately minimal chrome, so most actions are keyboard
+shortcuts.
 
-Startup defaults to `https://example.dev` (a built-in demo page). Loading arbitrary sites is best-effort and incomplete.
-JS demo page: `https://example.dev/js`.
+### Keyboard shortcuts
+
+**Navigation**
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+L` | Focus the URL bar |
+| `Enter` | Navigate to the typed URL (in the URL bar); submit a focused form |
+| `Esc` | Unfocus the URL bar |
+| `Alt+Left` | Back |
+| `Alt+Right` | Forward |
+
+**Tabs**
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+T` | New tab |
+| `Ctrl+W` | Close the active tab |
+| `Ctrl+Left` / `Ctrl+Right` | Switch to the previous / next tab |
+
+**Bookmarks**
+
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+D` | Bookmark the current page |
+| `Ctrl+Shift+O` | Open the bookmarks page (`about:bookmarks`) |
+
+**Other**
+
+| Shortcut | Action |
+| --- | --- |
+| Mouse wheel | Scroll |
+| `F1` | Toggle debug outlines |
+
+Built-in pages: `about:bookmarks` shows your saved bookmarks. Startup defaults to
+`https://example.dev`, a built-in demo hub with sub-pages such as `/todo`,
+`/timers`, `/m7`, and `/js`. Loading arbitrary sites is best-effort and
+incomplete.
 
 ## Extensions (MVP)
 

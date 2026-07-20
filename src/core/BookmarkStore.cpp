@@ -106,23 +106,28 @@ void BookmarkStore::save() const {
 }
 
 std::string BookmarkStore::render_html() const {
+    // Title and URL are block elements stacked per row (no <li> markers, no
+    // reliance on inter-inline whitespace) so the page renders cleanly.
     std::string out;
     out +=
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>Bookmarks</title>"
-        "<style>body{font-family:sans-serif;margin:24px;color:#1d2433}"
-        "h1{font-size:20px}ul{line-height:1.9;padding-left:20px}"
-        "a{color:#1a56db;text-decoration:none}.u{color:#6b7280;font-size:13px}</style>"
-        "</head><body><h1>Bookmarks</h1><ul>";
+        "<style>"
+        "body{font-family:sans-serif;margin:0;padding:24px 32px;color:#1d2433;background:#ffffff}"
+        "h1{font-size:22px;margin:0 0 16px 0}"
+        ".bm{display:block;padding:10px 2px;border-bottom:1px solid #ededed}"
+        ".bm a{display:block;color:#1a56db;text-decoration:none;font-size:16px}"
+        ".bm .u{display:block;color:#6b7280;font-size:13px;margin-top:2px}"
+        "</style></head><body><h1>Bookmarks</h1>";
     for (const auto& entry : entries_) {
-        out += "<li><a href=\"";
+        out += "<div class=\"bm\"><a href=\"";
         append_html_escaped(out, entry.url, /*in_attribute*/ true);
         out += "\">";
         append_html_escaped(out, entry.title, false);
-        out += "</a> <span class=\"u\">";
+        out += "</a><span class=\"u\">";
         append_html_escaped(out, entry.url, false);
-        out += "</span></li>";
+        out += "</span></div>";
     }
-    out += "</ul></body></html>";
+    out += "</body></html>";
     return out;
 }
 
