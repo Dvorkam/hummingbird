@@ -22,6 +22,7 @@ add_executable(HummingbirdTests
     engine/ResourceStore.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
+    core/BookmarkStore.test.cpp
     core/AssetPath.test.cpp
     core/AssetLoader.test.cpp
     core/TextEditBuffer.test.cpp

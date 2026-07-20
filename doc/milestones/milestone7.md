@@ -664,7 +664,17 @@ P1: If Schedule Allows
       else reloads. Alt+Left/Alt+Right in ChromeEventRouter → BrowserApp::navigate_
       back/forward (reflects the URL bar). Tab tests: full-page A→B→back/forward +
       forward-truncation, and fragment-route walking.)
-- [ ] 7.6.2: Bookmarks MVP (T-UI-BOOKMARKS-1)
+- [x] 7.6.2: Bookmarks MVP (T-UI-BOOKMARKS-1) — 2026-07-20
+      (core::BookmarkStore: file-backed TSV (url+title), add-dedupes-by-url +
+      refreshes title, seeds DuckDuckGo when the file is missing, render_html for
+      the about:bookmarks page; path from HB_BOOKMARKS_FILE or assets/config.
+      Shared via the file: app writes (Ctrl+D → BrowserApp::bookmark_active_tab +
+      save), ResourceLoader reads a fresh store to serve about:bookmarks
+      synchronously (no network). normalize_input_url + resolve_url preserve the
+      about: (opaque) scheme so the URL bar routes it. Ctrl+D bookmarks, Ctrl+Shift+O
+      opens the page (Edge/Firefox parity). Store tests (seed/dedupe/persist/render)
+      + a ResourceLoader about:bookmarks integration test. NOTE title = URL for now
+      (no title accessor yet).)
 - [ ] 7.7.2: JS focus()/blur() dispatch focus/blur events (T-FOCUS-EVENTS-FROM-JS-1;
       needs 7.7.1)
 - [ ] 7.7.4: key/code for digits/space/punctuation (T-KEY-FIELDS-COVERAGE-1)

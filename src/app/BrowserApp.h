@@ -6,6 +6,7 @@
 
 #include "app/BrowserChrome.h"
 #include "app/TabController.h"
+#include "core/BookmarkStore.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -58,6 +59,8 @@ public:
     // Back/forward over the active tab's history, reflecting the URL bar (7.6.1).
     void navigate_back();
     void navigate_forward();
+    // Bookmarks the active tab's page and persists the list (Ctrl+D, 7.6.2).
+    void bookmark_active_tab();
 
     // Whether platform text input is currently owned by the active tab (vs the URL bar).
     bool tab_text_input_active() const { return tab_text_input_active_; }
@@ -85,6 +88,7 @@ private:
     // Platform
     std::unique_ptr<IWindow> window_;
     std::unique_ptr<IGraphicsContext> graphics_;
+    Hummingbird::Core::BookmarkStore bookmarks_;
     TabController tab_controller_;
     std::unique_ptr<Hummingbird::Engine::ExtensionHost> extension_host_;
 

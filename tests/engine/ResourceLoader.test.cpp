@@ -145,6 +145,23 @@ TEST(ResourceLoaderTest, StylesheetAssetsMarkReadyWithoutNetwork) {
     EXPECT_EQ(batch.pending_count, 0u);
 }
 
+TEST(ResourceLoaderTest, AboutBookmarksServesBuiltInPageWithoutNetwork) {
+    // 7.6.2: about:bookmarks is a built-in page rendered from the bookmark store,
+    // served synchronously — no network request.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+
+    loader.navigate("about:bookmarks");
+    (void)loader.consume_pending_updates();  // marks the synchronously-enqueued document ready
+
+    auto view = loader.view("about:bookmarks", ResourceType::Document);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_NE(view->body.find("<h1>Bookmarks</h1>"), std::string::npos) << view->body;
+    EXPECT_TRUE(network_ptr->requests.empty()) << "about:bookmarks must not hit the network";
+}
+
 TEST(ResourceLoaderTest, NeverProbesProviderForOriginRelativeUrls) {
     // The local asset provider must never be probed with page-controlled paths
     // that belong to the document's origin: root-relative ("/x"), protocol-

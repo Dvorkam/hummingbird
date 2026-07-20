@@ -288,6 +288,18 @@ void BrowserApp::navigate_forward() {
     }
 }
 
+void BrowserApp::bookmark_active_tab() {
+    std::string url(active_tab().requested_url());
+    if (url.empty() || url == "about:bookmarks") {
+        return;  // nothing meaningful to bookmark (incl. the bookmarks page itself)
+    }
+    // Title extraction is a follow-up; use the URL as the label for now (MVP).
+    if (bookmarks_.add(url, url)) {
+        bookmarks_.save();
+        HB_LOG_INFO("[bookmarks] added " << url);
+    }
+}
+
 void BrowserApp::notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url) {
     extension_host_->notify_tab_created(tab_id, url);
 }

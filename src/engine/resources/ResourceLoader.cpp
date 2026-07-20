@@ -4,6 +4,7 @@
 #include <ostream>
 #include <utility>
 
+#include "core/BookmarkStore.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "engine/resources/ResourceRequestPlanner.h"
@@ -72,6 +73,14 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
 
     if (!resource_store_.begin_request(url_copy, ResourceType::Document)) {
         HB_LOG_WARN("[resource] failed to register document request: " << url_copy);
+    }
+
+    // Built-in about:bookmarks page (7.6.2): rendered synchronously from the
+    // shared bookmark file — no network round-trip.
+    if (url_copy == "about:bookmarks") {
+        Core::BookmarkStore store;
+        enqueue_resource_update(ResourceType::Document, url_copy, store.render_html(), /*success*/ true, url_copy);
+        return;
     }
 
     if (is_builtin_demo_url(url_copy) && fallback_network_) {

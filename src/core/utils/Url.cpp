@@ -123,6 +123,12 @@ std::string normalize_input_url(std::string_view input) {
     input = Utils::trim_ascii_whitespace(input);
     if (input.empty()) return {};
 
+    // Opaque pseudo-schemes (about:bookmarks, mailto:, ...) are kept verbatim
+    // rather than treated as a bare host to prefix with https://.
+    if (is_opaque_scheme_url(input)) {
+        return std::string(input);
+    }
+
     if (input.rfind("//", 0) == 0) {
         std::string normalized("https:");
         normalized.append(input);

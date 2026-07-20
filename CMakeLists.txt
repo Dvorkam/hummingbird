@@ -78,6 +78,7 @@ target_include_directories(Style
 # This library will contain the abstract interfaces and platform-independent logic.
 add_library(Core STATIC
     src/core/ArenaAllocator.cpp
+    src/core/BookmarkStore.cpp
     src/core/dom/DomFactory.cpp
     src/core/utils/AssetLoader.cpp
     src/core/utils/AssetPath.cpp

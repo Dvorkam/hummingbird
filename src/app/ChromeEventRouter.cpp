@@ -106,6 +106,18 @@ bool ChromeEventRouter::handle_global_key_shortcut(const Hummingbird::InputEvent
         return true;
     }
 
+    // Ctrl+D: bookmark the current page (7.6.2).
+    if (event.key.key == Key::D && event.mods.ctrl && !event.key.repeat) {
+        app_.bookmark_active_tab();
+        return true;
+    }
+
+    // Ctrl+Shift+O: open the bookmarks page (matches Edge/Firefox).
+    if (event.key.key == Key::O && event.mods.ctrl && event.mods.shift && !event.key.repeat) {
+        app_.navigate_and_reflect_url("about:bookmarks");
+        return true;
+    }
+
     if (event.key.key == Key::F1) {
         render_.toggle_debug_outlines();
         HB_LOG_INFO("[ui] Debug outlines " << (render_.debug_outlines() ? "ON" : "OFF"));
