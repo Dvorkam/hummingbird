@@ -470,6 +470,71 @@ TEST(DocumentPipelineTest, KeydownAndKeyupRouteToDocumentWithKeyFields) {
     EXPECT_TRUE(painted_has("up:a"));
 }
 
+TEST(DocumentPipelineTest, KeydownCarriesKeyCodeForDigitsSpaceAndPunctuation) {
+    // Digits, space, and punctuation carry real key/code values, not key: ""
+    // (T-KEY-FIELDS-COVERAGE-1, 7.7.4). `key` is the unshifted character; `code`
+    // uses the UI Events code names.
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } p { display: block; } </style></head>
+  <body>
+    <p id="status">idle</p>
+    <script>
+      document.addEventListener('keydown', function(e) {
+        // The painter uses whitespace as the run separator, so a raw space in
+        // e.key is unobservable via painted text; map it to a sentinel (which
+        // also confirms e.key === ' ') and use '_' as the separator.
+        var k = e.key === ' ' ? 'SPACE' : e.key;
+        document.getElementById('status').textContent = k + '_' + e.code;
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();
+
+    const auto painted_has = [&](const char* text) {
+        graphics.drawn_texts.clear();
+        pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+        pipeline.paint(graphics, {viewport, false, 0.0f});
+        return std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), text) != graphics.drawn_texts.end();
+    };
+
+    const auto press = [&](Hummingbird::Key key) {
+        Hummingbird::InputEvent event{};
+        event.type = Hummingbird::EventType::KeyDown;
+        event.key.key = key;
+        pipeline.handle_key_down(event, "https://example.dev");
+    };
+
+    press(Hummingbird::Key::Num1);
+    EXPECT_TRUE(painted_has("1_Digit1"));
+    press(Hummingbird::Key::Num0);
+    EXPECT_TRUE(painted_has("0_Digit0"));
+    press(Hummingbird::Key::Space);  // e.key === ' ' → sentinel, code "Space"
+    EXPECT_TRUE(painted_has("SPACE_Space"));
+    press(Hummingbird::Key::Minus);
+    EXPECT_TRUE(painted_has("-_Minus"));
+    press(Hummingbird::Key::Period);
+    EXPECT_TRUE(painted_has("._Period"));
+    press(Hummingbird::Key::Slash);
+    EXPECT_TRUE(painted_has("/_Slash"));
+}
+
 TEST(DocumentPipelineTest, KeydownPreventDefaultSuppressesTextEdit) {
     // preventDefault in a keydown listener stops the default text-edit action
     // (here: Backspace does not delete a character).

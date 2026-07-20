@@ -40,7 +40,41 @@ KeyFields key_fields(const InputEvent& event) {
         const char letter = event.mods.shift ? upper : static_cast<char>('a' + index);
         return {std::string(1, letter), std::string("Key") + upper};
     }
+    if (value >= static_cast<int>(Key::Num0) && value <= static_cast<int>(Key::Num9)) {
+        // `key` is the unshifted digit; the shifted symbol (Shift+1 → "!") is
+        // keyboard-layout dependent and out of scope. `code` is layout-agnostic.
+        const char digit = static_cast<char>('0' + (value - static_cast<int>(Key::Num0)));
+        return {std::string(1, digit), std::string("Digit") + digit};
+    }
     switch (event.key.key) {
+        // Space and punctuation. `key` is the unshifted character; `code` uses the
+        // UI Events KeyboardEvent code names (T-KEY-FIELDS-COVERAGE-1).
+        case Key::Space:
+            return {" ", "Space"};
+        case Key::Minus:
+            return {"-", "Minus"};
+        case Key::Equals:
+            return {"=", "Equal"};
+        case Key::LeftBracket:
+            return {"[", "BracketLeft"};
+        case Key::RightBracket:
+            return {"]", "BracketRight"};
+        case Key::Backslash:
+            return {"\\", "Backslash"};
+        case Key::Semicolon:
+            return {";", "Semicolon"};
+        case Key::Quote:
+            return {"'", "Quote"};
+        case Key::Backquote:
+            return {"`", "Backquote"};
+        case Key::Comma:
+            return {",", "Comma"};
+        case Key::Period:
+            return {".", "Period"};
+        case Key::Slash:
+            return {"/", "Slash"};
+        case Key::Tab:
+            return {"Tab", "Tab"};
         case Key::Enter:
             return {"Enter", "Enter"};
         case Key::Escape:

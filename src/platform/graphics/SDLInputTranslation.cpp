@@ -25,7 +25,37 @@ Key to_key(SDL_Keycode kc) {
     if (kc >= SDLK_a && kc <= SDLK_z) {
         return static_cast<Key>(static_cast<uint8_t>(Key::A) + static_cast<uint8_t>(kc - SDLK_a));
     }
+    // SDLK_0..SDLK_9 are the contiguous ASCII digits '0'..'9'.
+    if (kc >= SDLK_0 && kc <= SDLK_9) {
+        return static_cast<Key>(static_cast<uint8_t>(Key::Num0) + static_cast<uint8_t>(kc - SDLK_0));
+    }
     switch (kc) {
+        case SDLK_SPACE:
+            return Key::Space;
+        case SDLK_MINUS:
+            return Key::Minus;
+        case SDLK_EQUALS:
+            return Key::Equals;
+        case SDLK_LEFTBRACKET:
+            return Key::LeftBracket;
+        case SDLK_RIGHTBRACKET:
+            return Key::RightBracket;
+        case SDLK_BACKSLASH:
+            return Key::Backslash;
+        case SDLK_SEMICOLON:
+            return Key::Semicolon;
+        case SDLK_QUOTE:
+            return Key::Quote;
+        case SDLK_BACKQUOTE:
+            return Key::Backquote;
+        case SDLK_COMMA:
+            return Key::Comma;
+        case SDLK_PERIOD:
+            return Key::Period;
+        case SDLK_SLASH:
+            return Key::Slash;
+        case SDLK_TAB:
+            return Key::Tab;
         case SDLK_BACKSPACE:
             return Key::Backspace;
         case SDLK_DELETE:

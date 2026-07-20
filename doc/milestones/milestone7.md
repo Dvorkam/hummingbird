@@ -1,8 +1,10 @@
-> **Status: Active** — scope revalidated at kickoff 2026-07-17. Additions from the
-> kickoff review: external script loading (7.0.1 — only inline scripts run today),
-> real-world secondary proof (HN comment collapse), form-control JS surface +
-> checkbox MVP (7.1.5), fragment navigation (7.2.5), and browser-chrome
-> conveniences (7.6: back/forward, bookmarks).
+> **Status: Complete** — 2026-07-20. All stories delivered, including the kickoff
+> additions: external script loading (7.0.1), real-world secondary proof (HN
+> comment collapse), form-control JS surface + checkbox MVP (7.1.5), fragment
+> navigation (7.2.5), and browser-chrome conveniences (7.6: back/forward,
+> bookmarks). Deferred with tickets: per-document JS global isolation
+> (T-JS-GLOBAL-ISOLATION-1 → M8) and enumerated event-spec deviations
+> (T-EVENT-SPEC-GAPS-1 → M8). Scope revalidated at kickoff 2026-07-17.
 
 ## Milestone 7 North Star Deliverable
 
@@ -692,4 +694,12 @@ P1: If Schedule Allows
       because the controller's DispatchScope shares the outer mutation epoch (7.7.1).
       Pipeline test drives focus via inline el.focus() and blur re-entrantly from a
       click handler, asserting focus / input:hi / change+blur.)
-- [ ] 7.7.4: key/code for digits/space/punctuation (T-KEY-FIELDS-COVERAGE-1)
+- [x] 7.7.4: key/code for digits/space/punctuation (T-KEY-FIELDS-COVERAGE-1) — 2026-07-20
+      (Extended the platform Key enum with a contiguous Num0..Num9 digit block plus
+      Space and the printable US punctuation keys (- = [ ] \ ; ' ` , . /) and Tab;
+      SDLInputTranslation maps SDLK_0..9 arithmetically and the punctuation keycodes
+      by switch; DocumentPipeline::key_fields fills key (unshifted char) + code (UI
+      Events names: Digit1, Space, Minus, Equal, BracketLeft, Period, ...). Shifted
+      symbols (Shift+1 → "!") stay out of scope — layout-dependent, and no proof
+      target needs them. Pipeline test asserts a keydown listener sees 1/Digit1,
+      0/Digit0, ' '/Space, -/Minus, ./Period, //Slash.)
