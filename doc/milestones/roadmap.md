@@ -236,7 +236,9 @@ Detailed doc: [milestone9.md](milestone9.md) *(draft — revalidate at kickoff)*
 **Theme:** *Human Interaction*
 **Goal:** Make login and composing text practical (this is where "viable" often lives or dies).
 
-* **Form Controls v2:** `<input type=text/password>`, `<textarea>`; value editing, selection, caret movement, copy/paste.
+* **Form Controls v2:** `<input type=text/password>` plus the full textarea model;
+  extend M8's deliberately narrow HN-comment textarea MVP with value editing,
+  selection, caret movement, copy/paste, and normal form semantics.
 * **Focus System:** tab order, focus rings, keyboard routing.
 * **Composition Plan:** Latin input "good enough" first; IME/composition events as a follow-up epic behind interfaces.
 * **Text rendering reality check:** emoji + font-fallback chain baseline (comment sections are full of them; full shaping/bidi stays deferred).

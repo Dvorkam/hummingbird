@@ -20,6 +20,9 @@
 * **DOM Storage**: `localStorage` (persistent, per-origin) and `sessionStorage`
   (per-tab lifetime).
 * **`document.cookie`** JS binding with HttpOnly filtering.
+* **HN textarea MVP**: a deliberately narrow multiline control sufficient to type
+  and submit a Hacker News comment; the rest of textarea editing/form semantics is
+  explicitly deferred to M11.
 * **Hardened navigation plumbing**: redirect limits/loop detection, 301/302/303/307/308
   method semantics, basic network-error pages.
 * **Proof target:** **log into Hacker News, post a comment, restart the browser, and
@@ -37,6 +40,10 @@
   note the limitation).
 * No `__Secure-`/`__Host-` prefix enforcement beyond parsing (record as follow-up if
   a target site forces it).
+* The textarea slice is not Forms v2: no mouse/keyboard selection, word/line
+  navigation, clipboard, `selectionStart`/`selectionEnd`, `defaultValue`, form
+  reset, CSS `resize`, internal scrolling, or general DOM/API parity. Those
+  extensions are tracked as M11 follow-ups in `doc/TODOs.md`.
 
 ---
 
@@ -46,6 +53,8 @@
 
 * Cookie jar with matching/attribute policy (8.1.1, 8.1.2) wired into every engine
   request (document, subresource, POST).
+* HN textarea MVP (8.0.1), so the proof target has a real comment payload rather
+  than only session plumbing.
 * Redirect cookie semantics + chain hardening (8.1.3, 8.3.1).
 * Jar persistence across restarts (8.1.4).
 * `document.cookie` binding (8.1.5) — HN's login flow is form-POST, but session
@@ -76,6 +85,29 @@
 ---
 
 ## Stories
+
+### 8.0 - HN Comment Surface (bounded Forms v2 pull-forward)
+
+* **Story 8.0.1: Textarea MVP For HN Comments**
+* **Goal:** make a native `<textarea>` usable for the single HN comment workflow:
+  focus it, type ordinary text including newlines, edit with Backspace, and submit
+  its current value in an urlencoded form POST.
+* **Scope:** recognize `<textarea>` as a form-associated, focusable control; reuse
+  the existing input editing/event path where it fits; give it a simple visible
+  multiline box (with a conservative `rows`-based default height); insert typed
+  text, Backspace, and `Enter` as a newline; serialize a named textarea's live
+  value as `name=value` alongside inputs when its enclosing form is submitted.
+  Clicking HN's submit control remains the submission path — `Enter` must add a
+  newline, not submit. Add an M8 demo-site example showing a multiline comment
+  field and its submitted payload.
+* **Acceptance:** on HN's comment form, a user can type a short multi-line comment
+  and submit it; the request contains the text in the textarea's named field;
+  existing text-input behavior remains unchanged.
+* **Tests:** control editing + form-serialization tests (including newline payload),
+  input-event/focus regression tests, and the M8 local login/comment fixture.
+* **Explicit follow-through:** this is intentionally not a general textarea. M11
+  owns the editing/selection, JS/form, and sizing/scrolling extensions recorded in
+  `doc/TODOs.md` as `T-FORM-TEXTAREA-*-1`.
 
 ### 8.1 - Cookie Engine v1
 
@@ -177,6 +209,7 @@
 ## Execution Order Checklist
 
 P0: Cookies (North Star)
+- [ ] 8.0.1: Textarea MVP For HN Comments
 - [ ] 8.1.1: Cookie Jar + Matching
 - [ ] 8.1.2: Attribute Policy (Secure/HttpOnly/SameSite)
 - [ ] 8.1.3: Redirect Cookie Semantics
