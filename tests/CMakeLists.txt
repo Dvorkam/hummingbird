@@ -24,6 +24,7 @@ add_executable(HummingbirdTests
     core/ArenaAllocator.test.cpp
     core/BookmarkStore.test.cpp
     core/HttpHeaders.test.cpp
+    core/CookieJar.test.cpp
     core/AssetPath.test.cpp
     core/AssetLoader.test.cpp
     core/TextEditBuffer.test.cpp
