@@ -1,6 +1,50 @@
-> **Status: Planned** — pre-written 2026-07, three milestones ahead but spec-driven
+> **Status: Active** — pre-written 2026-07, three milestones ahead but spec-driven
 > (cookies/storage are RFC-shaped and nearly independent of M6/M7 discoveries).
-> Sanity-check the network-seam story scopes against the codebase before kickoff.
+
+## Kickoff Scope Validation (2026-07-20)
+
+The pre-written network-seam scopes were checked against the codebase as the
+header note asked. Two findings change the story list:
+
+1. **There is no HTTP header plumbing at all.** `NetworkResponse`
+   (`core/platform_api/INetwork.h`) carries only url/effective_url/body/status/
+   error, and `NetworkRequestOptions` carries only `allow_insecure` and
+   `content_type`. `CurlNetwork` extracts `CURLINFO_CONTENT_TYPE` and nothing
+   else — there is no header callback. A cookie jar cannot read `Set-Cookie` or
+   send `Cookie` until both directions exist, so **story 8.1.0 is inserted ahead
+   of 8.1.1** to carry that plumbing.
+
+2. **libcurl follows redirects internally** (`CURLOPT_FOLLOWLOCATION = 1L` in
+   `apply_common_curl_options`), so the engine never observes intermediate hops.
+   That makes "cookies set mid-chain apply to subsequent hops; site context is
+   recomputed per hop" (8.1.3) and hop-limit/loop-detection/method-rewriting
+   (8.3.1) both unimplementable as written. Taking ownership of the redirect loop
+   is 8.3.1's job, and 8.1.3 depends on it — so **8.3.1 now runs before 8.1.3**
+   in the execution order rather than after.
+
+Everything else (storage, `document.cookie`, the login harness) validated as
+written.
+
+### Story 8.1.0: HTTP Header Plumbing Across The Network Seam
+
+* **Goal:** let the engine read response headers and set request headers, so
+  cookie policy can live in the engine rather than in libcurl.
+* **Scope:** response headers on `NetworkResponse` and request headers on
+  `NetworkRequestOptions`; a curl header callback; matching support in
+  `StubNetwork` so fixtures can drive `Set-Cookie`. Header names are matched
+  case-insensitively and repeated headers (`Set-Cookie` especially) must be kept
+  as a list, not collapsed into one value.
+* **Acceptance:** a caller can set request headers that reach the backend and can
+  read response headers off `NetworkResponse`, with repeated `Set-Cookie` fields
+  preserved individually.
+* **Tests:** header-collection unit tests (case-insensitive lookup, repeated
+  fields, raw-line parsing incl. the status/blank lines curl emits) + a seam
+  round trip through the network fakes. **The libcurl path is not locally
+  verifiable** (no network in the dev sandbox); it is covered by review and by
+  the live-HN manual gate, same caveat as the M7 fuzzing job.
+* **Non-goals:** no cookie semantics here — this story only moves bytes. Wiring
+  headers into `ResourceLoader`'s document/subresource requests belongs to 8.1.1,
+  where there is a jar to wire them to.
 
 ## Milestone 8 North Star Deliverable
 
@@ -209,11 +253,12 @@
 ## Execution Order Checklist
 
 P0: Cookies (North Star)
-- [ ] 8.0.1: Textarea MVP For HN Comments
+- [x] 8.0.1: Textarea MVP For HN Comments
+- [ ] 8.1.0: HTTP Header Plumbing Across The Network Seam *(inserted at kickoff; prerequisite for 8.1.1)*
 - [ ] 8.1.1: Cookie Jar + Matching
 - [ ] 8.1.2: Attribute Policy (Secure/HttpOnly/SameSite)
+- [ ] 8.3.1: Redirect Chain Hardening *(moved ahead of 8.1.3: it takes ownership of the redirect loop from libcurl, which 8.1.3 needs)*
 - [ ] 8.1.3: Redirect Cookie Semantics
-- [ ] 8.3.1: Redirect Chain Hardening
 - [ ] 8.1.4: Cookie Jar Persistence
 - [ ] 8.1.5: document.cookie Binding
 

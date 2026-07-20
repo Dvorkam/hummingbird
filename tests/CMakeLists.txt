@@ -23,6 +23,7 @@ add_executable(HummingbirdTests
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
     core/BookmarkStore.test.cpp
+    core/HttpHeaders.test.cpp
     core/AssetPath.test.cpp
     core/AssetLoader.test.cpp
     core/TextEditBuffer.test.cpp
@@ -67,6 +68,7 @@ add_executable(HummingbirdTests
     platform/CacheUtils.test.cpp
     platform/Blend2DFontCache.test.cpp
     network/StubNetwork.test.cpp
+    network/NetworkSeamHeaders.test.cpp
     network/CurlNetwork.test.cpp
     network/NetworkFactory.test.cpp
     layout/DdgHomeLayout.test.cpp

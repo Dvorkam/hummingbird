@@ -30,15 +30,41 @@ size_t write_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
     return size * nmemb;
 }
 
-void apply_common_curl_options(CURL* curl, const std::string& url, std::string& body_buffer) {
+// curl delivers one header line per call, including the status line and the
+// blank separator; HttpHeaders::add_raw_line skips both.
+size_t header_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
+    auto* headers = static_cast<Core::HttpHeaders*>(userdata);
+    const size_t bytes = size * nmemb;
+    headers->add_raw_line(std::string_view(ptr, bytes));
+    return bytes;
+}
+
+void apply_common_curl_options(CURL* curl, const std::string& url, std::string& body_buffer,
+                               Core::HttpHeaders& header_buffer) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    // NOTE: curl still follows redirects internally, so intermediate hops are
+    // invisible here and their Set-Cookie headers never reach the engine. Story
+    // 8.3.1 takes ownership of the redirect loop; until then only the final
+    // response's headers are observed.
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body_buffer);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &header_buffer);
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, CurlNetwork::accept_encoding());
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "Hummingbird/0.2");
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
+}
+
+// Appends the caller's request headers to `list`, which the caller owns and must
+// free with curl_slist_free_all.
+curl_slist* append_request_headers(curl_slist* list, const Core::HttpHeaders& headers) {
+    for (const auto& field : headers.fields()) {
+        const std::string line = field.name + ": " + field.value;
+        list = curl_slist_append(list, line.c_str());
+    }
+    return list;
 }
 
 CurlResponseMeta collect_response_meta(CURL* curl) {
@@ -105,7 +131,9 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
     auto cb = std::move(callback);
 
     const bool allow_insecure = options.allow_insecure;
-    thread_pool_.submit([url, cb = std::move(cb), this, allow_insecure]() mutable {
+    Core::HttpHeaders request_headers = options.headers;
+    thread_pool_.submit([url, cb = std::move(cb), this, allow_insecure,
+                         request_headers = std::move(request_headers)]() mutable {
         if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         std::string body;
         NetworkResponse response = Hummingbird::Platform::make_response(url);
@@ -116,11 +144,16 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
             return;
         }
 
-        apply_common_curl_options(curl, url, body);
+        apply_common_curl_options(curl, url, body, response.headers);
+        struct curl_slist* headers = append_request_headers(nullptr, request_headers);
+        if (headers) {
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        }
         Hummingbird::Platform::apply_tls_options(curl, allow_insecure);
 
         CURLcode res = curl_easy_perform(curl);
         CurlResponseMeta meta = collect_response_meta(curl);
+        curl_slist_free_all(headers);
         curl_easy_cleanup(curl);
 
         if (res != CURLE_OK) {
@@ -159,7 +192,9 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
     const std::string content_type =
         options.content_type.empty() ? "application/x-www-form-urlencoded" : options.content_type;
 
-    thread_pool_.submit([url, body_copy, cb = std::move(cb), this, allow_insecure, content_type]() mutable {
+    Core::HttpHeaders request_headers = options.headers;
+    thread_pool_.submit([url, body_copy, cb = std::move(cb), this, allow_insecure, content_type,
+                         request_headers = std::move(request_headers)]() mutable {
         if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         std::string response_body;
         NetworkResponse response = Hummingbird::Platform::make_response(url);
@@ -170,7 +205,7 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
             return;
         }
 
-        apply_common_curl_options(curl, url, response_body);
+        apply_common_curl_options(curl, url, response_body, response.headers);
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_copy.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body_copy.size()));
@@ -178,6 +213,7 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
         struct curl_slist* headers = nullptr;
         const std::string content_type_header = "Content-Type: " + content_type;
         headers = curl_slist_append(headers, content_type_header.c_str());
+        headers = append_request_headers(headers, request_headers);
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
         Hummingbird::Platform::apply_tls_options(curl, allow_insecure);
