@@ -43,6 +43,8 @@ float textarea_default_height(const DOM::Element& element) {
         }
     }
     return static_cast<float>(rows) * kTextareaDefaultLineHeight + 2.0f * kTextareaDefaultVerticalPadding;
+}
+
 bool input_type_is_toggle(const DOM::Element& element) {
     const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
     return type &&
