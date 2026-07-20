@@ -39,3 +39,8 @@ Testing/Temporary/*
 cmake_test_discovery_*.json
 .gemini/settings.json
 debug.log
+
+#tmp
+tmp
+# User-written bookmark list (7.6.2)
+assets/config/bookmarks.tsv

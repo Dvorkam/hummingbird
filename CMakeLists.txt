@@ -14,6 +14,20 @@ endif()
 set(HB_LOG_LEVEL "ERROR" CACHE STRING "Log level: OFF, ERROR, WARN, INFO, DEBUG")
 set_property(CACHE HB_LOG_LEVEL PROPERTY STRINGS OFF ERROR WARN INFO DEBUG)
 
+# Parser fuzzing (story 7.5.3). When ON (clang only), instrument the whole build
+# with coverage + AddressSanitizer so bugs inside the parsers themselves are
+# caught; the libFuzzer targets in tests/ then link the fuzzer driver. Kept
+# project-wide (not just the fuzz target) via -fsanitize=fuzzer-no-link so the
+# parser libraries are instrumented too.
+option(HB_ENABLE_FUZZING "Build libFuzzer parser fuzz targets (requires clang -fsanitize=fuzzer)" OFF)
+if(HB_ENABLE_FUZZING)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR "HB_ENABLE_FUZZING requires Clang (got ${CMAKE_CXX_COMPILER_ID}); -fsanitize=fuzzer is Clang-only.")
+    endif()
+    add_compile_options(-fsanitize=fuzzer-no-link,address -fno-omit-frame-pointer -g)
+    add_link_options(-fsanitize=address)
+endif()
+
 string(TOUPPER "${HB_LOG_LEVEL}" HB_LOG_LEVEL_UPPER)
 set(HB_LOG_LEVEL_NUM 1)
 if(HB_LOG_LEVEL_UPPER STREQUAL "OFF")
@@ -64,6 +78,7 @@ target_include_directories(Style
 # This library will contain the abstract interfaces and platform-independent logic.
 add_library(Core STATIC
     src/core/ArenaAllocator.cpp
+    src/core/BookmarkStore.cpp
     src/core/dom/DomFactory.cpp
     src/core/utils/AssetLoader.cpp
     src/core/utils/AssetPath.cpp

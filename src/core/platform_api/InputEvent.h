@@ -47,6 +47,35 @@ enum class Key : uint8_t {
     Y,
     Z,
 
+    // Digit row (unshifted). Kept contiguous so translation/key mapping can index
+    // arithmetically, like the A..Z block above.
+    Num0,
+    Num1,
+    Num2,
+    Num3,
+    Num4,
+    Num5,
+    Num6,
+    Num7,
+    Num8,
+    Num9,
+
+    // Space and the printable US punctuation keys (unshifted). `key`/`code` for
+    // these is filled in by DocumentPipeline::key_fields (T-KEY-FIELDS-COVERAGE-1).
+    Space,
+    Minus,         // -
+    Equals,        // =
+    LeftBracket,   // [
+    RightBracket,  // ]
+    Backslash,     // backslash
+    Semicolon,     // ;
+    Quote,         // '
+    Backquote,     // `
+    Comma,         // ,
+    Period,        // .
+    Slash,         // /
+    Tab,
+
     Backspace,
     Delete,
     Insert,
@@ -94,6 +123,7 @@ struct InputEvent {
         int x{0};
         int y{0};
         MouseButton button{MouseButton::Unknown};
+        int clicks{1};  // 1 = single, 2 = double (SDL button.clicks)
     } mouse_button{};
 
     struct {

@@ -1,47 +1,88 @@
 #include "engine/resources/ResourceRequestPlanner.h"
 
+#include <iterator>
+
 #include "engine/resources/ResourceUrl.h"
 
 namespace Hummingbird::Engine::ResourceRequestPlanning {
 
-ResourceRequestOptions stylesheet_request_options() {
-    ResourceRequestOptions options{};
-    options.type = ResourceType::Stylesheet;
-    options.type_label = "stylesheet";
-    options.attr_label = "href";
-    options.allow_fallback_network = false;
-    options.log_duplicates = true;
-    options.log_asset_load = true;
-    options.mark_ready_on_asset = true;
-    options.use_binary = false;
-    return options;
-}
+namespace {
 
-ResourceRequestOptions image_request_options() {
-    ResourceRequestOptions options{};
-    options.type = ResourceType::Image;
-    options.type_label = "image";
-    options.attr_label = "src";
-    options.allow_fallback_network = true;
-    options.log_duplicates = false;
-    options.log_asset_load = false;
-    options.mark_ready_on_asset = false;
-    options.use_binary = true;
-    return options;
-}
+// Document is fetched via ResourceLoader::navigate, never request_resources,
+// so only its label and decode mode matter. Fonts are opaque binary blobs
+// (TTF/OTF) stored raw for the font resolver's on-disk cache — no decode.
+constexpr ResourceRequestOptions kResourceTypeTable[] = {
+    {
+        .type = ResourceType::Document,
+        .type_label = "document",
+        .attr_label = "href",
+        .allow_fallback_network = true,
+        .log_duplicates = false,
+        .log_asset_load = false,
+        .mark_ready_on_asset = false,
+        .use_binary = false,
+        .decode = ResourceDecode::None,
+    },
+    {
+        .type = ResourceType::Stylesheet,
+        .type_label = "stylesheet",
+        .attr_label = "href",
+        .allow_fallback_network = false,
+        .log_duplicates = true,
+        .log_asset_load = true,
+        .mark_ready_on_asset = true,
+        .use_binary = false,
+        .decode = ResourceDecode::None,
+    },
+    {
+        .type = ResourceType::Image,
+        .type_label = "image",
+        .attr_label = "src",
+        .allow_fallback_network = true,
+        .log_duplicates = false,
+        .log_asset_load = false,
+        .mark_ready_on_asset = false,
+        .use_binary = true,
+        .decode = ResourceDecode::Image,
+    },
+    {
+        .type = ResourceType::Font,
+        .type_label = "font",
+        .attr_label = "src",
+        .allow_fallback_network = true,
+        .log_duplicates = false,
+        .log_asset_load = true,
+        .mark_ready_on_asset = true,
+        .use_binary = true,
+        .decode = ResourceDecode::None,
+    },
+    {
+        .type = ResourceType::Script,
+        .type_label = "script",
+        .attr_label = "src",
+        .allow_fallback_network = false,
+        .log_duplicates = true,
+        .log_asset_load = true,
+        .mark_ready_on_asset = true,
+        .use_binary = false,
+        .decode = ResourceDecode::None,
+    },
+};
 
-ResourceRequestOptions font_request_options() {
-    ResourceRequestOptions options{};
-    options.type = ResourceType::Font;
-    options.type_label = "font";
-    options.attr_label = "src";
-    options.allow_fallback_network = true;
-    options.log_duplicates = false;
-    options.log_asset_load = true;
-    // Fonts are opaque binary blobs (TTF/OTF); store them as raw bytes, no decode.
-    options.mark_ready_on_asset = true;
-    options.use_binary = true;
-    return options;
+static_assert(std::size(kResourceTypeTable) == kResourceTypeCount, "every ResourceType needs a descriptor table entry");
+static_assert(
+    [] {
+        for (size_t i = 0; i < std::size(kResourceTypeTable); ++i) {
+            if (kResourceTypeTable[i].type != static_cast<ResourceType>(i)) return false;
+        }
+        return true;
+    }(),
+    "descriptor table entries must be ordered by ResourceType value");
+
+}  // namespace
+
+const ResourceRequestOptions& request_options_for(ResourceType type) {
+    return kResourceTypeTable[static_cast<size_t>(type)];
 }
 
 ResolvedRequestUrl resolve_request_url(std::string_view base_url, std::string_view raw_url) {

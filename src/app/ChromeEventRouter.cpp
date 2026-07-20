@@ -74,6 +74,17 @@ bool ChromeEventRouter::handle_tab_shortcut(const Hummingbird::InputEvent& event
             }
             return true;
         }
+
+        // Alt+Left / Alt+Right: back / forward over the tab's history (7.6.1).
+        if (event.mods.alt && !event.mods.ctrl && event.key.key == Key::Left) {
+            app_.navigate_back();
+            return true;
+        }
+
+        if (event.mods.alt && !event.mods.ctrl && event.key.key == Key::Right) {
+            app_.navigate_forward();
+            return true;
+        }
     }
     return false;
 }
@@ -92,6 +103,18 @@ bool ChromeEventRouter::handle_global_key_shortcut(const Hummingbird::InputEvent
             render_.set_controls_dirty();
         }
         render_.set_chrome_dirty();
+        return true;
+    }
+
+    // Ctrl+D: bookmark the current page (7.6.2).
+    if (event.key.key == Key::D && event.mods.ctrl && !event.key.repeat) {
+        app_.bookmark_active_tab();
+        return true;
+    }
+
+    // Ctrl+Shift+O: open the bookmarks page (matches Edge/Firefox).
+    if (event.key.key == Key::O && event.mods.ctrl && event.mods.shift && !event.key.repeat) {
+        app_.navigate_and_reflect_url("about:bookmarks");
         return true;
     }
 

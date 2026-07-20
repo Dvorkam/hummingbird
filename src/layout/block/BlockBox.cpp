@@ -6,6 +6,8 @@
 #include <vector>
 
 #include "core/dom/Element.h"
+#include "core/utils/StringUtils.h"
+#include "html/HtmlAttributeNames.h"
 #include "html/HtmlTagNames.h"
 #include "layout/block/FloatLayoutUtils.h"
 #include "layout/flow/FlowLayoutUtils.h"
@@ -26,6 +28,8 @@ namespace Hummingbird::Layout {
 constexpr float kInlineAtomicLayoutWidth = 100000.0f;
 constexpr float kMinInputContentWidth = 8.0f;
 constexpr float kMinInputContentHeight = 12.0f;
+// A checkbox is a small fixed square (MVP: not resizable via CSS yet, 7.2.6).
+constexpr float kCheckboxSize = 16.0f;
 
 std::optional<float> resolve_height_constraint(const Css::ComputedStyle* style,
                                                const Css::ComputedStyle::LengthValue& value, float reference_height,
@@ -42,7 +46,25 @@ bool is_input_element(const RenderObject& node) {
     return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
 }
 
+bool is_checkbox_input(const RenderObject& node) {
+    const auto* element = dynamic_cast<const DOM::Element*>(node.get_dom_node());
+    if (!element || element->get_tag_name() != Hummingbird::Html::TagNames::Input) {
+        return false;
+    }
+    const auto* type = element->find_attribute(Hummingbird::Html::AttributeNames::Type);
+    return type && Core::Utils::equals_ignore_case(*type, "checkbox");
+}
+
 void enforce_min_input_content_box(RenderObject& node, const Metrics::Insets& insets) {
+    if (is_checkbox_input(node)) {
+        // A checkbox renders as a fixed square regardless of the flow width it was
+        // handed (the painter draws a box + checkmark within it).
+        auto rect = node.get_rect();
+        rect.width = kCheckboxSize;
+        rect.height = kCheckboxSize;
+        node.set_rect(rect);
+        return;
+    }
     if (!is_input_element(node)) {
         return;
     }
@@ -266,11 +288,16 @@ void InlineBlockBox::layout(IGraphicsContext& context, const Rect& bounds) {
     float inset_left = insets.left;
     float inset_right = insets.right;
 
+    // Children were laid out at the oversized kInlineAtomicLayoutWidth probe
+    // above; a display:block child stretches to fill it, so derive its width
+    // from content instead, or it balloons this inline-block's shrink-to-fit
+    // width to ~kInlineAtomicLayoutWidth (T-LAYOUT-SHRINK-TO-FIT-1, same bug as
+    // T-LAYOUT-TABLE-INTRINSIC-BLOCK-1).
     float content_right = inset_left;
     for (const auto& child : m_children) {
         const auto* child_style = child->get_computed_style();
         float margin_right = child_style ? child_style->margin.right : 0.0f;
-        float right = child->get_rect().x + child->get_rect().width + margin_right;
+        float right = child->get_rect().x + Metrics::max_content_width(*child) + margin_right;
         content_right = std::max(content_right, right);
     }
 

@@ -1,0 +1,82 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird M7 Demo - External Scripts</title>
+    <style>
+      body { margin: 0; padding: 0 0 30px 0; background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; }
+      .top { background-color: #14213d; color: #ffffff; padding: 14px 24px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+      .top-title { font-size: 20px; font-weight: bold; margin: 0; }
+      .top a { color: #fca311; }
+      .page { max-width: 860px; margin: 0 auto; padding: 16px 24px; }
+      .section { background-color: #ffffff; border: 1px solid #dde3ee; border-radius: 10px; padding: 12px 16px; margin: 14px 0; }
+      .section h2 { margin: 4px 0 10px 0; font-size: 17px; }
+      code { background-color: #e8ecf4; padding: 1px 5px; border-radius: 4px; }
+      .steps p { margin: 6px 0; padding: 6px 10px; border-left: 4px solid #dde3ee; }
+      .verdict { border-left: 4px solid #fca311; font-weight: bold; }
+      .hint { color: #5a6478; font-size: 14px; }
+    </style>
+  </head>
+  <body onload="const status = document.getElementById('load-status'); if (status) { status.textContent = 'load event: fired after every script had run [OK]'; }">
+    <div class="top">
+      <p class="top-title">M7: External Script Loading (7.0.1)</p>
+      <a href="https://example.dev">&laquo; back to example.dev</a>
+    </div>
+    <div class="page">
+      <div class="section">
+        <h2>Document-order execution: inline -&gt; external -&gt; inline</h2>
+        <p class="hint">Three <code>&lt;script&gt;</code>s run in the order they appear in the HTML.
+        The middle one is a separate file (<code>m7.js</code>) fetched through the resource
+        pipeline before any script runs.</p>
+        <div class="steps">
+          <p id="step-inline-1">1. inline script before the external one: pending&hellip;</p>
+          <p id="step-external">2. external m7.js: pending&hellip; (if this line never changes, the fetch or eval failed)</p>
+          <p id="step-inline-2">3. inline script after the external one: pending&hellip;</p>
+          <p id="last-writer" class="verdict">Last script to run: none yet</p>
+          <p id="load-status">load event: pending&hellip;</p>
+        </div>
+        <p class="hint">Expected when everything works: all three steps show [OK], the
+        &ldquo;last script&rdquo; line says <code>inline #2</code> (it runs after m7.js in document
+        order &mdash; if it said <code>external m7.js</code>, ordering would be broken), and the
+        load event fired last.</p>
+      </div>
+
+      <script>
+        (function () {
+          var step = document.getElementById("step-inline-1");
+          if (step) {
+            step.textContent = "1. inline script before the external one: ran [OK]";
+          }
+          var last = document.getElementById("last-writer");
+          if (last) {
+            last.textContent = "Last script to run: inline #1";
+          }
+        })();
+      </script>
+      <script src="assets/stub/pages/m7.js"></script>
+      <script>
+        (function () {
+          var step = document.getElementById("step-inline-2");
+          if (step) {
+            step.textContent = "3. inline script after the external one: ran [OK]";
+          }
+          var last = document.getElementById("last-writer");
+          if (last) {
+            last.textContent = "Last script to run: inline #2 [OK]";
+          }
+        })();
+      </script>
+
+      <div class="section">
+        <h2>What is new here</h2>
+        <p>Before M7, only inline <code>&lt;script&gt;</code> bodies ran &mdash; the
+        <code>src</code> attribute was ignored entirely. Now external scripts are fetched as a
+        first-class resource type and the whole set (inline and external, interleaved) executes
+        in document order, with the <code>load</code> event held back until every script has run.</p>
+        <p class="hint">Skipped by design on this page: a <code>&lt;script type="application/json"&gt;</code>
+        data block would not execute, and a failed fetch would be skipped while the remaining
+        scripts still run.</p>
+      </div>
+    </div>
+  </body>
+</html>

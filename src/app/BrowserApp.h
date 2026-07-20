@@ -6,6 +6,7 @@
 
 #include "app/BrowserChrome.h"
 #include "app/TabController.h"
+#include "core/BookmarkStore.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -16,7 +17,7 @@ struct InputEvent;
 
 namespace Hummingbird::Engine {
 class ExtensionHost;
-class FormSubmission;
+struct FormSubmission;  // defined as a struct in engine/forms/FormSubmission.h
 class Tab;
 }  // namespace Hummingbird::Engine
 
@@ -55,6 +56,11 @@ public:
     // Navigates the active tab and reflects the target in the URL bar + render state.
     void navigate_and_reflect_url(std::string_view url);
     void navigate_and_reflect_submission(const Hummingbird::Engine::FormSubmission& submission);
+    // Back/forward over the active tab's history, reflecting the URL bar (7.6.1).
+    void navigate_back();
+    void navigate_forward();
+    // Bookmarks the active tab's page and persists the list (Ctrl+D, 7.6.2).
+    void bookmark_active_tab();
 
     // Whether platform text input is currently owned by the active tab (vs the URL bar).
     bool tab_text_input_active() const { return tab_text_input_active_; }
@@ -66,6 +72,8 @@ private:
     void tick_active_tab(const Hummingbird::Layout::Rect& viewport);
     void emit_navigation_commit_events();
     void sync_active_tab_security_state();
+    // Reflects a script-initiated location.hash change in the URL bar (7.7.3).
+    void sync_active_tab_url();
 
     void on_active_tab_changed();
     void sync_tab_text_input_mode();
@@ -80,6 +88,7 @@ private:
     // Platform
     std::unique_ptr<IWindow> window_;
     std::unique_ptr<IGraphicsContext> graphics_;
+    Hummingbird::Core::BookmarkStore bookmarks_;
     TabController tab_controller_;
     std::unique_ptr<Hummingbird::Engine::ExtensionHost> extension_host_;
 

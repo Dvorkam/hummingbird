@@ -151,6 +151,7 @@ bool BrowserApp::tick() {
         tick_active_tab(viewport);
         emit_navigation_commit_events();
         sync_active_tab_security_state();
+        sync_active_tab_url();
         sync_tab_text_input_mode();
     }
     render_coordinator_->render_if_needed();
@@ -174,6 +175,13 @@ void BrowserApp::emit_navigation_commit_events() {
 
 void BrowserApp::sync_active_tab_security_state() {
     if (browser_chrome_.url_bar().set_security_state(active_tab().security_state())) {
+        render_coordinator_->set_chrome_dirty();
+    }
+}
+
+void BrowserApp::sync_active_tab_url() {
+    if (auto url = active_tab().consume_url_bar_update()) {
+        browser_chrome_.url_bar().set_text(*url);
         render_coordinator_->set_chrome_dirty();
     }
 }
@@ -256,6 +264,40 @@ void BrowserApp::navigate_and_reflect_submission(const Hummingbird::Engine::Form
     navigate_active_tab(submission);
     render_coordinator_->set_document_dirty();
     render_coordinator_->set_chrome_dirty();
+}
+
+void BrowserApp::navigate_back() {
+    if (!window_ || !graphics_) return;
+    auto [win_w, win_h] = window_->get_size();
+    const auto viewport = browser_chrome_.content_viewport(win_w, win_h);
+    if (active_tab().go_back(*graphics_, viewport)) {
+        browser_chrome_.url_bar().set_text(active_tab().requested_url());
+        render_coordinator_->set_document_dirty();
+        render_coordinator_->set_chrome_dirty();
+    }
+}
+
+void BrowserApp::navigate_forward() {
+    if (!window_ || !graphics_) return;
+    auto [win_w, win_h] = window_->get_size();
+    const auto viewport = browser_chrome_.content_viewport(win_w, win_h);
+    if (active_tab().go_forward(*graphics_, viewport)) {
+        browser_chrome_.url_bar().set_text(active_tab().requested_url());
+        render_coordinator_->set_document_dirty();
+        render_coordinator_->set_chrome_dirty();
+    }
+}
+
+void BrowserApp::bookmark_active_tab() {
+    std::string url(active_tab().requested_url());
+    if (url.empty() || url == "about:bookmarks") {
+        return;  // nothing meaningful to bookmark (incl. the bookmarks page itself)
+    }
+    // Title extraction is a follow-up; use the URL as the label for now (MVP).
+    if (bookmarks_.add(url, url)) {
+        bookmarks_.save();
+        HB_LOG_INFO("[bookmarks] added " << url);
+    }
 }
 
 void BrowserApp::notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url) {

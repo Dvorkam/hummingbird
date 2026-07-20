@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "core/ArenaAllocator.h"
+#include "engine/document/DocumentLinkDiscovery.h"
 #include "engine/forms/FormSubmission.h"
 #include "layout/TreeBuilder.h"
 #include "style/compute/StyleEngine.h"
@@ -62,7 +63,8 @@ public:
     Core::ArenaAllocator* dom_arena() { return &dom_arena_; }
 
     const std::vector<std::string>& style_blocks() const { return style_blocks_; }
-    const std::vector<std::string>& script_blocks() const { return script_blocks_; }
+    // All <script> elements in document order (inline text or external src).
+    const std::vector<DocumentScriptRef>& document_scripts() const { return document_scripts_; }
     const std::vector<std::string>& stylesheet_links() const { return stylesheet_links_; }
     const std::vector<std::string>& image_links() const { return image_links_; }
     const std::vector<std::string>& background_image_links() const { return background_image_links_; }
@@ -89,7 +91,7 @@ private:
     Css::MediaContext applied_media_;
 
     std::vector<std::string> style_blocks_;
-    std::vector<std::string> script_blocks_;
+    std::vector<DocumentScriptRef> document_scripts_;
     std::vector<std::string> stylesheet_links_;
     std::vector<std::string> image_links_;
     std::vector<std::string> background_image_links_;

@@ -4,12 +4,28 @@
 #include <ostream>
 #include <utility>
 
+#include "core/BookmarkStore.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/resources/ResourceUpdateProcessor.h"
 
 namespace Hummingbird::Engine {
+
+namespace {
+// The built-in demo site: example.dev and every subpage under it are served by
+// the stub network. Routing them straight there keeps startup deterministic
+// and avoids a doomed DNS lookup (and its scary warning) per demo navigation.
+bool is_builtin_demo_url(std::string_view url) {
+    for (std::string_view prefix : {"http://example.dev", "https://example.dev"}) {
+        if (url.rfind(prefix, 0) != 0) continue;
+        if (url.size() == prefix.size()) return true;
+        const char next = url[prefix.size()];
+        if (next == '/' || next == '?') return true;
+    }
+    return false;
+}
+}  // namespace
 
 ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
                                ImageDecoderPtr image_decoder)
@@ -59,8 +75,15 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         HB_LOG_WARN("[resource] failed to register document request: " << url_copy);
     }
 
-    // Built-in demo URL: keep startup deterministic and avoid network timeouts.
-    if ((url_copy == "http://example.dev" || url_copy == "https://example.dev") && fallback_network_) {
+    // Built-in about:bookmarks page (7.6.2): rendered synchronously from the
+    // shared bookmark file — no network round-trip.
+    if (url_copy == "about:bookmarks") {
+        Core::BookmarkStore store;
+        enqueue_resource_update(ResourceType::Document, url_copy, store.render_html(), /*success*/ true, url_copy);
+        return;
+    }
+
+    if (is_builtin_demo_url(url_copy) && fallback_network_) {
         auto callback = [this, id, url_copy](NetworkResponse response) {
             if (id != active_nav_.load(std::memory_order_acquire)) return;
             bool success = !response.body.empty();
@@ -157,15 +180,19 @@ void ResourceLoader::allow_insecure_host(std::string_view host) {
 }
 
 void ResourceLoader::request_stylesheets(const std::vector<std::string>& links, std::string_view base_url) {
-    request_resources(links, base_url, ResourceRequestPlanning::stylesheet_request_options());
+    request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Stylesheet));
 }
 
 void ResourceLoader::request_images(const std::vector<std::string>& links, std::string_view base_url) {
-    request_resources(links, base_url, ResourceRequestPlanning::image_request_options());
+    request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Image));
 }
 
 void ResourceLoader::request_fonts(const std::vector<std::string>& links, std::string_view base_url) {
-    request_resources(links, base_url, ResourceRequestPlanning::font_request_options());
+    request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Font));
+}
+
+void ResourceLoader::request_scripts(const std::vector<std::string>& links, std::string_view base_url) {
+    request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Script));
 }
 
 ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
@@ -184,16 +211,18 @@ ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
     }
 
     const auto process_end = Core::Clock::now();
-    HB_LOG_INFO("[perf] resource batch ms="
-                << Core::duration_ms(process_start, process_end) << " pending=" << pending_count << " doc="
-                << static_cast<int>(stats.document_ready) << " styles=" << static_cast<int>(stats.stylesheet_ready)
-                << " images=" << static_cast<int>(stats.image_ready) << " decode_ms=" << stats.image_decode_ms
-                << " decoded_images=" << stats.image_decode_count);
+    std::string ready_summary;
+    for (size_t i = 0; i < kResourceTypeCount; ++i) {
+        if (!stats.ready[i]) continue;
+        if (!ready_summary.empty()) ready_summary += ',';
+        ready_summary += ResourceRequestPlanning::request_options_for(static_cast<ResourceType>(i)).type_label;
+    }
+    HB_LOG_INFO("[perf] resource batch ms=" << Core::duration_ms(process_start, process_end)
+                                            << " pending=" << pending_count << " ready=[" << ready_summary
+                                            << "] decode_ms=" << stats.image_decode_ms
+                                            << " decoded_images=" << stats.image_decode_count);
 
-    result.document_ready = stats.document_ready;
-    result.stylesheet_ready = stats.stylesheet_ready;
-    result.image_ready = stats.image_ready;
-    result.font_ready = stats.font_ready;
+    result.ready = stats.ready;
     return result;
 }
 

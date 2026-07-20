@@ -1,0 +1,52 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>TodoMVC (pinned fixture)</title>
+    <style>
+      body { margin: 0; padding: 0; font-family: sans-serif; font-size: 16px; }
+      .todoapp { width: 550px; margin: 0 auto; }
+      h1 { display: none; }
+      .new-todo { display: block; width: 550px; height: 24px; padding: 8px; box-sizing: border-box; }
+      .main { display: block; }
+      .main.hidden { display: none; }
+      .footer { display: block; padding: 8px; }
+      .footer.hidden { display: none; }
+      .todo-list { list-style: none; margin: 0; padding: 0; }
+      .todo-list li { display: block; height: 32px; border-bottom: 1px solid #ededed; }
+      .todo-list li .view { display: flex; flex-direction: row; align-items: center; height: 32px; }
+      .todo-list li.completed label { color: #949494; }
+      .toggle { margin: 0 8px; flex: none; }
+      .todo-list li label { flex: 1; }
+      .destroy { flex: none; width: 30px; }
+      .toggle-all { margin: 4px; }
+      .filters { list-style: none; display: flex; flex-direction: row; padding: 0; margin: 8px 0; }
+      .filters li { margin-right: 10px; }
+      .filters a.selected { font-weight: bold; }
+      .todo-count { display: block; }
+    </style>
+  </head>
+  <body>
+    <section class="todoapp">
+      <header class="header">
+        <h1>todos</h1>
+        <input class="new-todo" placeholder="What needs to be done?" autofocus>
+      </header>
+      <section class="main hidden">
+        <input id="toggle-all" class="toggle-all" type="checkbox">
+        <label for="toggle-all">Mark all as complete</label>
+        <ul class="todo-list"></ul>
+      </section>
+      <footer class="footer hidden">
+        <span class="todo-count">0 items left</span>
+        <ul class="filters">
+          <li><a href="#/" class="selected">All</a></li>
+          <li><a href="#/active">Active</a></li>
+          <li><a href="#/completed">Completed</a></li>
+        </ul>
+        <button class="clear-completed">Clear completed</button>
+      </footer>
+    </section>
+    <script src="todomvc.js"></script>
+  </body>
+</html>

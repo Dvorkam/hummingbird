@@ -13,6 +13,28 @@ bool has_scheme(std::string_view url) {
     return url.find("://") != std::string_view::npos;
 }
 
+// Case-insensitive check that |url| begins with |prefix| (an ASCII scheme like
+// "javascript:").
+bool starts_with_ci(std::string_view url, std::string_view lower_prefix) {
+    if (url.size() < lower_prefix.size()) return false;
+    for (size_t i = 0; i < lower_prefix.size(); ++i) {
+        char c = url[i];
+        if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+        if (c != lower_prefix[i]) return false;
+    }
+    return true;
+}
+
+// Pseudo-schemes that must never be resolved as a relative path: they are opaque
+// (no authority/path to join against a base). Curated rather than "any scheme"
+// so an ambiguous bare `host:port` href is left to the existing logic.
+bool is_opaque_scheme_url(std::string_view url) {
+    for (std::string_view scheme : {"javascript:", "mailto:", "tel:", "data:", "about:", "blob:"}) {
+        if (starts_with_ci(url, scheme)) return true;
+    }
+    return false;
+}
+
 std::string normalize_path(std::string_view path) {
     std::string out;
     out.reserve(path.size());
@@ -101,6 +123,12 @@ std::string normalize_input_url(std::string_view input) {
     input = Utils::trim_ascii_whitespace(input);
     if (input.empty()) return {};
 
+    // Opaque pseudo-schemes (about:bookmarks, mailto:, ...) are kept verbatim
+    // rather than treated as a bare host to prefix with https://.
+    if (is_opaque_scheme_url(input)) {
+        return std::string(input);
+    }
+
     if (input.rfind("//", 0) == 0) {
         std::string normalized("https:");
         normalized.append(input);
@@ -121,6 +149,13 @@ std::string resolve_url(std::string_view base_url, std::string_view href) {
     href = Utils::trim_ascii_whitespace(href);
     if (href.empty()) return {};
 
+    // Opaque pseudo-schemes (javascript:, mailto:, ...) are not resolved against
+    // the base — they carry no path to join. Returned verbatim so callers can
+    // recognize them (e.g. skip navigating a javascript: link).
+    if (is_opaque_scheme_url(href)) {
+        return std::string(href);
+    }
+
     if (has_scheme(href)) {
         return std::string(href);
     }
@@ -133,6 +168,14 @@ std::string resolve_url(std::string_view base_url, std::string_view href) {
     if (href.rfind("//", 0) == 0) {
         return base->scheme + ":" + std::string(href);
     }
+
+    // parse_absolute_url keeps the base's query and fragment inside `path`, but a
+    // relative reference must not inherit them wholesale (RFC 3986 §5.3): a #frag
+    // reference replaces the fragment (keeping the query); a ?query or path
+    // reference drops both. Split them out so each branch appends cleanly.
+    std::string_view base_path = base->path;
+    std::string_view path_no_fragment = base_path.substr(0, base_path.find('#'));
+    std::string_view path_only = base_path.substr(0, base_path.find_first_of("?#"));
 
     if (href.front() == '/') {
         std::string path = normalize_path(href);
@@ -149,12 +192,13 @@ std::string resolve_url(std::string_view base_url, std::string_view href) {
         if (base->port) {
             resolved += ":" + std::to_string(*base->port);
         }
-        resolved += base->path;
+        // #frag keeps the base query and swaps the fragment; ?query drops both.
+        resolved += href.front() == '#' ? std::string(path_no_fragment) : std::string(path_only);
         resolved += std::string(href);
         return resolved;
     }
 
-    std::string dir = base_dir(base->path);
+    std::string dir = base_dir(path_only);
     std::string combined = dir + std::string(href);
     std::string path = normalize_path(combined);
 
@@ -164,6 +208,20 @@ std::string resolve_url(std::string_view base_url, std::string_view href) {
     }
     resolved += path.empty() ? "/" : path;
     return resolved;
+}
+
+std::string_view url_fragment(std::string_view url) {
+    const auto pos = url.find('#');
+    return pos == std::string_view::npos ? std::string_view{} : url.substr(pos);
+}
+
+std::string_view url_without_fragment(std::string_view url) {
+    const auto pos = url.find('#');
+    return pos == std::string_view::npos ? url : url.substr(0, pos);
+}
+
+bool is_javascript_url(std::string_view url) {
+    return starts_with_ci(Utils::trim_ascii_whitespace(url), "javascript:");
 }
 
 }  // namespace Hummingbird::Core

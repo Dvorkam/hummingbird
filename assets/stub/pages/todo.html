@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird M7 Demo - Interactive Todos</title>
+    <style>
+      body { margin: 0; padding: 0 0 40px 0; background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; }
+      .top { background-color: #14213d; color: #ffffff; padding: 14px 24px; display: flex; flex-direction: row; align-items: center; justify-content: space-between; }
+      .top-title { font-size: 20px; font-weight: bold; margin: 0; }
+      .top a { color: #fca311; }
+      .page { max-width: 620px; margin: 0 auto; padding: 16px 24px; }
+      .card { background-color: #ffffff; border: 1px solid #dde3ee; border-radius: 10px; padding: 16px 18px; margin: 14px 0; }
+      h2 { margin: 2px 0 12px 0; font-size: 18px; }
+      .hint { color: #5a6478; font-size: 14px; margin: 4px 0 12px 0; }
+      #new-todo { display: block; width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px; border: 1px solid #c3ccdd; border-radius: 8px; background-color: #ffffff; color: #1d2433; }
+      #new-todo:focus { border-color: #4285f4; }
+      #count { color: #5a6478; font-size: 14px; margin: 12px 0 4px 0; }
+      .filters { display: flex; flex-direction: row; margin: 10px 0 2px 0; }
+      .filters .filter { color: #4285f4; text-decoration: none; margin-right: 18px; font-size: 14px; }
+      .filters .filter.selected { font-weight: bold; text-decoration: underline; }
+      ul { list-style: none; margin: 8px 0 0 0; padding: 0; }
+      li.todo.hidden { display: none; }
+      li.todo { display: flex; flex-direction: row; align-items: center; padding: 10px 12px; margin: 6px 0; border: 1px solid #dde3ee; border-radius: 8px; background-color: #fbfcff; }
+      li.todo .toggle { margin: 0; flex: none; }
+      li.todo .label { font-size: 16px; flex: 1; margin: 0 12px; }
+      li.todo.done .label { color: #9aa4b8; text-decoration: line-through; }
+      li.todo .delete { border: none; background-color: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 4px 10px; font-size: 14px; font-weight: bold; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="top-title">M7: Interactive Todos (event system)</p>
+      <a href="https://example.dev">&laquo; back to example.dev</a>
+    </div>
+    <div class="page">
+      <div class="card">
+        <h2>A tiny todo app, driven entirely by JavaScript</h2>
+        <p class="hint">Type a task and press <b>Enter</b> to add it. Tick the
+        <b>checkbox</b> to complete it, or click <b>x</b> to remove it. The
+        <b>All / Active / Completed</b> filters route through the URL hash
+        (<code>#/active</code>) and update live via <code>hashchange</code>.</p>
+        <input id="new-todo" type="text" value="" placeholder="What needs doing?" autofocus>
+        <p id="count">0 of 0 done</p>
+        <nav class="filters">
+          <a href="#/all" class="filter">All</a>
+          <a href="#/active" class="filter">Active</a>
+          <a href="#/completed" class="filter">Completed</a>
+        </nav>
+        <ul id="list"></ul>
+      </div>
+      <div class="card">
+        <h2>What this exercises</h2>
+        <p class="hint">Everything here runs through the M7 DOM + event pipeline built this milestone:
+        <code>addEventListener</code> with real capture/target/bubble propagation, a
+        <code>keydown</code> handler reading <code>input.value</code>, DOM construction with
+        <code>createElement</code>/<code>appendChild</code>/<code>removeChild</code>, click
+        <b>delegation</b> on the list, and <code>classList.toggle</code> feeding a restyle.</p>
+      </div>
+    </div>
+    <script src="assets/stub/pages/todo.js"></script>
+  </body>
+</html>

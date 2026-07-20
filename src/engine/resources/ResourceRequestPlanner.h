@@ -7,6 +7,12 @@
 
 namespace Hummingbird::Engine::ResourceRequestPlanning {
 
+// How the update processor turns fetched bytes into a ready resource.
+enum class ResourceDecode : uint8_t {
+    None,   // store the body as-is (text or opaque binary)
+    Image,  // run the image decoder (bitmap or animation) before marking ready
+};
+
 struct ResourceRequestOptions {
     ResourceType type = ResourceType::Document;
     std::string_view type_label;
@@ -16,16 +22,20 @@ struct ResourceRequestOptions {
     bool log_asset_load = false;
     bool mark_ready_on_asset = false;
     bool use_binary = false;
+    ResourceDecode decode = ResourceDecode::None;
 };
+
+// One descriptor per ResourceType; the loader's request path and the update
+// processor's ready path both dispatch off this table, so adding a resource
+// type is one enum value plus one table entry (T-RESOURCE-TYPE-TABLE-1) —
+// not a hand-mirrored edit across every layer.
+const ResourceRequestOptions& request_options_for(ResourceType type);
 
 struct ResolvedRequestUrl {
     std::string key;
     std::string resolved;
 };
 
-ResourceRequestOptions stylesheet_request_options();
-ResourceRequestOptions image_request_options();
-ResourceRequestOptions font_request_options();
 ResolvedRequestUrl resolve_request_url(std::string_view base_url, std::string_view raw_url);
 
 }  // namespace Hummingbird::Engine::ResourceRequestPlanning

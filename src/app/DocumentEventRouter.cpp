@@ -6,6 +6,7 @@
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/InputEvent.h"
 #include "core/utils/Log.h"
+#include "core/utils/Url.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/tab/Tab.h"
 
@@ -19,18 +20,51 @@ bool DocumentEventRouter::handle_text_input(const Hummingbird::InputEvent& event
     return false;
 }
 
-bool DocumentEventRouter::handle_key_down(const Hummingbird::InputEvent& event) {
-    auto tab_result = app_.active_tab().handle_key_down(event);
-    if (!tab_result.handled) {
+void DocumentEventRouter::rebuild_after_script_mutation() {
+    if (!graphics_ || !window_) {
+        return;
+    }
+    auto [win_w, win_h] = window_->get_size();
+    const auto viewport = chrome_.content_viewport(win_w, win_h);
+    if (app_.active_tab().refresh_styles_for_interaction(*graphics_, viewport)) {
+        render_.set_document_and_controls_dirty();
+    }
+}
+
+bool DocumentEventRouter::submit_or_navigate(const Hummingbird::Engine::FormSubmission& submission) {
+    // Fire the DOM `submit` first; a listener may cancel the default navigation.
+    auto submit = app_.active_tab().dispatch_submit(submission.form_element);
+    if (submit.mutated) {
+        rebuild_after_script_mutation();
+    }
+    if (submit.default_prevented) {
         return false;
     }
+    app_.navigate_and_reflect_submission(submission);
+    return true;
+}
+
+bool DocumentEventRouter::handle_key_down(const Hummingbird::InputEvent& event) {
+    auto tab_result = app_.active_tab().handle_key_down(event);
+    // A JS keydown listener may have mutated the DOM (e.g. TodoMVC's Enter-to-add).
+    if (tab_result.mutated) {
+        rebuild_after_script_mutation();
+    }
     if (tab_result.submitted_form) {
-        app_.navigate_and_reflect_submission(*tab_result.submitted_form);
+        submit_or_navigate(*tab_result.submitted_form);
     }
     if (tab_result.needs_repaint) {
         render_.set_controls_dirty();
     }
-    return true;
+    return tab_result.handled || tab_result.mutated;
+}
+
+bool DocumentEventRouter::handle_key_up(const Hummingbird::InputEvent& event) {
+    auto tab_result = app_.active_tab().handle_key_up(event);
+    if (tab_result.mutated) {
+        rebuild_after_script_mutation();
+    }
+    return tab_result.mutated;
 }
 
 void DocumentEventRouter::handle_mouse_down(const Hummingbird::InputEvent& event) {
@@ -55,7 +89,7 @@ void DocumentEventRouter::handle_mouse_down(const Hummingbird::InputEvent& event
             HB_LOG_INFO("[inspect] " << *info);
         }
     }
-    auto click_result = tab.dispatch_click(point, viewport, *graphics_);
+    auto click_result = tab.dispatch_click(point, viewport, *graphics_, event.mouse_button.clicks);
     if (click_result.mutated) {
         render_.set_document_dirty();
     }
@@ -84,6 +118,11 @@ void DocumentEventRouter::handle_mouse_down(const Hummingbird::InputEvent& event
     if (now_focused) {
         return;
     }
+    // A JS click listener that called preventDefault suppresses the default
+    // action (link navigation / form submit).
+    if (click_result.default_prevented) {
+        return;
+    }
     (void)handle_document_hit_navigation(point, viewport);
 }
 
@@ -105,7 +144,7 @@ bool DocumentEventRouter::handle_document_hit_navigation(const Hummingbird::Layo
         HB_LOG_DEBUG("[input] submit hit method="
                      << (submit->method == Hummingbird::Engine::FormSubmitMethod::Post ? "POST" : "GET")
                      << " url=" << submit->url);
-        app_.navigate_and_reflect_submission(*submit);
+        submit_or_navigate(*submit);
         return true;
     }
 
@@ -113,6 +152,33 @@ bool DocumentEventRouter::handle_document_hit_navigation(const Hummingbird::Layo
     if (!link) {
         return false;
     }
+
+    // A `javascript:` link never navigates (a real browser runs the script;
+    // `javascript:void(0)` is a no-op). The click's JS handler already ran during
+    // dispatch — clicking here must not fetch the bogus URL. hn.js's collapse
+    // toggle is exactly this: `<a href="javascript:void(0)">`.
+    if (Core::is_javascript_url(*link)) {
+        return true;
+    }
+
+    // A fragment-only change within the current document (e.g. TodoMVC's
+    // #/active filter): fire hashchange in place instead of reloading (7.2.5).
+    const std::string_view current = tab.requested_url();
+    if (Core::url_without_fragment(*link) == Core::url_without_fragment(current)) {
+        if (Core::url_fragment(*link) == Core::url_fragment(current)) {
+            // Same document, same fragment: a real browser no-ops (no reload,
+            // no hashchange refire).
+            return true;
+        }
+        auto result = tab.navigate_fragment(*link, *graphics_, viewport);
+        chrome_.url_bar().set_text(*link);
+        render_.set_chrome_dirty();
+        if (result.mutated) {
+            render_.set_document_dirty();
+        }
+        return true;
+    }
+
     app_.navigate_and_reflect_url(*link);
     return true;
 }

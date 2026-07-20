@@ -12,13 +12,35 @@
 #include "layout/flow/InlineBox.h"
 #include "layout/flow/TextBox.h"
 #include "layout/replaced/RenderImage.h"
+#include "style/compute/StyleEngine.h"
+#include "style/parser/CssParser.h"
 #include "style/types/ComputedStyle.h"
 #include "test_utils/TestGraphicsContext.h"
 
 using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
+using namespace Hummingbird::Css;
 namespace Attr = Hummingbird::Html::AttributeNames;
 using Hummingbird::IGraphicsContext;
+
+namespace {
+RenderObject* find_by_id(RenderObject* node, std::string_view id) {
+    if (!node) return nullptr;
+    if (auto* element = dynamic_cast<const Element*>(node->get_dom_node())) {
+        if (const auto* attr = element->find_attribute("id")) {
+            if (*attr == id) {
+                return node;
+            }
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (auto* found = find_by_id(child.get(), id)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+}  // namespace
 
 TEST(BlockBoxLayoutTest, SimpleStacking) {
     // Create a DOM tree: <body><p/><p/></body>
@@ -103,6 +125,44 @@ TEST(BlockBoxLayoutTest, InlineBlockShrinksToContent) {
 
     EXPECT_LT(inline_block->get_rect().width, bounds.width);
     EXPECT_GT(inline_block->get_rect().width, 0.0f);
+}
+
+TEST(BlockBoxLayoutTest, BlockDescendantDoesNotBalloonInlineBlockShrinkToFitWidth) {
+    // Regression for T-LAYOUT-SHRINK-TO-FIT-1 (same root cause as
+    // T-LAYOUT-TABLE-INTRINSIC-BLOCK-1): measure_inline() lays an inline-block's
+    // children out at an oversized probe width. A nested auto-width
+    // display:block descendant must not be measured at that stretched width, or
+    // the inline-block balloons to ~kInlineAtomicLayoutWidth and shoves any
+    // following inline content off-screen.
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, "body");
+    auto wrapper = DomFactory::create_element(arena, "span");
+    wrapper->set_attribute("id", "w");
+    auto nested_block = DomFactory::create_element(arena, "div");
+    nested_block->append_child(DomFactory::create_text(arena, "x"));
+    wrapper->append_child(std::move(nested_block));
+    body->append_child(std::move(wrapper));
+    body->append_child(DomFactory::create_text(arena, "y"));
+
+    Parser css_parser("body, div, span { margin: 0; padding: 0; } #w { display: inline-block; }");
+    auto sheet = css_parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto root = builder.build(body.get());
+    ASSERT_NE(root, nullptr);
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 800, 600};
+    root->layout(context, viewport);
+
+    auto* wrapper_render = find_by_id(root.get(), "w");
+    ASSERT_NE(wrapper_render, nullptr);
+
+    // Shrinks to its (short) text content, not the ~100000px measurement probe.
+    EXPECT_LT(wrapper_render->get_rect().width, 200.0f)
+        << "inline-block ballooned to " << wrapper_render->get_rect().width;
 }
 
 TEST(BlockBoxLayoutTest, FloatLeftShiftsInlineContent) {

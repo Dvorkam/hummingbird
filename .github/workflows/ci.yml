@@ -134,3 +134,70 @@ jobs:
           HB_RUN_SMOKE_TEST: "1"
           HB_HEADLESS: "1"
           SDL_RENDER_DRIVER: "software"
+
+  # JOB 3: Parser Fuzzing (short, coverage-guided) — story 7.5.3.
+  # Builds the libFuzzer targets with clang (ASan + coverage) and runs each for a
+  # bounded time seeded from tests/fuzz/corpus. A crash fails the job and its
+  # reproducer is uploaded so it can be checked into the corpus (fix-forward).
+  fuzz:
+    name: Parser Fuzzing (short)
+    needs: formatting
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write
+    env:
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/.vcpkg/bincache
+      VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg/bincache,readwrite
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - name: Cache vcpkg (downloads + binary cache)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .vcpkg/bincache
+          key: vcpkg-fuzz-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-fuzz-
+
+      - name: Install clang + build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang ninja-build \
+            libx11-dev libxft-dev libxext-dev \
+            autoconf autoconf-archive automake libtool libltdl-dev
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: "vcpkg.json"
+
+      - name: CMake Configure (fuzzing, clang)
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: "ninja-multi-vcpkg"
+          configurePresetAdditionalArgs: "['-DCMAKE_BUILD_TYPE=Release', '-DHB_ENABLE_FUZZING=ON', '-DCMAKE_C_COMPILER=clang', '-DCMAKE_CXX_COMPILER=clang++']"
+
+      - name: Build fuzz targets
+        run: cmake --build --preset ninja-multi-vcpkg --config Release --target html_parser_fuzzer css_parser_fuzzer
+
+      - name: Fuzz the HTML parser
+        run: ./build/tests/Release/html_parser_fuzzer -max_total_time=45 -print_final_stats=1 tests/fuzz/corpus/html
+
+      - name: Fuzz the CSS parser
+        run: ./build/tests/Release/css_parser_fuzzer -max_total_time=45 -print_final_stats=1 tests/fuzz/corpus/css
+
+      - name: Upload crash reproducers
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-reproducers
+          path: |
+            crash-*
+            timeout-*
+            oom-*
+          if-no-files-found: ignore
