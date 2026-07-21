@@ -73,14 +73,29 @@ void Tab::shutdown() {
     resource_loader_->shutdown();
 }
 
-void Tab::navigate(std::string_view url) {
+std::string Tab::initiator_host_for(NavigationSource source) const {
+    if (source != NavigationSource::Document) {
+        return {};
+    }
+    // The document currently loaded is the initiator. Must be read BEFORE
+    // begin_navigation_session, which switches requested_url() to the target.
+    if (auto parts = Core::parse_absolute_url(navigation_lifecycle_.requested_url())) {
+        return parts->host;
+    }
+    return {};
+}
+
+void Tab::navigate(std::string_view url, NavigationSource source) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
+
+    ResourceLoader::DocumentRequest request{};
+    request.initiator_host = initiator_host_for(source);
 
     begin_navigation_session(url);
     if (!in_history_navigation_) {
         history_.push(std::string(navigation_lifecycle_.requested_url()));
     }
-    resource_loader_->navigate(navigation_lifecycle_.requested_url());
+    resource_loader_->navigate(navigation_lifecycle_.requested_url(), request);
 }
 
 bool Tab::go_back(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -111,12 +126,16 @@ void Tab::navigate_history_entry(const std::string& url, IGraphicsContext& graph
 void Tab::navigate(const FormSubmission& submission) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
+    ResourceLoader::DocumentRequest request{};
+    // A submit always comes from the loaded document. Captured before the
+    // session switches to the target URL.
+    request.initiator_host = initiator_host_for(NavigationSource::Document);
+
     begin_navigation_session(submission.url);
     if (!in_history_navigation_) {
         history_.push(std::string(navigation_lifecycle_.requested_url()));
     }
 
-    ResourceLoader::DocumentRequest request{};
     if (submission.method == FormSubmitMethod::Post) {
         request.method = ResourceLoader::DocumentRequest::Method::Post;
         request.body = submission.body;

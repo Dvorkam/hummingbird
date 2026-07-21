@@ -14,6 +14,7 @@
 #include "engine/resources/ResourceLoader.h"
 #include "engine/resources/ResourceStore.h"
 #include "engine/tab/NavigationHistory.h"
+#include "engine/tab/NavigationSource.h"
 #include "engine/tab/NavigationLifecycle.h"
 #include "engine/tab/TabAnimationTicker.h"
 #include "engine/tab/TabLayoutState.h"
@@ -66,7 +67,8 @@ public:
 
     void shutdown();
 
-    void navigate(std::string_view url);
+    void navigate(std::string_view url, NavigationSource source = NavigationSource::User);
+    // Form submits are always document-initiated.
     void navigate(const FormSubmission& submission);
 
     // Back/forward navigation over the per-tab history (7.6.1). Returns false when
@@ -129,6 +131,9 @@ public:
     bool allow_insecure_for_current_host();
 
 private:
+    // Host of the document initiating a navigation, or "" for a user-initiated
+    // one. Must be called before begin_navigation_session switches the URL.
+    std::string initiator_host_for(NavigationSource source) const;
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_incremental_resource_updates(const ResourceLoader::BatchResult& batch, IGraphicsContext& graphics,
                                               const Layout::Rect& viewport);

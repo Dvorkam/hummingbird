@@ -244,17 +244,17 @@ void BrowserApp::sync_tab_text_input_mode() {
     tab_text_input_active_ = should_be_active;
 }
 
-void BrowserApp::navigate_active_tab(std::string_view url) {
-    active_tab().navigate(url);
+void BrowserApp::navigate_active_tab(std::string_view url, Hummingbird::Engine::NavigationSource source) {
+    active_tab().navigate(url, source);
 }
 
 void BrowserApp::navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission) {
     active_tab().navigate(submission);
 }
 
-void BrowserApp::navigate_and_reflect_url(std::string_view url) {
+void BrowserApp::navigate_and_reflect_url(std::string_view url, Hummingbird::Engine::NavigationSource source) {
     browser_chrome_.url_bar().set_text(url);
-    navigate_active_tab(url);
+    navigate_active_tab(url, source);
     render_coordinator_->set_document_dirty();
     render_coordinator_->set_chrome_dirty();
 }

@@ -7,6 +7,7 @@
 #include "app/BrowserChrome.h"
 #include "app/TabController.h"
 #include "core/BookmarkStore.h"
+#include "engine/tab/NavigationSource.h"
 #include "layout/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -54,7 +55,12 @@ public:
     bool activate_tab(Hummingbird::Engine::TabId id);
 
     // Navigates the active tab and reflects the target in the URL bar + render state.
-    void navigate_and_reflect_url(std::string_view url);
+    // `source` distinguishes a user-initiated navigation (address bar, bookmark,
+    // history) from one the loaded document caused (link click). It drives
+    // SameSite cookie policy, so it must reflect reality (T-COOKIE-NAV-INITIATOR-1).
+    void navigate_and_reflect_url(
+        std::string_view url,
+        Hummingbird::Engine::NavigationSource source = Hummingbird::Engine::NavigationSource::User);
     void navigate_and_reflect_submission(const Hummingbird::Engine::FormSubmission& submission);
     // Back/forward over the active tab's history, reflecting the URL bar (7.6.1).
     void navigate_back();
@@ -77,7 +83,9 @@ private:
 
     void on_active_tab_changed();
     void sync_tab_text_input_mode();
-    void navigate_active_tab(std::string_view url);
+    void navigate_active_tab(
+        std::string_view url,
+        Hummingbird::Engine::NavigationSource source = Hummingbird::Engine::NavigationSource::User);
     void navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission);
     void initialize_extensions(Hummingbird::Engine::TabId first_tab_id);
     void notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url);

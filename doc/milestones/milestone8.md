@@ -256,7 +256,7 @@ P0: Cookies (North Star)
 - [x] 8.0.1: Textarea MVP For HN Comments
 - [x] 8.1.0: HTTP Header Plumbing Across The Network Seam *(inserted at kickoff; prerequisite for 8.1.1)*
 - [x] 8.1.1: Cookie Jar + Matching
-- [x] 8.1.2: Attribute Policy (Secure/HttpOnly/SameSite) *(SameSite exact for subresources; inert for navigations until T-COOKIE-NAV-INITIATOR-1)*
+- [x] 8.1.2: Attribute Policy (Secure/HttpOnly/SameSite) *(incl. T-COOKIE-NAV-INITIATOR-1: SameSite now enforced for both subresources and navigations)*
 - [ ] 8.3.1: Redirect Chain Hardening *(moved ahead of 8.1.3: it takes ownership of the redirect loop from libcurl, which 8.1.3 needs)*
 - [ ] 8.1.3: Redirect Cookie Semantics
 - [ ] 8.1.4: Cookie Jar Persistence

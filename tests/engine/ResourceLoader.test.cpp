@@ -554,3 +554,86 @@ TEST(ResourceLoaderTest, StrictCookiesStillRideTopLevelNavigation) {
     ASSERT_EQ(network_ptr->requests.size(), 1u);
     EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "s=1");
 }
+
+// --- navigation initiator / CSRF (T-COOKIE-NAV-INITIATOR-1) -------------------
+// SameSite's whole purpose is refusing to authenticate a request another site
+// caused. That only works if the loader is told who caused it.
+
+TEST(ResourceLoaderTest, CrossSiteFormPostDoesNotCarryLaxCookies) {
+    // The classic CSRF vector: attacker.test auto-submits a form POSTing to
+    // example.test. The session cookie must NOT ride along.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "amount=1000&to=attacker";
+    request.initiator_host = "attacker.test";
+    loader.navigate("https://example.test/transfer", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Cookie").empty())
+        << "a cross-site POST must not be authenticated";
+}
+
+TEST(ResourceLoaderTest, SameSiteFormPostStillCarriesCookies) {
+    // The legitimate case the rule must not break: the site's own login form.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "user=me";
+    request.initiator_host = "example.test";
+    loader.navigate("https://example.test/login", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "session=abc");
+}
+
+TEST(ResourceLoaderTest, CrossSiteLinkClickCarriesLaxButNotStrict) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    const auto when = Hummingbird::Core::CookieClock::now();
+    jar->store_from_header("https://example.test/", "lax=1", when);
+    jar->store_from_header("https://example.test/", "strict=2; SameSite=Strict", when);
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    ResourceLoader::DocumentRequest request{};
+    request.initiator_host = "other-site.test";  // a cross-site link click
+    loader.navigate("https://example.test/article", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "lax=1");
+}
+
+TEST(ResourceLoaderTest, UserInitiatedNavigationCarriesEverything) {
+    // Address bar / bookmark / history: no initiating document, nothing is
+    // cross-site, so even Strict rides along. This is the North Star's path.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "strict=2; SameSite=Strict",
+                           Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.navigate("https://example.test/account");  // no initiator set
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "strict=2");
+}

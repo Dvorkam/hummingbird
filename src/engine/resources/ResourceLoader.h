@@ -36,6 +36,10 @@ public:
         Method method = Method::Get;
         std::string body;
         std::string content_type;
+        // Host of the document that initiated this navigation (a link click or
+        // form submit). Empty means user-initiated — address bar, bookmark, or
+        // history — which is not a cross-site request. Drives SameSite (8.1.2).
+        std::string initiator_host;
     };
 
     struct PendingResourceUpdate {
