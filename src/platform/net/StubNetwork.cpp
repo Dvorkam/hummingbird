@@ -237,17 +237,30 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
         "<p class=\"wire\">Cookie: " +
         (sent.empty() ? std::string("(nothing yet &mdash; reload)") : html_escape(sent)) +
         "</p>"
+        "<p class=\"note\">This is the jar as it stood <em>before</em> this response. The cookies below are set by "
+        "this response, so they land after it &mdash; which is why the visit count here is one behind.</p></div>"
+
+        // The HttpOnly comparison is deliberately between two things measured at
+        // the SAME moment: what this response set, and what script can see once
+        // it has been stored. Comparing against the request instead would show
+        // three differences (the counter advanced, the session cookie arrived,
+        // and hb_secret is hidden) with no way to tell which one is the point.
+        "<div class=\"card\">"
+        "<h2>What this response set</h2>"
+        "<p class=\"wire\">hb_visits, hb_session, hb_secret, hb_strict</p>"
         "<h2>What document.cookie can see</h2>"
         "<p class=\"wire\" id=\"js-cookies\">(script did not run)</p>"
-        "<p class=\"note\" id=\"httponly-note\">Comparing the two lines above shows what HttpOnly does.</p>"
+        "<p class=\"note\" id=\"httponly-note\">Both lines describe the jar at the same instant, so there is "
+        "exactly one difference to find.</p>"
         "</div>"
 
         "<div class=\"card\"><h2>Session status</h2><p>" +
         std::string(continuing_session
-                        ? "<span class=\"good\">Continuing</span> &mdash; <code>hb_session</code> came back, so this "
-                          "browser has stayed open."
-                        : "<span class=\"good\">Fresh</span> &mdash; no <code>hb_session</code> was sent, so this is a "
-                          "first visit or a restart.") +
+                        ? "<span class=\"good\">Continuing</span> &mdash; <code>hb_session</code> arrived with this "
+                          "request, so the browser has stayed open since it was first set."
+                        : "<span class=\"good\">Fresh</span> &mdash; no <code>hb_session</code> arrived with this "
+                          "request, so this is a first visit or a restart. This response then sets one, which is why "
+                          "<code>document.cookie</code> above already shows it.") +
         "</p>"
         "<p class=\"note\">Close the browser and reopen it: the visit count keeps climbing because "
         "<code>hb_visits</code> is written to disk, while the session status resets. <code>hb_session</code> has no "
@@ -266,8 +279,9 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
         "document.getElementById('js-cookies').textContent = seen === '' ? '(empty)' : seen;"
         "var hidden = seen.indexOf('hb_secret') < 0;"
         "document.getElementById('httponly-note').textContent = hidden"
-        " ? 'Spot the difference: hb_secret rode the request but is missing from document.cookie. It is HttpOnly, so"
-        " script cannot read it, which is what stops an XSS payload stealing a session token.'"
+        " ? 'The response set four cookies; document.cookie sees three. hb_secret is HttpOnly, so script cannot read"
+        " it \u2014 that is what stops an XSS payload stealing a session token. It still rides every request, which"
+        " is how the server keeps using it.'"
         " : 'hb_secret leaked into document.cookie: HttpOnly is not being enforced.';"
         "</script>"
         "</div></body></html>";
