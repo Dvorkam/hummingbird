@@ -7,10 +7,16 @@
 namespace Hummingbird::Core {
 
 void HttpHeaders::set(std::string_view name, std::string_view value) {
+    remove(name);
+    add(name, value);
+}
+
+size_t HttpHeaders::remove(std::string_view name) {
+    const size_t before = fields_.size();
     fields_.erase(std::remove_if(fields_.begin(), fields_.end(),
                                  [&](const Field& field) { return Utils::equals_ignore_case(field.name, name); }),
                   fields_.end());
-    add(name, value);
+    return before - fields_.size();
 }
 
 std::string_view HttpHeaders::get(std::string_view name) const {

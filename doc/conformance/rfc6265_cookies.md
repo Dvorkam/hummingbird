@@ -64,15 +64,21 @@ exists; the ones marked *(no ticket)* are recorded but not scheduled.
   if a target site starts relying on them. *(no ticket)*
 - **No size or count limits.** RFC 6265 §6.1 asks for at least 4096 bytes per
   cookie, 50 per domain, 3000 total. We enforce none, so a hostile server can
-  grow the jar without bound. *(no ticket — worth one before untrusted browsing)*
+  grow the jar without bound.
+  → `T-COOKIE-LIMITS-1` [M8 P2]
 - **No name/value character validation.** Control characters and separators are
-  stored as received rather than rejected. *(no ticket)*
+  stored as received rather than rejected, so a stored value could forge a second
+  cookie when re-serialized into a `Cookie` header.
+  → `T-COOKIE-CHARSET-1` [M8 P3]
 
 ### Functional gaps (scheduled work, not deviations we intend to keep)
 
-- **No redirect semantics.** libcurl still follows redirects internally
-  (`CURLOPT_FOLLOWLOCATION`), so cookies set on intermediate hops are invisible
-  and site context is not recomputed per hop. → M8 stories 8.3.1 then 8.1.3.
+- **Redirect site context is not recomputed per hop.** The engine now owns the
+  redirect loop (8.3.1), so cookies set mid-chain are stored and the `Cookie`
+  header is recomputed for every hop. But the SameSite *request context* is
+  forwarded verbatim, so a chain that crosses sites keeps the original request's
+  same-site standing.
+  → `T-COOKIE-REDIRECT-CONTEXT-1` [M8 P1], which completes story 8.1.3.
 - **No persistence.** The jar dies with the process, so every cookie behaves as a
   session cookie across restarts. → M8 story 8.1.4.
 - **No `document.cookie`.** The read filter exists (`script_visible_cookies`);

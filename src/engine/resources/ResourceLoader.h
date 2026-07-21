@@ -96,15 +96,30 @@ public:
     Core::CookieJar* cookie_jar() const { return cookie_jar_.get(); }
 
 private:
-    // The single choke point for cookies. `send_request` attaches the jar's
-    // Cookie header for `url` and wraps `callback` so the response's Set-Cookie
-    // headers land in the jar before anything else sees the response — every
-    // request (document, subresource, POST, and the stub fallbacks) goes through
-    // it so no call site can silently skip cookies. `context` tells the jar who
-    // is asking, which SameSite needs (8.1.2).
+    // State carried across the hops of one redirect chain (story 8.3.1).
+    struct RedirectChain {
+        int hops = 0;
+        // Every URL visited so far, so an A->B->A cycle is reported as a loop
+        // rather than silently burning the hop budget.
+        std::vector<std::string> visited;
+    };
+
+    // The single choke point for network requests. `send_request`:
+    //   - attaches the jar's Cookie header for `url`, recomputed per hop;
+    //   - wraps `callback` so the response's Set-Cookie headers land in the jar
+    //     before anything else sees the response;
+    //   - follows redirects itself, applying hop/loop limits and RFC 9110
+    //     method semantics.
+    // Every request (document, subresource, POST, and the stub fallbacks) goes
+    // through it, so no call site can silently skip any of that. `context` tells
+    // the jar who is asking, which SameSite needs (8.1.2).
+    //
+    // `post_body` is by value, not a pointer: a redirect re-issues the request
+    // from a network callback, long after the caller's body has gone out of
+    // scope.
     void send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
                       std::function<void(NetworkResponse)> callback, const Core::CookieRequestContext& context,
-                      const std::string* post_body = nullptr);
+                      std::optional<std::string> post_body = std::nullopt, RedirectChain chain = {});
 
     void request_resources(const std::vector<std::string>& links, std::string_view base_url,
                            const ResourceRequestPlanning::ResourceRequestOptions& options);

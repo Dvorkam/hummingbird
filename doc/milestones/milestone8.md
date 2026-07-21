@@ -257,8 +257,8 @@ P0: Cookies (North Star)
 - [x] 8.1.0: HTTP Header Plumbing Across The Network Seam *(inserted at kickoff; prerequisite for 8.1.1)*
 - [x] 8.1.1: Cookie Jar + Matching
 - [x] 8.1.2: Attribute Policy (Secure/HttpOnly/SameSite) *(incl. T-COOKIE-NAV-INITIATOR-1: SameSite now enforced for both subresources and navigations)*
-- [ ] 8.3.1: Redirect Chain Hardening *(moved ahead of 8.1.3: it takes ownership of the redirect loop from libcurl, which 8.1.3 needs)*
-- [ ] 8.1.3: Redirect Cookie Semantics
+- [x] 8.3.1: Redirect Chain Hardening *(moved ahead of 8.1.3: it takes ownership of the redirect loop from libcurl, which 8.1.3 needs)*
+- [ ] 8.1.3: Redirect Cookie Semantics *(mostly delivered by 8.3.1 — cookies set mid-chain ride the remaining hops and the Cookie header is recomputed per hop, both tested; what remains is recomputing the SameSite request CONTEXT per hop, see T-COOKIE-REDIRECT-CONTEXT-1)*
 - [ ] 8.1.4: Cookie Jar Persistence
 - [ ] 8.1.5: document.cookie Binding
 

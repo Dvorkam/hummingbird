@@ -1,6 +1,8 @@
 #include "engine/resources/ResourceLoader.h"
 
+#include <algorithm>
 #include <functional>
+#include <optional>
 #include <ostream>
 #include <utility>
 
@@ -8,6 +10,7 @@
 #include "core/utils/Log.h"
 #include "core/utils/Url.h"
 #include "core/utils/Timing.h"
+#include "engine/resources/RedirectPolicy.h"
 #include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/resources/ResourceUpdateProcessor.h"
 
@@ -62,43 +65,108 @@ ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, 
       resource_provider_(std::move(resource_provider)),
       image_decoder_(std::move(image_decoder)),
       cookie_jar_(std::move(cookie_jar)) {
-    if (!network_ || !fallback_network_) {
-        HB_LOG_ERROR("[network] failed to create network backend(s)");
+    // Only "nothing can fetch at all" is an error. Having just one backend is a
+    // deliberate configuration (tests, headless harnesses, stub-only demo runs),
+    // and shouting about it on every construction trained the eye to ignore a
+    // line that should mean something.
+    if (!network_ && !fallback_network_) {
+        HB_LOG_ERROR("[network] no network backend available; requests will fail");
+    } else if (!network_ || !fallback_network_) {
+        HB_LOG_DEBUG("[network] single backend configured (primary=" << (network_ ? "yes" : "no")
+                                                                     << " fallback=" << (fallback_network_ ? "yes" : "no")
+                                                                     << ")");
     }
+    // Both are optional collaborators, and a loader constructed without them is a
+    // valid configuration rather than a fault. Warning here fires once per
+    // construction regardless of whether anything ever needed them; the paths
+    // that DO need them already warn at the point of use, which is where the
+    // absence actually costs something.
     if (!resource_provider_) {
-        HB_LOG_WARN("[resource] no resource provider available");
+        HB_LOG_DEBUG("[resource] constructed without a resource provider");
     }
     if (!image_decoder_) {
-        HB_LOG_WARN("[image] no decoder available");
+        HB_LOG_DEBUG("[image] constructed without a decoder");
     }
 }
 
 void ResourceLoader::send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
                                   std::function<void(NetworkResponse)> callback,
-                                  const Core::CookieRequestContext& context, const std::string* post_body) {
+                                  const Core::CookieRequestContext& context, std::optional<std::string> post_body,
+                                  RedirectChain chain) {
+    // Recomputed per hop: a chain can cross hosts and paths, so the previous
+    // hop's Cookie header must never ride along.
     if (cookie_jar_) {
         std::lock_guard<std::mutex> lg(cookie_mutex_);
         const std::string cookies = cookie_jar_->cookie_header_for(url, Core::CookieClock::now(), context);
-        if (!cookies.empty()) {
+        if (cookies.empty()) {
+            options.headers.remove("Cookie");
+        } else {
             options.headers.set("Cookie", cookies);
         }
     }
+    chain.visited.push_back(url);
 
-    auto with_cookie_capture = [this, url, callback = std::move(callback)](NetworkResponse response) mutable {
+    auto on_response = [this, &network, url, options, callback, context, post_body,
+                        chain](NetworkResponse response) mutable {
         if (cookie_jar_ && !response.headers.empty()) {
-            // Attribute Set-Cookie to the URL that actually served the response,
-            // which is what the redirect chain landed on.
-            const std::string& origin = response.effective_url.empty() ? url : response.effective_url;
+            // Attribute Set-Cookie to this hop's URL. Cookies set mid-chain are
+            // therefore stored before the next hop's header is computed, which is
+            // what makes a login 302 land authenticated.
             std::lock_guard<std::mutex> lg(cookie_mutex_);
-            cookie_jar_->store_from_response(origin, response.headers, Core::CookieClock::now());
+            cookie_jar_->store_from_response(url, response.headers, Core::CookieClock::now());
         }
-        if (callback) callback(std::move(response));
+
+        auto decision = RedirectPolicy::decide(response.status, response.headers.get("Location"), url,
+                                               post_body.has_value());
+        if (!decision) {
+            // Not a redirect (or not a followable one): this is the answer.
+            if (response.effective_url.empty()) {
+                response.effective_url = url;
+            }
+            if (callback) callback(std::move(response));
+            return;
+        }
+
+        const auto fail = [&](NetworkError error, const char* what) {
+            HB_LOG_WARN("[network] " << what << " after " << chain.hops << " hops: " << url << " -> " << decision->url);
+            NetworkResponse failed;
+            failed.url = chain.visited.front();
+            failed.effective_url = url;
+            failed.status = response.status;
+            failed.error = error;
+            if (callback) callback(std::move(failed));
+        };
+
+        if (chain.hops + 1 > RedirectPolicy::kMaxHops) {
+            fail(NetworkError::TooManyRedirects, "redirect hop limit exceeded");
+            return;
+        }
+        if (std::find(chain.visited.begin(), chain.visited.end(), decision->url) != chain.visited.end()) {
+            fail(NetworkError::RedirectLoop, "redirect loop detected");
+            return;
+        }
+
+        // A rewritten-to-GET hop carries no body, so its content type is
+        // meaningless; leaving it set would advertise a body we are not sending.
+        NetworkRequestOptions next = options;
+        std::optional<std::string> next_body;
+        if (decision->keep_post) {
+            next_body = post_body;
+        } else {
+            next.content_type.clear();
+        }
+
+        ++chain.hops;
+        HB_LOG_DEBUG("[network] redirect " << response.status << " " << url << " -> " << decision->url
+                                           << (decision->keep_post ? " (POST preserved)" : " (as GET)"));
+        send_request(network, decision->url, std::move(next), std::move(callback), context, std::move(next_body),
+                     std::move(chain));
     };
 
     if (post_body) {
-        network.post(url, *post_body, std::move(with_cookie_capture), options);
+        network.post(url, *post_body, std::move(on_response), options);
     } else {
-        network.get(url, std::move(with_cookie_capture), options);
+        network.get(url, std::move(on_response), options);
     }
 }
 
@@ -129,8 +197,11 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
     active_nav_.store(id, std::memory_order_release);
     std::string url_copy(url);
 
+    // False just means the URL is already tracked as Loading or Ready — i.e. a
+    // reload, or a return visit. The fetch proceeds either way and the entry is
+    // overwritten when it lands, so this is routine, not a failure.
     if (!resource_store_.begin_request(url_copy, ResourceType::Document)) {
-        HB_LOG_WARN("[resource] failed to register document request: " << url_copy);
+        HB_LOG_DEBUG("[resource] re-requesting already-tracked document: " << url_copy);
     }
 
     // Built-in about:bookmarks page (7.6.2): rendered synchronously from the
@@ -152,7 +223,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         options.content_type = request.content_type;
         const bool is_post = request.method == DocumentRequest::Method::Post;
         send_request(*fallback_network_, url_copy, options, std::move(callback), document_cookie_context(is_post, request.initiator_host),
-                     is_post ? &request.body : nullptr);
+                     is_post ? std::optional<std::string>(request.body) : std::nullopt);
         return;
     }
 
@@ -169,7 +240,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             options.content_type = request.content_type;
             const bool is_post = request.method == DocumentRequest::Method::Post;
             send_request(*fallback_network_, url_copy, options, std::move(callback), document_cookie_context(is_post, request.initiator_host),
-                     is_post ? &request.body : nullptr);
+                     is_post ? std::optional<std::string>(request.body) : std::nullopt);
         } else {
             enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
         }
@@ -186,6 +257,16 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         if (id != active_nav_.load(std::memory_order_acquire)) return;
 
         if (response.body.empty()) {
+            // A redirect-policy failure is a definitive answer about this URL,
+            // not a transport hiccup: retrying it against the stub network would
+            // mask a loop behind a demo page. Surface it so the tab (and 8.3.2's
+            // error page) can report it.
+            if (response.error == NetworkError::TooManyRedirects || response.error == NetworkError::RedirectLoop) {
+                HB_LOG_WARN("[network] redirect chain failed for " << url_copy);
+                enqueue_resource_update(ResourceType::Document, url_copy, {}, /*success*/ false,
+                                        std::move(response.effective_url), response.error);
+                return;
+            }
             if (response.error == NetworkError::TlsVerificationFailed) {
                 HB_LOG_WARN("[network] TLS verification failed for " << url_copy << ", showing warning page");
                 std::string body = ResourceSecurityPolicy::build_tls_error_body(url_copy);
@@ -205,7 +286,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                                                 std::move(fallback.effective_url), fallback.error);
                     },
                     document_cookie_context(request_method == DocumentRequest::Method::Post, initiator_host),
-                    request_method == DocumentRequest::Method::Post ? &post_body : nullptr);
+                    request_method == DocumentRequest::Method::Post ? std::optional<std::string>(post_body) : std::nullopt);
             }
             return;
         }
@@ -217,7 +298,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
 
     const bool is_post = request.method == DocumentRequest::Method::Post;
     send_request(*network_, url_copy, options, std::move(callback), document_cookie_context(is_post, request.initiator_host),
-                 is_post ? &request.body : nullptr);
+                 is_post ? std::optional<std::string>(request.body) : std::nullopt);
 }
 
 void ResourceLoader::allow_insecure_host(std::string_view host) {

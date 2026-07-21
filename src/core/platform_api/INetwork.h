@@ -13,6 +13,10 @@ enum class NetworkError {
     None,
     TlsVerificationFailed,
     CurlError,
+    // The engine follows redirects itself (story 8.3.1) so it can apply cookie
+    // and method policy per hop; these are its two termination conditions.
+    TooManyRedirects,
+    RedirectLoop,
 };
 
 struct NetworkRequestOptions {

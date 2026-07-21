@@ -25,6 +25,9 @@ public:
     // Replaces every existing occurrence of `name` with a single field.
     void set(std::string_view name, std::string_view value);
 
+    // Drops every occurrence of `name`. Returns how many were removed.
+    size_t remove(std::string_view name);
+
     // The first value for `name`, or "" when absent. Use for single-valued fields.
     std::string_view get(std::string_view name) const;
 

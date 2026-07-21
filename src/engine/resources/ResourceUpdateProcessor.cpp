@@ -59,6 +59,16 @@ void process_update(ResourceLoader::PendingResourceUpdate& update, ResourceStore
                     ResourceLoader::BatchResult& result, ProcessingStats& stats) {
     if (!update.success) {
         handle_failed_update(update, store);
+        // A failed DOCUMENT still carries a navigation result the tab needs:
+        // which URL failed, where the chain ended up, and why. Dropping it here
+        // is what made a redirect loop indistinguishable from a blank page, and
+        // would have left story 8.3.2's error pages with nothing to render.
+        // `ready` is deliberately not set — the document did not load.
+        if (update.type == ResourceType::Document) {
+            result.document_url = update.url;
+            result.effective_url = update.effective_url;
+            result.document_error = update.error;
+        }
         return;
     }
 

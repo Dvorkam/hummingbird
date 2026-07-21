@@ -20,6 +20,8 @@ add_executable(HummingbirdTests
     engine/ExtensionLoader.test.cpp
     engine/ExtensionHost.test.cpp
     engine/ResourceStore.test.cpp
+    engine/RedirectPolicy.test.cpp
+    engine/RedirectChain.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
     core/BookmarkStore.test.cpp

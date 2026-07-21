@@ -42,11 +42,12 @@ size_t header_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
 void apply_common_curl_options(CURL* curl, const std::string& url, std::string& body_buffer,
                                Core::HttpHeaders& header_buffer) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    // NOTE: curl still follows redirects internally, so intermediate hops are
-    // invisible here and their Set-Cookie headers never reach the engine. Story
-    // 8.3.1 takes ownership of the redirect loop; until then only the final
-    // response's headers are observed.
-    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    // The ENGINE follows redirects, not curl (story 8.3.1). Letting curl do it
+    // hides intermediate hops, so their Set-Cookie headers never reach the jar
+    // and no per-hop cookie/method policy is possible. A 3xx is therefore
+    // returned here as an ordinary response, with its Location header intact,
+    // and ResourceLoader::send_request drives the chain.
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body_buffer);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
