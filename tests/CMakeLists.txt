@@ -22,6 +22,7 @@ add_executable(HummingbirdTests
     engine/ResourceStore.test.cpp
     engine/RedirectPolicy.test.cpp
     engine/RedirectChain.test.cpp
+    engine/DocumentCookie.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
     core/BookmarkStore.test.cpp

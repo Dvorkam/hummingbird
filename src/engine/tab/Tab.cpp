@@ -62,7 +62,23 @@ Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_n
                                                         std::move(cookie_jar))),
       document_pipeline_(
           std::make_unique<DocumentPipeline>(&resource_loader_->store(), resource_loader_->resource_provider(),
-                                             resource_loader_->image_decoder(), std::move(script_engine))) {}
+                                             resource_loader_->image_decoder(), std::move(script_engine))) {
+    // document.cookie (8.1.5). The Tab is the only layer holding both halves:
+    // the profile's shared jar and the URL of the document currently loaded.
+    // Reading the URL lazily inside the lambdas is what keeps it correct across
+    // navigations without re-wiring anything.
+    document_pipeline_->set_cookie_accessors(
+        [this]() -> std::string {
+            auto* jar = resource_loader_->cookie_jar();
+            if (!jar) return {};
+            return jar->script_visible_cookies(navigation_lifecycle_.requested_url(), Core::CookieClock::now());
+        },
+        [this](std::string_view value) {
+            auto* jar = resource_loader_->cookie_jar();
+            if (!jar) return;
+            jar->store_from_header(navigation_lifecycle_.requested_url(), value, Core::CookieClock::now());
+        });
+}
 
 Tab::~Tab() {
     shutdown();

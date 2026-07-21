@@ -52,6 +52,19 @@ void apply_common_curl_options(CURL* curl, const std::string& url, std::string& 
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &body_buffer);
     curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, header_callback);
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &header_buffer);
+    // Refuse everything but http/https. libcurl's defaults include file://,
+    // ftp:// and more, so without this a page could link (or a server redirect)
+    // to `file://localhost/C:/…` and have the engine read local disk and render
+    // it as a document. REDIR_PROTOCOLS is set as well even though the engine
+    // now drives redirects itself — belt and braces, since a backend change
+    // must not silently reopen this.
+#if LIBCURL_VERSION_NUM >= 0x075500  // 7.85.0
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
+#else
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+#endif
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, CurlNetwork::accept_encoding());
     curl_easy_setopt(curl, CURLOPT_USERAGENT, "Hummingbird/0.2");
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);

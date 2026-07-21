@@ -34,4 +34,14 @@ std::string_view url_without_fragment(std::string_view url);
 // yields no navigation); we treat it as a no-op link.
 bool is_javascript_url(std::string_view url);
 
+// True when |url| uses a scheme the engine is willing to fetch from the network:
+// http or https only.
+//
+// Everything else — file:, ftp:, gopher:, smb:, ... — is refused. libcurl serves
+// several of those by default, so a page that linked to (or redirected to)
+// `file://localhost/C:/…` could otherwise make the engine read a local file and
+// render it as a document. Real browsers refuse to navigate web content to
+// file: for exactly this reason.
+bool is_fetchable_web_url(std::string_view url);
+
 }  // namespace Hummingbird::Core

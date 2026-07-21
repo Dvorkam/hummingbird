@@ -225,6 +225,18 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         return;
     }
 
+    // Refuse to navigate anywhere but http/https (and the built-in pages handled
+    // above). A page linking to `file://localhost/C:/…` must not make the engine
+    // read local disk and render it as a document — libcurl would happily serve
+    // it. The transport blocks this too; doing it here means the rule holds for
+    // every backend and shows up as a failed navigation rather than a silent
+    // transport error.
+    if (!Core::is_fetchable_web_url(url_copy)) {
+        HB_LOG_WARN("[network] refusing navigation to non-web scheme: " << url_copy);
+        enqueue_resource_update(ResourceType::Document, url_copy, {}, /*success*/ false, url_copy);
+        return;
+    }
+
     if (is_builtin_demo_url(url_copy) && fallback_network_) {
         auto callback = [this, id, url_copy](NetworkResponse response) {
             if (id != active_nav_.load(std::memory_order_acquire)) return;

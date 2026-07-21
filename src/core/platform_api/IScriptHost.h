@@ -62,6 +62,17 @@ public:
     virtual void set_disabled(DOM::Node* node, bool disabled) = 0;
     virtual void set_focused(DOM::Node* node, bool focused) = 0;
 
+    // --- document.cookie (8.1.5) ---
+    // The script-visible cookie string for the current document: same-origin,
+    // non-HttpOnly cookies only. Empty when there are none, or when no cookie
+    // jar is wired up.
+    virtual std::string get_document_cookie() = 0;
+    // Applies one `Set-Cookie`-shaped string from script. Parsed by the same jar
+    // code as a server header, so attribute handling cannot drift between the
+    // two paths; a cookie script may not set is silently ignored, as in a real
+    // browser.
+    virtual void set_document_cookie(std::string_view value) = 0;
+
     // --- innerHTML (7.1.4) ---
     // Replaces node's children with the fragment parsed from `html` (reuses the
     // document HTML parser in a recovery-oriented fragment mode).

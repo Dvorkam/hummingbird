@@ -22,6 +22,11 @@ void DocumentScripting::set_focus_sink(std::function<void(DOM::Element*, bool)> 
     controller_->set_focus_sink(std::move(sink));
 }
 
+void DocumentScripting::set_cookie_accessors(std::function<std::string()> reader,
+                                             std::function<void(std::string_view)> writer) {
+    controller_->set_cookie_accessors(std::move(reader), std::move(writer));
+}
+
 bool DocumentScripting::run_document_scripts(DocumentModel& model, const ExternalScriptLookup& external_lookup) {
     std::vector<DocumentScriptController::ScriptSource> sources;
     const auto& scripts = model.document_scripts();

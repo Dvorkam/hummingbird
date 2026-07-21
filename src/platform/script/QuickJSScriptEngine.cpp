@@ -124,6 +124,35 @@ JSValue QuickJSScriptEngine::js_document_create_text_node(JSContext* ctx, JSValu
 
 // --- window.location (7.2.5) -----------------------------------------------
 
+// document.cookie (8.1.5). The getter returns only what script may see: the jar
+// withholds HttpOnly cookies from this path, which is the flag's entire purpose.
+JSValue QuickJSScriptEngine::js_document_get_cookie(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/,
+                                                    JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) {
+        return JS_NewString(ctx, "");
+    }
+    return JS_NewString(ctx, engine->host_->get_document_cookie().c_str());
+}
+
+// Assigning document.cookie sets ONE cookie; it does not replace the jar. The
+// string is parsed by the same code as a server's Set-Cookie, so attribute
+// handling cannot drift between the two paths.
+JSValue QuickJSScriptEngine::js_document_set_cookie(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                    JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) {
+        return JS_UNDEFINED;
+    }
+    const char* value = JS_ToCString(ctx, argv[0]);
+    if (!value) {
+        return JS_UNDEFINED;
+    }
+    engine->host_->set_document_cookie(value);
+    JS_FreeCString(ctx, value);
+    return JS_UNDEFINED;
+}
+
 JSValue QuickJSScriptEngine::js_location_get_href(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/,
                                                   JSValueConst* /*argv*/) {
     auto* engine = engine_from_context(ctx);
@@ -1275,6 +1304,7 @@ void QuickJSScriptEngine::install_document_bindings() {
                       JS_NewCFunction(context_, js_node_remove_event_listener, "removeEventListener", 3));
     JS_SetPropertyStr(context_, document, "dispatchEvent",
                       JS_NewCFunction(context_, js_node_dispatch_event, "dispatchEvent", 1));
+    define_accessor(document, "cookie", js_document_get_cookie, js_document_set_cookie);
     // Retain a reference so the event machinery can use `document` as an
     // EventTarget value (target / currentTarget / `this`).
     document_object_ = JS_DupValue(context_, document);

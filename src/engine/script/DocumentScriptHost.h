@@ -40,6 +40,16 @@ public:
     using FocusSink = std::function<void(DOM::Element*, bool /*focused*/)>;
     void set_focus_sink(FocusSink sink) { focus_sink_ = std::move(sink); }
 
+    // document.cookie (8.1.5). Supplied by the owner rather than held directly,
+    // because the jar is shared per profile while the document URL changes per
+    // navigation, and only the Tab knows both. Persists across reset().
+    using CookieReader = std::function<std::string()>;
+    using CookieWriter = std::function<void(std::string_view)>;
+    void set_cookie_accessors(CookieReader reader, CookieWriter writer) {
+        cookie_reader_ = std::move(reader);
+        cookie_writer_ = std::move(writer);
+    }
+
     DOM::Element* get_element_by_id(std::string_view id) override;
     std::string get_text_content(const DOM::Node* node) override;
     void set_text_content(DOM::Node* node, std::string_view text) override;
@@ -67,6 +77,9 @@ public:
     bool get_disabled(DOM::Node* node) override;
     void set_disabled(DOM::Node* node, bool disabled) override;
     void set_focused(DOM::Node* node, bool focused) override;
+
+    std::string get_document_cookie() override;
+    void set_document_cookie(std::string_view value) override;
 
     DOM::Node* query_selector(DOM::Node* scope, std::string_view selector) override;
     std::vector<DOM::Node*> query_selector_all(DOM::Node* scope, std::string_view selector) override;
@@ -115,6 +128,8 @@ private:
     bool mutated_ = false;
     int dispatch_depth_ = 0;  // >1 while a dispatch is nested inside another
     FocusSink focus_sink_;
+    CookieReader cookie_reader_;
+    CookieWriter cookie_writer_;
 
     // Nodes created by script but not yet attached, plus nodes removed from the
     // tree. Their arena storage stays valid until the arena resets, so they can

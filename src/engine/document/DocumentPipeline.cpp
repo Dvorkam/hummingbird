@@ -159,6 +159,11 @@ std::vector<std::string> DocumentPipeline::external_script_srcs() const {
     return srcs;
 }
 
+void DocumentPipeline::set_cookie_accessors(std::function<std::string()> reader,
+                                            std::function<void(std::string_view)> writer) {
+    scripting_->set_cookie_accessors(std::move(reader), std::move(writer));
+}
+
 void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>& style_blocks) {
     style_coordinator_->set_extension_style_blocks(style_blocks);
 }

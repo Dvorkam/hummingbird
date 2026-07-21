@@ -260,7 +260,7 @@ P0: Cookies (North Star)
 - [x] 8.3.1: Redirect Chain Hardening *(moved ahead of 8.1.3: it takes ownership of the redirect loop from libcurl, which 8.1.3 needs)*
 - [x] 8.1.3: Redirect Cookie Semantics *(cookies set mid-chain ride the remaining hops; both the Cookie header and the SameSite context are recomputed per hop)*
 - [x] 8.1.4: Cookie Jar Persistence
-- [ ] 8.1.5: document.cookie Binding
+- [x] 8.1.5: document.cookie Binding
 
 P0: Storage (North Star)
 - [ ] 8.2.1: Storage Backing Store

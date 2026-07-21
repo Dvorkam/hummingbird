@@ -45,6 +45,7 @@ header→header vector and stays on targeted engine tests
 | SameSite `Lax` / `Strict` / `None` | Yes | Enforced for both subresources and navigations. `SameSite=None` without `Secure` is rejected at parse rather than downgraded. Lax default when absent or unrecognized. |
 | 6265bis §5.4 None-requires-Secure | Yes | Rejected outright — a silent downgrade would look like it had worked. |
 | §5.3 redirect handling | Yes | The engine owns the redirect loop (8.3.1), so cookies set mid-chain are stored before the next hop, and both the `Cookie` header and the SameSite context are recomputed per hop. |
+| `document.cookie` | Yes | Read returns the script view (HttpOnly withheld); assignment sets one cookie through the same parser a server header uses, so attribute handling cannot drift between the two paths. |
 | §5.3 persistence | Yes | Non-session cookies round-trip to a per-profile TSV file; session cookies are never written; expired ones are purged on load; a corrupt file starts empty. |
 
 ## Deviations
@@ -75,9 +76,7 @@ exists; the ones marked *(no ticket)* are recorded but not scheduled.
 
 ### Functional gaps (scheduled work, not deviations we intend to keep)
 
-- **No `document.cookie`.** The read filter exists
-  (`script_visible_cookies`); nothing binds it to JS, and there is no write
-  path. → M8 story 8.1.5.
+
 
 
 ### Environmental

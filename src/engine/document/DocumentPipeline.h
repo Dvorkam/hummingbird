@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -88,6 +89,9 @@ public:
     // Raw src attributes of external <script>s in document order (for the
     // caller to request through the resource loader before running).
     std::vector<std::string> external_script_srcs() const;
+    // document.cookie accessors (8.1.5), forwarded to the script host.
+    void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
+
     void set_extension_style_blocks(const std::vector<std::string>& style_blocks);
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool rebuild_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);

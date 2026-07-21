@@ -38,6 +38,9 @@ public:
     void reset();
     // Routes JS focus()/blur() to the caret target (wired once by DocumentPipeline).
     void set_focus_sink(std::function<void(DOM::Element*, bool)> sink);
+    // document.cookie accessors (8.1.5): supplied by the Tab, which is the only
+    // layer that knows both the profile's jar and the current document URL.
+    void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
     // Runs the document's <script>s in document order, inline and external
     // interleaved (classic-script semantics, 7.0.1 MVP).
     bool run_document_scripts(DocumentModel& model, const ExternalScriptLookup& external_lookup);

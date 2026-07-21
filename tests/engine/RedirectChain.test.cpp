@@ -337,3 +337,49 @@ TEST(RedirectChainTest, A307PreservingPostKeepsTheNextHopUnsafeForLax) {
     EXPECT_TRUE(net->requests[1].options.headers.get("Cookie").empty())
         << "a cross-site POST must stay unauthenticated across a 307";
 }
+
+// --- scheme confinement ------------------------------------------------------
+// libcurl serves file://, ftp:// and more by default, so without an explicit
+// restriction a server could point the engine at the local disk. Guarded in
+// three places (transport, redirect policy, navigation); these cover the two
+// that are testable without a network.
+
+TEST(RedirectChainTest, ARedirectToAFileUrlIsRefused) {
+    // The hostless form (file:///x) already fails to parse, but file://localhost/x
+    // parses cleanly -- that is the one that mattered.
+    auto network = std::make_unique<RedirectingNetwork>();
+    auto* net = network.get();
+    net->redirect("https://example.test/bait", 302, "file://localhost/C:/Users/secret.tsv");
+
+    ResourceLoader loader = make_loader(std::move(network));
+    loader.navigate("https://example.test/bait");
+
+    // Not followed: the chain stops at the 3xx and never requests the file.
+    ASSERT_EQ(net->requests.size(), 1u);
+    EXPECT_EQ(net->requests[0].url, "https://example.test/bait");
+}
+
+TEST(RedirectChainTest, ARedirectToAnyNonWebSchemeIsRefused) {
+    for (const char* target : {"file://localhost/C:/x", "ftp://example.test/x", "javascript:alert(1)",
+                               "data:text/html,<b>hi</b>"}) {
+        EXPECT_FALSE(
+            Hummingbird::Engine::RedirectPolicy::decide(302, target, "https://example.test/", false).has_value())
+            << target;
+    }
+    // ...while ordinary web redirects still work.
+    EXPECT_TRUE(Hummingbird::Engine::RedirectPolicy::decide(302, "http://example.test/ok", "https://example.test/",
+                                                            false)
+                    .has_value());
+}
+
+TEST(RedirectChainTest, NavigatingDirectlyToAFileUrlIsRefused) {
+    auto network = std::make_unique<RedirectingNetwork>();
+    auto* net = network.get();
+
+    ResourceLoader loader = make_loader(std::move(network));
+    loader.navigate("file://localhost/C:/Users/secret.tsv");
+
+    EXPECT_TRUE(net->requests.empty()) << "a file: navigation must never reach the transport";
+    auto batch = loader.consume_pending_updates();
+    EXPECT_FALSE(batch.is_ready(ResourceType::Document));
+}

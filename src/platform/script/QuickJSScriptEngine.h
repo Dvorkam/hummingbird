@@ -119,6 +119,8 @@ private:
     static JSValue js_node_dispatch_event(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
     // window.location accessors (7.2.5).
+    static JSValue js_document_get_cookie(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_document_set_cookie(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_get_href(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_get_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_set_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);

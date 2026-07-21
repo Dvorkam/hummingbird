@@ -444,6 +444,18 @@ void DocumentScriptHost::set_focused(DOM::Node* node, bool focused) {
     }
 }
 
+std::string DocumentScriptHost::get_document_cookie() {
+    // No jar wired up (most unit tests) reads as "no cookies", not an error:
+    // document.cookie returning "" is a perfectly ordinary state.
+    return cookie_reader_ ? cookie_reader_() : std::string{};
+}
+
+void DocumentScriptHost::set_document_cookie(std::string_view value) {
+    if (cookie_writer_) {
+        cookie_writer_(value);
+    }
+}
+
 DOM::Node* DocumentScriptHost::query_selector(DOM::Node* scope, std::string_view selector) {
     DOM::Node* root = scope ? scope : root_;
     if (!root) return nullptr;
