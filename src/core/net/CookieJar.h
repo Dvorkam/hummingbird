@@ -1,5 +1,6 @@
 #pragma once
 
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -47,6 +48,23 @@ public:
 
     // Drops every cookie whose expiry has passed.
     size_t purge_expired(CookieTime now);
+
+    // --- persistence (story 8.1.4) ------------------------------------------
+    // Session cookies are never written: "dies with the process" is their whole
+    // definition, so persisting them would silently upgrade them.
+
+    // HB_COOKIES_FILE if set, else a file under the per-profile config dir.
+    static std::filesystem::path default_path();
+
+    // Writes every non-session, unexpired cookie. Returns how many were written.
+    // Best-effort: logs and returns 0 if the file cannot be opened.
+    size_t save_to(const std::filesystem::path& path) const;
+
+    // Replaces the jar's contents from `path`, dropping cookies that already
+    // expired. Returns how many were loaded. A missing file is normal (first
+    // run) and a corrupt one starts empty with a log rather than failing — a
+    // browser must still start when its cookie file is damaged.
+    size_t load_from(const std::filesystem::path& path, CookieTime now);
 
     const std::vector<Cookie>& entries() const { return cookies_; }
     size_t size() const { return cookies_.size(); }

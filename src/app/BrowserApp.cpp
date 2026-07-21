@@ -72,6 +72,17 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     event_router_ = std::make_unique<BrowserEventRouter>(*this, *chrome_event_router_, *document_event_router_,
                                                          *render_coordinator_);
 
+    // Story 8.1.4: restore the profile's persistent cookies before the first
+    // tab exists, so the very first navigation is already authenticated. Kept at
+    // the app layer rather than in TabManager so engine tests never touch disk.
+    if (const auto& jar = tab_controller_.manager().cookie_jar()) {
+        const size_t restored = jar->load_from(Hummingbird::Core::CookieJar::default_path(),
+                                               Hummingbird::Core::CookieClock::now());
+        if (restored > 0) {
+            HB_LOG_INFO("[cookies] restored " << restored << " cookie(s)");
+        }
+    }
+
     const auto first_tab_id = tab_controller_.create_tab();
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
@@ -119,6 +130,13 @@ void BrowserApp::shutdown() {
 
     // stop input first (safe even if already stopped)
     if (window_) window_->stop_text_input();
+
+    // Persist before anything is torn down. Session cookies are dropped by
+    // save_to itself, so closing the browser really does end the session.
+    if (const auto& jar = tab_controller_.manager().cookie_jar()) {
+        const size_t saved = jar->save_to(Hummingbird::Core::CookieJar::default_path());
+        HB_LOG_DEBUG("[cookies] persisted " << saved << " cookie(s)");
+    }
 
     extension_host_->shutdown();
     tab_controller_.shutdown();

@@ -44,6 +44,8 @@ header→header vector and stays on targeted engine tests
 | `HttpOnly` | Yes | Withheld from the script view (`script_visible_cookies`) while still riding HTTP requests. |
 | SameSite `Lax` / `Strict` / `None` | Yes | Enforced for both subresources and navigations. `SameSite=None` without `Secure` is rejected at parse rather than downgraded. Lax default when absent or unrecognized. |
 | 6265bis §5.4 None-requires-Secure | Yes | Rejected outright — a silent downgrade would look like it had worked. |
+| §5.3 redirect handling | Yes | The engine owns the redirect loop (8.3.1), so cookies set mid-chain are stored before the next hop, and both the `Cookie` header and the SameSite context are recomputed per hop. |
+| §5.3 persistence | Yes | Non-session cookies round-trip to a per-profile TSV file; session cookies are never written; expired ones are purged on load; a corrupt file starts empty. |
 
 ## Deviations
 
@@ -73,16 +75,10 @@ exists; the ones marked *(no ticket)* are recorded but not scheduled.
 
 ### Functional gaps (scheduled work, not deviations we intend to keep)
 
-- **Redirect site context is not recomputed per hop.** The engine now owns the
-  redirect loop (8.3.1), so cookies set mid-chain are stored and the `Cookie`
-  header is recomputed for every hop. But the SameSite *request context* is
-  forwarded verbatim, so a chain that crosses sites keeps the original request's
-  same-site standing.
-  → `T-COOKIE-REDIRECT-CONTEXT-1` [M8 P1], which completes story 8.1.3.
-- **No persistence.** The jar dies with the process, so every cookie behaves as a
-  session cookie across restarts. → M8 story 8.1.4.
-- **No `document.cookie`.** The read filter exists (`script_visible_cookies`);
-  nothing binds it to JS, and there is no write path. → M8 story 8.1.5.
+- **No `document.cookie`.** The read filter exists
+  (`script_visible_cookies`); nothing binds it to JS, and there is no write
+  path. → M8 story 8.1.5.
+
 
 ### Environmental
 

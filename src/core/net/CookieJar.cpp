@@ -1,7 +1,13 @@
 #include "core/net/CookieJar.h"
 
 #include <algorithm>
+#include <cstdlib>
+#include <fstream>
+#include <sstream>
 
+#include "core/utils/AssetPath.h"
+#include "core/utils/Log.h"
+#include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "core/utils/Url.h"
 
@@ -123,6 +129,139 @@ size_t CookieJar::purge_expired(CookieTime now) {
                                   [&](const Cookie& cookie) { return cookie.is_expired(now); }),
                    cookies_.end());
     return before - cookies_.size();
+}
+
+// --- persistence (story 8.1.4) ----------------------------------------------
+
+namespace {
+// A version tag so a future format change can be detected rather than
+// misparsed. Bump it and the old file is discarded as unreadable.
+constexpr std::string_view kFileHeader = "HBCOOKIES\t1";
+
+long long to_epoch_seconds(CookieTime time) {
+    return std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count();
+}
+
+CookieTime from_epoch_seconds(long long seconds) { return CookieTime{} + std::chrono::seconds{seconds}; }
+
+// The TSV format cannot represent a field containing a tab or newline. Such a
+// cookie is malformed per RFC 6265 §4.1.1 anyway (T-COOKIE-CHARSET-1 will reject
+// it at parse); until then, skip it on write rather than corrupt the file.
+bool is_serializable(const Cookie& cookie) {
+    for (const std::string* field : {&cookie.name, &cookie.value, &cookie.domain, &cookie.path}) {
+        if (field->find_first_of("\t\r\n") != std::string::npos) return false;
+    }
+    return true;
+}
+
+std::vector<std::string> split_tabs(const std::string& line) {
+    std::vector<std::string> parts;
+    size_t start = 0;
+    while (true) {
+        const size_t tab = line.find('\t', start);
+        if (tab == std::string::npos) {
+            parts.push_back(line.substr(start));
+            return parts;
+        }
+        parts.push_back(line.substr(start, tab - start));
+        start = tab + 1;
+    }
+}
+}  // namespace
+
+std::filesystem::path CookieJar::default_path() {
+    if (const char* configured = std::getenv("HB_COOKIES_FILE"); configured && configured[0]) {
+        return std::filesystem::path(configured);
+    }
+    return Utils::resolve_asset_path("assets/config/cookies.tsv");
+}
+
+size_t CookieJar::save_to(const std::filesystem::path& path) const {
+    std::error_code ec;
+    std::filesystem::create_directories(path.parent_path(), ec);
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file) {
+        HB_LOG_WARN("[cookies] could not write " << path.string());
+        return 0;
+    }
+    file << kFileHeader << '\n';
+
+    size_t written = 0;
+    for (const auto& cookie : cookies_) {
+        // Session cookies die with the process by definition.
+        if (cookie.is_session()) continue;
+        if (!is_serializable(cookie)) {
+            HB_LOG_DEBUG("[cookies] skipping unserializable cookie: " << cookie.name);
+            continue;
+        }
+        file << cookie.name << '\t' << cookie.value << '\t' << cookie.domain << '\t' << cookie.path << '\t'
+             << to_epoch_seconds(*cookie.expires) << '\t' << to_epoch_seconds(cookie.created) << '\t'
+             << (cookie.host_only ? 1 : 0) << '\t' << (cookie.secure ? 1 : 0) << '\t' << (cookie.http_only ? 1 : 0)
+             << '\t' << static_cast<int>(cookie.same_site) << '\n';
+        ++written;
+    }
+    return written;
+}
+
+size_t CookieJar::load_from(const std::filesystem::path& path, CookieTime now) {
+    cookies_.clear();
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        return 0;  // First run: no file yet is entirely normal.
+    }
+
+    std::string line;
+    if (!std::getline(file, line)) {
+        return 0;
+    }
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (line != kFileHeader) {
+        HB_LOG_WARN("[cookies] unrecognized cookie file format, starting empty: " << path.string());
+        return 0;
+    }
+
+    size_t loaded = 0;
+    size_t skipped = 0;
+    while (std::getline(file, line)) {
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty()) continue;
+
+        const auto parts = split_tabs(line);
+        if (parts.size() != 10) {
+            ++skipped;
+            continue;
+        }
+        const auto expires = Utils::parse_long(parts[4], Utils::NumberParseMode::Strict);
+        const auto created = Utils::parse_long(parts[5], Utils::NumberParseMode::Strict);
+        const auto same_site = Utils::parse_long(parts[9], Utils::NumberParseMode::Strict);
+        if (parts[0].empty() || !expires || !created || !same_site || *same_site < 0 || *same_site > 2) {
+            ++skipped;
+            continue;
+        }
+
+        Cookie cookie;
+        cookie.name = parts[0];
+        cookie.value = parts[1];
+        cookie.domain = parts[2];
+        cookie.path = parts[3];
+        cookie.expires = from_epoch_seconds(*expires);
+        cookie.created = from_epoch_seconds(*created);
+        cookie.host_only = parts[6] == "1";
+        cookie.secure = parts[7] == "1";
+        cookie.http_only = parts[8] == "1";
+        cookie.same_site = static_cast<SameSite>(*same_site);
+
+        // Purge on load: a cookie that expired while the browser was closed must
+        // not come back to life.
+        if (cookie.is_expired(now)) continue;
+        cookies_.push_back(std::move(cookie));
+        ++loaded;
+    }
+
+    if (skipped > 0) {
+        HB_LOG_WARN("[cookies] skipped " << skipped << " malformed line(s) in " << path.string());
+    }
+    return loaded;
 }
 
 }  // namespace Hummingbird::Core

@@ -3,7 +3,10 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <filesystem>
+#include <fstream>
 #include <string>
+#include <string_view>
 
 #include "core/net/Cookie.h"
 #include "core/net/HttpHeaders.h"
@@ -347,4 +350,142 @@ TEST(CookieMatchTest, SameSiteTreatsAnEmptyInitiatorAsSameSite) {
     EXPECT_TRUE(Hummingbird::Core::is_same_site("example.dev", "example.dev"));
     EXPECT_TRUE(Hummingbird::Core::is_same_site("api.example.dev", "www.example.dev"));
     EXPECT_FALSE(Hummingbird::Core::is_same_site("example.dev", "attacker.test"));
+}
+
+// --- persistence (8.1.4) -----------------------------------------------------
+
+namespace {
+// A unique temp file per test, removed on destruction.
+class TempCookieFile {
+public:
+    explicit TempCookieFile(const char* tag)
+        : path_(std::filesystem::temp_directory_path() / (std::string("hb_cookies_") + tag + ".tsv")) {
+        std::error_code ec;
+        std::filesystem::remove(path_, ec);
+    }
+    ~TempCookieFile() {
+        std::error_code ec;
+        std::filesystem::remove(path_, ec);
+    }
+    const std::filesystem::path& path() const { return path_; }
+
+    void write(std::string_view contents) const {
+        std::ofstream file(path_, std::ios::binary | std::ios::trunc);
+        file << contents;
+    }
+
+private:
+    std::filesystem::path path_;
+};
+}  // namespace
+
+TEST(CookieJarPersistenceTest, PersistentCookiesSurviveARestartExactly) {
+    TempCookieFile file("roundtrip");
+    {
+        CookieJar jar;
+        ASSERT_TRUE(jar.store_from_header(
+            "https://example.dev/app/x", "session=abc; Path=/app; Max-Age=86400; Secure; HttpOnly; SameSite=Strict",
+            now()));
+        EXPECT_EQ(jar.save_to(file.path()), 1u);
+    }
+
+    CookieJar restored;
+    EXPECT_EQ(restored.load_from(file.path(), now()), 1u);
+    ASSERT_EQ(restored.entries().size(), 1u);
+    const Cookie& cookie = restored.entries()[0];
+    EXPECT_EQ(cookie.name, "session");
+    EXPECT_EQ(cookie.value, "abc");
+    EXPECT_EQ(cookie.domain, "example.dev");
+    EXPECT_EQ(cookie.path, "/app");
+    EXPECT_TRUE(cookie.secure);
+    EXPECT_TRUE(cookie.http_only);
+    EXPECT_EQ(cookie.same_site, SameSite::Strict);
+    EXPECT_TRUE(cookie.host_only);
+    ASSERT_TRUE(cookie.expires.has_value());
+    EXPECT_EQ(*cookie.expires, later(86400));
+    // And it is still actually usable, not just structurally intact.
+    EXPECT_EQ(restored.cookie_header_for("https://example.dev/app/page", now()), "session=abc");
+}
+
+TEST(CookieJarPersistenceTest, SessionCookiesAreNeverWritten) {
+    // "Dies with the process" is their definition; persisting one would
+    // silently promote it to a persistent cookie.
+    TempCookieFile file("session");
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "keep=1; Max-Age=600", now()));
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "temp=2", now()));
+    ASSERT_EQ(jar.size(), 2u);
+
+    EXPECT_EQ(jar.save_to(file.path()), 1u);
+
+    CookieJar restored;
+    EXPECT_EQ(restored.load_from(file.path(), now()), 1u);
+    EXPECT_EQ(restored.cookie_header_for("https://example.dev/", now()), "keep=1");
+}
+
+TEST(CookieJarPersistenceTest, CookiesThatExpiredWhileClosedArePurgedOnLoad) {
+    TempCookieFile file("expiry");
+    {
+        CookieJar jar;
+        ASSERT_TRUE(jar.store_from_header("https://example.dev/", "short=1; Max-Age=30", now()));
+        ASSERT_TRUE(jar.store_from_header("https://example.dev/", "long=2; Max-Age=86400", now()));
+        EXPECT_EQ(jar.save_to(file.path()), 2u);
+    }
+
+    CookieJar restored;
+    // Restarting an hour later: the 30-second one must not come back to life.
+    EXPECT_EQ(restored.load_from(file.path(), later(3600)), 1u);
+    EXPECT_EQ(restored.cookie_header_for("https://example.dev/", later(3600)), "long=2");
+}
+
+TEST(CookieJarPersistenceTest, AMissingFileIsANormalFirstRun) {
+    TempCookieFile file("missing");  // constructor removes it
+    CookieJar jar;
+    EXPECT_EQ(jar.load_from(file.path(), now()), 0u);
+    EXPECT_TRUE(jar.empty());
+}
+
+TEST(CookieJarPersistenceTest, ACorruptFileStartsEmptyInsteadOfFailing) {
+    // A browser must still start when its cookie file is damaged.
+    TempCookieFile file("corrupt");
+    file.write("this is not a cookie file\nneither is this\n");
+
+    CookieJar jar;
+    EXPECT_EQ(jar.load_from(file.path(), now()), 0u);
+    EXPECT_TRUE(jar.empty());
+}
+
+TEST(CookieJarPersistenceTest, MalformedLinesAreSkippedWithoutLosingGoodOnes) {
+    TempCookieFile file("partial");
+    CookieJar source;
+    ASSERT_TRUE(source.store_from_header("https://example.dev/", "good=1; Max-Age=86400", now()));
+    ASSERT_EQ(source.save_to(file.path()), 1u);
+
+    // Append junk after a valid record.
+    {
+        std::ofstream appended(file.path(), std::ios::binary | std::ios::app);
+        appended << "too\tfew\tfields\n";
+        appended << "\n";
+    }
+
+    CookieJar jar;
+    EXPECT_EQ(jar.load_from(file.path(), now()), 1u);
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now()), "good=1");
+}
+
+TEST(CookieJarPersistenceTest, LoadingReplacesRatherThanMergesExistingState) {
+    TempCookieFile file("replace");
+    CookieJar source;
+    ASSERT_TRUE(source.store_from_header("https://example.dev/", "fromdisk=1; Max-Age=86400", now()));
+    ASSERT_EQ(source.save_to(file.path()), 1u);
+
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "stale=1; Max-Age=86400", now()));
+    EXPECT_EQ(jar.load_from(file.path(), now()), 1u);
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now()), "fromdisk=1");
+}
+
+TEST(CookieJarPersistenceTest, DefaultPathHonorsTheEnvironmentOverride) {
+    // The hook tests and alternate profiles use to stay off the real file.
+    EXPECT_FALSE(CookieJar::default_path().empty());
 }

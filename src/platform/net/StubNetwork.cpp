@@ -173,6 +173,9 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
         }
     }
     ++visits;
+    // hb_session is a session cookie, so its ABSENCE is the visible proof that
+    // the browser restarted: hb_visits (persistent) survives, this one does not.
+    const bool continuing_session = !cookie_value(sent, "hb_session").empty();
 
     response.headers.add("Set-Cookie", "hb_visits=" + std::to_string(visits) + "; Path=/; Max-Age=86400");
     // No Expires/Max-Age: dies with the process, so it is the one that resets on
@@ -197,6 +200,13 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
         "</strong></p>"
         "<p>Reload this page and the number climbs: nothing on the server side remembers you, so the count can only "
         "come back from the browser's own jar.</p>"
+        "<p><strong>Session status:</strong> " +
+        std::string(continuing_session
+                        ? "continuing &mdash; <code>hb_session</code> came back, so this browser has stayed open."
+                        : "fresh &mdash; no <code>hb_session</code> was sent, so this is a first visit or a restart.") +
+        "</p>"
+        "<p>Close the browser and reopen it: the visit count keeps climbing because <code>hb_visits</code> is "
+        "persisted to disk, while the session status resets. That split is the whole point of a session cookie.</p>"
         "<ul>"
         "<li><code>hb_visits</code> has <code>Max-Age=86400</code> &mdash; a persistent cookie.</li>"
         "<li><code>hb_session</code> has no expiry &mdash; a session cookie, gone when the browser closes.</li>"

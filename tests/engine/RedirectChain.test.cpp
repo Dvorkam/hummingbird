@@ -249,3 +249,91 @@ TEST(RedirectChainTest, ASubresourceRedirectIsFollowedToo) {
     ASSERT_EQ(net->requests.size(), 2u);
     EXPECT_EQ(net->requests[1].url, "https://example.test/new.css");
 }
+
+// --- per-hop SameSite context (8.1.3) ----------------------------------------
+
+TEST(RedirectChainTest, ACrossSiteHopDoesNotInheritSameSiteStanding) {
+    // Address-bar navigation to example.test that bounces to other.test. The
+    // first hop has no initiator (nothing is cross-site), but the second must
+    // NOT inherit that standing, or a redirect would launder Strict cookies.
+    auto network = std::make_unique<RedirectingNetwork>();
+    auto* net = network.get();
+    net->redirect("https://example.test/out", 302, "https://other.test/landing");
+    net->set_body("https://other.test/landing", "ok");
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    const auto when = Hummingbird::Core::CookieClock::now();
+    jar->store_from_header("https://other.test/", "strict=1; SameSite=Strict", when);
+    jar->store_from_header("https://other.test/", "lax=2", when);
+
+    ResourceLoader loader = make_loader(std::move(network), jar);
+    loader.navigate("https://example.test/out");
+
+    ASSERT_EQ(net->requests.size(), 2u);
+    // Lax still rides: this is a top-level navigation with a safe method.
+    EXPECT_EQ(net->requests[1].options.headers.get("Cookie"), "lax=2");
+}
+
+TEST(RedirectChainTest, ASameSiteHopKeepsItsStrictCookies) {
+    auto network = std::make_unique<RedirectingNetwork>();
+    auto* net = network.get();
+    net->redirect("https://example.test/out", 302, "https://www.example.test/landing");
+    net->set_body("https://www.example.test/landing", "ok");
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://www.example.test/", "strict=1; SameSite=Strict; Domain=example.test",
+                           Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader = make_loader(std::move(network), jar);
+    loader.navigate("https://example.test/out");
+
+    ASSERT_EQ(net->requests.size(), 2u);
+    EXPECT_EQ(net->requests[1].options.headers.get("Cookie"), "strict=1")
+        << "example.test -> www.example.test is same-site, so Strict survives";
+}
+
+TEST(RedirectChainTest, A302RewriteMakesTheNextHopSafeForLax) {
+    // A cross-site POST carries no Lax cookies, but once a 302 rewrites it to a
+    // GET the resulting top-level navigation does.
+    auto network = std::make_unique<RedirectingNetwork>();
+    auto* net = network.get();
+    net->redirect("https://example.test/submit", 302, "https://other.test/done");
+    net->set_body("https://other.test/done", "ok");
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://other.test/", "lax=1", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader = make_loader(std::move(network), jar);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "x=1";
+    request.initiator_host = "attacker.test";
+    loader.navigate("https://example.test/submit", request);
+
+    ASSERT_EQ(net->requests.size(), 2u);
+    EXPECT_EQ(net->requests[1].method, "GET");
+    EXPECT_EQ(net->requests[1].options.headers.get("Cookie"), "lax=1");
+}
+
+TEST(RedirectChainTest, A307PreservingPostKeepsTheNextHopUnsafeForLax) {
+    // The mirror of the above: 307 keeps it a POST, so Lax stays withheld
+    // cross-site. This is the CSRF path surviving a redirect.
+    auto network = std::make_unique<RedirectingNetwork>();
+    auto* net = network.get();
+    net->redirect("https://example.test/submit", 307, "https://other.test/done");
+    net->set_body("https://other.test/done", "ok");
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://other.test/", "lax=1", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader = make_loader(std::move(network), jar);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "x=1";
+    loader.navigate("https://example.test/submit", request);
+
+    ASSERT_EQ(net->requests.size(), 2u);
+    EXPECT_EQ(net->requests[1].method, "POST");
+    EXPECT_TRUE(net->requests[1].options.headers.get("Cookie").empty())
+        << "a cross-site POST must stay unauthenticated across a 307";
+}

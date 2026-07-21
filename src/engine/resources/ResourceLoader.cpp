@@ -156,10 +156,23 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
             next.content_type.clear();
         }
 
+        // Recompute the SameSite context for the next hop (story 8.1.3). The hop
+        // that issued the redirect is the next one's initiator, so a chain that
+        // crosses sites makes every later hop cross-site — otherwise an
+        // address-bar navigation to A that bounces to B would hand over B's
+        // Strict cookies on A's "no initiator, nothing is cross-site" standing.
+        Core::CookieRequestContext next_context = context;
+        if (auto parts = Core::parse_absolute_url(url)) {
+            next_context.initiator_host = parts->host;
+        }
+        // Safe-method status follows the rewrite: a 302 that turns POST into GET
+        // makes the next hop safe; a 307 that preserves POST does not.
+        next_context.safe_method = !decision->keep_post;
+
         ++chain.hops;
         HB_LOG_DEBUG("[network] redirect " << response.status << " " << url << " -> " << decision->url
                                            << (decision->keep_post ? " (POST preserved)" : " (as GET)"));
-        send_request(network, decision->url, std::move(next), std::move(callback), context, std::move(next_body),
+        send_request(network, decision->url, std::move(next), std::move(callback), next_context, std::move(next_body),
                      std::move(chain));
     };
 
