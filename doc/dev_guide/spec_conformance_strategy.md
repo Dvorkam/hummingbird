@@ -50,11 +50,17 @@ against the prose. It means **adopt the conformance test suite** as the ratchet:
 Two cheap disciplines, kept continuously, mean the flip is a non-event when it
 comes:
 
-1. **Keep a deviation register.** Every "MVP: we do X, the spec says Y" gets a
-   TODO with the deviation stated explicitly (see `doc/TODOs.md`, e.g.
-   `T-EVENT-SPEC-GAPS-1`, which enumerates the event-system deviations). When we
-   later go conformance-first we then have a punch-list, not a rediscovery
-   exercise. **Never skip logging a deliberate deviation.**
+1. **Keep a deviation register.** Every "MVP: we do X, the spec says Y" gets
+   written down explicitly. When we later go conformance-first we then have a
+   punch-list, not a rediscovery exercise. **Never skip logging a deliberate
+   deviation.**
+
+   Registers live in **`doc/conformance/`**, one file per spec/module, and own
+   the adherence picture; `doc/TODOs.md` owns the work items and links to them.
+   A gap is described in exactly one of the two — see
+   `doc/conformance/README.md` for that split and why it matters. Small
+   one-off deviations can stay as a note on their `T-*` ticket until a module
+   accumulates enough to be worth its own register; do not create empty ones.
 2. **Retrofit a conformance slice per module as it stabilizes.** When a module
    settles (e.g. URL parsing, or the event system after its milestone), wire in a
    focused conformance slice for *that module only* and let it be the regression
