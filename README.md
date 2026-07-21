@@ -288,6 +288,7 @@ HB_EXTENSIONS_ENABLE=dark-mode,my-ext ./build/Release/Hummingbird
 ## Documentation
 
 - Roadmap and milestone status: [`doc/milestones/roadmap.md`](doc/milestones/roadmap.md)
+- Interactive page pipeline: [`doc/diagrams/page_pipeline.html`](doc/diagrams/page_pipeline.html) (open in a browser)
 - Live backlog: [`doc/TODOs.md`](doc/TODOs.md)
 - Architecture and coding rules: [`doc/coding_constitution.md`](doc/coding_constitution.md)
 - Developer workflow guides: [`doc/dev_guide/`](doc/dev_guide/)

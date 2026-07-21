@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How a Hummingbird page becomes pixels</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --ink: #1d2433;
+      --muted: #576174;
+      --page: #f7f8fc;
+      --panel: #ffffff;
+      --line: #d9deeb;
+      --nav: #e8f0ff;
+      --parse: #e8f7f2;
+      --style: #f6eefc;
+      --layout: #fff4dd;
+      --paint: #ffe9e6;
+      --resource: #edf2f6;
+      --accent: #315dba;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--page);
+      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 1180px; margin: 0 auto; padding: 42px 24px 64px; }
+    h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.2rem); line-height: 1.08; letter-spacing: -0.04em; }
+    h2 { margin: 0; font-size: 1.22rem; }
+    h3 { margin: 0 0 8px; font-size: 1rem; }
+    p { margin: 0 0 12px; }
+    a { color: #214d9f; }
+    code { font: 0.88em ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .lede { max-width: 760px; margin: 16px 0 0; color: var(--muted); font-size: 1.13rem; }
+    .notice {
+      margin: 24px 0; padding: 14px 16px; border-left: 4px solid var(--accent);
+      background: color-mix(in srgb, var(--nav) 62%, var(--panel)); border-radius: 4px;
+    }
+    .diagram {
+      padding: 24px; background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
+      box-shadow: 0 12px 35px rgb(39 52 81 / 7%);
+    }
+    .diagram > p { color: var(--muted); }
+    .flow {
+      display: grid; grid-template-columns: repeat(7, minmax(105px, 1fr)); gap: 10px; align-items: stretch;
+      margin: 24px 0 16px;
+    }
+    .node {
+      position: relative; min-height: 112px; padding: 15px 12px; border: 1px solid var(--line); border-radius: 10px;
+      color: var(--ink); text-align: left; font: inherit; cursor: pointer; transition: transform .15s, box-shadow .15s, outline-color .15s;
+    }
+    .node:hover, .node:focus-visible { transform: translateY(-3px); box-shadow: 0 7px 18px rgb(39 52 81 / 16%); outline: 3px solid color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 2px; }
+    .node.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent); }
+    .node::after { content: "→"; position: absolute; top: 40%; right: -15px; z-index: 1; color: #8a95a8; font-size: 1.4rem; }
+    .node:last-child::after { content: ""; }
+    .node strong, .node small { display: block; }
+    .node strong { line-height: 1.15; }
+    .node small { margin-top: 7px; color: #596276; font-size: .75rem; line-height: 1.25; }
+    .nav { background: var(--nav); } .parse { background: var(--parse); } .style { background: var(--style); }
+    .layout { background: var(--layout); } .paint { background: var(--paint); } .resource { background: var(--resource); }
+    .branches { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; margin-top: 18px; }
+    .branch { padding: 16px; border: 1px dashed #b8c1d0; border-radius: 10px; background: color-mix(in srgb, var(--panel) 86%, var(--page)); }
+    .branch .node { width: 100%; min-height: 76px; }
+    .branch .node::after { content: ""; }
+    .loop { color: var(--muted); font-size: .91rem; }
+    .details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+    details { scroll-margin-top: 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); overflow: clip; }
+    summary { padding: 15px 16px; cursor: pointer; font-weight: 700; }
+    summary:hover { background: color-mix(in srgb, var(--page) 72%, var(--panel)); }
+    .detail-body { padding: 0 16px 16px; border-top: 1px solid var(--line); }
+    ul { margin: 8px 0 12px; padding-left: 20px; }
+    li + li { margin-top: 4px; }
+    .source { margin: 10px 0 0; color: var(--muted); font-size: .9rem; }
+    .source a { margin-right: 8px; white-space: nowrap; }
+    .footnote { margin: 28px 0 0; color: var(--muted); font-size: .92rem; }
+    @media (max-width: 900px) {
+      .flow { grid-template-columns: repeat(4, minmax(125px, 1fr)); }
+      .flow .node::after { content: ""; }
+    }
+    @media (max-width: 620px) {
+      main { padding: 28px 14px 42px; }
+      .diagram { padding: 16px; }
+      .flow, .branches, .details { grid-template-columns: 1fr; }
+      .node { min-height: 84px; }
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --ink: #e5e9f2; --muted: #b4bdcf; --page: #171b24; --panel: #202632; --line: #3a4353; --nav: #213554; --parse: #1e443c; --style: #3d2b50; --layout: #4a391c; --paint: #4c2927; --resource: #29313d; --accent: #8fb3ff; }
+      a { color: #a9c4ff; }
+      .node small { color: #c2cad9; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>How a page becomes pixels</h1>
+    <p class="lede">A clickable map of the current Hummingbird document pipeline. It follows a navigation from an HTML response through DOM, CSS, layout, and painting—and calls out the asynchronous resource updates and JavaScript mutations that send the pipeline around again.</p>
+
+    <p class="notice"><strong>Click a block</strong> to open its implementation notes and source links below. The vertical route is the first document pass; the two lower blocks are feedback paths, not extra linear stages.</p>
+
+    <section class="diagram" aria-labelledby="map-title">
+      <h2 id="map-title">First document pass</h2>
+      <p>Navigation and I/O are coordinated by <code>Engine::Tab</code>. DOM, style, layout, and command recording stay on the main thread; network callbacks only queue resource updates.</p>
+      <div class="flow" aria-label="Page rendering pipeline">
+        <button class="node nav" data-target="navigation" type="button"><strong>1. Navigate</strong><small>URL or form submission</small></button>
+        <button class="node resource" data-target="resource-loader" type="button"><strong>2. Load document</strong><small>network / built-in assets</small></button>
+        <button class="node parse" data-target="html" type="button"><strong>3. Parse HTML</strong><small>token stream → arena DOM</small></button>
+        <button class="node style" data-target="style" type="button"><strong>4. Compute style</strong><small>UA + page + extension CSS</small></button>
+        <button class="node layout" data-target="render-tree" type="button"><strong>5. Build render tree</strong><small>visible DOM → layout objects</small></button>
+        <button class="node layout" data-target="layout" type="button"><strong>6. Lay out</strong><small>boxes, lines, flex, grid, tables</small></button>
+        <button class="node paint" data-target="paint" type="button"><strong>7. Paint</strong><small>commands → Blend2D / SDL</small></button>
+      </div>
+
+      <div class="branches">
+        <section class="branch" aria-labelledby="resource-loop-title">
+          <h3 id="resource-loop-title">Incremental resource loop</h3>
+          <button class="node resource" data-target="resource-loop" type="button"><strong>CSS, images, fonts, SVG</strong><small>completions are queued, decoded, and applied later</small></button>
+          <p class="loop">A stylesheet or font completion rebuilds style + layout. An image completion updates render objects and relayouts when its size changes.</p>
+        </section>
+        <section class="branch" aria-labelledby="script-loop-title">
+          <h3 id="script-loop-title">Document script loop</h3>
+          <button class="node parse" data-target="script" type="button"><strong>Inline and external scripts</strong><small>document order through the QuickJS port</small></button>
+          <p class="loop">External scripts defer until their resource bodies resolve. DOM mutations are batched, then trigger one style/layout/paint refresh for that task.</p>
+        </section>
+      </div>
+    </section>
+
+    <section class="details" aria-label="Pipeline implementation details">
+      <details id="navigation">
+        <summary>1. Navigation</summary>
+        <div class="detail-body">
+          <p>A URL-bar action, link, history entry, or form submission reaches a <code>Tab</code>. The tab starts a new navigation session, clears the old document state, records navigation state, and asks the resource loader for the document.</p>
+          <ul><li>Form submissions choose GET or POST through the form-submission path.</li><li>Each tab owns its document pipeline, resource loader, script engine, and layout state.</li></ul>
+          <p class="source">Key code: <a href="../../src/engine/tab/Tab.cpp"><code>Tab.cpp</code></a><a href="../../src/engine/tab/NavigationLifecycle.cpp"><code>NavigationLifecycle.cpp</code></a><a href="../../src/engine/document/FormSubmissionBuilder.cpp"><code>FormSubmissionBuilder.cpp</code></a></p>
+        </div>
+      </details>
+
+      <details id="resource-loader">
+        <summary>2. Document loading and the resource store</summary>
+        <div class="detail-body">
+          <p><code>ResourceLoader</code> first records a typed request in <code>ResourceStore</code>. It can serve built-in/demo assets through <code>IResourceProvider</code> or ask the injected <code>INetwork</code> port to fetch the document.</p>
+          <ul><li>Network callbacks enqueue a result; they do not touch the DOM.</li><li>On the main-thread tick, <code>consume_pending_updates()</code> moves bodies, decoded images, and failures into the store.</li><li>A navigation ID discards late callbacks from a prior page.</li></ul>
+          <p class="source">Key code: <a href="../../src/engine/resources/ResourceLoader.cpp"><code>ResourceLoader.cpp</code></a><a href="../../src/engine/resources/ResourceStore.cpp"><code>ResourceStore.cpp</code></a><a href="../../src/engine/resources/ResourceUpdateProcessor.cpp"><code>ResourceUpdateProcessor.cpp</code></a></p>
+        </div>
+      </details>
+
+      <details id="html">
+        <summary>3. HTML tokenization, parsing, and early discovery</summary>
+        <div class="detail-body">
+          <p><code>DocumentModel</code> hands the response body to <code>Html::Parser</code>. The tokenizer emits tags and character data; the parser builds arena-backed DOM nodes through <code>DomFactory</code> and keeps an open-element stack.</p>
+          <ul><li>Inline <code>&lt;style&gt;</code> text, stylesheet links, and image sources are collected while parsing.</li><li>Classic script elements are collected from the resulting DOM. Script/style raw-text handling preserves their source as text rather than treating markup-looking content as HTML.</li><li>One document arena owns the page DOM and is bulk-reset on navigation.</li></ul>
+          <p class="source">Key code: <a href="../../src/engine/document/DocumentModel.cpp"><code>DocumentModel.cpp</code></a><a href="../../src/html/HtmlTokenizer.cpp"><code>HtmlTokenizer.cpp</code></a><a href="../../src/html/HtmlParser.cpp"><code>HtmlParser.cpp</code></a><a href="../../src/core/dom/DomFactory.cpp"><code>DomFactory.cpp</code></a></p>
+        </div>
+      </details>
+
+      <details id="style">
+        <summary>4. CSS source, cascade, and computed styles</summary>
+        <div class="detail-body">
+          <p><code>DocumentResources</code> merges the user-agent stylesheet, ready external stylesheets, inline styles, and extension CSS. The CSS parser produces a stylesheet; <code>StyleEngine</code> indexes rules and walks the DOM to attach a computed style to every node.</p>
+          <ul><li>Selector specificity, inheritance, media conditions, custom properties, and the supported CSS property set resolve here.</li><li><code>@font-face</code> resolution can discover additional font requests; ready font bytes feed a later restyle.</li><li>Stylesheets that are still loading simply join a later incremental pass.</li></ul>
+          <p class="source">Key code: <a href="../../src/engine/document/DocumentStyleCoordinator.cpp"><code>DocumentStyleCoordinator.cpp</code></a><a href="../../src/engine/document/DocumentResources.cpp"><code>DocumentResources.cpp</code></a><a href="../../src/style/parser/CssParser.cpp"><code>CssParser.cpp</code></a><a href="../../src/style/compute/StyleEngine.cpp"><code>StyleEngine.cpp</code></a></p>
+        </div>
+      </details>
+
+      <details id="render-tree">
+        <summary>5. Render-tree construction</summary>
+        <div class="detail-body">
+          <p><code>TreeBuilder</code> maps visible DOM nodes and their computed <code>display</code> values into layout objects. Non-visual tags and <code>display: none</code> do not produce normal render objects.</p>
+          <ul><li>Factories choose block, inline, list-item, flex, grid, table, text, image, SVG, and control render objects.</li><li>The render tree is separate from the DOM: it is the tree that owns page geometry and painting behavior.</li></ul>
+          <p class="source">Key code: <a href="../../src/engine/document/DocumentModel.cpp"><code>DocumentModel.cpp</code></a><a href="../../src/layout/TreeBuilder.cpp"><code>TreeBuilder.cpp</code></a><a href="../../src/layout/RenderFactory.cpp"><code>RenderFactory.cpp</code></a></p>
+        </div>
+      </details>
+
+      <details id="layout">
+        <summary>6. Layout and positioning</summary>
+        <div class="detail-body">
+          <p><code>DocumentRenderer</code> calls <code>RenderObject::layout()</code> with the content viewport. The selected render object handles its formatting model; a second positioning pass places absolute/fixed-style supported cases. The result is a geometry tree and document content height.</p>
+          <ul><li>Current specializations cover block/inline flow, text line building, flexbox, grid, tables, lists, replaced images/SVG, and controls.</li><li>The graphics port provides text measurement without pulling a platform implementation into layout.</li><li>Viewport changes can trigger a plain relayout or a restyle first when a media condition flips.</li></ul>
+          <p class="source">Key code: <a href="../../src/engine/document/DocumentRenderer.cpp"><code>DocumentRenderer.cpp</code></a><a href="../../src/layout/RenderObject.cpp"><code>RenderObject.cpp</code></a><a href="../../src/layout/block/BlockBox.cpp"><code>BlockBox.cpp</code></a><a href="../../src/layout/flex/FlexBox.cpp"><code>FlexBox.cpp</code></a><a href="../../src/layout/grid/GridBox.cpp"><code>GridBox.cpp</code></a></p>
+        </div>
+      </details>
+
+      <details id="paint">
+        <summary>7. Display-list recording, replay, and presentation</summary>
+        <div class="detail-body">
+          <p><code>DocumentPainter</code> walks the laid-out render tree through <code>Renderer::Painter</code>. A recording graphics context turns fills, text, images, alpha, and clip operations into a <code>DisplayList</code>, which is then replayed into the real graphics context.</p>
+          <ul><li>The display list can be reused while the render tree, viewport, scroll offset, and debug-outline mode are unchanged.</li><li><code>RenderCoordinator</code> composes the rendered document with browser chrome and presents through the platform graphics/window adapters.</li></ul>
+          <p class="source">Key code: <a href="../../src/engine/document/DocumentPainter.cpp"><code>DocumentPainter.cpp</code></a><a href="../../src/renderer/Painter.cpp"><code>Painter.cpp</code></a><a href="../../src/renderer/DisplayList.h"><code>DisplayList.h</code></a><a href="../../src/app/RenderCoordinator.cpp"><code>RenderCoordinator.cpp</code></a></p>
+        </div>
+      </details>
+
+      <details id="resource-loop">
+        <summary>Resource loop: later CSS, images, fonts, and SVG</summary>
+        <div class="detail-body">
+          <p>After parsing, the tab requests discovered external stylesheets and images. After a style pass, it also requests background images and pending web fonts. Every completion returns through the same typed resource queue.</p>
+          <ul><li>Ready stylesheet → rebuild CSS, computed styles, render tree, and layout.</li><li>Ready font → restyle and relayout so text metrics can change.</li><li>Ready raster image → attach decoded bitmap to the render object and relayout if necessary.</li><li>Inline SVG is serialized from the DOM and decoded into a replaced image during resource update.</li></ul>
+          <p class="source">Key code: <a href="../../src/engine/tab/Tab.cpp"><code>Tab.cpp</code></a><a href="../../src/engine/tab/TabDocumentReadyPolicy.cpp"><code>TabDocumentReadyPolicy.cpp</code></a><a href="../../src/engine/document/DocumentResources.cpp"><code>DocumentResources.cpp</code></a><a href="../../src/engine/resources/ResourceUpdateProcessor.cpp"><code>ResourceUpdateProcessor.cpp</code></a></p>
+        </div>
+      </details>
+
+      <details id="script">
+        <summary>Script loop: document-order execution and batched mutation</summary>
+        <div class="detail-body">
+          <p>The parser preserves inline script text and records external script URLs in document order. External script bodies are requested before execution; when they are all resolved, <code>DocumentScripting</code> passes the ordered sources to the document script controller and its <code>IScriptEngine</code> implementation.</p>
+          <ul><li>QuickJS remains behind the platform script port; the engine talks through document bindings and a script host.</li><li>Click, input, submit, load, timer, and animation-frame paths can dispatch into the document.</li><li>If a task mutates the DOM, the tab performs one subsequent style/layout rebuild rather than rebuilding once per mutation.</li></ul>
+          <p class="source">Key code: <a href="../../src/engine/document/DocumentScripting.cpp"><code>DocumentScripting.cpp</code></a><a href="../../src/engine/script/DocumentScriptController.cpp"><code>DocumentScriptController.cpp</code></a><a href="../../src/engine/script/DocumentScriptHost.cpp"><code>DocumentScriptHost.cpp</code></a><a href="../../src/platform/script/QuickJSScriptEngine.cpp"><code>QuickJSScriptEngine.cpp</code></a></p>
+        </div>
+      </details>
+    </section>
+
+    <p class="footnote">This is a guide to the implemented pipeline, not a claim of full browser compatibility. See the roadmap for the supported surface and intentionally deferred web-platform features.</p>
+  </main>
+  <script>
+    const nodes = document.querySelectorAll('.node[data-target]');
+    function selectNode(targetId, moveFocus) {
+      const detail = document.getElementById(targetId);
+      if (!detail) return;
+      document.querySelectorAll('.node').forEach((node) => node.classList.toggle('active', node.dataset.target === targetId));
+      detail.open = true;
+      if (moveFocus) detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      history.replaceState(null, '', `#${targetId}`);
+    }
+    nodes.forEach((node) => node.addEventListener('click', () => selectNode(node.dataset.target, true)));
+    if (location.hash) selectNode(location.hash.slice(1), false);
+  </script>
+</body>
+</html>
