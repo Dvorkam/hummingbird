@@ -56,9 +56,11 @@ public:
     // HB_COOKIES_FILE if set, else a file under the per-profile config dir.
     static std::filesystem::path default_path();
 
-    // Writes every non-session, unexpired cookie. Returns how many were written.
-    // Best-effort: logs and returns 0 if the file cannot be opened.
-    size_t save_to(const std::filesystem::path& path) const;
+    // Writes every non-session cookie that has not already expired, replacing
+    // the file's contents. Returns how many were written. Best-effort: logs and
+    // returns 0 if the file cannot be opened. `now` is a parameter for the same
+    // reason it is everywhere else here — so the decision is testable.
+    size_t save_to(const std::filesystem::path& path, CookieTime now) const;
 
     // Replaces the jar's contents from `path`, dropping cookies that already
     // expired. Returns how many were loaded. A missing file is normal (first

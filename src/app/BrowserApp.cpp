@@ -134,7 +134,8 @@ void BrowserApp::shutdown() {
     // Persist before anything is torn down. Session cookies are dropped by
     // save_to itself, so closing the browser really does end the session.
     if (const auto& jar = tab_controller_.manager().cookie_jar()) {
-        const size_t saved = jar->save_to(Hummingbird::Core::CookieJar::default_path());
+        const size_t saved = jar->save_to(Hummingbird::Core::CookieJar::default_path(),
+                                          Hummingbird::Core::CookieClock::now());
         HB_LOG_DEBUG("[cookies] persisted " << saved << " cookie(s)");
     }
 

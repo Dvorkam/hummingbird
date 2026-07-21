@@ -176,7 +176,7 @@ std::filesystem::path CookieJar::default_path() {
     return Utils::resolve_asset_path("assets/config/cookies.tsv");
 }
 
-size_t CookieJar::save_to(const std::filesystem::path& path) const {
+size_t CookieJar::save_to(const std::filesystem::path& path, CookieTime now) const {
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(), ec);
     std::ofstream file(path, std::ios::binary | std::ios::trunc);
@@ -190,6 +190,9 @@ size_t CookieJar::save_to(const std::filesystem::path& path) const {
     for (const auto& cookie : cookies_) {
         // Session cookies die with the process by definition.
         if (cookie.is_session()) continue;
+        // No point writing a corpse: load_from would drop it anyway, and it
+        // would otherwise sit in the file until the next clean shutdown.
+        if (cookie.is_expired(now)) continue;
         if (!is_serializable(cookie)) {
             HB_LOG_DEBUG("[cookies] skipping unserializable cookie: " << cookie.name);
             continue;

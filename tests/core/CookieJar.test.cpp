@@ -386,7 +386,7 @@ TEST(CookieJarPersistenceTest, PersistentCookiesSurviveARestartExactly) {
         ASSERT_TRUE(jar.store_from_header(
             "https://example.dev/app/x", "session=abc; Path=/app; Max-Age=86400; Secure; HttpOnly; SameSite=Strict",
             now()));
-        EXPECT_EQ(jar.save_to(file.path()), 1u);
+        EXPECT_EQ(jar.save_to(file.path(), now()), 1u);
     }
 
     CookieJar restored;
@@ -416,7 +416,7 @@ TEST(CookieJarPersistenceTest, SessionCookiesAreNeverWritten) {
     ASSERT_TRUE(jar.store_from_header("https://example.dev/", "temp=2", now()));
     ASSERT_EQ(jar.size(), 2u);
 
-    EXPECT_EQ(jar.save_to(file.path()), 1u);
+    EXPECT_EQ(jar.save_to(file.path(), now()), 1u);
 
     CookieJar restored;
     EXPECT_EQ(restored.load_from(file.path(), now()), 1u);
@@ -429,7 +429,7 @@ TEST(CookieJarPersistenceTest, CookiesThatExpiredWhileClosedArePurgedOnLoad) {
         CookieJar jar;
         ASSERT_TRUE(jar.store_from_header("https://example.dev/", "short=1; Max-Age=30", now()));
         ASSERT_TRUE(jar.store_from_header("https://example.dev/", "long=2; Max-Age=86400", now()));
-        EXPECT_EQ(jar.save_to(file.path()), 2u);
+        EXPECT_EQ(jar.save_to(file.path(), now()), 2u);
     }
 
     CookieJar restored;
@@ -459,7 +459,7 @@ TEST(CookieJarPersistenceTest, MalformedLinesAreSkippedWithoutLosingGoodOnes) {
     TempCookieFile file("partial");
     CookieJar source;
     ASSERT_TRUE(source.store_from_header("https://example.dev/", "good=1; Max-Age=86400", now()));
-    ASSERT_EQ(source.save_to(file.path()), 1u);
+    ASSERT_EQ(source.save_to(file.path(), now()), 1u);
 
     // Append junk after a valid record.
     {
@@ -477,7 +477,7 @@ TEST(CookieJarPersistenceTest, LoadingReplacesRatherThanMergesExistingState) {
     TempCookieFile file("replace");
     CookieJar source;
     ASSERT_TRUE(source.store_from_header("https://example.dev/", "fromdisk=1; Max-Age=86400", now()));
-    ASSERT_EQ(source.save_to(file.path()), 1u);
+    ASSERT_EQ(source.save_to(file.path(), now()), 1u);
 
     CookieJar jar;
     ASSERT_TRUE(jar.store_from_header("https://example.dev/", "stale=1; Max-Age=86400", now()));
@@ -488,4 +488,20 @@ TEST(CookieJarPersistenceTest, LoadingReplacesRatherThanMergesExistingState) {
 TEST(CookieJarPersistenceTest, DefaultPathHonorsTheEnvironmentOverride) {
     // The hook tests and alternate profiles use to stay off the real file.
     EXPECT_FALSE(CookieJar::default_path().empty());
+}
+
+TEST(CookieJarPersistenceTest, AlreadyExpiredCookiesAreNotWrittenAtAll) {
+    // load_from would drop them anyway, but writing them means the file
+    // accumulates corpses until the next clean shutdown.
+    TempCookieFile file("nocorpses");
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "short=1; Max-Age=30", now()));
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "long=2; Max-Age=86400", now()));
+
+    // Saving an hour later: only the survivor is written.
+    EXPECT_EQ(jar.save_to(file.path(), later(3600)), 1u);
+
+    CookieJar restored;
+    EXPECT_EQ(restored.load_from(file.path(), later(3600)), 1u);
+    EXPECT_EQ(restored.cookie_header_for("https://example.dev/", later(3600)), "long=2");
 }
