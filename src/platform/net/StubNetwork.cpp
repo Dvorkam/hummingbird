@@ -4,7 +4,10 @@
 #include <optional>
 #include <utility>
 
+#include "core/net/HttpHeaders.h"
 #include "core/utils/AssetLoader.h"
+#include "core/utils/ParseUtils.h"
+#include "core/utils/StringUtils.h"
 #include "platform/net/NetworkRequestUtils.h"
 
 namespace Hummingbird::Platform {
@@ -89,8 +92,127 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
 }
 
+// The cookie demo (story 8.1.1). Unlike the other stub pages this one has to see
+// the request to be worth anything: it echoes the Cookie header the engine sent
+// and issues Set-Cookie headers back, so a reload visibly proves the round trip
+// through the real jar rather than through a test fake.
+constexpr std::string_view kCookieDemoPath = "/cookies";
+constexpr std::string_view kCookieScopedPath = "/cookies/private";
+
+std::string_view stub_url_path(std::string_view url) {
+    for (std::string_view prefix : {"https://example.dev", "http://example.dev"}) {
+        if (url.rfind(prefix, 0) != 0) continue;
+        std::string_view rest = url.substr(prefix.size());
+        if (const size_t cut = rest.find_first_of("?#"); cut != std::string_view::npos) {
+            rest = rest.substr(0, cut);
+        }
+        return rest.empty() ? "/" : rest;
+    }
+    return {};
+}
+
+// Pulls one cookie's value out of a "a=1; b=2" request header.
+std::string cookie_value(std::string_view header, std::string_view name) {
+    size_t pos = 0;
+    while (pos < header.size()) {
+        const size_t semi = header.find(';', pos);
+        std::string_view pair =
+            semi == std::string_view::npos ? header.substr(pos) : header.substr(pos, semi - pos);
+        pos = semi == std::string_view::npos ? header.size() : semi + 1;
+        pair = Hummingbird::Core::Utils::trim_ascii_whitespace(pair);
+        const size_t eq = pair.find('=');
+        if (eq == std::string_view::npos) continue;
+        if (Hummingbird::Core::Utils::trim_ascii_whitespace(pair.substr(0, eq)) == name) {
+            return std::string(Hummingbird::Core::Utils::trim_ascii_whitespace(pair.substr(eq + 1)));
+        }
+    }
+    return {};
+}
+
+std::string html_escape(std::string_view text) {
+    std::string out;
+    out.reserve(text.size());
+    for (char c : text) {
+        switch (c) {
+            case '&': out += "&amp;"; break;
+            case '<': out += "&lt;"; break;
+            case '>': out += "&gt;"; break;
+            default: out.push_back(c);
+        }
+    }
+    return out;
+}
+
+void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeaders& request_headers,
+                       NetworkResponse& response) {
+    const std::string_view sent = request_headers.get("Cookie");
+
+    if (path == kCookieScopedPath) {
+        response.headers.add("Set-Cookie", "hb_private=members-only; Path=/cookies/private; Max-Age=86400");
+        response.body =
+            "<!doctype html><html><head><meta charset=\"utf-8\"><title>Path-scoped cookie</title></head><body>"
+            "<h1>Path-scoped cookie set</h1>"
+            "<p>This page issued <code>hb_private=members-only</code> with "
+            "<code>Path=/cookies/private</code>.</p>"
+            "<p>Cookie header this page received: <code>" +
+            (sent.empty() ? std::string("(none)") : html_escape(sent)) +
+            "</code></p>"
+            "<p>Go back to <a href=\"https://example.dev/cookies\">/cookies</a>: <code>hb_private</code> will be "
+            "absent there, because that path is outside its scope. Reload <em>this</em> page and it returns.</p>"
+            "<p><a href=\"https://example.dev/m8\">&laquo; Back to the M8 demo</a></p>"
+            "</body></html>";
+        return;
+    }
+
+    // Visit counter: the jar is the only thing carrying state between requests,
+    // so an incrementing number proves the cookie really made the round trip.
+    long visits = 0;
+    if (const std::string previous = cookie_value(sent, "hb_visits"); !previous.empty()) {
+        if (auto parsed = Hummingbird::Core::Utils::parse_long(previous, Hummingbird::Core::Utils::NumberParseMode::Strict)) {
+            visits = *parsed;
+        }
+    }
+    ++visits;
+
+    response.headers.add("Set-Cookie", "hb_visits=" + std::to_string(visits) + "; Path=/; Max-Age=86400");
+    // No Expires/Max-Age: dies with the process, so it is the one that resets on
+    // restart once 8.1.4 persists the other.
+    response.headers.add("Set-Cookie", "hb_session=live; Path=/");
+
+    response.body =
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Hummingbird M8 &mdash; Cookies</title></head>"
+        "<body>"
+        "<h1>Cookie round trip</h1>"
+        "<p>Cookie header this page received:</p>"
+        "<pre><code>" +
+        (sent.empty() ? std::string("(none yet &mdash; reload to see one)") : html_escape(sent)) +
+        "</code></pre>"
+        "<p>Visit count carried by <code>hb_visits</code>: <strong>" +
+        std::to_string(visits) +
+        "</strong></p>"
+        "<p>Reload this page and the number climbs: nothing on the server side remembers you, so the count can only "
+        "come back from the browser's own jar.</p>"
+        "<ul>"
+        "<li><code>hb_visits</code> has <code>Max-Age=86400</code> &mdash; a persistent cookie.</li>"
+        "<li><code>hb_session</code> has no expiry &mdash; a session cookie, gone when the browser closes.</li>"
+        "</ul>"
+        "<p><a href=\"https://example.dev/cookies/private\">Set a path-scoped cookie &raquo;</a> then come back here "
+        "and note it is not sent to this path.</p>"
+        "<p><a href=\"https://example.dev/m8\">&laquo; Back to the M8 demo</a></p>"
+        "</body></html>";
+}
+
 void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb,
-                      std::string_view post_body = {}) {
+                      const Hummingbird::Core::HttpHeaders& request_headers, std::string_view post_body = {}) {
+    const std::string_view path = stub_url_path(url);
+    if (path == kCookieDemoPath || path == kCookieScopedPath) {
+        NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
+        response.status = 200;
+        build_cookie_demo(path, request_headers, response);
+        if (cb) cb(std::move(response));
+        return;
+    }
+
     if (auto asset_body = try_load_example_asset(url)) {
         NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
         response.status = 200;
@@ -113,29 +235,30 @@ void StubNetwork::shutdown() {
 
 void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback,
                       const NetworkRequestOptions& options) {
-    (void)options;
     if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     auto cb = std::move(callback);
+    Core::HttpHeaders request_headers = options.headers;
 
-    thread_pool_.submit([url, cb = std::move(cb), this]() mutable {
+    thread_pool_.submit([url, cb = std::move(cb), this, request_headers = std::move(request_headers)]() mutable {
         if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
-        run_stub_request(url, std::move(cb));
+        run_stub_request(url, std::move(cb), request_headers);
     });
 }
 
 void StubNetwork::post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
                        const NetworkRequestOptions& options) {
-    (void)options;
     if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     auto cb = std::move(callback);
     const std::string body_copy(body);
+    Core::HttpHeaders request_headers = options.headers;
 
-    thread_pool_.submit([url, body_copy, cb = std::move(cb), this]() mutable {
-        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
-        run_stub_request(url, std::move(cb), body_copy);
-    });
+    thread_pool_.submit(
+        [url, body_copy, cb = std::move(cb), this, request_headers = std::move(request_headers)]() mutable {
+            if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
+            run_stub_request(url, std::move(cb), request_headers, body_copy);
+        });
 }
 
 }  // namespace Hummingbird::Platform

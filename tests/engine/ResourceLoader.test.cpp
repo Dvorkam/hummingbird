@@ -2,14 +2,17 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 
 #include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/resources/ResourceUrl.h"
 #include "platform/decoders/CompositeImageDecoder.h"
+#include "platform/net/StubNetwork.h"
 #include "test_utils/TestFakes.h"
 
 namespace {
@@ -467,4 +470,35 @@ TEST(ResourceLoaderTest, WithoutAJarNoCookieHeaderIsEverAdded) {
 
     ASSERT_EQ(network_ptr->requests.size(), 2u);
     EXPECT_TRUE(network_ptr->requests[1].options.headers.get("Cookie").empty());
+}
+
+// The composition the GUI demo actually exercises: the real StubNetwork route,
+// the real jar, and the real loader. The tests above use fakes on one side or
+// the other; this one has none, so it is what proves example.dev/cookies works.
+TEST(ResourceLoaderTest, CookieDemoCounterAdvancesAcrossRealNavigations) {
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    ResourceLoader loader(std::make_unique<CapturingNetwork>(), std::make_unique<Hummingbird::Platform::StubNetwork>(),
+                          nullptr, nullptr, jar);
+
+    // StubNetwork answers on a worker thread, so wait for the document to land.
+    const auto navigate_and_read = [&](const char* url) {
+        loader.navigate(url);
+        for (int attempt = 0; attempt < 200; ++attempt) {
+            auto batch = loader.consume_pending_updates();
+            if (batch.is_ready(ResourceType::Document)) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        auto view = loader.view(url, ResourceType::Document);
+        return view ? std::string(view->body) : std::string{};
+    };
+
+    const std::string first = navigate_and_read("https://example.dev/cookies");
+    EXPECT_NE(first.find("<strong>1</strong>"), std::string::npos) << first;
+    // The jar took the counter off the response...
+    EXPECT_FALSE(jar->cookie_header_for("https://example.dev/cookies", Hummingbird::Core::CookieClock::now()).empty());
+
+    const std::string second = navigate_and_read("https://example.dev/cookies");
+    // ...and sent it back, so the stub could count a second visit.
+    EXPECT_NE(second.find("<strong>2</strong>"), std::string::npos) << second;
+    EXPECT_NE(second.find("hb_visits=1"), std::string::npos) << "the echoed Cookie header should show what was sent";
 }

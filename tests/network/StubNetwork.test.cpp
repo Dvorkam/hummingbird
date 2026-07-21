@@ -53,3 +53,71 @@ TEST(StubNetworkTest, UnknownPageFallsBack) {
     auto body = fetch_body("https://example.dev/no-such-page");
     EXPECT_NE(body.find("Failed to load"), std::string::npos);
 }
+
+// --- cookie demo (8.1.1) -----------------------------------------------------
+// The /cookies route is the one stub page that reads its request, so it can show
+// the jar working through the real engine path rather than through a fake.
+
+TEST(StubNetworkTest, CookieDemoEchoesTheCookieHeaderItReceived) {
+    Hummingbird::Platform::StubNetwork net;
+    Hummingbird::NetworkRequestOptions options;
+    options.headers.add("Cookie", "hb_visits=4; hb_session=live");
+
+    std::promise<NetworkResponse> p;
+    auto fut = p.get_future();
+    net.get("https://example.dev/cookies", [&](NetworkResponse r) { p.set_value(std::move(r)); }, options);
+    NetworkResponse response = fut.get();
+
+    EXPECT_NE(response.body.find("hb_visits=4; hb_session=live"), std::string::npos) << response.body;
+}
+
+TEST(StubNetworkTest, CookieDemoIncrementsTheVisitCounterItIsSent) {
+    Hummingbird::Platform::StubNetwork net;
+    Hummingbird::NetworkRequestOptions options;
+    options.headers.add("Cookie", "hb_visits=4");
+
+    std::promise<NetworkResponse> p;
+    auto fut = p.get_future();
+    net.get("https://example.dev/cookies", [&](NetworkResponse r) { p.set_value(std::move(r)); }, options);
+    NetworkResponse response = fut.get();
+
+    const auto set_cookies = response.headers.get_all("Set-Cookie");
+    ASSERT_FALSE(set_cookies.empty());
+    bool counter_advanced = false;
+    bool session_cookie_present = false;
+    for (std::string_view value : set_cookies) {
+        if (value.find("hb_visits=5") != std::string_view::npos) counter_advanced = true;
+        // A session cookie carries neither Max-Age nor Expires.
+        if (value.find("hb_session=") != std::string_view::npos && value.find("Max-Age") == std::string_view::npos) {
+            session_cookie_present = true;
+        }
+    }
+    EXPECT_TRUE(counter_advanced);
+    EXPECT_TRUE(session_cookie_present);
+}
+
+TEST(StubNetworkTest, CookieDemoStartsAtOneWithNoCookieHeader) {
+    Hummingbird::Platform::StubNetwork net;
+    std::promise<NetworkResponse> p;
+    auto fut = p.get_future();
+    net.get("https://example.dev/cookies", [&](NetworkResponse r) { p.set_value(std::move(r)); });
+    NetworkResponse response = fut.get();
+
+    bool starts_at_one = false;
+    for (std::string_view value : response.headers.get_all("Set-Cookie")) {
+        if (value.find("hb_visits=1") != std::string_view::npos) starts_at_one = true;
+    }
+    EXPECT_TRUE(starts_at_one);
+}
+
+TEST(StubNetworkTest, ScopedCookieRouteSetsAPathRestrictedCookie) {
+    Hummingbird::Platform::StubNetwork net;
+    std::promise<NetworkResponse> p;
+    auto fut = p.get_future();
+    net.get("https://example.dev/cookies/private", [&](NetworkResponse r) { p.set_value(std::move(r)); });
+    NetworkResponse response = fut.get();
+
+    const auto set_cookies = response.headers.get_all("Set-Cookie");
+    ASSERT_EQ(set_cookies.size(), 1u);
+    EXPECT_NE(set_cookies[0].find("Path=/cookies/private"), std::string_view::npos);
+}
