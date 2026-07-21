@@ -76,6 +76,34 @@ does. Until we adopt one, targeted unit tests on each primitive are the
 stopgap — every such bug fix should land with a regression test that pins the
 spec-correct behavior.
 
+## Security-relevant deviations are a different class
+
+Most deviations are cosmetic or feature gaps: a missing CSS corner costs
+fidelity. A deviation in a **security mechanism** costs a guarantee, and the
+difference matters for how it is tracked.
+
+Cookies (M8) are the first module where this bites. `SameSite` is not a rendering
+feature — it is the browser's built-in CSRF defense, and `Secure`/`HttpOnly` are
+the confidentiality controls around a session. A partial implementation of these
+does not degrade gracefully: it looks like protection while providing none, which
+is worse than not claiming the feature at all.
+
+Discipline for this class:
+
+- **State the guarantee, not just the gap.** `T-COOKIE-NAV-INITIATOR-1` was first
+  filed as "Strict over-sends" (a fidelity framing) when the real defect is "Lax's
+  CSRF protection does not apply to cross-site form POSTs" (a guarantee framing).
+  The second wording is what makes the priority obvious.
+- **Priority follows the guarantee.** A security deviation that silently voids a
+  protection is P0 for its milestone, not a nice-to-have.
+- **Never describe a partially-enforced control as supported.** Say which half
+  works. Cookie SameSite is exact for subresources and inert for navigations, and
+  both halves belong in the same sentence.
+- **These are the first candidates for a conformance slice.** RFC 6265bis has
+  well-defined behavior and WPT has a `cookies/` suite; when the cookie module
+  stabilizes it is a better first ratchet than a rendering module, because the
+  cost of being quietly wrong is higher.
+
 ## Summary
 
 - Stay demo-driven for now; it is the right mode for this phase.

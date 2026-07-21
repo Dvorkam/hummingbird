@@ -502,3 +502,55 @@ TEST(ResourceLoaderTest, CookieDemoCounterAdvancesAcrossRealNavigations) {
     EXPECT_NE(second.find("<strong>2</strong>"), std::string::npos) << second;
     EXPECT_NE(second.find("hb_visits=1"), std::string::npos) << "the echoed Cookie header should show what was sent";
 }
+
+// 8.1.2 at the wiring level: the jar knows the rule, but only ResourceLoader
+// knows who initiated a request, so this is where SameSite actually bites.
+TEST(ResourceLoaderTest, LaxCookiesAreWithheldFromCrossSiteSubresources) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    // Lax by default.
+    jar->store_from_header("https://tracker.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    // A page on example.test pulling a stylesheet from tracker.test: the cookie
+    // domain-matches the request, but the initiator makes it cross-site.
+    loader.request_stylesheets({"https://tracker.test/t.css"}, "https://example.test/page");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Cookie").empty());
+}
+
+TEST(ResourceLoaderTest, SameSiteSubresourcesStillCarryCookies) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.request_stylesheets({"https://example.test/site.css"}, "https://example.test/page");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "session=abc");
+}
+
+TEST(ResourceLoaderTest, StrictCookiesStillRideTopLevelNavigation) {
+    // The address-bar case: no initiating document, so nothing is cross-site and
+    // the session survives a reload. This is the North Star's path.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "s=1; SameSite=Strict", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.navigate("https://example.test/account");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "s=1");
+}

@@ -178,6 +178,11 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
     // No Expires/Max-Age: dies with the process, so it is the one that resets on
     // restart once 8.1.4 persists the other.
     response.headers.add("Set-Cookie", "hb_session=live; Path=/");
+    // 8.1.2: still sent on requests (it appears in the echo above), but already
+    // withheld from the script view, so document.cookie in 8.1.5 will not see it.
+    response.headers.add("Set-Cookie", "hb_secret=server-only; Path=/; HttpOnly");
+    // Strict rides same-site navigation, which is every link on this demo site.
+    response.headers.add("Set-Cookie", "hb_strict=same-site-only; Path=/; SameSite=Strict");
 
     response.body =
         "<!doctype html><html><head><meta charset=\"utf-8\"><title>Hummingbird M8 &mdash; Cookies</title></head>"
@@ -195,7 +200,15 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
         "<ul>"
         "<li><code>hb_visits</code> has <code>Max-Age=86400</code> &mdash; a persistent cookie.</li>"
         "<li><code>hb_session</code> has no expiry &mdash; a session cookie, gone when the browser closes.</li>"
+        "<li><code>hb_secret</code> is <code>HttpOnly</code> &mdash; it rides requests (you can see it echoed "
+        "above) but is already hidden from the script view. Once <code>document.cookie</code> lands in 8.1.5 it "
+        "will be the one cookie JS cannot read.</li>"
+        "<li><code>hb_strict</code> is <code>SameSite=Strict</code> &mdash; carried on same-site navigation like "
+        "the links here, and withheld from any cross-site request.</li>"
         "</ul>"
+        "<p><em>Not yet visible in this demo:</em> the cross-site half of SameSite needs a second origin, and "
+        "HttpOnly needs <code>document.cookie</code> (8.1.5). Both are enforced in the jar today &mdash; see "
+        "the cookie tests.</p>"
         "<p><a href=\"https://example.dev/cookies/private\">Set a path-scoped cookie &raquo;</a> then come back here "
         "and note it is not sent to this path.</p>"
         "<p><a href=\"https://example.dev/m8\">&laquo; Back to the M8 demo</a></p>"

@@ -96,9 +96,11 @@ private:
     // Cookie header for `url` and wraps `callback` so the response's Set-Cookie
     // headers land in the jar before anything else sees the response — every
     // request (document, subresource, POST, and the stub fallbacks) goes through
-    // it so no call site can silently skip cookies.
+    // it so no call site can silently skip cookies. `context` tells the jar who
+    // is asking, which SameSite needs (8.1.2).
     void send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
-                      std::function<void(NetworkResponse)> callback, const std::string* post_body = nullptr);
+                      std::function<void(NetworkResponse)> callback, const Core::CookieRequestContext& context,
+                      const std::string* post_body = nullptr);
 
     void request_resources(const std::vector<std::string>& links, std::string_view base_url,
                            const ResourceRequestPlanning::ResourceRequestOptions& options);

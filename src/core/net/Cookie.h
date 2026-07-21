@@ -66,8 +66,43 @@ std::string default_cookie_path(std::string_view request_path);
 std::string cookie_path_of_url(std::string_view url);
 
 // Parses one `Set-Cookie` field value as received from `request_url`.
-// Returns nullopt when the cookie must be ignored: no '=', an empty name, or a
-// Domain attribute the requesting host is not allowed to set (§5.3 step 6).
+// Returns nullopt when the cookie must be ignored: no '=', an empty name, a
+// Domain attribute the requesting host is not allowed to set (§5.3 step 6), or
+// `SameSite=None` without `Secure` (which browsers reject outright).
 std::optional<Cookie> parse_set_cookie(std::string_view header_value, std::string_view request_url, CookieTime now);
+
+// Who is asking, which SameSite needs and plain domain/path matching does not
+// (story 8.1.2). Default-constructed it describes a user-initiated top-level
+// GET — the address-bar case, where every cookie is eligible.
+struct CookieRequestContext {
+    // A document navigation (address bar, link, form submit) rather than a
+    // subresource fetch. Only a top-level navigation can carry a Lax cookie
+    // across sites.
+    bool top_level_navigation = true;
+
+    // Host of the document that initiated the request. Empty means "no
+    // cross-site initiator" — a user-typed URL or a bookmark — which counts as
+    // same-site.
+    std::string initiator_host;
+
+    // GET/HEAD. A cross-site top-level POST does not carry Lax cookies, which is
+    // the login-CSRF case Lax exists to stop.
+    bool safe_method = true;
+
+    // Set for `document.cookie` reads: HttpOnly cookies are withheld from JS.
+    bool script_access = false;
+};
+
+// True when `request_host` and `initiator_host` are same-site.
+//
+// DEVIATION: compares registrable domain approximated as the last two labels,
+// because there is no public suffix list yet (T-COOKIE-PUBLIC-SUFFIX-1). That is
+// correct for single-label suffixes (example.dev, news.ycombinator.com) and
+// wrong under multi-label ones, where it would call a.co.uk and b.co.uk
+// same-site. Both this and the Domain check need the same PSL.
+bool is_same_site(std::string_view request_host, std::string_view initiator_host);
+
+// RFC 6265bis §5.5: whether `cookie`'s SameSite lets it ride this request.
+bool same_site_allows(const Cookie& cookie, std::string_view request_host, const CookieRequestContext& context);
 
 }  // namespace Hummingbird::Core

@@ -54,7 +54,8 @@ size_t CookieJar::store_from_response(std::string_view request_url, const HttpHe
     return accepted;
 }
 
-std::vector<Cookie> CookieJar::cookies_for(std::string_view request_url, CookieTime now) const {
+std::vector<Cookie> CookieJar::cookies_for(std::string_view request_url, CookieTime now,
+                                           const CookieRequestContext& context) const {
     auto request = parse_absolute_url(request_url);
     if (!request) {
         return {};
@@ -65,6 +66,10 @@ std::vector<Cookie> CookieJar::cookies_for(std::string_view request_url, CookieT
     std::vector<Cookie> matched;
     for (const auto& cookie : cookies_) {
         if (cookie.is_expired(now)) continue;
+        // HttpOnly exists precisely so an XSS payload cannot read the session
+        // cookie, so this filter is the whole point of the flag.
+        if (cookie.http_only && context.script_access) continue;
+        if (!same_site_allows(cookie, request->host, context)) continue;
         // A host-only cookie goes back to exactly the host that set it; anything
         // else may also travel to subdomains.
         if (cookie.host_only) {
@@ -87,9 +92,10 @@ std::vector<Cookie> CookieJar::cookies_for(std::string_view request_url, CookieT
     return matched;
 }
 
-std::string CookieJar::cookie_header_for(std::string_view request_url, CookieTime now) const {
+std::string CookieJar::cookie_header_for(std::string_view request_url, CookieTime now,
+                                         const CookieRequestContext& context) const {
     std::string header;
-    for (const auto& cookie : cookies_for(request_url, now)) {
+    for (const auto& cookie : cookies_for(request_url, now, context)) {
         if (!header.empty()) {
             header += "; ";
         }
@@ -98,6 +104,17 @@ std::string CookieJar::cookie_header_for(std::string_view request_url, CookieTim
         header += cookie.value;
     }
     return header;
+}
+
+std::string CookieJar::script_visible_cookies(std::string_view document_url, CookieTime now) const {
+    CookieRequestContext context;
+    context.script_access = true;
+    // JS reads its own document's cookies, so the initiator is the document
+    // itself: always same-site, never a cross-site read.
+    if (auto parts = parse_absolute_url(document_url)) {
+        context.initiator_host = parts->host;
+    }
+    return cookie_header_for(document_url, now, context);
 }
 
 size_t CookieJar::purge_expired(CookieTime now) {

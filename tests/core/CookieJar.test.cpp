@@ -231,3 +231,120 @@ TEST(CookieJarTest, NoMatchYieldsAnEmptyHeaderNotAStrayDelimiter) {
     EXPECT_TRUE(jar.cookie_header_for("https://example.dev/", now()).empty());
     EXPECT_TRUE(jar.cookie_header_for("not a url", now()).empty());
 }
+
+// --- attribute policy (8.1.2) ------------------------------------------------
+
+namespace {
+// A subresource fetch initiated by a document on `initiator`.
+Hummingbird::Core::CookieRequestContext subresource_from(std::string initiator) {
+    Hummingbird::Core::CookieRequestContext context;
+    context.top_level_navigation = false;
+    context.safe_method = true;
+    context.initiator_host = std::move(initiator);
+    return context;
+}
+
+// A top-level navigation initiated by a document on `initiator`.
+Hummingbird::Core::CookieRequestContext navigation_from(std::string initiator, bool safe_method = true) {
+    Hummingbird::Core::CookieRequestContext context;
+    context.top_level_navigation = true;
+    context.safe_method = safe_method;
+    context.initiator_host = std::move(initiator);
+    return context;
+}
+}  // namespace
+
+TEST(CookieParseTest, SameSiteNoneWithoutSecureIsRejected) {
+    // Announcing cross-site availability without Secure is refused outright
+    // rather than silently downgraded, which would look like it had worked.
+    EXPECT_FALSE(
+        Hummingbird::Core::parse_set_cookie("a=1; SameSite=None", "https://example.dev/", now()).has_value());
+    EXPECT_TRUE(
+        Hummingbird::Core::parse_set_cookie("a=1; SameSite=None; Secure", "https://example.dev/", now()).has_value());
+}
+
+TEST(CookieParseTest, SameSiteDefaultsToLaxWhenAbsentOrUnrecognized) {
+    auto absent = Hummingbird::Core::parse_set_cookie("a=1", "https://example.dev/", now());
+    ASSERT_TRUE(absent.has_value());
+    EXPECT_EQ(absent->same_site, SameSite::Lax);
+
+    auto garbage = Hummingbird::Core::parse_set_cookie("a=1; SameSite=banana", "https://example.dev/", now());
+    ASSERT_TRUE(garbage.has_value());
+    EXPECT_EQ(garbage->same_site, SameSite::Lax);
+}
+
+// The acceptance criterion for 8.1.2, stated directly.
+TEST(CookieJarTest, LaxAttachesToTopLevelNavigationButNotCrossSiteSubresources) {
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "session=abc", now()));  // Lax by default
+
+    // Same-site subresource: sent.
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/x.css", now(), subresource_from("example.dev")),
+              "session=abc");
+    // Cross-site subresource: withheld. This is what Lax is for.
+    EXPECT_TRUE(jar.cookie_header_for("https://example.dev/x.css", now(), subresource_from("attacker.test")).empty());
+    // Cross-site top-level navigation with a safe method: sent.
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now(), navigation_from("attacker.test")), "session=abc");
+    // Cross-site top-level POST: withheld -- the login-CSRF case.
+    EXPECT_TRUE(
+        jar.cookie_header_for("https://example.dev/", now(), navigation_from("attacker.test", false)).empty());
+}
+
+TEST(CookieJarTest, StrictIsWithheldFromEveryCrossSiteRequest) {
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "s=1; SameSite=Strict", now()));
+
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now(), navigation_from("example.dev")), "s=1");
+    // Even a top-level safe navigation does not carry Strict across sites.
+    EXPECT_TRUE(jar.cookie_header_for("https://example.dev/", now(), navigation_from("attacker.test")).empty());
+    EXPECT_TRUE(jar.cookie_header_for("https://example.dev/", now(), subresource_from("attacker.test")).empty());
+}
+
+TEST(CookieJarTest, SameSiteNoneRidesEveryRequest) {
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "n=1; SameSite=None; Secure", now()));
+
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/x.css", now(), subresource_from("attacker.test")), "n=1");
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now(), navigation_from("attacker.test", false)), "n=1");
+}
+
+TEST(CookieJarTest, SubdomainsCountAsSameSite) {
+    // SameSite is site-scoped, not origin-scoped: www and api are one site.
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "s=1; SameSite=Strict; Domain=example.dev", now()));
+
+    EXPECT_EQ(jar.cookie_header_for("https://api.example.dev/", now(), subresource_from("www.example.dev")), "s=1");
+}
+
+TEST(CookieJarTest, HttpOnlyIsHiddenFromScriptButStillSentOnRequests) {
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "session=secret; HttpOnly", now()));
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "theme=dark", now()));
+
+    // The network still carries it -- HttpOnly hides it from JS, not from HTTP.
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now()), "session=secret; theme=dark");
+    // document.cookie must not see it: the whole point of the flag under XSS.
+    EXPECT_EQ(jar.script_visible_cookies("https://example.dev/", now()), "theme=dark");
+}
+
+TEST(CookieJarTest, ScriptViewStillRespectsDomainPathAndExpiry) {
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/app/x", "scoped=1; Path=/app", now()));
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "expired=1; Max-Age=10", now()));
+
+    EXPECT_EQ(jar.script_visible_cookies("https://example.dev/app/page", now()), "scoped=1; expired=1");
+    // Outside /app the path-scoped one drops out; the root-scoped one remains.
+    EXPECT_EQ(jar.script_visible_cookies("https://example.dev/other", now()), "expired=1");
+    // And expiry applies to the script view just as it does to requests.
+    EXPECT_TRUE(jar.script_visible_cookies("https://example.dev/app/page", later(11)).find("expired") ==
+                std::string::npos);
+}
+
+TEST(CookieMatchTest, SameSiteTreatsAnEmptyInitiatorAsSameSite) {
+    // A user-typed URL or bookmark has no initiating document and is not a
+    // cross-site request.
+    EXPECT_TRUE(Hummingbird::Core::is_same_site("example.dev", ""));
+    EXPECT_TRUE(Hummingbird::Core::is_same_site("example.dev", "example.dev"));
+    EXPECT_TRUE(Hummingbird::Core::is_same_site("api.example.dev", "www.example.dev"));
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("example.dev", "attacker.test"));
+}

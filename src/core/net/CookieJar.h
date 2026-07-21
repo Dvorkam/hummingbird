@@ -18,10 +18,10 @@ namespace Hummingbird::Core {
 // `now` is a parameter on every time-sensitive call rather than read from the
 // clock internally, so expiry behavior is deterministic under test.
 //
-// SCOPE (8.1.1): domain/path matching, expiry, and Secure. HttpOnly and SameSite
-// are parsed and stored but not yet enforced against a request context — that is
-// story 8.1.2, which adds the top-level/subresource and same-site distinctions
-// this signature does not carry yet.
+// SCOPE (8.1.2): domain/path matching, expiry, Secure, HttpOnly, and SameSite.
+// The caller supplies a CookieRequestContext describing who is asking; the
+// default describes a user-initiated top-level GET, for which every cookie is
+// eligible.
 class CookieJar {
 public:
     // Stores every `Set-Cookie` in `headers` as received from `request_url`.
@@ -34,10 +34,16 @@ public:
 
     // Cookies that should be sent to `request_url`, in RFC 6265 §5.4 send order:
     // longer paths first, then earlier creation time.
-    std::vector<Cookie> cookies_for(std::string_view request_url, CookieTime now) const;
+    std::vector<Cookie> cookies_for(std::string_view request_url, CookieTime now,
+                                    const CookieRequestContext& context = {}) const;
 
     // The `Cookie` request header value ("a=1; b=2"), or "" when nothing matches.
-    std::string cookie_header_for(std::string_view request_url, CookieTime now) const;
+    std::string cookie_header_for(std::string_view request_url, CookieTime now,
+                                  const CookieRequestContext& context = {}) const;
+
+    // The `document.cookie` view: same-origin, non-HttpOnly cookies only.
+    // Story 8.1.5 binds this to JS; it lives here so the filter has one owner.
+    std::string script_visible_cookies(std::string_view document_url, CookieTime now) const;
 
     // Drops every cookie whose expiry has passed.
     size_t purge_expired(CookieTime now);

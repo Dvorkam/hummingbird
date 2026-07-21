@@ -6,6 +6,7 @@
 
 #include "core/BookmarkStore.h"
 #include "core/utils/Log.h"
+#include "core/utils/Url.h"
 #include "core/utils/Timing.h"
 #include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/resources/ResourceUpdateProcessor.h"
@@ -24,6 +25,35 @@ bool is_builtin_demo_url(std::string_view url) {
         if (next == '/' || next == '?') return true;
     }
     return false;
+}
+
+// The cookie context for a top-level document navigation (8.1.2).
+//
+// KNOWN HOLE (T-COOKIE-NAV-INITIATOR-1, [M8 P0]): initiator_host is left empty
+// because ResourceLoader is never told which document initiated a navigation.
+// same_site_allows() treats an empty initiator as same-site and returns true
+// BEFORE consulting safe_method — so `safe_method` below is currently dead on
+// this path, and a cross-site form POST still carries Lax cookies. That is
+// exactly the CSRF case SameSite=Lax exists to block. It is set here anyway so
+// the field is correct the moment the initiator is threaded through.
+// Same-site and address-bar navigation (the North Star flow) are unaffected.
+Core::CookieRequestContext document_cookie_context(bool is_post) {
+    Core::CookieRequestContext context;
+    context.top_level_navigation = true;
+    context.safe_method = !is_post;
+    return context;
+}
+
+// Subresources DO know their initiator: the document that referenced them. This
+// is the case the 8.1.2 acceptance criterion names, and it is exact.
+Core::CookieRequestContext subresource_cookie_context(std::string_view base_url) {
+    Core::CookieRequestContext context;
+    context.top_level_navigation = false;
+    context.safe_method = true;
+    if (auto parts = Core::parse_absolute_url(base_url)) {
+        context.initiator_host = parts->host;
+    }
+    return context;
 }
 }  // namespace
 
@@ -46,10 +76,11 @@ ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, 
 }
 
 void ResourceLoader::send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
-                                  std::function<void(NetworkResponse)> callback, const std::string* post_body) {
+                                  std::function<void(NetworkResponse)> callback,
+                                  const Core::CookieRequestContext& context, const std::string* post_body) {
     if (cookie_jar_) {
         std::lock_guard<std::mutex> lg(cookie_mutex_);
-        const std::string cookies = cookie_jar_->cookie_header_for(url, Core::CookieClock::now());
+        const std::string cookies = cookie_jar_->cookie_header_for(url, Core::CookieClock::now(), context);
         if (!cookies.empty()) {
             options.headers.set("Cookie", cookies);
         }
@@ -122,7 +153,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         NetworkRequestOptions options{};
         options.content_type = request.content_type;
         const bool is_post = request.method == DocumentRequest::Method::Post;
-        send_request(*fallback_network_, url_copy, options, std::move(callback), is_post ? &request.body : nullptr);
+        send_request(*fallback_network_, url_copy, options, std::move(callback), document_cookie_context(is_post),
+                     is_post ? &request.body : nullptr);
         return;
     }
 
@@ -138,7 +170,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             NetworkRequestOptions options{};
             options.content_type = request.content_type;
             const bool is_post = request.method == DocumentRequest::Method::Post;
-            send_request(*fallback_network_, url_copy, options, std::move(callback), is_post ? &request.body : nullptr);
+            send_request(*fallback_network_, url_copy, options, std::move(callback), document_cookie_context(is_post),
+                     is_post ? &request.body : nullptr);
         } else {
             enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
         }
@@ -172,6 +205,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                         enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
                                                 std::move(fallback.effective_url), fallback.error);
                     },
+                    document_cookie_context(request_method == DocumentRequest::Method::Post),
                     request_method == DocumentRequest::Method::Post ? &post_body : nullptr);
             }
             return;
@@ -183,7 +217,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
     };
 
     const bool is_post = request.method == DocumentRequest::Method::Post;
-    send_request(*network_, url_copy, options, std::move(callback), is_post ? &request.body : nullptr);
+    send_request(*network_, url_copy, options, std::move(callback), document_cookie_context(is_post),
+                 is_post ? &request.body : nullptr);
 }
 
 void ResourceLoader::allow_insecure_host(std::string_view host) {
@@ -337,7 +372,8 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
                              HB_LOG_WARN("[resource] " << type_label << " fetch failed: " << url);
                          }
                          enqueue_resource_update(type, url, std::move(response.body), success, {}, response.error);
-                     });
+                     },
+                     subresource_cookie_context(base_url));
     }
 }
 

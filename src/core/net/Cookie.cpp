@@ -264,7 +264,49 @@ std::optional<Cookie> parse_set_cookie(std::string_view header_value, std::strin
 
     cookie.path = (path_attr.empty() || path_attr.front() != '/') ? default_cookie_path(cookie_path_of_url(request_url))
                                                                   : path_attr;
+
+    // RFC 6265bis §5.4: SameSite=None is only meaningful on a Secure cookie, and
+    // announcing cross-site availability without it is rejected rather than
+    // silently downgraded to Lax — a silent downgrade would look like it worked.
+    if (cookie.same_site == SameSite::None && !cookie.secure) {
+        return std::nullopt;
+    }
     return cookie;
+}
+
+bool is_same_site(std::string_view request_host, std::string_view initiator_host) {
+    // No initiator: a user-typed URL or bookmark, which is not a cross-site
+    // request at all.
+    if (initiator_host.empty()) return true;
+    if (Utils::equals_ignore_case(request_host, initiator_host)) return true;
+
+    // Approximate the registrable domain as the last two labels. See the header
+    // for why this is wrong under multi-label public suffixes.
+    const auto registrable = [](std::string_view host) -> std::string_view {
+        size_t last_dot = host.find_last_of('.');
+        if (last_dot == std::string_view::npos) return host;
+        size_t prev_dot = host.find_last_of('.', last_dot - 1);
+        if (prev_dot == std::string_view::npos) return host;
+        return host.substr(prev_dot + 1);
+    };
+    return Utils::equals_ignore_case(registrable(request_host), registrable(initiator_host));
+}
+
+bool same_site_allows(const Cookie& cookie, std::string_view request_host, const CookieRequestContext& context) {
+    if (cookie.same_site == SameSite::None) {
+        return true;  // explicitly cross-site (and Secure, enforced at parse).
+    }
+    if (is_same_site(request_host, context.initiator_host)) {
+        return true;
+    }
+    // Cross-site from here on.
+    if (cookie.same_site == SameSite::Strict) {
+        return false;
+    }
+    // Lax rides a cross-site request only as a top-level navigation with a safe
+    // method: following a link carries your session, a POST or a subresource
+    // fetch does not.
+    return context.top_level_navigation && context.safe_method;
 }
 
 }  // namespace Hummingbird::Core
