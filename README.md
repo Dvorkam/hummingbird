@@ -84,6 +84,7 @@ shortcuts.
 | `Esc` | Unfocus the URL bar |
 | `Alt+Left` | Back |
 | `Alt+Right` | Forward |
+| `F5` / `Ctrl+R` | Reload the current page |
 
 **Tabs**
 

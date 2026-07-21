@@ -86,6 +86,7 @@ enum class Key : uint8_t {
     Enter,
     Escape,
     F1,
+    F5,
 };
 
 enum class MouseButton : uint8_t {

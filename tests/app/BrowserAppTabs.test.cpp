@@ -3,9 +3,11 @@
 #include <deque>
 #include <memory>
 #include <optional>
+#include <string>
 
 #include "app/BrowserApp.h"
 #include "core/platform_api/IWindow.h"
+#include "engine/tab/Tab.h"
 #include "test_utils/TestGraphicsContext.h"
 
 namespace {
@@ -89,6 +91,13 @@ Hummingbird::InputEvent make_ctrl_key(Hummingbird::Key key, bool shift = false) 
     return event;
 }
 
+Hummingbird::InputEvent make_plain_key(Hummingbird::Key key) {
+    Hummingbird::InputEvent event;
+    event.type = Hummingbird::EventType::KeyDown;
+    event.key.key = key;
+    return event;
+}
+
 Hummingbird::InputEvent make_text_input(std::string text) {
     Hummingbird::InputEvent event;
     event.type = Hummingbird::EventType::TextInput;
@@ -164,4 +173,49 @@ TEST(BrowserAppTabsTest, UrlBarTypingReusesDocumentCacheAfterWarmup) {
 
     EXPECT_EQ(graphics->begin_document_cache_calls, begin_before_input);
     EXPECT_GT(graphics->draw_document_cache_calls, draw_before_input);
+}
+
+// F5 / Ctrl+R reload the page the tab is actually on, not whatever happens to
+// be typed in the URL bar.
+TEST(BrowserAppTabsTest, ReloadShortcutsReNavigateToTheCurrentUrl) {
+    auto window = std::make_unique<QueuedWindow>();
+    window->open();
+    auto* window_ptr = window.get();
+
+    Hummingbird::App::BrowserApp app(std::move(window));
+    app.start();
+    ASSERT_TRUE(app.tick());
+
+    const std::string before(app.active_tab().requested_url());
+    ASSERT_FALSE(before.empty());
+
+    window_ptr->push_event(make_plain_key(Hummingbird::Key::F5));
+    ASSERT_TRUE(app.tick());
+    EXPECT_EQ(app.active_tab().requested_url(), before);
+
+    window_ptr->push_event(make_ctrl_key(Hummingbird::Key::R));
+    ASSERT_TRUE(app.tick());
+    EXPECT_EQ(app.active_tab().requested_url(), before);
+}
+
+// Typing into the URL bar without pressing Enter must not become the reload
+// target -- reload means "this page again", not "whatever is half-typed".
+TEST(BrowserAppTabsTest, ReloadIgnoresUnsubmittedUrlBarText) {
+    auto window = std::make_unique<QueuedWindow>();
+    window->open();
+    auto* window_ptr = window.get();
+
+    Hummingbird::App::BrowserApp app(std::move(window));
+    app.start();
+    ASSERT_TRUE(app.tick());
+    const std::string before(app.active_tab().requested_url());
+
+    window_ptr->push_event(make_ctrl_key(Hummingbird::Key::L));  // focus the URL bar
+    ASSERT_TRUE(app.tick());
+    window_ptr->push_event(make_text_input("https://elsewhere.test"));
+    ASSERT_TRUE(app.tick());
+
+    window_ptr->push_event(make_plain_key(Hummingbird::Key::F5));
+    ASSERT_TRUE(app.tick());
+    EXPECT_EQ(app.active_tab().requested_url(), before);
 }

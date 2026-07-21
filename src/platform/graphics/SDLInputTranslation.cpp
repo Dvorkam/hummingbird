@@ -76,6 +76,8 @@ Key to_key(SDL_Keycode kc) {
             return Key::Escape;
         case SDLK_F1:
             return Key::F1;
+        case SDLK_F5:
+            return Key::F5;
         default:
             return Key::Unknown;
     }
