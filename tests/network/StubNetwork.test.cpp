@@ -121,3 +121,25 @@ TEST(StubNetworkTest, ScopedCookieRouteSetsAPathRestrictedCookie) {
     ASSERT_EQ(set_cookies.size(), 1u);
     EXPECT_NE(set_cookies[0].find("Path=/cookies/private"), std::string_view::npos);
 }
+
+TEST(StubNetworkTest, CookieDemoShowsTheHttpOnlySideBySide) {
+    // The page sets an HttpOnly cookie and asks document.cookie what it can see;
+    // the demo is only meaningful if both halves are actually on the page.
+    Hummingbird::Platform::StubNetwork net;
+    std::promise<NetworkResponse> p;
+    auto fut = p.get_future();
+    net.get("https://example.dev/cookies", [&](NetworkResponse r) { p.set_value(std::move(r)); });
+    NetworkResponse response = fut.get();
+
+    bool sets_httponly = false;
+    for (std::string_view value : response.headers.get_all("Set-Cookie")) {
+        if (value.find("hb_secret") != std::string_view::npos &&
+            value.find("HttpOnly") != std::string_view::npos) {
+            sets_httponly = true;
+        }
+    }
+    EXPECT_TRUE(sets_httponly);
+    // The element the script fills in, and the script that reads document.cookie.
+    EXPECT_NE(response.body.find("js-cookies"), std::string::npos);
+    EXPECT_NE(response.body.find("document.cookie"), std::string::npos);
+}

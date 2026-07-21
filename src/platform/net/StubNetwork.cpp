@@ -143,6 +143,27 @@ std::string html_escape(std::string_view text) {
     return out;
 }
 
+// Shared chrome for the generated cookie pages, matching
+// assets/stub/pages/m8.html so they do not look like a different site.
+constexpr std::string_view kCookieDemoStyle =
+    "<style>"
+    "body { background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; margin: 0; }"
+    ".page { max-width: 760px; margin: 0 auto; padding: 28px 24px 48px 24px; }"
+    ".eyebrow { color: #b25e00; font-size: 13px; font-weight: bold; letter-spacing: 1px; }"
+    "h1 { color: #14213d; margin: 6px 0 10px 0; }"
+    "h2 { color: #14213d; font-size: 17px; margin: 0 0 10px 0; }"
+    ".intro { color: #3c4658; margin-bottom: 22px; }"
+    ".card { background-color: #ffffff; border: 1px solid #cfd8ea; border-radius: 8px; padding: 18px;"
+    " margin-bottom: 16px; }"
+    ".wire { background-color: #14213d; border-radius: 6px; color: #e8ecf4; padding: 12px 14px; }"
+    ".count { color: #b25e00; font-size: 30px; font-weight: bold; margin: 4px 0 8px 0; }"
+    ".label { color: #566174; font-size: 13px; letter-spacing: 1px; margin-bottom: 4px; }"
+    ".note { color: #566174; font-size: 14px; line-height: 1.5; }"
+    ".good { color: #1a7f4b; font-weight: bold; }"
+    "code { background-color: #e8ecf4; border-radius: 3px; padding: 1px 4px; }"
+    "a { color: #1b5fbf; }"
+    "</style>";
+
 void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeaders& request_headers,
                        NetworkResponse& response) {
     const std::string_view sent = request_headers.get("Cookie");
@@ -150,17 +171,24 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
     if (path == kCookieScopedPath) {
         response.headers.add("Set-Cookie", "hb_private=members-only; Path=/cookies/private; Max-Age=86400");
         response.body =
-            "<!doctype html><html><head><meta charset=\"utf-8\"><title>Path-scoped cookie</title></head><body>"
-            "<h1>Path-scoped cookie set</h1>"
-            "<p>This page issued <code>hb_private=members-only</code> with "
-            "<code>Path=/cookies/private</code>.</p>"
-            "<p>Cookie header this page received: <code>" +
+            "<!doctype html><html><head><meta charset=\"utf-8\"><title>Path-scoped cookie</title>" +
+            std::string(kCookieDemoStyle) +
+            "</head><body><div class=\"page\">"
+            "<p class=\"eyebrow\">M8 &mdash; COOKIES</p>"
+            "<h1>Path-scoped cookie</h1>"
+            "<div class=\"card\">"
+            "<h2>This page just set one</h2>"
+            "<p><code>hb_private=members-only</code> with <code>Path=/cookies/private</code>.</p>"
+            "<p class=\"label\">COOKIE HEADER THIS PAGE RECEIVED</p>"
+            "<p class=\"wire\">" +
             (sent.empty() ? std::string("(none)") : html_escape(sent)) +
-            "</code></p>"
-            "<p>Go back to <a href=\"https://example.dev/cookies\">/cookies</a>: <code>hb_private</code> will be "
-            "absent there, because that path is outside its scope. Reload <em>this</em> page and it returns.</p>"
-            "<p><a href=\"https://example.dev/m8\">&laquo; Back to the M8 demo</a></p>"
-            "</body></html>";
+            "</p></div>"
+            "<div class=\"card\"><h2>Now go back</h2>"
+            "<p class=\"note\">Return to <a href=\"https://example.dev/cookies\">/cookies</a> and "
+            "<code>hb_private</code> is absent, because that path is outside its scope. Reload this page and it "
+            "comes back. Path scoping is otherwise invisible.</p></div>"
+            "<p><a href=\"https://example.dev/cookies\">&laquo; Back to the cookie demo</a></p>"
+            "</div></body></html>";
         return;
     }
 
@@ -168,7 +196,8 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
     // so an incrementing number proves the cookie really made the round trip.
     long visits = 0;
     if (const std::string previous = cookie_value(sent, "hb_visits"); !previous.empty()) {
-        if (auto parsed = Hummingbird::Core::Utils::parse_long(previous, Hummingbird::Core::Utils::NumberParseMode::Strict)) {
+        if (auto parsed =
+                Hummingbird::Core::Utils::parse_long(previous, Hummingbird::Core::Utils::NumberParseMode::Strict)) {
             visits = *parsed;
         }
     }
@@ -178,51 +207,70 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
     const bool continuing_session = !cookie_value(sent, "hb_session").empty();
 
     response.headers.add("Set-Cookie", "hb_visits=" + std::to_string(visits) + "; Path=/; Max-Age=86400");
-    // No Expires/Max-Age: dies with the process, so it is the one that resets on
-    // restart once 8.1.4 persists the other.
+    // No Expires/Max-Age: dies with the process, which is what makes the restart
+    // demonstration work now that 8.1.4 persists the other one.
     response.headers.add("Set-Cookie", "hb_session=live; Path=/");
-    // 8.1.2: still sent on requests (it appears in the echo above), but already
-    // withheld from the script view, so document.cookie in 8.1.5 will not see it.
+    // Sent on requests (it shows in the wire echo) but withheld from
+    // document.cookie -- the side-by-side below is the whole point.
     response.headers.add("Set-Cookie", "hb_secret=server-only; Path=/; HttpOnly");
-    // Strict rides same-site navigation, which is every link on this demo site.
     response.headers.add("Set-Cookie", "hb_strict=same-site-only; Path=/; SameSite=Strict");
 
     response.body =
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Hummingbird M8 &mdash; Cookies</title></head>"
-        "<body>"
-        "<h1>Cookie round trip</h1>"
-        "<p>Cookie header this page received:</p>"
-        "<pre><code>" +
-        (sent.empty() ? std::string("(none yet &mdash; reload to see one)") : html_escape(sent)) +
-        "</code></pre>"
-        "<p>Visit count carried by <code>hb_visits</code>: <strong>" +
+        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Hummingbird M8 &mdash; Cookies</title>" +
+        std::string(kCookieDemoStyle) +
+        "</head><body><div class=\"page\">"
+        "<p class=\"eyebrow\">M8 &mdash; THE SESSION KEEPER</p>"
+        "<h1>Cookies, end to end</h1>"
+        "<p class=\"intro\">Nothing on the server side remembers you. Everything below came back out of the "
+        "cookie jar in the browser.</p>"
+
+        "<div class=\"card\">"
+        "<p class=\"label\">VISITS</p>"
+        "<p class=\"count\">" +
         std::to_string(visits) +
-        "</strong></p>"
-        "<p>Reload this page and the number climbs: nothing on the server side remembers you, so the count can only "
-        "come back from the browser's own jar.</p>"
-        "<p><strong>Session status:</strong> " +
-        std::string(continuing_session
-                        ? "continuing &mdash; <code>hb_session</code> came back, so this browser has stayed open."
-                        : "fresh &mdash; no <code>hb_session</code> was sent, so this is a first visit or a restart.") +
         "</p>"
-        "<p>Close the browser and reopen it: the visit count keeps climbing because <code>hb_visits</code> is "
-        "persisted to disk, while the session status resets. That split is the whole point of a session cookie.</p>"
-        "<ul>"
-        "<li><code>hb_visits</code> has <code>Max-Age=86400</code> &mdash; a persistent cookie.</li>"
-        "<li><code>hb_session</code> has no expiry &mdash; a session cookie, gone when the browser closes.</li>"
-        "<li><code>hb_secret</code> is <code>HttpOnly</code> &mdash; it rides requests (you can see it echoed "
-        "above) but is already hidden from the script view. Once <code>document.cookie</code> lands in 8.1.5 it "
-        "will be the one cookie JS cannot read.</li>"
-        "<li><code>hb_strict</code> is <code>SameSite=Strict</code> &mdash; carried on same-site navigation like "
-        "the links here, and withheld from any cross-site request.</li>"
-        "</ul>"
-        "<p><em>Not yet visible in this demo:</em> the cross-site half of SameSite needs a second origin, and "
-        "HttpOnly needs <code>document.cookie</code> (8.1.5). Both are enforced in the jar today &mdash; see "
-        "the cookie tests.</p>"
-        "<p><a href=\"https://example.dev/cookies/private\">Set a path-scoped cookie &raquo;</a> then come back here "
-        "and note it is not sent to this path.</p>"
+        "<p class=\"note\">Reload and it climbs. The count lives in <code>hb_visits</code>, which the browser sends "
+        "back on every request.</p></div>"
+
+        "<div class=\"card\">"
+        "<h2>What the browser sent</h2>"
+        "<p class=\"wire\">Cookie: " +
+        (sent.empty() ? std::string("(nothing yet &mdash; reload)") : html_escape(sent)) +
+        "</p>"
+        "<h2>What document.cookie can see</h2>"
+        "<p class=\"wire\" id=\"js-cookies\">(script did not run)</p>"
+        "<p class=\"note\" id=\"httponly-note\">Comparing the two lines above shows what HttpOnly does.</p>"
+        "</div>"
+
+        "<div class=\"card\"><h2>Session status</h2><p>" +
+        std::string(continuing_session
+                        ? "<span class=\"good\">Continuing</span> &mdash; <code>hb_session</code> came back, so this "
+                          "browser has stayed open."
+                        : "<span class=\"good\">Fresh</span> &mdash; no <code>hb_session</code> was sent, so this is a "
+                          "first visit or a restart.") +
+        "</p>"
+        "<p class=\"note\">Close the browser and reopen it: the visit count keeps climbing because "
+        "<code>hb_visits</code> is written to disk, while the session status resets. <code>hb_session</code> has no "
+        "expiry, so it is never persisted. That split is what a session cookie is for.</p></div>"
+
+        "<div class=\"card\"><h2>Scoping</h2>"
+        "<p class=\"note\"><a href=\"https://example.dev/cookies/private\">Set a path-scoped cookie &raquo;</a> then "
+        "come back here and note it is not sent to this path. <code>hb_strict</code> is "
+        "<code>SameSite=Strict</code>: carried on same-site navigation like these links, withheld from any "
+        "cross-site request.</p></div>"
+
         "<p><a href=\"https://example.dev/m8\">&laquo; Back to the M8 demo</a></p>"
-        "</body></html>";
+
+        "<script>"
+        "var seen = document.cookie;"
+        "document.getElementById('js-cookies').textContent = seen === '' ? '(empty)' : seen;"
+        "var hidden = seen.indexOf('hb_secret') < 0;"
+        "document.getElementById('httponly-note').textContent = hidden"
+        " ? 'Spot the difference: hb_secret rode the request but is missing from document.cookie. It is HttpOnly, so"
+        " script cannot read it, which is what stops an XSS payload stealing a session token.'"
+        " : 'hb_secret leaked into document.cookie: HttpOnly is not being enforced.';"
+        "</script>"
+        "</div></body></html>";
 }
 
 void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb,

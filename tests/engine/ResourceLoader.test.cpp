@@ -493,13 +493,13 @@ TEST(ResourceLoaderTest, CookieDemoCounterAdvancesAcrossRealNavigations) {
     };
 
     const std::string first = navigate_and_read("https://example.dev/cookies");
-    EXPECT_NE(first.find("<strong>1</strong>"), std::string::npos) << first;
+    EXPECT_NE(first.find("count\">1<"), std::string::npos) << first;
     // The jar took the counter off the response...
     EXPECT_FALSE(jar->cookie_header_for("https://example.dev/cookies", Hummingbird::Core::CookieClock::now()).empty());
 
     const std::string second = navigate_and_read("https://example.dev/cookies");
     // ...and sent it back, so the stub could count a second visit.
-    EXPECT_NE(second.find("<strong>2</strong>"), std::string::npos) << second;
+    EXPECT_NE(second.find("count\">2<"), std::string::npos) << second;
     EXPECT_NE(second.find("hb_visits=1"), std::string::npos) << "the echoed Cookie header should show what was sent";
 }
 
