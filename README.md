@@ -1,70 +1,126 @@
-# Hummingbird Browser Engine
+<p align="center">
+  <img src="assets/icons/hummingbird-128.png" width="96" height="96" alt="Hummingbird logo">
+</p>
 
-Hummingbird is an experimental browser engine built from scratch in C++20 (HTML → DOM → layout → paint). It’s primarily an educational project.
+<h1 align="center">Hummingbird Browser Engine</h1>
+
+<p align="center">
+  <strong>An experimental C++20 browser engine that turns HTML, CSS, and JavaScript into pixels.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/Dvorkam/hummingbird/actions/workflows/ci.yml"><img src="https://github.com/Dvorkam/hummingbird/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://github.com/Dvorkam/hummingbird/releases"><img src="https://img.shields.io/github/v/release/Dvorkam/hummingbird?include_prereleases" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/Dvorkam/hummingbird" alt="License"></a>
+</p>
+
+Hummingbird implements its own HTML tokenizer and parser, DOM, CSS cascade, layout,
+and paint pipeline instead of embedding Chromium or WebKit. QuickJS, libcurl, SDL2,
+Blend2D, and image-decoding libraries provide the platform-level pieces.
+
+This is a learning-driven engine with increasingly realistic proof targets. It is
+interesting to experiment with, but it is **not yet a usable
+general-purpose browser**.
+
+> [CAUTION]
+> Hummingbird is not safe for untrusted browsing. It has no sandbox, site isolation,
+> or permissions model. Most modern sites will render incorrectly, lose functionality,
+> or fail to load. Use the built-in and documented proof pages when evaluating it.
 
 ## Quick look
 
-Stub site + navigation demo:
+The page below is served by Hummingbird's deterministic built-in site and rendered by
+Hummingbird itself.
 
-![Stub site and navigation demo](https://github.com/user-attachments/assets/92abcdc5-51d3-4af6-9a8f-bd78394fba68)
+<!-- Replace this capture for the release refresh. Suggested media set:
+     1. Built-in milestone hub
+     2. DuckDuckGo HTML homepage/search
+     3. Pinned TodoMVC fixture
+     4. Hacker News login/comment flow with the compatibility-mode indicator visible
+-->
 
-## Status / expectations
+![Built-in site rendered by Hummingbird](https://github.com/user-attachments/assets/92abcdc5-51d3-4af6-9a8f-bd78394fba68)
 
-This is an early prototype:
+## What works today
 
-- It is **not a secure browser** (no sandboxing, no site isolation, no permissions model).
-- JavaScript support is **minimal** (QuickJS with a small binding/event surface).
-- HTML/CSS support is partial and changes frequently.
+The project advances through narrow proof targets. Passing one target means that flow
+works; it does not imply broad compatibility with similar sites.
 
-## What works today (high level)
+| Proof target | What it demonstrates | Important boundary |
+| --- | --- | --- |
+| Built-in `example.dev` pages | Deterministic HTML/CSS/layout/JS demonstrations | Designed around the implemented feature set |
+| DuckDuckGo HTML | Real-page HTML/CSS, forms, navigation, and layout | Only the targeted flow and interactions are expected to work |
+| Pinned vanilla TodoMVC | DOM mutation, events, timers, and incremental invalidation | A fixed local fixture, not arbitrary framework compatibility |
+| Hacker News | Login, comment submission, persistent cookies, and restart-safe sessions | **Requires per-site compatibility mode; see below** |
 
-- Multi-tab app flow (create/switch/close) with per-tab isolation.
-- Extension host MVP (manifest + loader + long-lived background scripts + `browser.tabs` events + CSS injection).
-- HTML tokenizer + parser building a DOM tree.
-- CSS parsing for a subset of selectors/properties, including `<style>` blocks and external stylesheets.
-- Resource pipeline for HTML/CSS/images/SVG with incremental restyles as data arrives.
-- URL normalization + relative URL resolution for linked resources.
-- Block, inline, **flexbox**, and **CSS grid** layout, list markers, table layout, and key positioning/box-model features (including percent sizing/positioning, `calc()` lengths, absolute-centering, and table width-hint balancing).
-- Form controls (`<form>`, `<input>`, `<button>`), focus/editing, `autofocus`, GET+POST submit flows, and external submit controls.
-- Real-page CSS polish coverage including border-radius/outline/box-shadow, text effects, overflow handling, cursor, and vertical-align, plus `visibility`, `pointer-events`, `text-shadow`, legacy `clip`, `!important`, `var()`, `inherit`, sibling combinators (`~`/`+`), and `:visited` link styling.
-- **Web fonts** via `@font-face` (local and remote TrueType/OpenType; WOFF2 not yet).
-- Background images and basic transforms used by real-world pages.
-- QuickJS integration with `onclick`/`load` dispatch and basic DOM mutation bindings.
-- Painting via Blend2D into an SDL2 window.
-- Image decoding via SDL2_image + SVG decoding via lunasvg.
-- Fetching HTML via libcurl, plus a deterministic built-in demo page at `https://example.dev`.
-- **Sessions that survive a restart**: an engine-owned cookie jar (RFC 6265 domain/path matching, `Secure` / `HttpOnly` / `SameSite` Lax+Strict, expiry) persisted to disk and exposed to JS as `document.cookie`.
-- **Web Storage**: `localStorage` (per-origin, persisted to disk, ~5 MB quota with `QuotaExceededError`) and `sessionStorage` (per-tab, in-memory, dropped with the tab).
-- **Navigation plumbing for real sites**: engine-driven redirects (hop/loop limits, 303/307/308 method semantics), `Referer` and `Origin` request headers under the browser-default `strict-origin-when-cross-origin` policy, and a stable internal error page (with retry) when a site can’t be reached.
-- **Multiline `<textarea>`** input (typing, newlines, form submission) for real comment forms.
-- **Per-site compatibility mode** — see below. Together these are enough to log into real **Hacker News**, post a comment, restart the browser, and still be logged in.
+> [!IMPORTANT]
+> **Hacker News rejects Hummingbird's normal User-Agent on its login and comment
+> endpoints.** To use the HN proof flow, press `Ctrl+Shift+U` while on the site. This
+> explicitly enables Chrome-shaped User-Agent compatibility for that origin. It is
+> never enabled automatically.
 
-### Browser identity & compatibility mode
+### Capability overview
 
-Hummingbird identifies itself honestly by default: its `User-Agent` says `Hummingbird`, and it sends a truthful `Sec-CH-UA` client-hint (it never claims to be Chromium). Some sites reject any non-mainstream `User-Agent` outright (Hacker News returns `429` to its own login/comment endpoints, for example).
+**Document and rendering pipeline**
 
-For those sites you can opt a single origin into **compatibility mode** with **`Ctrl+Shift+U`**: that site (and only that site) then sees a canonical Chrome-shaped `User-Agent`, while the `Sec-CH-UA` hint still truthfully says `Hummingbird`. The choice is per-origin, persists across restarts, is never applied automatically, and is never used to silently replay a form POST. Press `Ctrl+Shift+U` again to switch the site back to the honest identity.
+- HTML tokenization and parsing into an arena-backed DOM.
+- CSS parsing, selector matching, cascade, `<style>` blocks, and external stylesheets.
+- Block, inline, flexbox, grid, table, list, and positioned layout subsets.
+- Web fonts, raster images, SVG, backgrounds, borders, shadows, and basic transforms.
+- Blend2D painting into an SDL2 window.
 
-## Getting started (prebuilt releases)
+**Scripting and interaction**
 
-Releases are published on GitHub as:
+- QuickJS behind an engine-owned scripting interface.
+- DOM queries and mutations, attributes, `classList`, and `dataset` subsets.
+- Capture/target/bubble events, timers, microtasks, and `requestAnimationFrame`.
+- Basic forms, text input, multiline `<textarea>`, focus, and GET/POST submission.
 
-- **Linux AppImage**: `Hummingbird-<version>-linux-x86_64.AppImage`
-- **Windows portable zip**: `Hummingbird-<version>-win64.zip`
+**Browser behavior**
 
-Release highlights are tracked in `CHANGELOG.md`.
+- Multiple isolated tabs, back/forward navigation, reload, and bookmarks.
+- HTML, CSS, image, SVG, and font resource loading through libcurl.
+- Redirect handling, referrer/origin headers, and retryable network-error pages.
+- An engine-owned RFC 6265-shaped cookie jar with persistence and
+  `document.cookie`.
+- Persistent per-origin `localStorage` and per-tab `sessionStorage`.
+- A small experimental extension host with tab events and CSS injection.
 
-### Linux (AppImage)
+### Major gaps
 
-1. Download the `.AppImage` from GitHub Releases.
-2. Run it:
+- HTML, CSS, DOM, and JavaScript APIs cover only a small subset of the web platform.
+- Most production websites are visually broken or functionally unusable.
+- There is no `fetch`/XHR, full framework compatibility, media playback, canvas,
+  WebGL, service workers, or browser-grade accessibility.
+- Text editing, selection, shaping, bidirectional text, and form controls are partial.
+- There is no security boundary suitable for browsing hostile content.
 
-   ```bash
-   chmod +x ./Hummingbird-*-linux-x86_64.AppImage
-   ./Hummingbird-*-linux-x86_64.AppImage
-   ```
+The long-term roadmap ends with YouTube playback and a scrolling TikTok feed. Those
+are **aspirational endgame targets**, not current capabilities. See the
+[roadmap](doc/milestones/roadmap.md) for the compatibility ladder and its non-goals.
 
-If your distro doesn’t support running AppImages (often missing `fuse2`), you can extract and run:
+## Try a prerelease
+
+Prebuilt artifacts are published on [GitHub Releases](https://github.com/Dvorkam/hummingbird/releases):
+
+| Platform | Artifact | Validation status |
+| --- | --- | --- |
+| Windows x64 | `Hummingbird-<version>-win64.zip` | Primary development platform; exercised manually and in CI |
+| Linux x86-64 | `Hummingbird-<version>-linux-x86_64.AppImage` | Built and smoke-tested in Ubuntu CI; additional browser tests run under Fedora in WSL, but native Linux desktop use is not regularly validated |
+
+### Windows
+
+Extract the zip and run `hummingbird.exe`. Keep the `assets/` directory next to the
+executable.
+
+### Linux AppImage
+
+```bash
+chmod +x ./Hummingbird-*-linux-x86_64.AppImage
+./Hummingbird-*-linux-x86_64.AppImage
+```
+
+If FUSE support is unavailable, extract and run the AppImage:
 
 ```bash
 ./Hummingbird-*-linux-x86_64.AppImage --appimage-extract
@@ -72,262 +128,164 @@ cd squashfs-root
 HB_ASSET_ROOT="$PWD/usr/share/hummingbird" ./usr/bin/hummingbird
 ```
 
-### Windows (zip)
+Reports from native Linux desktops are especially welcome.
 
-1. Download the `.zip` from GitHub Releases and extract it.
-2. Run `hummingbird.exe` from the extracted folder.
+## Controls
 
-Keep the `assets/` folder next to the executable (fonts, UA stylesheet, etc).
-
-## Usage / controls
-
-Hummingbird has currently minimal chrome, so most actions are keyboard
+Hummingbird has deliberately minimal browser chrome, so many actions use keyboard
 shortcuts.
 
-### Keyboard shortcuts
-
-**Navigation**
-
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+L` | Focus the URL bar |
-| `Enter` | Navigate to the typed URL (in the URL bar); submit a focused form |
-| `Esc` | Unfocus the URL bar |
-| `Alt+Left` | Back |
-| `Alt+Right` | Forward |
-| `F5` / `Ctrl+R` | Reload the current page |
-
-**Tabs**
-
-| Shortcut | Action |
-| --- | --- |
-| `Ctrl+T` | New tab |
-| `Ctrl+W` | Close the active tab |
-| `Ctrl+Left` / `Ctrl+Right` | Switch to the previous / next tab |
-
-**Bookmarks**
-
-| Shortcut | Action |
-| --- | --- |
+| `Ctrl+L`, then `Enter` | Focus the URL bar and navigate |
+| `Alt+Left` / `Alt+Right` | Back / forward |
+| `F5` / `Ctrl+R` | Reload |
+| `Ctrl+T` / `Ctrl+W` | Open / close a tab |
+| `Ctrl+Left` / `Ctrl+Right` | Switch tabs |
 | `Ctrl+D` | Bookmark the current page |
-| `Ctrl+Shift+O` | Open the bookmarks page (`about:bookmarks`) |
-
-**Other**
-
-| Shortcut | Action |
-| --- | --- |
-| `Ctrl+Shift+U` | Toggle compatibility mode for the current site (see [Browser identity & compatibility mode](#browser-identity--compatibility-mode)) |
-| Mouse wheel | Scroll |
+| `Ctrl+Shift+O` | Open `about:bookmarks` |
+| `Ctrl+Shift+U` | Toggle compatibility mode for the current origin |
 | `F1` | Toggle debug outlines |
+| Mouse wheel | Scroll |
 
-Built-in pages: `about:bookmarks` shows your saved bookmarks. Startup defaults to
-`https://example.dev`, a built-in demo hub with sub-pages such as `/todo`,
-`/timers`, `/m7`, `/js`, and `/m8` (cookies, `localStorage`, `sessionStorage`,
-textarea, and network-error demos). Loading arbitrary sites is best-effort and
-incomplete.
+Startup opens `https://example.dev`, the built-in demonstration hub. It links to
+milestone pages and focused fixtures for TodoMVC, JavaScript, cookies, storage,
+textarea input, and network errors.
+
+## Browser identity and compatibility mode
+
+Hummingbird identifies itself honestly by default: its `User-Agent` and
+`Sec-CH-UA` client hint identify Hummingbird rather than Chromium.
+
+Some servers reject unknown browser identities before the engine gets a chance to
+render their response. Compatibility mode is an explicit, per-origin escape hatch:
+
+- Press `Ctrl+Shift+U` to give the current origin a canonical Chrome-shaped
+  `User-Agent`.
+- `Sec-CH-UA` continues to identify Hummingbird.
+- The choice persists across restarts and is never enabled automatically.
+- Toggling the mode never silently replays a form POST.
+
+Press `Ctrl+Shift+U` again to return that origin to Hummingbird's normal identity.
+
+## Architecture
+
+The core page path is:
+
+```text
+network response
+      ↓
+HTML tokenizer/parser → DOM → style/cascade → layout tree → display list → paint
+                              ↕
+                        QuickJS bindings
+```
+
+Hummingbird follows Ports & Adapters. Platform-independent modules do not depend on
+SDL, Blend2D, libcurl, or QuickJS implementations.
+
+- `src/app`: browser chrome, event loop, and application wiring.
+- `src/core`: shared types, DOM, storage/network policy, and platform interfaces.
+- `src/html`: HTML tokenizer and parser.
+- `src/style`: CSS parsing, selector matching, cascade, and computed style.
+- `src/layout`: render tree and block/inline/flex/grid/table layout.
+- `src/renderer`: display-list construction and painting.
+- `src/engine`: documents, tabs, resources, scripting, navigation, and extensions.
+- `src/platform`: SDL, Blend2D, libcurl, QuickJS, and decoder adapters.
+
+The detailed rules live in the [coding constitution](doc/coding_constitution.md),
+and the [interactive page-pipeline diagram](doc/diagrams/page_pipeline.html) provides
+a deeper tour.
 
 ## Building from source
 
-This project uses a `vcpkg.json` manifest; dependencies are installed by vcpkg during CMake configure.
-
 ### Prerequisites
 
-- C++20 compiler (MSVC / Clang / GCC)
-- CMake ≥ 3.20
+- A C++20 compiler (MSVC, Clang, or GCC)
+- CMake 3.20 or newer
 - Ninja
 - vcpkg with `VCPKG_ROOT` set
 
-Linux packages (Ubuntu/Debian) roughly matching CI:
+Dependencies are declared in `vcpkg.json` and installed during CMake configure.
+
+### Windows
+
+The PowerShell scripts enter the MSVC development environment automatically:
+
+```powershell
+.\scripts\build.ps1
+.\scripts\test.ps1
+.\build\Release\Hummingbird.exe
+```
+
+### Linux
+
+Ubuntu/Debian packages roughly matching CI:
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y \
   build-essential ninja-build \
   autoconf autoconf-archive automake libtool libltdl-dev \
-  xvfb patchelf file curl
+  libx11-dev libxext-dev libxft-dev xvfb patchelf file curl
 ```
 
-Depending on your distro, SDL2’s X11/Wayland backends may need system dev packages
-(for example: `libx11-dev`, `libxext-dev`, `libxft-dev` on Ubuntu/Debian).
-
-### Build steps (using presets)
+Configure, build, test, and run:
 
 ```bash
 export VCPKG_ROOT="$HOME/path/to/vcpkg"
 cmake --preset ninja-multi-vcpkg
 cmake --build --preset ninja-multi-vcpkg --config Release
-```
-
-Run:
-
-```bash
+ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
 ./build/Release/Hummingbird
 ```
 
-### Tests
+Set `HB_RUN_SMOKE_TEST=1` when running `ctest` to include the window-opening smoke
+test. Add `HB_HEADLESS=1` for a headless CI-style run.
 
-```bash
-ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
-```
+## Quality gates
 
-The smoke test that opens a window is guarded; enable it with:
+- Windows and Ubuntu builds, unit tests, and smoke tests run in GitHub Actions.
+- Pinned DuckDuckGo, TodoMVC, and login/session fixtures guard proof flows.
+- Curated web-platform-test slices cover selected compatibility areas.
+- HTML and CSS parser fuzzers run under libFuzzer and AddressSanitizer in CI.
+- Dependency-firewall tests enforce module direction and reject package cycles.
 
-```bash
-HB_RUN_SMOKE_TEST=1 ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
-```
+## Extensions
 
-For headless CI-like runs (especially on Windows), use:
+The extension host is a deliberately small experiment, not a WebExtensions-compatible
+implementation. It supports a manifest, long-lived background scripts, selected
+`browser.tabs` events, and CSS injection. A bundled dark-mode extension is the first
+consumer. See [Extension host MVP](doc/extensions.md) for its API and configuration.
 
-```bash
-HB_RUN_SMOKE_TEST=1 HB_HEADLESS=1 ctest --preset ninja-multi-vcpkg -C Release --output-on-failure
-```
+## Troubleshooting
 
-## Test coverage
+<details>
+<summary>TLS certificate problems (debugging only)</summary>
 
-- CI: Windows + Ubuntu (unit tests + smoke test via GitHub Actions).
-- Manual visual checks: Fedora (local run).
+If HTTPS fails because libcurl cannot find a suitable CA bundle, point it at system
+roots with `CURL_CA_BUNDLE`, `SSL_CERT_FILE`, or `SSL_CERT_DIR`.
 
-## TLS troubleshooting (debug only)
-
-If HTTPS fails due to missing or unusual CA bundles, libcurl will fall back to stub
-content. You can point it at system roots with:
-
-- `CURL_CA_BUNDLE=/path/to/ca-bundle.crt`
-- `SSL_CERT_FILE=/path/to/ca-bundle.crt`
-- `SSL_CERT_DIR=/path/to/certs`
-
-For debugging only, you can bypass verification entirely:
+For debugging only, certificate verification can be disabled:
 
 ```bash
 HB_TLS_INSECURE=1 ./build/Release/Hummingbird
 ```
 
-## Extensions (MVP)
+Do not use this mode for ordinary browsing.
 
-Milestone 5 introduces a minimal extension host. This is not WebExtension-compatible; it is a small, evolving surface.
-
-What works:
-
-- Load extensions from a directory on startup (default: `assets/extensions/`).
-- Parse a minimal `manifest.json`.
-- Run a long-lived background script once at startup (one QuickJS context per extension).
-- `console.log(...)` works inside background scripts.
-- `browser.tabs` subset:
-  - `browser.tabs.active()`
-  - `browser.tabs.onCreated.addListener(fn)`
-  - `browser.tabs.onActivated.addListener(fn)`
-  - `browser.tabs.onNavigated.addListener(fn)` where `fn` receives `{ id, url, active }`
-- `browser.scripting.insertCSS({ tabId, cssText })`.
-- Built-in `dark-mode` extension that injects CSS when tabs are created/activated/navigated.
-- Enable/disable extensions via environment variables.
-
-What is not implemented yet:
-
-- No content scripts and no direct per-tab DOM access from extensions.
-- No `removeCSS` API.
-- No permission enforcement, sandboxing, or security model.
-- No persistence for extension state across restarts.
-
-### Built-in dark mode demo
-
-- Open `https://example.dev/m5` and find the `Extension dark mode` section (the landing page at `https://example.dev` links every per-milestone demo page).
-- The built-in dark-mode extension now applies across ordinary page content (with targeted readability safeguards), not only a demo-only scope class.
-- Disable it with `HB_EXTENSIONS_DISABLE=dark-mode`.
-
-### Directory layout
-
-Extensions live in subdirectories under the extensions root. The extension ID is the directory name.
-
-Example:
-
-```
-assets/extensions/dark-mode/
-  manifest.json
-  background.js
-```
-
-### Manifest format (v0)
-
-Required fields:
-
-- `name`: string
-- `version`: string
-- `background.entry`: string (relative path to the background script)
-
-Optional fields:
-
-- `permissions`: string[]
-
-Example `manifest.json`:
-
-```json
-{
-  "name": "Dark Mode",
-  "version": "0.1.0",
-  "background": { "entry": "background.js" },
-  "permissions": ["tabs", "scripting"]
-}
-```
-
-### Configuration
-
-Startup now reads `assets/config/browser.ini` (or `HB_SETTINGS_INI` when set), so extension states can be changed without recompiling.
-
-Example:
-
-```ini
-[extensions]
-dark-mode = disabled
-```
-
-Accepted values: `enabled|disabled`, `true|false`, `on|off`, `yes|no`, `1|0`.
-
-Environment variables still work and take precedence over INI:
-
-- `HB_EXTENSIONS_DIR`: overrides the extensions root directory (defaults to `assets/extensions`).
-- `HB_EXTENSIONS_DISABLE`: comma-separated list of extension IDs to disable.
-- `HB_EXTENSIONS_ENABLE`: comma-separated allow-list of extension IDs to enable (when set, only these load).
-- `HB_SETTINGS_INI`: overrides the settings file path (defaults to `assets/config/browser.ini`).
-
-Examples:
-
-```bash
-# Disable the built-in dark-mode extension (directory name is the ID).
-HB_EXTENSIONS_DISABLE=dark-mode ./build/Release/Hummingbird
-
-# Enable only two extensions.
-HB_EXTENSIONS_ENABLE=dark-mode,my-ext ./build/Release/Hummingbird
-```
+</details>
 
 ## Documentation
 
-- Roadmap and milestone status: [`doc/milestones/roadmap.md`](doc/milestones/roadmap.md)
-- Interactive page pipeline: [`doc/diagrams/page_pipeline.html`](doc/diagrams/page_pipeline.html) (open in a browser)
-- Live backlog: [`doc/TODOs.md`](doc/TODOs.md)
-- Architecture and coding rules: [`doc/coding_constitution.md`](doc/coding_constitution.md)
-- Developer workflow guides: [`doc/dev_guide/`](doc/dev_guide/)
-- Agent/automation entry point: [`AGENTS.md`](AGENTS.md)
+- [Roadmap and milestone status](doc/milestones/roadmap.md)
+- [Live backlog](doc/TODOs.md)
+- [Architecture and coding rules](doc/coding_constitution.md)
+- [Developer workflow guides](doc/dev_guide/)
+- [Contributing guide](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 
-Hummingbird is licensed under the GNU Affero General Public License v3.0 or later
-(AGPL-3.0-or-later), with an additional permission under section 7 allowing app-store
-distribution (see `LICENSE`). Third-party attribution notices are listed in `NOTICE`.
-
-This repository also contains third-party components. See `THIRD_PARTY_NOTICES.md`.
-
-## Contributing
-
-See `CONTRIBUTING.md`.
-
-## Architecture
-
-The project follows Ports & Adapters. Core logic stays decoupled from platform implementations.
-
--   `src/app`: application wiring (event loop, pipeline orchestration).
--   `src/core`: foundational types (arena allocator, asset paths) and interfaces (`IWindow`, `IGraphicsContext`, `INetwork`).
--   `src/html`: HTML tokenizer and DOM builder.
--   `src/style`: CSS tokenizer/parser, selector matching, and computed style production.
--   `src/layout`: render objects, tree builder, block + inline layout.
--   `src/renderer`: painter that walks the render tree.
--   `src/platform`: SDL window/graphics and Curl networking adapters.
+Hummingbird is licensed under AGPL-3.0-or-later, with an additional section 7
+permission allowing app-store distribution. See [LICENSE](LICENSE), [NOTICE](NOTICE),
+and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
