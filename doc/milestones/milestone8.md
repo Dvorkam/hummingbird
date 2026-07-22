@@ -275,7 +275,7 @@ P0: Storage (North Star)
 - [x] 8.2.2: localStorage Binding + Persistence *(methods + length + QuotaExceededError; `localStorage.foo` dot/bracket access deferred to T-STORAGE-DOT-ACCESS-1)*
 
 P0: Guardrails
-- [ ] 8.4.1: Login-Flow Harness
+- [x] 8.4.1: Login-Flow Harness *(tests/engine/LoginFlow.test.cpp — an in-process fixture INetwork serves an HN-shaped flow; the test drives the real Tab pipeline through anonymous → credentialed login POST → persistent Set-Cookie → authenticated page → jar save/load "restart" → session check → logout → cleared, plus a comment POST gated on the session. Satisfies the "Done When" CI criterion.)*
 
 P1: If Schedule Allows
 - [ ] 8.2.3: sessionStorage (per-tab)
