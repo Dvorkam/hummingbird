@@ -357,6 +357,70 @@ TEST(ResourceLoaderTest, NavigatePostUsesNetworkPostWithBodyAndContentType) {
     EXPECT_EQ(batch.document_url, "https://acme.test/html/");
 }
 
+// --- Referer header (T-NET-REFERRER-1) ---------------------------------------
+// The policy itself is covered by Referrer.test.cpp; these prove the loader
+// actually attaches it to real requests from the initiating document's URL.
+
+TEST(ResourceLoaderTest, SameOriginFormPostCarriesFullReferer) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "text=hi";
+    request.content_type = "application/x-www-form-urlencoded";
+    request.initiator_url = "https://news.ycombinator.com/item?id=42";
+
+    loader.navigate("https://news.ycombinator.com/comment", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Referer"),
+              "https://news.ycombinator.com/item?id=42");
+}
+
+TEST(ResourceLoaderTest, CrossOriginNavigationSendsOriginOnlyReferer) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    ResourceLoader::DocumentRequest request{};
+    request.initiator_url = "https://example.test/secret/page";  // a link click to another site
+
+    loader.navigate("https://other.test/landing", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Referer"), "https://example.test/");
+}
+
+TEST(ResourceLoaderTest, UserInitiatedNavigationSendsNoReferer) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    // No initiator_url: address-bar / bookmark / history navigation.
+    loader.navigate("https://example.test/");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Referer").empty());
+}
+
+TEST(ResourceLoaderTest, SubresourceCarriesDocumentReferer) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body { color: red; }";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    loader.request_stylesheets({"/style.css"}, "https://example.test/page.html");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Referer"),
+              "https://example.test/page.html");
+}
+
 TEST(ResourceLoaderTest, StoresAnimatedImagesWhenDecoderProvidesFrames) {
     auto fallback = std::make_unique<CapturingNetwork>();
     auto* fallback_ptr = fallback.get();

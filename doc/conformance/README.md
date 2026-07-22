@@ -42,6 +42,7 @@ like). Review only the registers a milestone actually touches.
 | Register | Review before | Why |
 |---|---|---|
 | [`rfc6265_cookies.md`](rfc6265_cookies.md) | **M9** (fetch/XHR inherits cookie semantics), **M15** (security model) | M9 adds a second class of request that must obey the same policy; M15 audits the security guarantees. |
+| [`html_tag_support.md`](html_tag_support.md) | **M9+** (each real-web target adds tag/property gaps) | The tag/property support surface grows page by page as we render real sites; review when a new proof target lands so its gaps are recorded, not rediscovered. |
 
 Add a row when you add a register. Likely future ones, when their modules
 stabilize: URL parsing (RFC 3986 / WHATWG URL — `urltestdata.json` is the

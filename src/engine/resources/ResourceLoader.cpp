@@ -7,6 +7,7 @@
 #include <utility>
 
 #include "core/BookmarkStore.h"
+#include "core/net/Referrer.h"
 #include "core/utils/Log.h"
 #include "core/utils/Url.h"
 #include "core/utils/Timing.h"
@@ -103,6 +104,15 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         } else {
             options.headers.set("Cookie", cookies);
         }
+    }
+
+    // Recomputed per hop like the Cookie header: the referrer policy depends on
+    // this hop's target, so a chain crossing origins re-derives (or drops) the
+    // Referer each hop rather than forwarding the first hop's value.
+    if (auto referer = Core::compute_referrer_header(chain.referrer_source, url)) {
+        options.headers.set("Referer", *referer);
+    } else {
+        options.headers.remove("Referer");
     }
     chain.visited.push_back(url);
 
@@ -247,8 +257,10 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         NetworkRequestOptions options{};
         options.content_type = request.content_type;
         const bool is_post = request.method == DocumentRequest::Method::Post;
+        RedirectChain chain;
+        chain.referrer_source = request.initiator_url;
         send_request(*fallback_network_, url_copy, options, std::move(callback), document_cookie_context(is_post, request.initiator_host),
-                     is_post ? std::optional<std::string>(request.body) : std::nullopt);
+                     is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
         return;
     }
 
@@ -264,8 +276,10 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             NetworkRequestOptions options{};
             options.content_type = request.content_type;
             const bool is_post = request.method == DocumentRequest::Method::Post;
+            RedirectChain chain;
+            chain.referrer_source = request.initiator_url;
             send_request(*fallback_network_, url_copy, options, std::move(callback), document_cookie_context(is_post, request.initiator_host),
-                     is_post ? std::optional<std::string>(request.body) : std::nullopt);
+                     is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
         } else {
             enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
         }
@@ -277,8 +291,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
     options.content_type = request.content_type;
 
     auto callback = [this, id, url_copy, request_method = request.method, post_body = request.body,
-                     post_content_type = request.content_type,
-                     initiator_host = request.initiator_host](NetworkResponse response) {
+                     post_content_type = request.content_type, initiator_host = request.initiator_host,
+                     initiator_url = request.initiator_url](NetworkResponse response) {
         if (id != active_nav_.load(std::memory_order_acquire)) return;
 
         if (response.body.empty()) {
@@ -302,6 +316,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                 if (!fallback_network_) return;
                 NetworkRequestOptions fallback_options{};
                 fallback_options.content_type = post_content_type;
+                RedirectChain fallback_chain;
+                fallback_chain.referrer_source = initiator_url;
                 send_request(
                     *fallback_network_, url_copy, fallback_options,
                     [this, id, url_copy](NetworkResponse fallback) {
@@ -311,7 +327,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                                                 std::move(fallback.effective_url), fallback.error);
                     },
                     document_cookie_context(request_method == DocumentRequest::Method::Post, initiator_host),
-                    request_method == DocumentRequest::Method::Post ? std::optional<std::string>(post_body) : std::nullopt);
+                    request_method == DocumentRequest::Method::Post ? std::optional<std::string>(post_body) : std::nullopt,
+                    std::move(fallback_chain));
             }
             return;
         }
@@ -322,8 +339,10 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
     };
 
     const bool is_post = request.method == DocumentRequest::Method::Post;
+    RedirectChain chain;
+    chain.referrer_source = request.initiator_url;
     send_request(*network_, url_copy, options, std::move(callback), document_cookie_context(is_post, request.initiator_host),
-                 is_post ? std::optional<std::string>(request.body) : std::nullopt);
+                 is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
 }
 
 void ResourceLoader::allow_insecure_host(std::string_view host) {
@@ -469,6 +488,8 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         HB_LOG_DEBUG("[resource] fetching " << options.type_label << ": " << url);
         NetworkRequestOptions request_options{};
         request_options.allow_insecure = security_policy_.is_insecure_allowed_for_url(url);
+        RedirectChain chain;
+        chain.referrer_source = std::string(base_url);
         send_request(*fetcher, url, request_options,
                      [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
                          if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
@@ -478,7 +499,7 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
                          }
                          enqueue_resource_update(type, url, std::move(response.body), success, {}, response.error);
                      },
-                     subresource_cookie_context(base_url));
+                     subresource_cookie_context(base_url), std::nullopt, std::move(chain));
     }
 }
 

@@ -113,11 +113,22 @@ std::string Tab::initiator_host_for(NavigationSource source) const {
     return {};
 }
 
+std::string Tab::initiator_url_for(NavigationSource source) const {
+    // Only a document-initiated navigation carries a referrer; address-bar,
+    // bookmark, and history navigations send none. Read BEFORE the session
+    // switches requested_url() to the target, same as initiator_host_for.
+    if (source != NavigationSource::Document) {
+        return {};
+    }
+    return std::string(navigation_lifecycle_.requested_url());
+}
+
 void Tab::navigate(std::string_view url, NavigationSource source) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     ResourceLoader::DocumentRequest request{};
     request.initiator_host = initiator_host_for(source);
+    request.initiator_url = initiator_url_for(source);
 
     begin_navigation_session(url);
     if (!in_history_navigation_) {
@@ -158,6 +169,7 @@ void Tab::navigate(const FormSubmission& submission) {
     // A submit always comes from the loaded document. Captured before the
     // session switches to the target URL.
     request.initiator_host = initiator_host_for(NavigationSource::Document);
+    request.initiator_url = initiator_url_for(NavigationSource::Document);
 
     begin_navigation_session(submission.url);
     if (!in_history_navigation_) {

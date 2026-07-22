@@ -40,6 +40,9 @@ public:
         // form submit). Empty means user-initiated — address bar, bookmark, or
         // history — which is not a cross-site request. Drives SameSite (8.1.2).
         std::string initiator_host;
+        // Full URL of the initiating document, for the Referer header. Empty for
+        // a user-initiated navigation, which carries no referrer.
+        std::string initiator_url;
     };
 
     struct PendingResourceUpdate {
@@ -102,6 +105,11 @@ private:
         // Every URL visited so far, so an A->B->A cycle is reported as a loop
         // rather than silently burning the hop budget.
         std::vector<std::string> visited;
+        // The initiating document's URL, constant across the whole chain. The
+        // Referer header is recomputed per hop from this against each hop's URL,
+        // so a chain that crosses origins re-applies the referrer policy at every
+        // hop instead of forwarding a stale header (parallels the Cookie recompute).
+        std::string referrer_source;
     };
 
     // The single choke point for network requests. `send_request`:

@@ -137,6 +137,7 @@ private:
     // Host of the document initiating a navigation, or "" for a user-initiated
     // one. Must be called before begin_navigation_session switches the URL.
     std::string initiator_host_for(NavigationSource source) const;
+    std::string initiator_url_for(NavigationSource source) const;
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_incremental_resource_updates(const ResourceLoader::BatchResult& batch, IGraphicsContext& graphics,
                                               const Layout::Rect& viewport);
