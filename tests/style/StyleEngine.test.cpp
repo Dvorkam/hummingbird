@@ -2077,6 +2077,24 @@ TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
     EXPECT_EQ(font_style->display, ComputedStyle::Display::Inline);
 }
 
+TEST(StyleEngineTest, InputSizeAttributeDoesNotChangeFontSize) {
+    // `size` on <input> is the field's width in characters, not a <font>-style
+    // font size. HN's `<input size="20">` was mapping through the 1..7 table to
+    // 48px and overflowing the field; it must leave the font size at the default.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto input = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    input->set_attribute(Attr::Type, "text");
+    input->set_attribute(Attr::Size, "20");
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, input.get());
+
+    auto style = input->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->font_size, 16.0f);
+}
+
 TEST(StyleEngineTest, AppliesTextEffectsProperties) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

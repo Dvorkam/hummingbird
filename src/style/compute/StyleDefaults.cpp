@@ -281,6 +281,12 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
     };
 
     const bool is_body = element.get_tag_name() == Hummingbird::Html::TagNames::Body;
+    // `size` and `face` are presentational attributes of <font>/<basefont> only.
+    // On other elements `size` means something else entirely — an <input>'s width
+    // in characters, a <select>'s visible rows, an <hr>'s thickness — so mapping
+    // it through the 1..7 font-size table there is wrong. HN's `<input size=20>`
+    // was landing on the largest font (48px), overflowing the field.
+    const bool is_font = element.get_tag_name() == Hummingbird::Html::TagNames::Font;
     for (const auto& [key, value] : element.get_attributes()) {
         if (key == Hummingbird::Html::AttributeNames::Align) {
             std::string normalized = Core::Utils::to_lower(value);
@@ -305,12 +311,12 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
             if (auto parsed = parse_length_value(value)) {
                 style.height = ComputedStyle::LengthValue::from_px(*parsed);
             }
-        } else if (key == Hummingbird::Html::AttributeNames::Size) {
+        } else if (key == Hummingbird::Html::AttributeNames::Size && is_font) {
             if (auto parsed = parse_font_size_value(value)) {
                 style.font_size = *parsed;
                 overrides.font_size = true;
             }
-        } else if (key == Hummingbird::Html::AttributeNames::Face) {
+        } else if (key == Hummingbird::Html::AttributeNames::Face && is_font) {
             std::string face = parse_font_face_value(value);
             if (!face.empty()) {
                 style.font_face = std::move(face);
