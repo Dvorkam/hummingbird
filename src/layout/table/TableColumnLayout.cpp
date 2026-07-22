@@ -23,6 +23,16 @@ struct ParsedWidth {
     bool is_percent;
 };
 
+// Intrinsic (max-content) width probes lay a box out in an oversized ~100000px
+// box (RenderTableCell::measure_intrinsic_width and friends). Any available width
+// this large is a probe, not a real containing block — no real viewport is
+// remotely this wide. A percentage width resolved against it would make the table
+// fill the probe and balloon every ancestor's intrinsic width (HN's header cell
+// holds a `<table width="100%">`, which drove the cell to ~67000px and shoved the
+// logout link off-screen). Per CSS, a percentage width is treated as auto for
+// max-content sizing, so we shrink to content instead.
+constexpr float kIntrinsicMeasureThreshold = 20000.0f;
+
 std::optional<size_t> parse_span_value(std::string_view value) {
     auto parsed = Core::Utils::parse_long(value, Core::Utils::NumberParseMode::AllowTrailing);
     if (!parsed) {
@@ -71,6 +81,11 @@ float resolve_table_target_width(const DOM::Element& element, const Css::Compute
         return 0.0f;
     }
     if (parsed->is_percent) {
+        // Treat the percentage as auto during an intrinsic-measurement probe so
+        // the table shrinks to content instead of filling the probe.
+        if (available_width >= kIntrinsicMeasureThreshold) {
+            return 0.0f;
+        }
         return std::max(0.0f, available_width * (parsed->value / 100.0f));
     }
     return parsed->value;
