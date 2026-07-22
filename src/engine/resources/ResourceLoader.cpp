@@ -11,6 +11,7 @@
 #include "core/utils/Log.h"
 #include "core/utils/Url.h"
 #include "core/utils/Timing.h"
+#include "engine/resources/NetworkErrorPage.h"
 #include "engine/resources/RedirectPolicy.h"
 #include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/resources/ResourceUpdateProcessor.h"
@@ -339,8 +340,9 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             // mask a loop behind a demo page. Surface it so the tab (and 8.3.2's
             // error page) can report it.
             if (response.error == NetworkError::TooManyRedirects || response.error == NetworkError::RedirectLoop) {
-                HB_LOG_WARN("[network] redirect chain failed for " << url_copy);
-                enqueue_resource_update(ResourceType::Document, url_copy, {}, /*success*/ false,
+                HB_LOG_WARN("[network] redirect chain failed for " << url_copy << ", showing error page");
+                std::string body = NetworkErrorPage::build(url_copy, response.error);
+                enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), /*success*/ true,
                                         std::move(response.effective_url), response.error);
                 return;
             }
@@ -350,19 +352,36 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                 enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), true,
                                         std::move(response.effective_url), response.error);
             } else {
+                // curl reached nothing (DNS/refused/timeout). Try the stub, which
+                // serves the built-in demo pages offline; if it too has nothing for
+                // this URL, this is a genuine failure — render the 8.3.2 error page
+                // instead of a blank document.
                 HB_LOG_WARN("[network] curl returned empty for " << url_copy << ", using stub");
-                if (!fallback_network_) return;
+                const NetworkError original_error =
+                    response.error == NetworkError::None ? NetworkError::CurlError : response.error;
+                if (!fallback_network_) {
+                    std::string body = NetworkErrorPage::build(url_copy, original_error);
+                    enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), /*success*/ true,
+                                            std::move(response.effective_url), original_error);
+                    return;
+                }
                 NetworkRequestOptions fallback_options{};
                 fallback_options.content_type = post_content_type;
                 RedirectChain fallback_chain;
                 fallback_chain.referrer_source = initiator_url;
                 send_request(
                     *fallback_network_, url_copy, fallback_options,
-                    [this, id, url_copy](NetworkResponse fallback) {
+                    [this, id, url_copy, original_error](NetworkResponse fallback) {
                         if (id != active_nav_.load(std::memory_order_acquire)) return;
-                        bool success = !fallback.body.empty();
-                        enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
-                                                std::move(fallback.effective_url), fallback.error);
+                        if (fallback.body.empty()) {
+                            std::string body = NetworkErrorPage::build(url_copy, original_error);
+                            enqueue_resource_update(ResourceType::Document, url_copy, std::move(body),
+                                                    /*success*/ true, std::move(fallback.effective_url),
+                                                    original_error);
+                            return;
+                        }
+                        enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body),
+                                                /*success*/ true, std::move(fallback.effective_url), fallback.error);
                     },
                     document_cookie_context(request_method == DocumentRequest::Method::Post, initiator_host),
                     request_method == DocumentRequest::Method::Post ? std::optional<std::string>(post_body) : std::nullopt,

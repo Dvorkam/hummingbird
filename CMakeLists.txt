@@ -212,6 +212,7 @@ add_library(Engine STATIC
     src/engine/extensions/ExtensionSettings.cpp
     src/engine/script/DocumentScriptController.cpp
     src/engine/script/DocumentScriptHost.cpp
+    src/engine/resources/NetworkErrorPage.cpp
     src/engine/resources/RedirectPolicy.cpp
     src/engine/resources/ResourceLoader.cpp
     src/engine/resources/ResourceRequestPlanner.cpp

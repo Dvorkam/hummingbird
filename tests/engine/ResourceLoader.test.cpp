@@ -9,6 +9,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "engine/resources/NetworkErrorPage.h"
 #include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/resources/ResourceUrl.h"
 #include "platform/decoders/CompositeImageDecoder.h"
@@ -760,4 +761,46 @@ TEST(ResourceLoaderTest, UserInitiatedNavigationCarriesEverything) {
 
     ASSERT_EQ(network_ptr->requests.size(), 1u);
     EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "strict=2");
+}
+
+// --- network error pages (8.3.2) ---------------------------------------------
+
+TEST(NetworkErrorPageTest, NamesTheUrlAndOffersRetry) {
+    auto page = Hummingbird::Engine::NetworkErrorPage::build("https://offline.invalid/x",
+                                                             Hummingbird::NetworkError::CurlError);
+    EXPECT_NE(page.find("offline.invalid/x"), std::string::npos);
+    EXPECT_NE(page.find("href=\"https://offline.invalid/x\""), std::string::npos) << "retry link back to the url";
+    EXPECT_NE(page.find("Try again"), std::string::npos);
+}
+
+TEST(NetworkErrorPageTest, EscapesTheUrlSoItCannotInjectMarkup) {
+    auto page = Hummingbird::Engine::NetworkErrorPage::build("https://x/\"><script>evil()</script>",
+                                                             Hummingbird::NetworkError::CurlError);
+    EXPECT_EQ(page.find("<script>evil"), std::string::npos) << "the url must be escaped";
+}
+
+TEST(NetworkErrorPageTest, DistinguishesRedirectFailuresFromUnreachable) {
+    auto loop = Hummingbird::Engine::NetworkErrorPage::build("https://x/", Hummingbird::NetworkError::RedirectLoop);
+    auto down = Hummingbird::Engine::NetworkErrorPage::build("https://x/", Hummingbird::NetworkError::CurlError);
+    EXPECT_NE(loop.find("redirect"), std::string::npos);
+    EXPECT_NE(down.find("offline"), std::string::npos);
+    EXPECT_NE(loop, down);
+}
+
+TEST(ResourceLoaderTest, UnreachableDocumentRendersTheErrorPage) {
+    // The real backend reaches nothing (empty body) and there is no stub to serve
+    // a demo page: this is a genuine failure, so the navigation must land on the
+    // internal error page rather than a blank document.
+    auto network = std::make_unique<CapturingNetwork>();  // default body is empty
+    ResourceLoader loader(std::move(network), /*fallback=*/nullptr, nullptr, nullptr);
+
+    loader.navigate("https://offline.invalid/");
+    auto batch = loader.consume_pending_updates();
+    ASSERT_TRUE(batch.is_ready(ResourceType::Document));
+    EXPECT_EQ(batch.document_error, Hummingbird::NetworkError::CurlError);
+
+    auto view = loader.view("https://offline.invalid/", ResourceType::Document);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_NE(std::string(view->body).find("Try again"), std::string::npos);
+    EXPECT_NE(std::string(view->body).find("offline.invalid"), std::string::npos);
 }

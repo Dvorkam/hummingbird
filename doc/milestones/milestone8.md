@@ -279,4 +279,4 @@ P0: Guardrails
 
 P1: If Schedule Allows
 - [x] 8.2.3: sessionStorage (per-tab) *(StorageKind discriminator through the script-host seam + QuickJS function magic; a per-tab in-memory StorageArea map on the Tab — never persisted, dropped with the tab. Demo at example.dev/session. Tests: SessionStorage.test.cpp — separate namespace from localStorage, survives in-tab navigation, isolated between tabs.)*
-- [ ] 8.3.2: Network Error Pages
+- [x] 8.3.2: Network Error Pages *(NetworkErrorPage builds a stable internal page — URL, human reason, a Try-again retry link, F5 hint — for DNS/refused/timeout and redirect-chain failures, in place of a blank document; the stub fallback still serves the demo pages, and only a genuine failure reaches the error page. URL is HTML-escaped. Demo: the M8 hub links offline.invalid. Tests: NetworkErrorPage + ResourceLoader unreachable-document tests.)*
