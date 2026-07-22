@@ -1,5 +1,5 @@
-> **Status: Active** — pre-written 2026-07, three milestones ahead but spec-driven
-> (cookies/storage are RFC-shaped and nearly independent of M6/M7 discoveries).
+> **Status: Complete** — implementation and proof gates finished 2026-07-22;
+> planned for v0.8.0.
 
 ## Kickoff Scope Validation (2026-07-20)
 
