@@ -33,6 +33,17 @@ This is an early prototype:
 - Painting via Blend2D into an SDL2 window.
 - Image decoding via SDL2_image + SVG decoding via lunasvg.
 - Fetching HTML via libcurl, plus a deterministic built-in demo page at `https://example.dev`.
+- **Sessions that survive a restart**: an engine-owned cookie jar (RFC 6265 domain/path matching, `Secure` / `HttpOnly` / `SameSite` Lax+Strict, expiry) persisted to disk and exposed to JS as `document.cookie`.
+- **Web Storage**: `localStorage` (per-origin, persisted to disk, ~5 MB quota with `QuotaExceededError`) and `sessionStorage` (per-tab, in-memory, dropped with the tab).
+- **Navigation plumbing for real sites**: engine-driven redirects (hop/loop limits, 303/307/308 method semantics), `Referer` and `Origin` request headers under the browser-default `strict-origin-when-cross-origin` policy, and a stable internal error page (with retry) when a site can’t be reached.
+- **Multiline `<textarea>`** input (typing, newlines, form submission) for real comment forms.
+- **Per-site compatibility mode** — see below. Together these are enough to log into real **Hacker News**, post a comment, restart the browser, and still be logged in.
+
+### Browser identity & compatibility mode
+
+Hummingbird identifies itself honestly by default: its `User-Agent` says `Hummingbird`, and it sends a truthful `Sec-CH-UA` client-hint (it never claims to be Chromium). Some sites reject any non-mainstream `User-Agent` outright (Hacker News returns `429` to its own login/comment endpoints, for example).
+
+For those sites you can opt a single origin into **compatibility mode** with **`Ctrl+Shift+U`**: that site (and only that site) then sees a canonical Chrome-shaped `User-Agent`, while the `Sec-CH-UA` hint still truthfully says `Hummingbird`. The choice is per-origin, persists across restarts, is never applied automatically, and is never used to silently replay a form POST. Press `Ctrl+Shift+U` again to switch the site back to the honest identity.
 
 ## Getting started (prebuilt releases)
 
@@ -105,12 +116,14 @@ shortcuts.
 
 | Shortcut | Action |
 | --- | --- |
+| `Ctrl+Shift+U` | Toggle compatibility mode for the current site (see [Browser identity & compatibility mode](#browser-identity--compatibility-mode)) |
 | Mouse wheel | Scroll |
 | `F1` | Toggle debug outlines |
 
 Built-in pages: `about:bookmarks` shows your saved bookmarks. Startup defaults to
 `https://example.dev`, a built-in demo hub with sub-pages such as `/todo`,
-`/timers`, `/m7`, and `/js`. Loading arbitrary sites is best-effort and
+`/timers`, `/m7`, `/js`, and `/m8` (cookies, `localStorage`, `sessionStorage`,
+textarea, and network-error demos). Loading arbitrary sites is best-effort and
 incomplete.
 
 ## Building from source
