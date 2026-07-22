@@ -10,6 +10,10 @@
 #include "engine/document/ExternalScriptLookup.h"
 #include "layout/geometry/Geometry.h"
 
+namespace Hummingbird::Core {
+class StorageArea;
+}
+
 namespace Hummingbird::DOM {
 class Element;
 }
@@ -41,6 +45,7 @@ public:
     // document.cookie accessors (8.1.5): supplied by the Tab, which is the only
     // layer that knows both the profile's jar and the current document URL.
     void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
+    void set_storage_accessor(std::function<Core::StorageArea*()> accessor);
     // Runs the document's <script>s in document order, inline and external
     // interleaved (classic-script semantics, 7.0.1 MVP).
     bool run_document_scripts(DocumentModel& model, const ExternalScriptLookup& external_lookup);

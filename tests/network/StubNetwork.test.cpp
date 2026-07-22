@@ -47,6 +47,11 @@ TEST(StubNetworkTest, ServesMilestoneSubpages) {
 
     auto js = fetch_body("https://example.dev/js");
     EXPECT_NE(js.find("JS Quick Check"), std::string::npos);
+
+    // The localStorage demo (8.2.2) is a static asset page.
+    auto storage = fetch_body("https://example.dev/storage");
+    EXPECT_NE(storage.find("localStorage"), std::string::npos);
+    EXPECT_NE(storage.find("hb_loads"), std::string::npos);
 }
 
 TEST(StubNetworkTest, UnknownPageFallsBack) {

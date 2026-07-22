@@ -456,6 +456,42 @@ void DocumentScriptHost::set_document_cookie(std::string_view value) {
     }
 }
 
+std::optional<std::string> DocumentScriptHost::storage_get_item(std::string_view key) {
+    Core::StorageArea* area = storage_accessor_ ? storage_accessor_() : nullptr;
+    return area ? area->get_item(key) : std::nullopt;
+}
+
+DocumentScriptHost::StorageWriteResult DocumentScriptHost::storage_set_item(std::string_view key,
+                                                                            std::string_view value) {
+    Core::StorageArea* area = storage_accessor_ ? storage_accessor_() : nullptr;
+    if (!area) {
+        return StorageWriteResult::Ok;  // no store: drop the write, like cookies with no jar
+    }
+    return area->set_item(key, value) ? StorageWriteResult::Ok : StorageWriteResult::QuotaExceeded;
+}
+
+void DocumentScriptHost::storage_remove_item(std::string_view key) {
+    if (Core::StorageArea* area = storage_accessor_ ? storage_accessor_() : nullptr) {
+        area->remove_item(key);
+    }
+}
+
+void DocumentScriptHost::storage_clear() {
+    if (Core::StorageArea* area = storage_accessor_ ? storage_accessor_() : nullptr) {
+        area->clear();
+    }
+}
+
+size_t DocumentScriptHost::storage_length() {
+    Core::StorageArea* area = storage_accessor_ ? storage_accessor_() : nullptr;
+    return area ? area->length() : 0;
+}
+
+std::optional<std::string> DocumentScriptHost::storage_key(size_t index) {
+    Core::StorageArea* area = storage_accessor_ ? storage_accessor_() : nullptr;
+    return area ? area->key_at(index) : std::nullopt;
+}
+
 DOM::Node* DocumentScriptHost::query_selector(DOM::Node* scope, std::string_view selector) {
     DOM::Node* root = scope ? scope : root_;
     if (!root) return nullptr;

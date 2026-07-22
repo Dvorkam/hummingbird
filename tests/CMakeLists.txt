@@ -23,6 +23,7 @@ add_executable(HummingbirdTests
     engine/RedirectPolicy.test.cpp
     engine/RedirectChain.test.cpp
     engine/DocumentCookie.test.cpp
+    engine/LocalStorage.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
     core/BookmarkStore.test.cpp
@@ -30,6 +31,7 @@ add_executable(HummingbirdTests
     core/CookieJar.test.cpp
     core/Origin.test.cpp
     core/StorageArea.test.cpp
+    core/StorageManager.test.cpp
     core/AssetPath.test.cpp
     core/AssetLoader.test.cpp
     core/TextEditBuffer.test.cpp

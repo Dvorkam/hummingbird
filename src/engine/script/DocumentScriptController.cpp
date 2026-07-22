@@ -86,6 +86,10 @@ void DocumentScriptController::set_cookie_accessors(std::function<std::string()>
     script_host_.set_cookie_accessors(std::move(reader), std::move(writer));
 }
 
+void DocumentScriptController::set_storage_accessor(std::function<Core::StorageArea*()> accessor) {
+    script_host_.set_storage_accessor(std::move(accessor));
+}
+
 void DocumentScriptController::set_location(std::string_view url) {
     if (script_engine_) {
         script_engine_->set_location(url);

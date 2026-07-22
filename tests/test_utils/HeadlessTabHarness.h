@@ -19,10 +19,11 @@ class HeadlessTabHarness {
 public:
     HeadlessTabHarness(NetworkPtr network, NetworkPtr fallback, ResourceProviderPtr provider,
                        ImageDecoderPtr decoder = nullptr, ScriptEnginePtr script_engine = nullptr,
-                       std::shared_ptr<Hummingbird::Core::CookieJar> cookie_jar = nullptr)
+                       std::shared_ptr<Hummingbird::Core::CookieJar> cookie_jar = nullptr,
+                       std::shared_ptr<Hummingbird::Core::StorageManager> storage_manager = nullptr)
         : tab_(std::move(network), std::move(fallback), std::move(provider), std::move(decoder),
                script_engine ? std::move(script_engine) : Hummingbird::create_script_engine(),
-               std::move(cookie_jar)) {}
+               std::move(cookie_jar), std::move(storage_manager)) {}
 
     void set_viewport(const Layout::Rect& viewport) { viewport_ = viewport; }
     const Layout::Rect& viewport() const { return viewport_; }

@@ -139,6 +139,13 @@ void BrowserApp::shutdown() {
         HB_LOG_DEBUG("[cookies] persisted " << saved << " cookie(s)");
     }
 
+    // localStorage (8.2.2). No startup restore is needed — the manager loads each
+    // origin lazily on first access — so only the shutdown flush lives here.
+    if (const auto& storage = tab_controller_.manager().storage_manager()) {
+        const size_t saved = storage->save_all();
+        HB_LOG_DEBUG("[storage] persisted " << saved << " origin store(s)");
+    }
+
     extension_host_->shutdown();
     tab_controller_.shutdown();
 

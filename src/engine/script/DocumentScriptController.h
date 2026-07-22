@@ -12,6 +12,7 @@
 
 namespace Hummingbird::Core {
 class ArenaAllocator;
+class StorageArea;
 }
 
 namespace Hummingbird::DOM {
@@ -46,6 +47,7 @@ public:
     // Routes JS focus()/blur() to the caret target (wired by the pipeline).
     void set_focus_sink(std::function<void(DOM::Element*, bool)> sink);
     void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
+    void set_storage_accessor(std::function<Core::StorageArea*()> accessor);
 
     bool run_scripts(const std::vector<ScriptSource>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);
     ScriptDispatchResult dispatch_click(DOM::Node* dom_root, Core::ArenaAllocator* arena,

@@ -103,8 +103,16 @@ written.
 * Jar persistence across restarts (8.1.4).
 * `document.cookie` binding (8.1.5) — HN's login flow is form-POST, but session
   checks touch it.
-* `localStorage` with persistence (8.2.1, 8.2.2).
 * HN login/comment harness against a local fixture server (8.4.1).
+
+**Generality, not strictly North Star** (corrected at implementation time, 2026-07-22)
+
+* `localStorage` with persistence (8.2.1, 8.2.2). The doc originally listed this
+  as a North Star must-have, but HN's session is entirely cookie-based, so the
+  proof target does not require it. It is here so the browser stops *silently
+  losing* client-side state (the 7.5.2 fail-soft stub discards writes), which
+  matters far more for the M12 framework sites than for HN. Built because it is
+  cheap once the tested core exists, not because the North Star needs it.
 
 **Nice-to-have (if schedule allows)**
 
@@ -264,7 +272,7 @@ P0: Cookies (North Star)
 
 P0: Storage (North Star)
 - [x] 8.2.1: Storage Backing Store
-- [ ] 8.2.2: localStorage Binding + Persistence
+- [x] 8.2.2: localStorage Binding + Persistence *(methods + length + QuotaExceededError; `localStorage.foo` dot/bracket access deferred to T-STORAGE-DOT-ACCESS-1)*
 
 P0: Guardrails
 - [ ] 8.4.1: Login-Flow Harness

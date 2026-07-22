@@ -56,10 +56,12 @@ DocumentPipeline::HitTestContext make_hit_test_context(const Layout::Point& poin
 
 Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
          std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
-         std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar)
+         std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar,
+         std::shared_ptr<Core::StorageManager> storage_manager)
     : resource_loader_(std::make_unique<ResourceLoader>(std::move(network), std::move(fallback_network),
                                                         std::move(resource_provider), std::move(image_decoder),
                                                         std::move(cookie_jar))),
+      storage_manager_(std::move(storage_manager)),
       document_pipeline_(
           std::make_unique<DocumentPipeline>(&resource_loader_->store(), resource_loader_->resource_provider(),
                                              resource_loader_->image_decoder(), std::move(script_engine))) {
@@ -78,6 +80,16 @@ Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_n
             if (!jar) return;
             jar->store_from_header(navigation_lifecycle_.requested_url(), value, Core::CookieClock::now());
         });
+
+    // window.localStorage (8.2.2). Same shape as cookies: the manager is shared
+    // per profile, the origin is read lazily from the current URL, and an opaque
+    // origin (or no manager) yields nullptr so the store degrades to empty.
+    document_pipeline_->set_storage_accessor([this]() -> Core::StorageArea* {
+        if (!storage_manager_) return nullptr;
+        auto origin = Core::Origin::parse(navigation_lifecycle_.requested_url());
+        if (!origin) return nullptr;  // opaque origin: no persistent store, per spec
+        return &storage_manager_->area_for(*origin);
+    });
 }
 
 Tab::~Tab() {

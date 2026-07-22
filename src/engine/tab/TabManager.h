@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "core/net/CookieJar.h"
+#include "core/net/StorageManager.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
@@ -68,9 +69,14 @@ public:
     // persists it and 8.1.5 exposes it to `document.cookie`.
     const std::shared_ptr<Core::CookieJar>& cookie_jar() const { return cookie_jar_; }
 
+    // The profile's localStorage manager, likewise shared so two tabs on one
+    // origin see the same store (8.2.2).
+    const std::shared_ptr<Core::StorageManager>& storage_manager() const { return storage_manager_; }
+
 private:
     TabFactory factory_;
     std::shared_ptr<Core::CookieJar> cookie_jar_ = std::make_shared<Core::CookieJar>();
+    std::shared_ptr<Core::StorageManager> storage_manager_ = std::make_shared<Core::StorageManager>();
     std::vector<Entry> tabs_;
     std::optional<TabId> active_id_;
     TabId next_id_ = 1;

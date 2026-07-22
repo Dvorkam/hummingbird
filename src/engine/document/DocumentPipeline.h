@@ -22,6 +22,10 @@ class IScriptEngine;
 struct InputEvent;
 }  // namespace Hummingbird
 
+namespace Hummingbird::Core {
+class StorageArea;
+}
+
 namespace Hummingbird::DOM {
 class Element;
 class Node;
@@ -91,6 +95,7 @@ public:
     std::vector<std::string> external_script_srcs() const;
     // document.cookie accessors (8.1.5), forwarded to the script host.
     void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
+    void set_storage_accessor(std::function<Core::StorageArea*()> accessor);
 
     void set_extension_style_blocks(const std::vector<std::string>& style_blocks);
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);

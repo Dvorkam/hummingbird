@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/SecurityState.h"
+#include "core/net/StorageManager.h"
 #include "core/utils/Timing.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
@@ -54,10 +55,12 @@ public:
         bool hash_changed = false;
         bool mutated = false;
     };
-    // `cookie_jar` is shared by every tab of a profile; null disables cookies.
+    // `cookie_jar` and `storage_manager` are shared by every tab of a profile;
+    // null disables cookies / localStorage respectively.
     Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
-        std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr);
+        std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr,
+        std::shared_ptr<Core::StorageManager> storage_manager = nullptr);
     ~Tab();
 
     Tab(const Tab&) = delete;
@@ -175,6 +178,8 @@ private:
     std::atomic<bool> shutting_down_{false};
 
     std::unique_ptr<ResourceLoader> resource_loader_;
+    // Shared per profile; null in most unit tests, which disables localStorage.
+    std::shared_ptr<Core::StorageManager> storage_manager_;
     std::unique_ptr<DocumentPipeline> document_pipeline_;
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;

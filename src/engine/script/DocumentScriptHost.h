@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "core/ArenaAllocator.h"
+#include "core/net/StorageArea.h"
 #include "core/platform_api/IScriptHost.h"
 
 namespace Hummingbird::DOM {
@@ -50,6 +51,14 @@ public:
         cookie_writer_ = std::move(writer);
     }
 
+    // localStorage (8.2.2): supplied by the Tab, which is the only layer that
+    // knows both the profile's storage manager and the current document's
+    // origin. Returns the StorageArea for that origin, or nullptr when there is
+    // none (opaque origin, or no manager) — the host degrades to empty reads and
+    // dropped writes. Persists across reset().
+    using StorageAccessor = std::function<Core::StorageArea*()>;
+    void set_storage_accessor(StorageAccessor accessor) { storage_accessor_ = std::move(accessor); }
+
     DOM::Element* get_element_by_id(std::string_view id) override;
     std::string get_text_content(const DOM::Node* node) override;
     void set_text_content(DOM::Node* node, std::string_view text) override;
@@ -80,6 +89,13 @@ public:
 
     std::string get_document_cookie() override;
     void set_document_cookie(std::string_view value) override;
+
+    std::optional<std::string> storage_get_item(std::string_view key) override;
+    StorageWriteResult storage_set_item(std::string_view key, std::string_view value) override;
+    void storage_remove_item(std::string_view key) override;
+    void storage_clear() override;
+    size_t storage_length() override;
+    std::optional<std::string> storage_key(size_t index) override;
 
     DOM::Node* query_selector(DOM::Node* scope, std::string_view selector) override;
     std::vector<DOM::Node*> query_selector_all(DOM::Node* scope, std::string_view selector) override;
@@ -130,6 +146,7 @@ private:
     FocusSink focus_sink_;
     CookieReader cookie_reader_;
     CookieWriter cookie_writer_;
+    StorageAccessor storage_accessor_;
 
     // Nodes created by script but not yet attached, plus nodes removed from the
     // tree. Their arena storage stays valid until the arena resets, so they can

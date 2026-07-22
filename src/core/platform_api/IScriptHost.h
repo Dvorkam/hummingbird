@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -72,6 +74,21 @@ public:
     // two paths; a cookie script may not set is silently ignored, as in a real
     // browser.
     virtual void set_document_cookie(std::string_view value) = 0;
+
+    // --- window.localStorage (8.2.2) ---
+    // The current document's origin store. When no store is available (opaque
+    // origin, or no storage manager wired up) reads are empty and writes are
+    // dropped, mirroring how document.cookie behaves with no jar.
+    enum class StorageWriteResult {
+        Ok,             // stored (or dropped because no store exists)
+        QuotaExceeded,  // refused; the binding raises QuotaExceededError
+    };
+    virtual std::optional<std::string> storage_get_item(std::string_view key) = 0;
+    virtual StorageWriteResult storage_set_item(std::string_view key, std::string_view value) = 0;
+    virtual void storage_remove_item(std::string_view key) = 0;
+    virtual void storage_clear() = 0;
+    virtual size_t storage_length() = 0;
+    virtual std::optional<std::string> storage_key(size_t index) = 0;
 
     // --- innerHTML (7.1.4) ---
     // Replaces node's children with the fragment parsed from `html` (reuses the

@@ -121,6 +121,14 @@ private:
     // window.location accessors (7.2.5).
     static JSValue js_document_get_cookie(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_document_set_cookie(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
+    // window.localStorage (8.2.2).
+    static JSValue js_storage_get_item(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_storage_set_item(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_storage_remove_item(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_storage_clear(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_storage_key(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_storage_get_length(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_get_href(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_get_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_set_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
