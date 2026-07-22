@@ -72,15 +72,9 @@ works; it does not imply broad compatibility with similar sites.
 | Pinned vanilla TodoMVC | DOM mutation, events, timers, and incremental invalidation | A fixed local fixture, not arbitrary framework compatibility |
 | Hacker News | Login, comment submission, persistent cookies, and restart-safe sessions | **Requires per-site compatibility mode; see below** |
 
-> [!IMPORTANT]
-> **Hacker News rejects Hummingbird's normal User-Agent on its login and comment
-> endpoints.** To use the HN proof flow, press `Ctrl+Shift+U` while on the site. This
-> explicitly enables Chrome-shaped User-Agent compatibility for that origin. It is
-> never enabled automatically.
-
 <p align="center">
-  <a href="https://github.com/user-attachments/assets/2f6b3724-6d47-4167-bbe1-f9f8254fcd88">
-    <img src="https://github.com/user-attachments/assets/2f6b3724-6d47-4167-bbe1-f9f8254fcd88" width="800" alt="Hacker News rendered by Hummingbird with a compatibility-mode warning">
+  <a href="https://github.com/user-attachments/assets/688f3e14-b0dc-45f6-a766-80af1369cdaa">
+    <img src="https://github.com/user-attachments/assets/688f3e14-b0dc-45f6-a766-80af1369cdaa" width="800" alt="Hacker News rendered by Hummingbird with a compatibility-mode warning">
   </a>
 </p>
 
