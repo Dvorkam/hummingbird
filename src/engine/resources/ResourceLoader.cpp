@@ -144,15 +144,12 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
     }
     chain.visited.push_back(url);
 
-    // POSTs are rare (form submits), so logging their outgoing identity/CSRF
-    // headers at INFO is cheap and makes a rejected write (e.g. HN's 429)
-    // diagnosable in a release build without dropping to DEBUG. GETs are not
-    // logged — a page fires hundreds of subresource GETs and the noise would
-    // bury everything.
+    // A form POST's outgoing identity/CSRF headers, at DEBUG — invaluable when a
+    // write is rejected (e.g. HN's 429), but off in a normal release build.
     if (post_body) {
-        HB_LOG_INFO("[network] POST " << url << " Referer=" << options.headers.get("Referer") << " Origin="
-                                      << options.headers.get("Origin") << " UA=" << options.headers.get("User-Agent")
-                                      << " Cookie=" << (options.headers.get("Cookie").empty() ? "no" : "yes"));
+        HB_LOG_DEBUG("[network] POST " << url << " Referer=" << options.headers.get("Referer") << " Origin="
+                                       << options.headers.get("Origin") << " UA=" << options.headers.get("User-Agent")
+                                       << " Cookie=" << (options.headers.get("Cookie").empty() ? "no" : "yes"));
     }
 
     auto on_response = [this, &network, url, options, callback, context, post_body,

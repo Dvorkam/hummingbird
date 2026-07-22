@@ -1,5 +1,7 @@
 #include "core/net/BrowserIdentity.h"
 
+#include "core/Version.h"
+
 namespace Hummingbird::Core {
 
 namespace {
@@ -21,7 +23,10 @@ std::string compatibility_user_agent() {
 
 }  // namespace
 
-std::string transparent_user_agent() { return std::string("Hummingbird/0.2 (") + kOsToken + ")"; }
+std::string transparent_user_agent() {
+    // Tracks the real project version (HB_VERSION_STRING) so it never drifts.
+    return std::string("Hummingbird/") + HB_VERSION_STRING + " (" + kOsToken + ")";
+}
 
 std::vector<IdentityHeader> identity_headers(IdentityMode mode, bool secure) {
     std::vector<IdentityHeader> headers;

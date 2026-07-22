@@ -9,7 +9,7 @@ namespace Hummingbird::Core {
 // differs between the two modes; the `Sec-CH-UA` client hints are identical and
 // truthful in both, so a site always learns it is talking to Hummingbird.
 //
-//   Transparent   — honest UA ("Hummingbird/0.2 ..."). The default.
+//   Transparent   — honest UA ("Hummingbird/<version> ..."). The default.
 //   Compatibility — a canonical Chrome-shaped UA, for sites (e.g. Hacker News)
 //                   whose anti-crawler rule rejects any noncanonical UA. Opt-in
 //                   per origin, never automatic, never for a POST.

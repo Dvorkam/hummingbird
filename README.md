@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/Dvorkam/hummingbird/actions/workflows/ci.yml"><img src="https://github.com/Dvorkam/hummingbird/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="https://github.com/Dvorkam/hummingbird/releases"><img src="https://img.shields.io/github/v/release/Dvorkam/hummingbird?include_prereleases" alt="Latest release"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/github/license/Dvorkam/hummingbird" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0--or--later%20%2B%20Section%207-blue" alt="AGPL-3.0 with Section 7 permission"></a>
 </p>
 
 Hummingbird implements its own HTML tokenizer and parser, DOM, CSS cascade, layout,

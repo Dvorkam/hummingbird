@@ -89,6 +89,15 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
         }
     }
 
+    // A non-demo host only reaches the stub as a fallback after the real network
+    // failed. The stub has nothing real to serve, so return an empty body and let
+    // ResourceLoader render the proper network-error page (8.3.2). Unknown
+    // example.dev subpages keep the demo "failed to load" note.
+    const bool is_example_dev =
+        url.rfind("http://example.dev", 0) == 0 || url.rfind("https://example.dev", 0) == 0;
+    if (!is_example_dev) {
+        return {};
+    }
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
 }
 

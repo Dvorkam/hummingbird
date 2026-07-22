@@ -86,16 +86,17 @@ curl_slist* append_request_headers(curl_slist* list, const Core::HttpHeaders& he
 
 // On an HTTP error, dump what the server actually said: its response headers
 // (a rate limiter's `Retry-After`, a `Server`/`X-*` diagnostic) and a preview of
-// the body. This is the difference between "429, shrug" and knowing whether we
-// are throttled, blocked, or misbuilding the request.
+// the body. At DEBUG, because response headers can include `Set-Cookie` values
+// and this is noisy — it is a debugging aid, not release console output. The
+// one-line "http error: status=..." above it stays at WARN.
 void log_http_error_details(std::string_view url, const Core::HttpHeaders& headers, std::string_view body) {
     for (const auto& field : headers.fields()) {
-        HB_LOG_WARN("[network]   <- " << field.name << ": " << field.value);
+        HB_LOG_DEBUG("[network]   <- " << field.name << ": " << field.value);
     }
     constexpr size_t kPreview = 300;
     std::string_view preview = body.substr(0, kPreview);
-    HB_LOG_WARN("[network]   <- body(" << body.size() << "B): " << preview
-                                       << (body.size() > kPreview ? "..." : ""));
+    HB_LOG_DEBUG("[network]   <- body(" << body.size() << "B): " << preview
+                                        << (body.size() > kPreview ? "..." : ""));
     (void)url;
 }
 

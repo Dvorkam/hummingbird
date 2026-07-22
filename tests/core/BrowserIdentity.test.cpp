@@ -22,7 +22,7 @@ TEST(BrowserIdentityTest, TransparentUsesHonestUserAgent) {
     auto headers = identity_headers(IdentityMode::Transparent, /*secure=*/true);
     auto ua = header_value(headers, "User-Agent");
     ASSERT_TRUE(ua.has_value());
-    EXPECT_NE(ua->find("Hummingbird/0.2"), std::string::npos);
+    EXPECT_NE(ua->find("Hummingbird/"), std::string::npos);  // version is not pinned here
     EXPECT_EQ(ua->find("Chrome/"), std::string::npos) << "Transparent must not claim Chrome";
 }
 

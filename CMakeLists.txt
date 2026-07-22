@@ -1,5 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
-project(Hummingbird VERSION 0.6.0)
+project(Hummingbird VERSION 0.8.0)
+
+# Single source of truth for the version: generate a header from PROJECT_VERSION
+# so the User-Agent (and anything else) tracks the real version automatically
+# instead of drifting. Change the version above and everything follows.
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/Version.h.in
+    ${CMAKE_BINARY_DIR}/generated/core/Version.h
+    @ONLY)
 
 # Set C++ standard to C++20
 set(CMAKE_CXX_STANDARD 20)
@@ -97,6 +105,7 @@ add_library(Core STATIC
 target_include_directories(Core
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
 )
 
 # --- Platform Library ---

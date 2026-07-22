@@ -64,6 +64,14 @@ TEST(StubNetworkTest, UnknownPageFallsBack) {
     EXPECT_NE(body.find("Failed to load"), std::string::npos);
 }
 
+TEST(StubNetworkTest, NonDemoHostReturnsEmptySoTheErrorPageCanRender) {
+    // The stub is the built-in demo backend; for a real host it has nothing, so it
+    // returns an empty body and ResourceLoader renders the 8.3.2 error page instead
+    // of masking the failure with a stub page.
+    EXPECT_TRUE(fetch_body("https://news.ycombinator.com/").empty());
+    EXPECT_TRUE(fetch_body("https://offline.invalid/").empty());
+}
+
 // --- cookie demo (8.1.1) -----------------------------------------------------
 // The /cookies route is the one stub page that reads its request, so it can show
 // the jar working through the real engine path rather than through a fake.
