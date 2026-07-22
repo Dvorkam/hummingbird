@@ -6,10 +6,23 @@ namespace Hummingbird::Core {
 
 namespace {
 
-// Platform tokens are hard-coded to Windows for now. Making them track the build
-// target (or a spoofed value in Compatibility mode) is T-NET-IDENTITY-PLATFORM-1.
+// Platform tokens track the build target so a Linux/macOS build does not claim
+// Windows (T-NET-IDENTITY-PLATFORM-1). `kOsToken` is the parenthetical in the
+// UA string (legacy and Compatibility-mode Chrome both use it); `kPlatform` is
+// the `Sec-CH-UA-Platform` client-hint value, one of the spec's fixed set.
+#if defined(_WIN32)
 constexpr const char* kOsToken = "Windows NT 10.0; Win64; x64";
 constexpr const char* kPlatform = "\"Windows\"";
+#elif defined(__APPLE__)
+constexpr const char* kOsToken = "Macintosh; Intel Mac OS X 10_15_7";
+constexpr const char* kPlatform = "\"macOS\"";
+#elif defined(__linux__)
+constexpr const char* kOsToken = "X11; Linux x86_64";
+constexpr const char* kPlatform = "\"Linux\"";
+#else
+constexpr const char* kOsToken = "Unknown";
+constexpr const char* kPlatform = "\"Unknown\"";
+#endif
 
 // The truthful client-hint brand list, identical in both modes. "Not_A Brand" is
 // the GREASE placeholder real browsers include; we deliberately do NOT list
