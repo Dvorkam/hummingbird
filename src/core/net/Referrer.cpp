@@ -33,4 +33,12 @@ std::optional<std::string> compute_referrer_header(std::string_view source_url, 
     return source_origin->serialize() + "/";
 }
 
+std::optional<std::string> compute_origin_header(std::string_view source_url) {
+    auto origin = Origin::parse(source_url);
+    if (!origin) {
+        return std::nullopt;
+    }
+    return origin->serialize();  // no trailing slash, unlike a cross-origin Referer
+}
+
 }  // namespace Hummingbird::Core

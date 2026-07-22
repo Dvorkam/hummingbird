@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+using Hummingbird::Core::compute_origin_header;
 using Hummingbird::Core::compute_referrer_header;
 
 // Same origin: the full URL, minus the fragment. This is the case HN's comment
@@ -60,4 +61,23 @@ TEST(ReferrerTest, EmptySourceSendsNothing) {
 TEST(ReferrerTest, NonWebSourceSendsNothing) {
     EXPECT_FALSE(compute_referrer_header("about:bookmarks", "https://example.dev/x").has_value());
     EXPECT_FALSE(compute_referrer_header("file:///C:/secret.txt", "https://example.dev/x").has_value());
+}
+
+// Origin is the serialized origin with NO trailing slash (unlike a cross-origin
+// Referer), and it carries no path regardless of the source URL's path.
+TEST(OriginHeaderTest, SerializesOriginWithoutTrailingSlashOrPath) {
+    auto origin = compute_origin_header("https://news.ycombinator.com/item?id=42");
+    ASSERT_TRUE(origin.has_value());
+    EXPECT_EQ(*origin, "https://news.ycombinator.com");
+}
+
+TEST(OriginHeaderTest, KeepsNonDefaultPort) {
+    auto origin = compute_origin_header("http://example.dev:8080/page");
+    ASSERT_TRUE(origin.has_value());
+    EXPECT_EQ(*origin, "http://example.dev:8080");
+}
+
+TEST(OriginHeaderTest, NoTupleOriginYieldsNothing) {
+    EXPECT_FALSE(compute_origin_header("").has_value());
+    EXPECT_FALSE(compute_origin_header("about:bookmarks").has_value());
 }

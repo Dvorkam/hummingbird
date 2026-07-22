@@ -378,6 +378,26 @@ TEST(ResourceLoaderTest, SameOriginFormPostCarriesFullReferer) {
     ASSERT_EQ(network_ptr->requests.size(), 1u);
     EXPECT_EQ(network_ptr->requests[0].options.headers.get("Referer"),
               "https://news.ycombinator.com/item?id=42");
+    // A form POST also carries Origin (initiating document's origin, no path) —
+    // the header HN's write-endpoint CSRF check requires.
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Origin"),
+              "https://news.ycombinator.com");
+}
+
+TEST(ResourceLoaderTest, GetNavigationSendsNoOriginHeader) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    ResourceLoader::DocumentRequest request{};
+    request.initiator_url = "https://example.test/from";  // a link click (GET)
+
+    loader.navigate("https://example.test/to", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    // Origin is a non-GET header: a plain navigation must not carry it.
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Origin").empty());
 }
 
 TEST(ResourceLoaderTest, CrossOriginNavigationSendsOriginOnlyReferer) {

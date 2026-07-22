@@ -25,4 +25,13 @@ namespace Hummingbird::Core {
 // every request.
 std::optional<std::string> compute_referrer_header(std::string_view source_url, std::string_view target_url);
 
+// The `Origin` header value for a request initiated by the document at
+// `source_url`: its serialized origin ("scheme://host[:port]", no trailing
+// slash), or nullopt when the source has no tuple origin. Per Fetch, this is
+// attached to every request whose method is not GET/HEAD (i.e. form POSTs), and
+// unlike Referer it is never reduced to a path and never downgraded away — the
+// origin alone carries no browsing-history detail. Servers that reject a
+// refererless/originless POST as CSRF (Hacker News among them) require it.
+std::optional<std::string> compute_origin_header(std::string_view source_url);
+
 }  // namespace Hummingbird::Core

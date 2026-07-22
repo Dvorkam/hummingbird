@@ -114,7 +114,30 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
     } else {
         options.headers.remove("Referer");
     }
+
+    // Origin accompanies every non-GET request (Fetch spec). It is the
+    // initiating document's origin, not reduced or downgraded, and is what a
+    // server's CSRF check reads to confirm the POST came from its own page — the
+    // one header a browser adds to a same-origin form POST that a top-level GET
+    // navigation lacks. Without it HN answers /comment with 429 "Sorry.".
+    if (post_body) {
+        if (auto origin = Core::compute_origin_header(chain.referrer_source)) {
+            options.headers.set("Origin", *origin);
+        } else {
+            options.headers.remove("Origin");
+        }
+    }
     chain.visited.push_back(url);
+
+    // POSTs are rare (form submits), so logging their outgoing headers at INFO is
+    // cheap and makes a rejected write (e.g. HN's 429) diagnosable in a release
+    // build without dropping to DEBUG. GETs are not logged — a page fires
+    // hundreds of subresource GETs and the noise would bury everything.
+    if (post_body) {
+        HB_LOG_INFO("[network] POST " << url << " Referer=" << options.headers.get("Referer")
+                                      << " Origin=" << options.headers.get("Origin")
+                                      << " Cookie=" << (options.headers.get("Cookie").empty() ? "no" : "yes"));
+    }
 
     auto on_response = [this, &network, url, options, callback, context, post_body,
                         chain](NetworkResponse response) mutable {
