@@ -68,6 +68,11 @@ public:
     // Bookmarks the active tab's page and persists the list (Ctrl+D, 7.6.2).
     void bookmark_active_tab();
 
+    // Flips the active tab's origin between Transparent and Compatibility
+    // identity and reloads (Ctrl+Shift+U). The opt-in escape hatch for sites
+    // whose anti-crawler rule rejects Hummingbird's honest User-Agent (e.g. HN).
+    void toggle_active_site_compatibility();
+
     // Whether platform text input is currently owned by the active tab (vs the URL bar).
     bool tab_text_input_active() const { return tab_text_input_active_; }
     void set_tab_text_input_active(bool active) { tab_text_input_active_ = active; }

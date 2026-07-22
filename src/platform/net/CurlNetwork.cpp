@@ -66,7 +66,10 @@ void apply_common_curl_options(CURL* curl, const std::string& url, std::string& 
     curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
 #endif
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, CurlNetwork::accept_encoding());
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, "Hummingbird/0.2");
+    // No User-Agent is set here: the engine attaches identity (User-Agent +
+    // Sec-CH-UA) per target origin at the ResourceLoader choke point, so it can
+    // vary by the site's chosen IdentityMode. A "User-Agent:" header in the
+    // request list overrides curl's built-in default.
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
 }
@@ -79,6 +82,21 @@ curl_slist* append_request_headers(curl_slist* list, const Core::HttpHeaders& he
         list = curl_slist_append(list, line.c_str());
     }
     return list;
+}
+
+// On an HTTP error, dump what the server actually said: its response headers
+// (a rate limiter's `Retry-After`, a `Server`/`X-*` diagnostic) and a preview of
+// the body. This is the difference between "429, shrug" and knowing whether we
+// are throttled, blocked, or misbuilding the request.
+void log_http_error_details(std::string_view url, const Core::HttpHeaders& headers, std::string_view body) {
+    for (const auto& field : headers.fields()) {
+        HB_LOG_WARN("[network]   <- " << field.name << ": " << field.value);
+    }
+    constexpr size_t kPreview = 300;
+    std::string_view preview = body.substr(0, kPreview);
+    HB_LOG_WARN("[network]   <- body(" << body.size() << "B): " << preview
+                                       << (body.size() > kPreview ? "..." : ""));
+    (void)url;
 }
 
 CurlResponseMeta collect_response_meta(CURL* curl) {
@@ -181,6 +199,7 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
             HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
                                                      << meta.effective_url << " content_type=" << meta.content_type
                                                      << " bytes=" << body.size());
+            log_http_error_details(url, response.headers, body);
         }
 
         if (res == CURLE_OK || !body.empty()) {
@@ -248,6 +267,7 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
             HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
                                                      << meta.effective_url << " content_type=" << meta.content_type
                                                      << " bytes=" << response_body.size());
+            log_http_error_details(url, response.headers, response_body);
         }
 
         if (res == CURLE_OK || !response_body.empty()) {

@@ -21,6 +21,7 @@
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "core/utils/Log.h"
 #include "engine/extensions/ExtensionHost.h"
+#include "core/net/IdentityPolicyStore.h"
 #include "engine/tab/Tab.h"
 
 namespace Hummingbird::App {
@@ -80,6 +81,15 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
                                                Hummingbird::Core::CookieClock::now());
         if (restored > 0) {
             HB_LOG_INFO("[cookies] restored " << restored << " cookie(s)");
+        }
+    }
+
+    // Restore per-origin browser-identity choices (which sites the user set to
+    // Compatibility mode), so the choice survives a restart like cookies do.
+    if (const auto& identity = tab_controller_.manager().identity_store()) {
+        const size_t restored = identity->load_from(Hummingbird::Core::IdentityPolicyStore::default_path());
+        if (restored > 0) {
+            HB_LOG_INFO("[identity] restored " << restored << " compatibility-mode site(s)");
         }
     }
 
@@ -144,6 +154,11 @@ void BrowserApp::shutdown() {
     if (const auto& storage = tab_controller_.manager().storage_manager()) {
         const size_t saved = storage->save_all();
         HB_LOG_DEBUG("[storage] persisted " << saved << " origin store(s)");
+    }
+
+    if (const auto& identity = tab_controller_.manager().identity_store()) {
+        const size_t saved = identity->save_to(Hummingbird::Core::IdentityPolicyStore::default_path());
+        HB_LOG_DEBUG("[identity] persisted " << saved << " compatibility-mode site(s)");
     }
 
     extension_host_->shutdown();
@@ -324,6 +339,27 @@ void BrowserApp::bookmark_active_tab() {
         bookmarks_.save();
         HB_LOG_INFO("[bookmarks] added " << url);
     }
+}
+
+void BrowserApp::toggle_active_site_compatibility() {
+    const auto& identity = tab_controller_.manager().identity_store();
+    if (!identity) return;
+
+    const std::string url(active_tab().requested_url());
+    auto origin = Hummingbird::Core::Origin::parse(url);
+    if (!origin) {
+        HB_LOG_INFO("[identity] no tuple origin for " << url << "; compatibility mode not applicable");
+        return;
+    }
+
+    const auto mode = identity->toggle(*origin);
+    const bool compat = mode == Hummingbird::Core::IdentityMode::Compatibility;
+    HB_LOG_INFO("[identity] " << origin->serialize() << " -> "
+                              << (compat ? "Compatibility (Chrome-shaped UA)" : "Transparent (honest UA)")
+                              << "; reloading");
+    // Reload so the new identity takes effect on the very next request. User
+    // initiated, so it is a safe GET — never a silent POST replay.
+    navigate_and_reflect_url(active_tab().requested_url());
 }
 
 void BrowserApp::notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url) {

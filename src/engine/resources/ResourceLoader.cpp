@@ -60,12 +60,14 @@ Core::CookieRequestContext subresource_cookie_context(std::string_view base_url)
 }  // namespace
 
 ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
-                               ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar)
+                               ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar,
+                               std::shared_ptr<Core::IdentityPolicyStore> identity_store)
     : network_(std::move(network)),
       fallback_network_(std::move(fallback_network)),
       resource_provider_(std::move(resource_provider)),
       image_decoder_(std::move(image_decoder)),
-      cookie_jar_(std::move(cookie_jar)) {
+      cookie_jar_(std::move(cookie_jar)),
+      identity_store_(std::move(identity_store)) {
     // Only "nothing can fetch at all" is an error. Having just one backend is a
     // deliberate configuration (tests, headless harnesses, stub-only demo runs),
     // and shouting about it on every construction trained the eye to ignore a
@@ -127,15 +129,28 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
             options.headers.remove("Origin");
         }
     }
+
+    // Browser identity (User-Agent + Sec-CH-UA), chosen per target origin and
+    // recomputed per hop so a chain crossing origins presents each site the
+    // identity selected for it. A null store (tests) means Transparent, and the
+    // engine owning this is why CurlNetwork no longer hard-codes a User-Agent.
+    if (auto target = Core::Origin::parse(url)) {
+        const auto mode = identity_store_ ? identity_store_->mode_for(*target) : Core::IdentityMode::Transparent;
+        const bool secure = target->scheme() == "https";
+        for (const auto& header : Core::identity_headers(mode, secure)) {
+            options.headers.set(header.name, header.value);
+        }
+    }
     chain.visited.push_back(url);
 
-    // POSTs are rare (form submits), so logging their outgoing headers at INFO is
-    // cheap and makes a rejected write (e.g. HN's 429) diagnosable in a release
-    // build without dropping to DEBUG. GETs are not logged — a page fires
-    // hundreds of subresource GETs and the noise would bury everything.
+    // POSTs are rare (form submits), so logging their outgoing identity/CSRF
+    // headers at INFO is cheap and makes a rejected write (e.g. HN's 429)
+    // diagnosable in a release build without dropping to DEBUG. GETs are not
+    // logged — a page fires hundreds of subresource GETs and the noise would
+    // bury everything.
     if (post_body) {
-        HB_LOG_INFO("[network] POST " << url << " Referer=" << options.headers.get("Referer")
-                                      << " Origin=" << options.headers.get("Origin")
+        HB_LOG_INFO("[network] POST " << url << " Referer=" << options.headers.get("Referer") << " Origin="
+                                      << options.headers.get("Origin") << " UA=" << options.headers.get("User-Agent")
                                       << " Cookie=" << (options.headers.get("Cookie").empty() ? "no" : "yes"));
     }
 

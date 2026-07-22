@@ -384,6 +384,46 @@ TEST(ResourceLoaderTest, SameOriginFormPostCarriesFullReferer) {
               "https://news.ycombinator.com");
 }
 
+// --- browser identity (T-NET-IDENTITY-1) -------------------------------------
+
+TEST(ResourceLoaderTest, DefaultIdentityIsHonestUserAgent) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    loader.navigate("https://news.ycombinator.com/");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    const auto ua = network_ptr->requests[0].options.headers.get("User-Agent");
+    EXPECT_NE(ua.find("Hummingbird"), std::string::npos);
+    EXPECT_EQ(ua.find("Chrome/"), std::string::npos);
+    // Sec-CH-UA rides the https request and names Hummingbird truthfully.
+    EXPECT_NE(network_ptr->requests[0].options.headers.get("Sec-CH-UA").find("Hummingbird"), std::string::npos);
+}
+
+TEST(ResourceLoaderTest, CompatibilityModeSitePresentsChromeUserAgent) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    auto identity = std::make_shared<Hummingbird::Core::IdentityPolicyStore>();
+    identity->set_mode(*Hummingbird::Core::Origin::parse("https://news.ycombinator.com/"),
+                       Hummingbird::Core::IdentityMode::Compatibility);
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr,
+                          /*cookie_jar=*/nullptr, identity);
+
+    loader.navigate("https://news.ycombinator.com/comment");
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    const auto ua = network_ptr->requests[0].options.headers.get("User-Agent");
+    EXPECT_NE(ua.find("Chrome/120"), std::string::npos);
+    EXPECT_EQ(ua.find("Hummingbird"), std::string::npos) << "canonical UA carries no Hummingbird token";
+    // A different origin still gets the honest default.
+    loader.navigate("https://example.test/");
+    ASSERT_EQ(network_ptr->requests.size(), 2u);
+    EXPECT_NE(network_ptr->requests[1].options.headers.get("User-Agent").find("Hummingbird"), std::string::npos);
+}
+
 TEST(ResourceLoaderTest, GetNavigationSendsNoOriginHeader) {
     auto network = std::make_unique<CapturingNetwork>();
     auto* network_ptr = network.get();

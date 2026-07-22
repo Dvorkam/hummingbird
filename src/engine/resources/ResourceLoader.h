@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "core/net/CookieJar.h"
+#include "core/net/IdentityPolicyStore.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
@@ -64,11 +65,13 @@ public:
         bool is_ready(ResourceType type) const { return ready[static_cast<size_t>(type)]; }
     };
 
-    // `cookie_jar` is shared across every tab of a profile (see TabManager): a
-    // per-loader jar would mean logging in on one tab left another logged out.
-    // Null disables cookies entirely, which is what most unit tests want.
+    // `cookie_jar` and `identity_store` are shared across every tab of a profile
+    // (see TabManager): a per-loader jar would mean logging in on one tab left
+    // another logged out. Null disables that feature — which is what most unit
+    // tests want (a null identity store means Transparent identity everywhere).
     ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
-                   ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr);
+                   ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr,
+                   std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr);
 
     ResourceLoader(const ResourceLoader&) = delete;
     ResourceLoader& operator=(const ResourceLoader&) = delete;
@@ -146,6 +149,7 @@ private:
     // Shared per profile. Network callbacks arrive on backend threads, so every
     // touch is guarded by cookie_mutex_.
     std::shared_ptr<Core::CookieJar> cookie_jar_;
+    std::shared_ptr<Core::IdentityPolicyStore> identity_store_;
     mutable std::mutex cookie_mutex_;
     ResourceProviderPtr resource_provider_;
     ImageDecoderPtr image_decoder_;

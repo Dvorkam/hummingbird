@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "core/SecurityState.h"
+#include "core/net/IdentityPolicyStore.h"
 #include "core/net/StorageManager.h"
 #include "core/utils/Timing.h"
 #include "engine/forms/FormSubmission.h"
@@ -60,7 +61,8 @@ public:
     Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
         std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr,
-        std::shared_ptr<Core::StorageManager> storage_manager = nullptr);
+        std::shared_ptr<Core::StorageManager> storage_manager = nullptr,
+        std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr);
     ~Tab();
 
     Tab(const Tab&) = delete;

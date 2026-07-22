@@ -47,4 +47,5 @@ tmp
 #files
 assets/config/bookmarks.tsv
 assets/config/cookies.tsv
+assets/config/identity.tsv
 assets/config/storage/

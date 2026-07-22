@@ -80,9 +80,11 @@ add_library(Core STATIC
     src/core/ArenaAllocator.cpp
     src/core/BookmarkStore.cpp
     src/core/dom/DomFactory.cpp
+    src/core/net/BrowserIdentity.cpp
     src/core/net/Cookie.cpp
     src/core/net/CookieJar.cpp
     src/core/net/HttpHeaders.cpp
+    src/core/net/IdentityPolicyStore.cpp
     src/core/net/Origin.cpp
     src/core/net/Referrer.cpp
     src/core/net/StorageArea.cpp

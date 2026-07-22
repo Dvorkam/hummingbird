@@ -132,6 +132,14 @@ bool ChromeEventRouter::handle_global_key_shortcut(const Hummingbird::InputEvent
         return true;
     }
 
+    // Ctrl+Shift+U: flip the current site between honest (Transparent) and
+    // Chrome-shaped (Compatibility) identity and reload. The opt-in escape hatch
+    // for sites that reject Hummingbird's real User-Agent (e.g. HN's 429).
+    if (event.key.key == Key::U && event.mods.ctrl && event.mods.shift && !event.key.repeat) {
+        app_.toggle_active_site_compatibility();
+        return true;
+    }
+
     if (event.key.key == Key::F1) {
         render_.toggle_debug_outlines();
         HB_LOG_INFO("[ui] Debug outlines " << (render_.debug_outlines() ? "ON" : "OFF"));
