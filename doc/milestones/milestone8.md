@@ -263,7 +263,7 @@ P0: Cookies (North Star)
 - [x] 8.1.5: document.cookie Binding
 
 P0: Storage (North Star)
-- [ ] 8.2.1: Storage Backing Store
+- [x] 8.2.1: Storage Backing Store
 - [ ] 8.2.2: localStorage Binding + Persistence
 
 P0: Guardrails
