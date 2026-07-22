@@ -11,14 +11,15 @@ namespace Hummingbird::Core {
 
 namespace {
 
-bool is_digit(char c) { return c >= '0' && c <= '9'; }
+bool is_digit(char c) {
+    return c >= '0' && c <= '9';
+}
 
 // RFC 6265 §5.1.1 delimiter set: everything that is not a date character.
 bool is_date_delimiter(char c) {
     if (c == 0x09) return true;
     const auto u = static_cast<unsigned char>(c);
-    return (u >= 0x20 && u <= 0x2F) || (u >= 0x3B && u <= 0x40) || (u >= 0x5B && u <= 0x60) ||
-           (u >= 0x7B && u <= 0x7E);
+    return (u >= 0x20 && u <= 0x2F) || (u >= 0x3B && u <= 0x40) || (u >= 0x5B && u <= 0x60) || (u >= 0x7B && u <= 0x7E);
 }
 
 // A host that is an IP literal can only ever match itself, so the subdomain
@@ -26,8 +27,7 @@ bool is_date_delimiter(char c) {
 // IPv4 is digits and dots only.
 bool is_ip_literal(std::string_view host) {
     if (host.find(':') != std::string_view::npos) return true;
-    return !host.empty() &&
-           std::all_of(host.begin(), host.end(), [](char c) { return is_digit(c) || c == '.'; }) &&
+    return !host.empty() && std::all_of(host.begin(), host.end(), [](char c) { return is_digit(c) || c == '.'; }) &&
            std::any_of(host.begin(), host.end(), is_digit);
 }
 
@@ -60,7 +60,9 @@ bool parse_time_token(std::string_view token, int& hour, int& minute, int& secon
     return true;
 }
 
-std::string_view trim(std::string_view input) { return Utils::trim_ascii_whitespace(input); }
+std::string_view trim(std::string_view input) {
+    return Utils::trim_ascii_whitespace(input);
+}
 
 // Splits "name=value"; a missing '=' yields an empty name so callers can reject.
 std::pair<std::string_view, std::string_view> split_pair(std::string_view input) {
@@ -89,7 +91,8 @@ std::optional<CookieTime> parse_cookie_date(std::string_view input) {
             continue;
         }
         if (day < 0 && is_digit(token[0]) && token.size() <= 2) {
-            if (auto value = Utils::parse_long(token, Utils::NumberParseMode::Strict); value && *value >= 1 && *value <= 31) {
+            if (auto value = Utils::parse_long(token, Utils::NumberParseMode::Strict);
+                value && *value >= 1 && *value <= 31) {
                 day = static_cast<int>(*value);
                 continue;
             }

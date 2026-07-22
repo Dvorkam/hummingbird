@@ -15,7 +15,9 @@ namespace Hummingbird::Core {
 
 namespace {
 
-bool scheme_is_secure(std::string_view scheme) { return Utils::equals_ignore_case(scheme, "https"); }
+bool scheme_is_secure(std::string_view scheme) {
+    return Utils::equals_ignore_case(scheme, "https");
+}
 
 }  // namespace
 
@@ -125,9 +127,9 @@ std::string CookieJar::script_visible_cookies(std::string_view document_url, Coo
 
 size_t CookieJar::purge_expired(CookieTime now) {
     const size_t before = cookies_.size();
-    cookies_.erase(std::remove_if(cookies_.begin(), cookies_.end(),
-                                  [&](const Cookie& cookie) { return cookie.is_expired(now); }),
-                   cookies_.end());
+    cookies_.erase(
+        std::remove_if(cookies_.begin(), cookies_.end(), [&](const Cookie& cookie) { return cookie.is_expired(now); }),
+        cookies_.end());
     return before - cookies_.size();
 }
 
@@ -142,7 +144,9 @@ long long to_epoch_seconds(CookieTime time) {
     return std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count();
 }
 
-CookieTime from_epoch_seconds(long long seconds) { return CookieTime{} + std::chrono::seconds{seconds}; }
+CookieTime from_epoch_seconds(long long seconds) {
+    return CookieTime{} + std::chrono::seconds{seconds};
+}
 
 // The TSV format cannot represent a field containing a tab or newline. Such a
 // cookie is malformed per RFC 6265 §4.1.1 anyway (T-COOKIE-CHARSET-1 will reject

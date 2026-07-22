@@ -95,8 +95,7 @@ void log_http_error_details(std::string_view url, const Core::HttpHeaders& heade
     }
     constexpr size_t kPreview = 300;
     std::string_view preview = body.substr(0, kPreview);
-    HB_LOG_DEBUG("[network]   <- body(" << body.size() << "B): " << preview
-                                        << (body.size() > kPreview ? "..." : ""));
+    HB_LOG_DEBUG("[network]   <- body(" << body.size() << "B): " << preview << (body.size() > kPreview ? "..." : ""));
     (void)url;
 }
 
@@ -165,51 +164,51 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
 
     const bool allow_insecure = options.allow_insecure;
     Core::HttpHeaders request_headers = options.headers;
-    thread_pool_.submit([url, cb = std::move(cb), this, allow_insecure,
-                         request_headers = std::move(request_headers)]() mutable {
-        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
-        std::string body;
-        NetworkResponse response = Hummingbird::Platform::make_response(url);
-        CURL* curl = curl_easy_init();
-        if (!curl) {
-            HB_LOG_WARN("[network] curl init failed: url=" << url);
+    thread_pool_.submit(
+        [url, cb = std::move(cb), this, allow_insecure, request_headers = std::move(request_headers)]() mutable {
+            if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
+            std::string body;
+            NetworkResponse response = Hummingbird::Platform::make_response(url);
+            CURL* curl = curl_easy_init();
+            if (!curl) {
+                HB_LOG_WARN("[network] curl init failed: url=" << url);
+                if (cb) cb(std::move(response));
+                return;
+            }
+
+            apply_common_curl_options(curl, url, body, response.headers);
+            struct curl_slist* headers = append_request_headers(nullptr, request_headers);
+            if (headers) {
+                curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+            }
+            Hummingbird::Platform::apply_tls_options(curl, allow_insecure);
+
+            CURLcode res = curl_easy_perform(curl);
+            CurlResponseMeta meta = collect_response_meta(curl);
+            curl_slist_free_all(headers);
+            curl_easy_cleanup(curl);
+
+            if (res != CURLE_OK) {
+                response.error =
+                    is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
+                HB_LOG_WARN("[network] curl failed: url="
+                            << url << " code=" << res << " err=" << curl_easy_strerror(res) << " status=" << meta.status
+                            << " ssl_verify=" << meta.ssl_verify_result << " effective=" << meta.effective_url
+                            << " content_type=" << meta.content_type << " bytes=" << body.size());
+            } else if (meta.status >= 400) {
+                HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
+                                                         << meta.effective_url << " content_type=" << meta.content_type
+                                                         << " bytes=" << body.size());
+                log_http_error_details(url, response.headers, body);
+            }
+
+            if (res == CURLE_OK || !body.empty()) {
+                response.body = std::move(body);
+                response.status = meta.status;
+                response.effective_url = std::move(meta.effective_url);
+            }
             if (cb) cb(std::move(response));
-            return;
-        }
-
-        apply_common_curl_options(curl, url, body, response.headers);
-        struct curl_slist* headers = append_request_headers(nullptr, request_headers);
-        if (headers) {
-            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        }
-        Hummingbird::Platform::apply_tls_options(curl, allow_insecure);
-
-        CURLcode res = curl_easy_perform(curl);
-        CurlResponseMeta meta = collect_response_meta(curl);
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-
-        if (res != CURLE_OK) {
-            response.error =
-                is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
-            HB_LOG_WARN("[network] curl failed: url="
-                        << url << " code=" << res << " err=" << curl_easy_strerror(res) << " status=" << meta.status
-                        << " ssl_verify=" << meta.ssl_verify_result << " effective=" << meta.effective_url
-                        << " content_type=" << meta.content_type << " bytes=" << body.size());
-        } else if (meta.status >= 400) {
-            HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
-                                                     << meta.effective_url << " content_type=" << meta.content_type
-                                                     << " bytes=" << body.size());
-            log_http_error_details(url, response.headers, body);
-        }
-
-        if (res == CURLE_OK || !body.empty()) {
-            response.body = std::move(body);
-            response.status = meta.status;
-            response.effective_url = std::move(meta.effective_url);
-        }
-        if (cb) cb(std::move(response));
-    });
+        });
 }
 
 void CurlNetwork::post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,

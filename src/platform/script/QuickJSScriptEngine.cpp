@@ -166,8 +166,8 @@ static IScriptHost::StorageKind storage_kind_of(int magic) {
     return magic == 1 ? IScriptHost::StorageKind::Session : IScriptHost::StorageKind::Local;
 }
 
-JSValue QuickJSScriptEngine::js_storage_get_item(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv,
-                                                 int magic) {
+JSValue QuickJSScriptEngine::js_storage_get_item(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                 JSValueConst* argv, int magic) {
     auto* engine = engine_from_context(ctx);
     if (!engine || !engine->host_ || argc < 1) return JS_NULL;
     const char* key = JS_ToCString(ctx, argv[0]);
@@ -178,8 +178,8 @@ JSValue QuickJSScriptEngine::js_storage_get_item(JSContext* ctx, JSValueConst /*
     return value ? JS_NewString(ctx, value->c_str()) : JS_NULL;
 }
 
-JSValue QuickJSScriptEngine::js_storage_set_item(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv,
-                                                 int magic) {
+JSValue QuickJSScriptEngine::js_storage_set_item(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                 JSValueConst* argv, int magic) {
     auto* engine = engine_from_context(ctx);
     if (!engine || !engine->host_ || argc < 2) return JS_UNDEFINED;
     const char* key = JS_ToCString(ctx, argv[0]);
@@ -1470,8 +1470,8 @@ void QuickJSScriptEngine::install_window_bindings() {
     window_object_ = JS_DupValue(context_, window);
 
     // Both `window` and bare `location` are global (window.location === location).
-    JS_SetPropertyStr(context_, global, "location", location);  // transfers the ref
-    JS_SetPropertyStr(context_, global, "window", window);      // transfers the ref
+    JS_SetPropertyStr(context_, global, "location", location);               // transfers the ref
+    JS_SetPropertyStr(context_, global, "window", window);                   // transfers the ref
     JS_SetPropertyStr(context_, global, "localStorage", local_storage);      // transfers the ref
     JS_SetPropertyStr(context_, global, "sessionStorage", session_storage);  // transfers the ref
     JS_SetPropertyStr(context_, global, "setTimeout", JS_NewCFunction(context_, js_set_timeout, "setTimeout", 2));

@@ -13,7 +13,7 @@
 namespace Hummingbird::Core {
 class ArenaAllocator;
 class StorageArea;
-}
+}  // namespace Hummingbird::Core
 
 namespace Hummingbird::DOM {
 class Node;

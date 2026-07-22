@@ -93,8 +93,7 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
     // failed. The stub has nothing real to serve, so return an empty body and let
     // ResourceLoader render the proper network-error page (8.3.2). Unknown
     // example.dev subpages keep the demo "failed to load" note.
-    const bool is_example_dev =
-        url.rfind("http://example.dev", 0) == 0 || url.rfind("https://example.dev", 0) == 0;
+    const bool is_example_dev = url.rfind("http://example.dev", 0) == 0 || url.rfind("https://example.dev", 0) == 0;
     if (!is_example_dev) {
         return {};
     }
@@ -125,8 +124,7 @@ std::string cookie_value(std::string_view header, std::string_view name) {
     size_t pos = 0;
     while (pos < header.size()) {
         const size_t semi = header.find(';', pos);
-        std::string_view pair =
-            semi == std::string_view::npos ? header.substr(pos) : header.substr(pos, semi - pos);
+        std::string_view pair = semi == std::string_view::npos ? header.substr(pos) : header.substr(pos, semi - pos);
         pos = semi == std::string_view::npos ? header.size() : semi + 1;
         pair = Hummingbird::Core::Utils::trim_ascii_whitespace(pair);
         const size_t eq = pair.find('=');
@@ -143,10 +141,17 @@ std::string html_escape(std::string_view text) {
     out.reserve(text.size());
     for (char c : text) {
         switch (c) {
-            case '&': out += "&amp;"; break;
-            case '<': out += "&lt;"; break;
-            case '>': out += "&gt;"; break;
-            default: out.push_back(c);
+            case '&':
+                out += "&amp;";
+                break;
+            case '<':
+                out += "&lt;";
+                break;
+            case '>':
+                out += "&gt;";
+                break;
+            default:
+                out.push_back(c);
         }
     }
     return out;

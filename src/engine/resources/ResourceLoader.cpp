@@ -9,8 +9,8 @@
 #include "core/BookmarkStore.h"
 #include "core/net/Referrer.h"
 #include "core/utils/Log.h"
-#include "core/utils/Url.h"
 #include "core/utils/Timing.h"
+#include "core/utils/Url.h"
 #include "engine/resources/NetworkErrorPage.h"
 #include "engine/resources/RedirectPolicy.h"
 #include "engine/resources/ResourceRequestPlanner.h"
@@ -76,9 +76,8 @@ ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, 
     if (!network_ && !fallback_network_) {
         HB_LOG_ERROR("[network] no network backend available; requests will fail");
     } else if (!network_ || !fallback_network_) {
-        HB_LOG_DEBUG("[network] single backend configured (primary=" << (network_ ? "yes" : "no")
-                                                                     << " fallback=" << (fallback_network_ ? "yes" : "no")
-                                                                     << ")");
+        HB_LOG_DEBUG("[network] single backend configured (primary=" << (network_ ? "yes" : "no") << " fallback="
+                                                                     << (fallback_network_ ? "yes" : "no") << ")");
     }
     // Both are optional collaborators, and a loader constructed without them is a
     // valid configuration rather than a fault. Warning here fires once per
@@ -162,8 +161,8 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
             cookie_jar_->store_from_response(url, response.headers, Core::CookieClock::now());
         }
 
-        auto decision = RedirectPolicy::decide(response.status, response.headers.get("Location"), url,
-                                               post_body.has_value());
+        auto decision =
+            RedirectPolicy::decide(response.status, response.headers.get("Location"), url, post_body.has_value());
         if (!decision) {
             // Not a redirect (or not a followable one): this is the answer.
             if (response.effective_url.empty()) {
@@ -295,7 +294,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         const bool is_post = request.method == DocumentRequest::Method::Post;
         RedirectChain chain;
         chain.referrer_source = request.initiator_url;
-        send_request(*fallback_network_, url_copy, options, std::move(callback), document_cookie_context(is_post, request.initiator_host),
+        send_request(*fallback_network_, url_copy, options, std::move(callback),
+                     document_cookie_context(is_post, request.initiator_host),
                      is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
         return;
     }
@@ -314,8 +314,9 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             const bool is_post = request.method == DocumentRequest::Method::Post;
             RedirectChain chain;
             chain.referrer_source = request.initiator_url;
-            send_request(*fallback_network_, url_copy, options, std::move(callback), document_cookie_context(is_post, request.initiator_host),
-                     is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
+            send_request(*fallback_network_, url_copy, options, std::move(callback),
+                         document_cookie_context(is_post, request.initiator_host),
+                         is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
         } else {
             enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
         }
@@ -381,7 +382,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                                                 /*success*/ true, std::move(fallback.effective_url), fallback.error);
                     },
                     document_cookie_context(request_method == DocumentRequest::Method::Post, initiator_host),
-                    request_method == DocumentRequest::Method::Post ? std::optional<std::string>(post_body) : std::nullopt,
+                    request_method == DocumentRequest::Method::Post ? std::optional<std::string>(post_body)
+                                                                    : std::nullopt,
                     std::move(fallback_chain));
             }
             return;
@@ -395,7 +397,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
     const bool is_post = request.method == DocumentRequest::Method::Post;
     RedirectChain chain;
     chain.referrer_source = request.initiator_url;
-    send_request(*network_, url_copy, options, std::move(callback), document_cookie_context(is_post, request.initiator_host),
+    send_request(*network_, url_copy, options, std::move(callback),
+                 document_cookie_context(is_post, request.initiator_host),
                  is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
 }
 
@@ -544,16 +547,17 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         request_options.allow_insecure = security_policy_.is_insecure_allowed_for_url(url);
         RedirectChain chain;
         chain.referrer_source = std::string(base_url);
-        send_request(*fetcher, url, request_options,
-                     [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
-                         if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
-                         bool success = !response.body.empty();
-                         if (!success) {
-                             HB_LOG_WARN("[resource] " << type_label << " fetch failed: " << url);
-                         }
-                         enqueue_resource_update(type, url, std::move(response.body), success, {}, response.error);
-                     },
-                     subresource_cookie_context(base_url), std::nullopt, std::move(chain));
+        send_request(
+            *fetcher, url, request_options,
+            [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
+                if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
+                bool success = !response.body.empty();
+                if (!success) {
+                    HB_LOG_WARN("[resource] " << type_label << " fetch failed: " << url);
+                }
+                enqueue_resource_update(type, url, std::move(response.body), success, {}, response.error);
+            },
+            subresource_cookie_context(base_url), std::nullopt, std::move(chain));
     }
 }
 

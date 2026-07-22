@@ -20,7 +20,9 @@ public:
         std::string value;
     };
 
-    void add(std::string_view name, std::string_view value) { fields_.push_back({std::string(name), std::string(value)}); }
+    void add(std::string_view name, std::string_view value) {
+        fields_.push_back({std::string(name), std::string(value)});
+    }
 
     // Replaces every existing occurrence of `name` with a single field.
     void set(std::string_view name, std::string_view value);

@@ -23,11 +23,20 @@ std::string escape(std::string_view field) {
     out.reserve(field.size());
     for (char c : field) {
         switch (c) {
-            case '\\': out += "\\\\"; break;
-            case '\t': out += "\\t"; break;
-            case '\n': out += "\\n"; break;
-            case '\r': out += "\\r"; break;
-            default: out.push_back(c);
+            case '\\':
+                out += "\\\\";
+                break;
+            case '\t':
+                out += "\\t";
+                break;
+            case '\n':
+                out += "\\n";
+                break;
+            case '\r':
+                out += "\\r";
+                break;
+            default:
+                out.push_back(c);
         }
     }
     return out;
@@ -45,11 +54,20 @@ bool unescape(std::string_view field, std::string& out) {
         }
         if (++i >= field.size()) return false;
         switch (field[i]) {
-            case '\\': out.push_back('\\'); break;
-            case 't': out.push_back('\t'); break;
-            case 'n': out.push_back('\n'); break;
-            case 'r': out.push_back('\r'); break;
-            default: return false;
+            case '\\':
+                out.push_back('\\');
+                break;
+            case 't':
+                out.push_back('\t');
+                break;
+            case 'n':
+                out.push_back('\n');
+                break;
+            case 'r':
+                out.push_back('\r');
+                break;
+            default:
+                return false;
         }
     }
     return true;

@@ -13,6 +13,7 @@
 #include "app/ExtensionBootstrap.h"
 #include "app/RenderCoordinator.h"
 #include "core/GraphicsTypes.h"
+#include "core/net/IdentityPolicyStore.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/ImageDecoderFactory.h"
 #include "core/platform_api/InputEvent.h"
@@ -21,7 +22,6 @@
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "core/utils/Log.h"
 #include "engine/extensions/ExtensionHost.h"
-#include "core/net/IdentityPolicyStore.h"
 #include "engine/tab/Tab.h"
 
 namespace Hummingbird::App {
@@ -77,8 +77,8 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     // tab exists, so the very first navigation is already authenticated. Kept at
     // the app layer rather than in TabManager so engine tests never touch disk.
     if (const auto& jar = tab_controller_.manager().cookie_jar()) {
-        const size_t restored = jar->load_from(Hummingbird::Core::CookieJar::default_path(),
-                                               Hummingbird::Core::CookieClock::now());
+        const size_t restored =
+            jar->load_from(Hummingbird::Core::CookieJar::default_path(), Hummingbird::Core::CookieClock::now());
         if (restored > 0) {
             HB_LOG_INFO("[cookies] restored " << restored << " cookie(s)");
         }
@@ -144,8 +144,8 @@ void BrowserApp::shutdown() {
     // Persist before anything is torn down. Session cookies are dropped by
     // save_to itself, so closing the browser really does end the session.
     if (const auto& jar = tab_controller_.manager().cookie_jar()) {
-        const size_t saved = jar->save_to(Hummingbird::Core::CookieJar::default_path(),
-                                          Hummingbird::Core::CookieClock::now());
+        const size_t saved =
+            jar->save_to(Hummingbird::Core::CookieJar::default_path(), Hummingbird::Core::CookieClock::now());
         HB_LOG_DEBUG("[cookies] persisted " << saved << " cookie(s)");
     }
 
