@@ -53,6 +53,11 @@ bool input_type_is_toggle(const DOM::Element& element) {
     return type &&
            (Core::Utils::equals_ignore_case(*type, "checkbox") || Core::Utils::equals_ignore_case(*type, "radio"));
 }
+
+bool input_type_is_hidden(const DOM::Element& element) {
+    const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
+    return type && Core::Utils::equals_ignore_case(*type, "hidden");
+}
 }  // namespace
 
 void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides,
@@ -72,6 +77,12 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
             tag == Hummingbird::Html::TagNames::Code || tag == Hummingbird::Html::TagNames::Img ||
             tag == Hummingbird::Html::TagNames::Svg || tag == Hummingbird::Html::TagNames::Font) {
             style.display = ComputedStyle::Display::Inline;
+        } else if (tag == Hummingbird::Html::TagNames::Input && input_type_is_hidden(element)) {
+            // `input[type=hidden]` carries form state (parent id, CSRF token, …)
+            // and is never rendered — the UA sheet forces display:none. Without
+            // this it fell through to the generic input branch and painted as a
+            // stray 80x24 button box (seen on HN's comment form).
+            style.display = ComputedStyle::Display::None;
         } else if (tag == Hummingbird::Html::TagNames::Input || tag == Hummingbird::Html::TagNames::Textarea ||
                    tag == Hummingbird::Html::TagNames::Button) {
             style.display = ComputedStyle::Display::InlineBlock;

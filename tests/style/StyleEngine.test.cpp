@@ -321,6 +321,23 @@ TEST(StyleEngineTest, SubmitInputUsesCompactDefaultWidth) {
     EXPECT_FLOAT_EQ(text_style->width->px, 180.0f);
 }
 
+TEST(StyleEngineTest, HiddenInputIsNotRendered) {
+    // HN's comment form carries `parent`, `goto`, and `hmac` as
+    // `input[type=hidden]`. They must be display:none, not painted as stray
+    // button boxes next to the textarea.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto hidden = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    hidden->set_attribute(Attr::Type, "hidden");
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, hidden.get());
+
+    auto style = hidden->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->display, ComputedStyle::Display::None);
+}
+
 TEST(StyleEngineTest, TableCellsUseDefaultPaddingForReadability) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto td = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
