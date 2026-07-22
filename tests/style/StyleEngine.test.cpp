@@ -2095,6 +2095,25 @@ TEST(StyleEngineTest, InputSizeAttributeDoesNotChangeFontSize) {
     EXPECT_FLOAT_EQ(style->font_size, 16.0f);
 }
 
+TEST(StyleEngineTest, BgColorAttributeAppliesToTableCells) {
+    // HN's orange header bar is `<td bgcolor="#ff6600">`; bgcolor is a legacy
+    // attribute of the table elements, not just <body>.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto td = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
+    td->set_attribute(Attr::BgColor, "#ff6600");
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, td.get());
+
+    auto style = td->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->background.has_value());
+    EXPECT_EQ(style->background->r, 0xff);
+    EXPECT_EQ(style->background->g, 0x66);
+    EXPECT_EQ(style->background->b, 0x00);
+}
+
 TEST(StyleEngineTest, AppliesTextEffectsProperties) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);

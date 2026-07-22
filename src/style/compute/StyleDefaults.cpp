@@ -242,6 +242,11 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
 }
 
 void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides) {
+    // `width`/`height` attributes here set only an absolute pixel computed width.
+    // Percentages (`width="85%"`) are deliberately NOT turned into a computed
+    // width: the table column planner reads those attributes itself (see the
+    // PercentTable table-layout tests), and setting a computed width too would
+    // double-handle and fight it.
     auto parse_length_value = [](std::string_view value) -> std::optional<float> {
         auto parsed = Core::Utils::parse_float(value, Core::Utils::NumberParseMode::Strict);
         if (!parsed) {
@@ -280,13 +285,22 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
         return Core::Utils::to_lower(trimmed);
     };
 
-    const bool is_body = element.get_tag_name() == Hummingbird::Html::TagNames::Body;
+    const auto& tag = element.get_tag_name();
+    const bool is_body = tag == Hummingbird::Html::TagNames::Body;
     // `size` and `face` are presentational attributes of <font>/<basefont> only.
     // On other elements `size` means something else entirely — an <input>'s width
     // in characters, a <select>'s visible rows, an <hr>'s thickness — so mapping
     // it through the 1..7 font-size table there is wrong. HN's `<input size=20>`
     // was landing on the largest font (48px), overflowing the field.
-    const bool is_font = element.get_tag_name() == Hummingbird::Html::TagNames::Font;
+    const bool is_font = tag == Hummingbird::Html::TagNames::Font;
+    // `bgcolor` is a legacy presentational attribute of <body> AND the table
+    // elements. HN's orange header bar is `<td bgcolor="#ff6600">`, so honoring it
+    // only on <body> left the bar (and its background) unpainted.
+    const bool is_table_bg_element =
+        tag == Hummingbird::Html::TagNames::Table || tag == Hummingbird::Html::TagNames::Tr ||
+        tag == Hummingbird::Html::TagNames::Td || tag == Hummingbird::Html::TagNames::Th ||
+        tag == Hummingbird::Html::TagNames::Thead || tag == Hummingbird::Html::TagNames::Tbody ||
+        tag == Hummingbird::Html::TagNames::Tfoot;
     for (const auto& [key, value] : element.get_attributes()) {
         if (key == Hummingbird::Html::AttributeNames::Align) {
             std::string normalized = Core::Utils::to_lower(value);
@@ -311,6 +325,11 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
             if (auto parsed = parse_length_value(value)) {
                 style.height = ComputedStyle::LengthValue::from_px(*parsed);
             }
+        } else if (key == Hummingbird::Html::AttributeNames::BgColor && (is_body || is_table_bg_element)) {
+            if (auto parsed = Core::Utils::parse_html_color(value)) {
+                style.background = *parsed;
+                overrides.background = true;
+            }
         } else if (key == Hummingbird::Html::AttributeNames::Size && is_font) {
             if (auto parsed = parse_font_size_value(value)) {
                 style.font_size = *parsed;
@@ -323,12 +342,7 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
                 overrides.font_face = true;
             }
         } else if (is_body) {
-            if (key == Hummingbird::Html::AttributeNames::BgColor) {
-                if (auto parsed = Core::Utils::parse_html_color(value)) {
-                    style.background = *parsed;
-                    overrides.background = true;
-                }
-            } else if (key == Hummingbird::Html::AttributeNames::Text) {
+            if (key == Hummingbird::Html::AttributeNames::Text) {
                 if (auto parsed = Core::Utils::parse_html_color(value)) {
                     style.color = *parsed;
                     overrides.color = true;
