@@ -22,24 +22,43 @@ This is a learning-driven engine with increasingly realistic proof targets. It i
 interesting to experiment with, but it is **not yet a usable
 general-purpose browser**.
 
-> [CAUTION]
+> [!CAUTION]
 > Hummingbird is not safe for untrusted browsing. It has no sandbox, site isolation,
 > or permissions model. Most modern sites will render incorrectly, lose functionality,
 > or fail to load. Use the built-in and documented proof pages when evaluating it.
 
 ## Quick look
 
-The page below is served by Hummingbird's deterministic built-in site and rendered by
-Hummingbird itself.
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/dc544503-d401-473d-a85b-6364680146e2" width="800" alt="Tour of Hummingbird browsing built-in demos and selected real pages">
+</p>
 
-<!-- Replace this capture for the release refresh. Suggested media set:
-     1. Built-in milestone hub
-     2. DuckDuckGo HTML homepage/search
-     3. Pinned TodoMVC fixture
-     4. Hacker News login/comment flow with the compatibility-mode indicator visible
--->
+<p align="center">
+  <sub>A tour of built-in demos, tabs, DuckDuckGo, bookmarks, Hacker News, and a live article—all rendered by Hummingbird.</sub>
+</p>
 
-![Built-in site rendered by Hummingbird](https://github.com/user-attachments/assets/92abcdc5-51d3-4af6-9a8f-bd78394fba68)
+### Selected pages
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="https://github.com/user-attachments/assets/4aa3832f-c868-4c74-85b6-8d0e2b95cd15">
+        <img src="https://github.com/user-attachments/assets/4aa3832f-c868-4c74-85b6-8d0e2b95cd15" alt="DuckDuckGo HTML homepage rendered by Hummingbird">
+      </a>
+      <br>
+      <strong>DuckDuckGo HTML</strong><br>
+      <sub>The targeted homepage and search flow, not full DuckDuckGo compatibility.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="https://github.com/user-attachments/assets/41fc6249-50c9-4921-8c2e-992175188d58">
+        <img src="https://github.com/user-attachments/assets/41fc6249-50c9-4921-8c2e-992175188d58" alt="Hummingbird's built-in bookmarks page">
+      </a>
+      <br>
+      <strong>Bookmarks and browser chrome</strong><br>
+      <sub>An engine-owned <code>about:bookmarks</code> page with persisted entries.</sub>
+    </td>
+  </tr>
+</table>
 
 ## What works today
 
@@ -58,6 +77,16 @@ works; it does not imply broad compatibility with similar sites.
 > endpoints.** To use the HN proof flow, press `Ctrl+Shift+U` while on the site. This
 > explicitly enables Chrome-shaped User-Agent compatibility for that origin. It is
 > never enabled automatically.
+
+<p align="center">
+  <a href="https://github.com/user-attachments/assets/2f6b3724-6d47-4167-bbe1-f9f8254fcd88">
+    <img src="https://github.com/user-attachments/assets/2f6b3724-6d47-4167-bbe1-f9f8254fcd88" width="800" alt="Hacker News rendered by Hummingbird with a compatibility-mode warning">
+  </a>
+</p>
+
+<p align="center">
+  <sub>Hacker News rendering and session proof. Login and comment submission require the explicit per-origin compatibility mode shown in the capture.</sub>
+</p>
 
 ### Capability overview
 
