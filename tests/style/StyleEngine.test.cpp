@@ -2095,6 +2095,26 @@ TEST(StyleEngineTest, InputSizeAttributeDoesNotChangeFontSize) {
     EXPECT_FLOAT_EQ(style->font_size, 16.0f);
 }
 
+TEST(StyleEngineTest, BoldAndItalicPresentationalTags) {
+    // <b>/<i> are the presentational siblings of <strong>/<em>. HN's masthead
+    // uses `<b class="hnname">Hacker News</b>`, which must render bold.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto b = DomFactory::create_element(arena, Hummingbird::Html::TagNames::B);
+    auto i = DomFactory::create_element(arena, Hummingbird::Html::TagNames::I);
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, b.get());
+    engine.apply(empty_sheet, i.get());
+
+    auto b_style = b->get_computed_style();
+    auto i_style = i->get_computed_style();
+    ASSERT_TRUE(b_style);
+    ASSERT_TRUE(i_style);
+    EXPECT_EQ(b_style->weight, ComputedStyle::FontWeight::Bold);
+    EXPECT_EQ(i_style->style, ComputedStyle::FontStyle::Italic);
+}
+
 TEST(StyleEngineTest, BgColorAttributeAppliesToTableCells) {
     // HN's orange header bar is `<td bgcolor="#ff6600">`; bgcolor is a legacy
     // attribute of the table elements, not just <body>.

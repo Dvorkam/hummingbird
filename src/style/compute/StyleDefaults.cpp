@@ -208,10 +208,10 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
     } else if (tag == Hummingbird::Html::TagNames::Td || tag == Hummingbird::Html::TagNames::Th) {
         style.padding.left = style.padding.right = 2.0f;
         style.padding.top = style.padding.bottom = 2.0f;
-    } else if (tag == Hummingbird::Html::TagNames::Strong) {
+    } else if (tag == Hummingbird::Html::TagNames::Strong || tag == Hummingbird::Html::TagNames::B) {
         style.weight = ComputedStyle::FontWeight::Bold;
         overrides.weight = true;
-    } else if (tag == Hummingbird::Html::TagNames::Em) {
+    } else if (tag == Hummingbird::Html::TagNames::Em || tag == Hummingbird::Html::TagNames::I) {
         style.style = ComputedStyle::FontStyle::Italic;
         overrides.style = true;
     } else if (tag == Hummingbird::Html::TagNames::H1) {
