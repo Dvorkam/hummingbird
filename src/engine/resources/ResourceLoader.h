@@ -128,13 +128,13 @@ private:
     // `post_body` is by value, not a pointer: a redirect re-issues the request
     // from a network callback, long after the caller's body has gone out of
     // scope.
+    // No default arguments here: `chain` is a nested aggregate with default member
+    // initializers, and the standard forbids using those in a default argument of
+    // the enclosing class's own member (GCC enforces this; MSVC does not). Every
+    // caller passes `post_body` (or std::nullopt) and a `RedirectChain` explicitly.
     void send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
                       std::function<void(NetworkResponse)> callback, const Core::CookieRequestContext& context,
-                      std::optional<std::string> post_body = std::nullopt,
-                      // Naming the type (rather than a bare `= {}`) sidesteps a GCC
-                      // quirk with brace-initialized default arguments of an
-                      // aggregate that has default member initializers.
-                      RedirectChain chain = RedirectChain{});
+                      std::optional<std::string> post_body, RedirectChain chain);
 
     void request_resources(const std::vector<std::string>& links, std::string_view base_url,
                            const ResourceRequestPlanning::ResourceRequestOptions& options);
