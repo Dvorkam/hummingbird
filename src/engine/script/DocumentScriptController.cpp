@@ -90,6 +90,10 @@ void DocumentScriptController::set_storage_accessor(std::function<Core::StorageA
     script_host_.set_storage_accessor(std::move(accessor));
 }
 
+void DocumentScriptController::set_session_storage_accessor(std::function<Core::StorageArea*()> accessor) {
+    script_host_.set_session_storage_accessor(std::move(accessor));
+}
+
 void DocumentScriptController::set_location(std::string_view url) {
     if (script_engine_) {
         script_engine_->set_location(url);

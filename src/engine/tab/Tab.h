@@ -5,11 +5,13 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "core/SecurityState.h"
 #include "core/net/IdentityPolicyStore.h"
+#include "core/net/StorageArea.h"
 #include "core/net/StorageManager.h"
 #include "core/utils/Timing.h"
 #include "engine/forms/FormSubmission.h"
@@ -183,6 +185,9 @@ private:
     std::unique_ptr<ResourceLoader> resource_loader_;
     // Shared per profile; null in most unit tests, which disables localStorage.
     std::shared_ptr<Core::StorageManager> storage_manager_;
+    // Per-tab sessionStorage (8.2.3): in-memory, keyed by Origin::key(), never
+    // persisted, dropped when the tab is destroyed.
+    std::unordered_map<std::string, Core::StorageArea> session_storage_;
     std::unique_ptr<DocumentPipeline> document_pipeline_;
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;

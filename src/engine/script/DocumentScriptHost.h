@@ -58,6 +58,9 @@ public:
     // dropped writes. Persists across reset().
     using StorageAccessor = std::function<Core::StorageArea*()>;
     void set_storage_accessor(StorageAccessor accessor) { storage_accessor_ = std::move(accessor); }
+    // sessionStorage (8.2.3): a per-tab, never-persisted area. Same accessor
+    // shape; the Tab supplies a store keyed off its own in-memory session map.
+    void set_session_storage_accessor(StorageAccessor accessor) { session_storage_accessor_ = std::move(accessor); }
 
     DOM::Element* get_element_by_id(std::string_view id) override;
     std::string get_text_content(const DOM::Node* node) override;
@@ -90,12 +93,12 @@ public:
     std::string get_document_cookie() override;
     void set_document_cookie(std::string_view value) override;
 
-    std::optional<std::string> storage_get_item(std::string_view key) override;
-    StorageWriteResult storage_set_item(std::string_view key, std::string_view value) override;
-    void storage_remove_item(std::string_view key) override;
-    void storage_clear() override;
-    size_t storage_length() override;
-    std::optional<std::string> storage_key(size_t index) override;
+    std::optional<std::string> storage_get_item(StorageKind kind, std::string_view key) override;
+    StorageWriteResult storage_set_item(StorageKind kind, std::string_view key, std::string_view value) override;
+    void storage_remove_item(StorageKind kind, std::string_view key) override;
+    void storage_clear(StorageKind kind) override;
+    size_t storage_length(StorageKind kind) override;
+    std::optional<std::string> storage_key(StorageKind kind, size_t index) override;
 
     DOM::Node* query_selector(DOM::Node* scope, std::string_view selector) override;
     std::vector<DOM::Node*> query_selector_all(DOM::Node* scope, std::string_view selector) override;
@@ -144,9 +147,13 @@ private:
     bool mutated_ = false;
     int dispatch_depth_ = 0;  // >1 while a dispatch is nested inside another
     FocusSink focus_sink_;
+    // Resolves the live StorageArea for the requested Web Storage kind, or null.
+    Core::StorageArea* storage_area_for(StorageKind kind);
+
     CookieReader cookie_reader_;
     CookieWriter cookie_writer_;
     StorageAccessor storage_accessor_;
+    StorageAccessor session_storage_accessor_;
 
     // Nodes created by script but not yet attached, plus nodes removed from the
     // tree. Their arena storage stays valid until the arena resets, so they can

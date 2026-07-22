@@ -168,6 +168,10 @@ void DocumentPipeline::set_storage_accessor(std::function<Core::StorageArea*()> 
     scripting_->set_storage_accessor(std::move(accessor));
 }
 
+void DocumentPipeline::set_session_storage_accessor(std::function<Core::StorageArea*()> accessor) {
+    scripting_->set_session_storage_accessor(std::move(accessor));
+}
+
 void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>& style_blocks) {
     style_coordinator_->set_extension_style_blocks(style_blocks);
 }

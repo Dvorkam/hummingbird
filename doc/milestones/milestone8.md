@@ -278,5 +278,5 @@ P0: Guardrails
 - [x] 8.4.1: Login-Flow Harness *(tests/engine/LoginFlow.test.cpp — an in-process fixture INetwork serves an HN-shaped flow; the test drives the real Tab pipeline through anonymous → credentialed login POST → persistent Set-Cookie → authenticated page → jar save/load "restart" → session check → logout → cleared, plus a comment POST gated on the session. Satisfies the "Done When" CI criterion.)*
 
 P1: If Schedule Allows
-- [ ] 8.2.3: sessionStorage (per-tab)
+- [x] 8.2.3: sessionStorage (per-tab) *(StorageKind discriminator through the script-host seam + QuickJS function magic; a per-tab in-memory StorageArea map on the Tab — never persisted, dropped with the tab. Demo at example.dev/session. Tests: SessionStorage.test.cpp — separate namespace from localStorage, survives in-tab navigation, isolated between tabs.)*
 - [ ] 8.3.2: Network Error Pages

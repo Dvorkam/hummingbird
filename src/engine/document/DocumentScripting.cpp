@@ -31,6 +31,10 @@ void DocumentScripting::set_storage_accessor(std::function<Core::StorageArea*()>
     controller_->set_storage_accessor(std::move(accessor));
 }
 
+void DocumentScripting::set_session_storage_accessor(std::function<Core::StorageArea*()> accessor) {
+    controller_->set_session_storage_accessor(std::move(accessor));
+}
+
 bool DocumentScripting::run_document_scripts(DocumentModel& model, const ExternalScriptLookup& external_lookup) {
     std::vector<DocumentScriptController::ScriptSource> sources;
     const auto& scripts = model.document_scripts();

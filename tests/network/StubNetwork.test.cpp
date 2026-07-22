@@ -52,6 +52,11 @@ TEST(StubNetworkTest, ServesMilestoneSubpages) {
     auto storage = fetch_body("https://example.dev/storage");
     EXPECT_NE(storage.find("localStorage"), std::string::npos);
     EXPECT_NE(storage.find("hb_loads"), std::string::npos);
+
+    // The sessionStorage demo (8.2.3) is served the same way.
+    auto session = fetch_body("https://example.dev/session");
+    EXPECT_NE(session.find("sessionStorage"), std::string::npos);
+    EXPECT_NE(session.find("hb_tab_loads"), std::string::npos);
 }
 
 TEST(StubNetworkTest, UnknownPageFallsBack) {

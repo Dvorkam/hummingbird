@@ -75,20 +75,23 @@ public:
     // browser.
     virtual void set_document_cookie(std::string_view value) = 0;
 
-    // --- window.localStorage (8.2.2) ---
-    // The current document's origin store. When no store is available (opaque
-    // origin, or no storage manager wired up) reads are empty and writes are
-    // dropped, mirroring how document.cookie behaves with no jar.
+    // --- window.localStorage / sessionStorage (8.2.2 / 8.2.3) ---
+    // The current document's origin store. `kind` selects which of the two Web
+    // Storage areas: Local is shared per profile and persisted (8.2.2); Session
+    // is per-tab and never persisted (8.2.3). When no store is available (opaque
+    // origin, or no store wired up) reads are empty and writes are dropped,
+    // mirroring how document.cookie behaves with no jar.
+    enum class StorageKind { Local, Session };
     enum class StorageWriteResult {
         Ok,             // stored (or dropped because no store exists)
         QuotaExceeded,  // refused; the binding raises QuotaExceededError
     };
-    virtual std::optional<std::string> storage_get_item(std::string_view key) = 0;
-    virtual StorageWriteResult storage_set_item(std::string_view key, std::string_view value) = 0;
-    virtual void storage_remove_item(std::string_view key) = 0;
-    virtual void storage_clear() = 0;
-    virtual size_t storage_length() = 0;
-    virtual std::optional<std::string> storage_key(size_t index) = 0;
+    virtual std::optional<std::string> storage_get_item(StorageKind kind, std::string_view key) = 0;
+    virtual StorageWriteResult storage_set_item(StorageKind kind, std::string_view key, std::string_view value) = 0;
+    virtual void storage_remove_item(StorageKind kind, std::string_view key) = 0;
+    virtual void storage_clear(StorageKind kind) = 0;
+    virtual size_t storage_length(StorageKind kind) = 0;
+    virtual std::optional<std::string> storage_key(StorageKind kind, size_t index) = 0;
 
     // --- innerHTML (7.1.4) ---
     // Replaces node's children with the fragment parsed from `html` (reuses the

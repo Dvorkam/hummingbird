@@ -91,6 +91,17 @@ Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_n
         if (!origin) return nullptr;  // opaque origin: no persistent store, per spec
         return &storage_manager_->area_for(*origin);
     });
+
+    // window.sessionStorage (8.2.3). Per-tab and never persisted: the store lives
+    // in this Tab's own map, keyed by origin, created lazily. It survives
+    // navigation within the tab (the Tab outlives each document) and is dropped
+    // when the tab is destroyed — exactly the sessionStorage lifetime. Two tabs
+    // therefore see different sessionStorage even on the same origin.
+    document_pipeline_->set_session_storage_accessor([this]() -> Core::StorageArea* {
+        auto origin = Core::Origin::parse(navigation_lifecycle_.requested_url());
+        if (!origin) return nullptr;  // opaque origin: no store, per spec
+        return &session_storage_[origin->key()];
+    });
 }
 
 Tab::~Tab() {
