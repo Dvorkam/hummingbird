@@ -130,7 +130,11 @@ private:
     // scope.
     void send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
                       std::function<void(NetworkResponse)> callback, const Core::CookieRequestContext& context,
-                      std::optional<std::string> post_body = std::nullopt, RedirectChain chain = {});
+                      std::optional<std::string> post_body = std::nullopt,
+                      // Naming the type (rather than a bare `= {}`) sidesteps a GCC
+                      // quirk with brace-initialized default arguments of an
+                      // aggregate that has default member initializers.
+                      RedirectChain chain = RedirectChain{});
 
     void request_resources(const std::vector<std::string>& links, std::string_view base_url,
                            const ResourceRequestPlanning::ResourceRequestOptions& options);
