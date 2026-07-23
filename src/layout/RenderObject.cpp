@@ -39,8 +39,8 @@ void RenderObject::paint(IGraphicsContext& context, const Point& offset) const {
         const float bt = style->border_width.top;
         const float br = style->border_width.right;
         const float bb = style->border_width.bottom;
-        context.push_clip(Rect{paint_offset.x + m_rect.x + bl, paint_offset.y + m_rect.y + bt,
-                               m_rect.width - bl - br, m_rect.height - bt - bb});
+        context.push_clip(Rect{paint_offset.x + m_rect.x + bl, paint_offset.y + m_rect.y + bt, m_rect.width - bl - br,
+                               m_rect.height - bt - bb});
     }
     Point child_offset = {paint_offset.x + m_rect.x, paint_offset.y + m_rect.y};
     for (auto& child : m_children) {

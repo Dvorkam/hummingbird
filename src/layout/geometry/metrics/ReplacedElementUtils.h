@@ -61,7 +61,9 @@ inline float resolve_length(const Css::ComputedStyle::LengthValue& value, std::o
 }
 
 // Convenience for the no-basis call sites (min/max on the inline path etc.).
-inline float raw_px(const Css::ComputedStyle::LengthValue& value) { return resolve_length(value, std::nullopt); }
+inline float raw_px(const Css::ComputedStyle::LengthValue& value) {
+    return resolve_length(value, std::nullopt);
+}
 
 inline float resolve_dimension(const DOM::Element& element, const Css::ComputedStyle* style, std::string_view name,
                                float default_value, std::optional<float> intrinsic_value,
@@ -101,8 +103,9 @@ inline LayoutSize compute_layout_size(const DOM::Element& element, const Css::Co
     // `<img style="width:100%">` in a square cell stays square rather than
     // rendering full-height. Both-specified keeps both; neither-specified keeps
     // the natural size.
-    const bool width_specified = (style && style->width.has_value()) ||
-                                 find_attribute_dimension(element, Hummingbird::Html::AttributeNames::Width).has_value();
+    const bool width_specified =
+        (style && style->width.has_value()) ||
+        find_attribute_dimension(element, Hummingbird::Html::AttributeNames::Width).has_value();
     const bool height_specified =
         (style && style->height.has_value()) ||
         find_attribute_dimension(element, Hummingbird::Html::AttributeNames::Height).has_value();
@@ -133,23 +136,23 @@ inline LayoutSize compute_layout_size(const DOM::Element& element, const Css::Co
 
     const auto clamp_total_width = [&](float value) {
         if (style && style->min_width.has_value()) {
-            value = std::max(value, Metrics::resolve_border_box_width(style, resolve_length(*style->min_width, w_basis),
-                                                                      insets));
+            value = std::max(
+                value, Metrics::resolve_border_box_width(style, resolve_length(*style->min_width, w_basis), insets));
         }
         if (style && style->max_width.has_value()) {
-            value = std::min(value, Metrics::resolve_border_box_width(style, resolve_length(*style->max_width, w_basis),
-                                                                      insets));
+            value = std::min(
+                value, Metrics::resolve_border_box_width(style, resolve_length(*style->max_width, w_basis), insets));
         }
         return value;
     };
     const auto clamp_total_height = [&](float value) {
         if (style && style->min_height.has_value()) {
-            value = std::max(value, Metrics::resolve_border_box_height(
-                                        style, resolve_length(*style->min_height, h_basis), insets));
+            value = std::max(
+                value, Metrics::resolve_border_box_height(style, resolve_length(*style->min_height, h_basis), insets));
         }
         if (style && style->max_height.has_value()) {
-            value = std::min(value, Metrics::resolve_border_box_height(
-                                        style, resolve_length(*style->max_height, h_basis), insets));
+            value = std::min(
+                value, Metrics::resolve_border_box_height(style, resolve_length(*style->max_height, h_basis), insets));
         }
         return value;
     };

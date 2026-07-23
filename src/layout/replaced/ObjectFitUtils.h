@@ -8,7 +8,7 @@
 namespace Hummingbird::Layout::ObjectFitUtils {
 
 struct FitResult {
-    Rect dest;              // rect to draw the image into
+    Rect dest;                // rect to draw the image into
     bool needs_clip = false;  // dest exceeds the content box -> caller must clip to it
 };
 
