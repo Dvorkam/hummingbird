@@ -267,11 +267,40 @@ std::optional<ComputedStyle::Overflow> parse_overflow_value(const Value& value) 
     if (value.ident == ValueNames::Hidden) {
         return ComputedStyle::Overflow::Hidden;
     }
+    // `clip` maps to Hidden: the two differ only in scroll affordances
+    // (programmatic scrolling, overflow-clip-margin), none of which exist yet —
+    // both mean "clip paint at the padding box" (8.5.3). Revisit with M10's
+    // scroll containers.
+    if (value.ident == ValueNames::Clip) {
+        return ComputedStyle::Overflow::Hidden;
+    }
     if (value.ident == ValueNames::Scroll) {
         return ComputedStyle::Overflow::Scroll;
     }
     if (value.ident == ValueNames::Auto) {
         return ComputedStyle::Overflow::Auto;
+    }
+    return std::nullopt;
+}
+
+std::optional<ComputedStyle::ObjectFit> parse_object_fit_value(const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return std::nullopt;
+    }
+    if (value.ident == ValueNames::Fill) {
+        return ComputedStyle::ObjectFit::Fill;
+    }
+    if (value.ident == ValueNames::Contain) {
+        return ComputedStyle::ObjectFit::Contain;
+    }
+    if (value.ident == ValueNames::Cover) {
+        return ComputedStyle::ObjectFit::Cover;
+    }
+    if (value.ident == ValueNames::None) {
+        return ComputedStyle::ObjectFit::None;
+    }
+    if (value.ident == ValueNames::ScaleDown) {
+        return ComputedStyle::ObjectFit::ScaleDown;
     }
     return std::nullopt;
 }
@@ -514,6 +543,11 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
         case Property::OverflowY:
             if (auto overflow = parse_overflow_value(value)) {
                 style.overflow_y = *overflow;
+            }
+            return true;
+        case Property::ObjectFit:
+            if (auto fit = parse_object_fit_value(value)) {
+                style.object_fit = *fit;
             }
             return true;
         case Property::Margin:

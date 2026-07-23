@@ -21,6 +21,9 @@ void apply_property(Property property, const Value& value, ComputedStyle& style,
         case ApplyHook::apply_overflow:
             (void)apply_layout_property(property, value, style, overrides, context);
             return;
+        case ApplyHook::apply_object_fit:
+            (void)apply_layout_property(Property::ObjectFit, value, style, overrides, context);
+            return;
         case ApplyHook::apply_font_size:
             (void)apply_text_property(Property::FontSize, value, style, overrides, context);
             return;

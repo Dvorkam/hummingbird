@@ -1,5 +1,9 @@
 > **Status: Complete** — implementation and proof gates finished 2026-07-22;
 > planned for v0.8.0.
+>
+> **M8.5 addendum in progress (2026-07-23)** — a small modern-layout-resilience
+> slice added after the seznam.cz investigation; see the "Milestone 8.5 Addendum"
+> section at the end. Does not gate the v0.8.0 release.
 
 ## Kickoff Scope Validation (2026-07-20)
 
@@ -280,3 +284,104 @@ P0: Guardrails
 P1: If Schedule Allows
 - [x] 8.2.3: sessionStorage (per-tab) *(StorageKind discriminator through the script-host seam + QuickJS function magic; a per-tab in-memory StorageArea map on the Tab — never persisted, dropped with the tab. Demo at example.dev/session. Tests: SessionStorage.test.cpp — separate namespace from localStorage, survives in-tab navigation, isolated between tabs.)*
 - [x] 8.3.2: Network Error Pages *(NetworkErrorPage builds a stable internal page — URL, human reason, a Try-again retry link, F5 hint — for DNS/refused/timeout and redirect-chain failures, in place of a blank document; the stub fallback still serves the demo pages, and only a genuine failure reaches the error page. URL is HTML-escaped. Demo: the M8 hub links offline.invalid. Tests: NetworkErrorPage + ResourceLoader unreachable-document tests.)*
+
+---
+
+## Milestone 8.5 Addendum — Modern-Layout Resilience (seznam.cz MVP)
+
+*(Added 2026-07-23, after the seznam.cz investigation. Filed in `doc/TODOs.md`
+under "Modern-portal CSS/layout gaps".)*
+
+**Why this exists.** While the v0.8.0 release waits on the Hacker News team's reply,
+seznam.cz was the first *modern flex+grid+absolute portal* pointed at the engine.
+It is a full compatibility-ladder target (M10 positioning/scroll + M12 SPA) — this
+addendum does **not** try to render it correctly. The bar is deliberately **"not
+right, but somewhat navigable"**: stop the two most violent failures so a modern
+portal degrades gracefully instead of detonating.
+
+Two failure classes were diagnosed from the crawl (`tmp/seznam.cz`) + log:
+
+* **(A) Giant icons** — replaced elements ignore percentage/`em`/`rem` sizing and
+  `object-fit`, so the service-menu SVG icons render at their intrinsic ~200px
+  instead of the ~40px their CSS asks for. → 8.5.1 + 8.5.2.
+* **(B) Bleeding content** — no overflow clipping, so a child that overflows an
+  `overflow:hidden` box paints across the rest of the page. → 8.5.3. *(The other
+  contributor — absolute-positioning correctness — is out of scope here; it stays
+  M10, tracked as `T-CSS-ABS-STATIC-1`. This slice reduces the overlap, it does not
+  finish it, and that is the honest boundary.)*
+
+**Non-goals (kept tight on purpose):** no scroll containers / `overflow:auto|scroll`
+offsets / scrollbars (M10 "Overflow v2"); no flex/grid alignment completion
+(`T-CSS-FLEX-ALIGNMENT-2`, `T-CSS-GRID-TEMPLATE-AREAS-1`, M10); no `aspect-ratio`,
+multicol, `line-clamp`, or the cosmetic effect properties. This is three contained
+rendering fixes, each independently demoable.
+
+### 8.5.1: Percentage / `em` / `rem` Sizing For Replaced Elements (T-CSS-REPLACED-PERCENT-SIZE-1)
+
+* **Goal:** size an `<img>`/SVG from a non-px CSS length instead of falling back to
+  its intrinsic size.
+* **Scope:** `ReplacedElementUtils::resolve_dimension`
+  (`src/layout/geometry/metrics/ReplacedElementUtils.h`) resolves a styled dimension
+  through `raw_px`, which reads only the **px** part of a `LengthValue` — so
+  `width:100%` / `2rem` / `3em` on a replaced element resolves to ~0 and the code
+  falls through to the intrinsic size. Resolve the percentage part against the
+  containing block's content width/height (`em`/`rem` are already resolved to px at
+  style-apply time, so those come for free once `raw_px` isn't the only path), in
+  the replaced-sizing path only.
+* **Acceptance:** an `<img style="width:100%">` inside a 40px box lays out at 40px,
+  not its intrinsic width; percentage `height` likewise resolves against the
+  containing block.
+* **Tests:** replaced-element sizing tests for `%` width/height (and a regression
+  that `em`/`rem` still resolve). **Demo:** add to the M8 demo hub — an icon row
+  sized in `%`/`rem` that renders small, not ballooned.
+
+### 8.5.2: `object-fit` / `object-position` For Replaced Elements (T-CSS-OBJECT-FIT-1)
+
+* **Goal:** honor `object-fit` (`contain`/`cover`/`fill`/`none`/`scale-down`) and
+  `object-position` when painting a replaced element into a box whose size differs
+  from the media's intrinsic ratio. *(Pulled forward from M10 — it pairs with 8.5.1:
+  8.5.1 gives the box its size, `object-fit` fits the pixels inside it.)*
+* **Scope:** parse the two properties into `ComputedStyle`; in the replaced-element
+  paint path, compute the destination rect for the image inside its content box per
+  the `object-fit` keyword and `object-position`. Default stays `fill` (today's
+  stretch behavior) so nothing regresses.
+* **Acceptance:** an `<img>` with a fixed box and `object-fit:contain` scales to fit
+  inside the box preserving ratio (letterboxed), `cover` fills and crops, and
+  `object-position` shifts the visible region.
+* **Tests:** replaced-element paint/layout tests over the keywords. **Demo:** M8 hub
+  — the same image in one fixed box under each `object-fit` value, side by side.
+
+### 8.5.3: Paint-Time Clip For `overflow: hidden` / `clip` (T-CSS-OVERFLOW-CLIP-1)
+
+* **Goal:** stop a child that overflows an `overflow:hidden` box from painting across
+  the rest of the page.
+* **Scope:** `ComputedStyle::overflow_x`/`overflow_y` already exist and the
+  DisplayList already has `PushClip`/`PopClip` — block/flex boxes just never emit a
+  clip. During paint, wrap a box whose computed overflow is `hidden`/`clip` in
+  `push_clip(border-box)` … `pop_clip()`. **Clip only** — no scroll offset, no
+  scrollbars, no hit-test change (those stay M10).
+* **Acceptance:** a child larger than an `overflow:hidden` parent is visually clipped
+  to the parent's box; an `overflow:visible` box is unaffected.
+* **Tests:** display-list/paint clip tests (clip pushed for hidden, not for visible;
+  nesting pops correctly). **Demo:** M8 hub — an oversized block inside a small
+  `overflow:hidden` card, clipped to the card.
+
+### M8.5 Execution Checklist
+
+- [x] 8.5.1: Percentage/`em`/`rem` sizing for replaced elements *(percent width/height now resolve against the containing block at the `layout(bounds)` seam, with the same definiteness guard as `BlockBox::resolve_height_constraint`; the inline-measure path keeps the bare-magnitude fallback. Tests: `ReplacedSizingTest.*` + `BlockBoxLayoutTest.ReplacedPercentWidth*`. Demo: example.dev/layout icon row.)*
+- [x] 8.5.2: `object-fit` *(Fill/Contain/Cover/None/ScaleDown, centered; `cover`/`none` overflow is clipped to the content box via push_clip. New `ObjectFitUtils::compute_fit`; parsed+applied through the property registry. Tests: `ObjectFitTest.*` + `StyleEngineTest.AppliesObjectFitProperty`. Demo: example.dev/layout fit row. **`object-position` deferred** — `Value` is single-valued, so a 2-value position needs its own sub-struct/parser; centered default covers the seznam case. Filed as a follow-up on T-CSS-OBJECT-FIT-1.)*
+- [x] 8.5.3: Paint-time clip for `overflow:hidden` *(RenderObject::paint wraps descendants in push_clip/pop_clip when BOTH axes are Hidden — the `overflow:hidden` shorthand; single-axis and scroll/auto deliberately not clipped, see the code comment. Tests: `OverflowClipTest.*`. Demo: example.dev/layout clip card.)*
+- [x] Rebuild `Hummingbird.exe` (2026-07-23) — **user to re-check seznam.cz** (icons sane + content clipped). 791 tests green.
+
+**Fixes from first in-app test (2026-07-23):** the demo surfaced three real bugs, all fixed:
+1. **Percentage width ballooned to ~100000** when a replaced element was laid out during the intrinsic-measurement probe (the shrink-to-fit ballooning class of bug, reintroduced for replaced elements by 8.5.1). Fixed: `resolve_length` treats a percentage basis `>= kIntrinsicMeasureThreshold` (20000) as indefinite (bare magnitude), so a probe basis never resolves a percentage. Test `ReplacedSizingTest.PercentWidthDoesNotBalloonAgainstIntrinsicProbe`.
+2. **`height:100%` icon rendered 44×100, not 44×44**, because `FlowLayout::layout_block_child` passes `bounds.height = 0` to block children, so a definite parent height never reaches a percentage-height child. Rather than the broad flow-layout change, added **intrinsic aspect-ratio preservation** (a replaced element with one axis specified and the other auto derives the auto one from the media ratio), and reworked the demo to lean on it. The real percentage-height propagation is filed as **T-CSS-PERCENT-HEIGHT-PROPAGATE-1** [M10]. Tests `ReplacedSizingTest.AspectRatio*`.
+3. **overflow clip was the border box**; switched to the **padding box** (inside the border) so the border stays visible and nothing over-paints it.
+Demo corrections: `.fitframe` was an inline `<span>` (ignores width/height) → made a sized box with an explicitly-sized image; icons now use `width:100%` + aspect ratio.
+
+**External-review fix round (2026-07-23, 795 tests green).** Five findings triaged — two fixed, one hardened, two already-ticketed/filed:
+1. **FIXED (the key finding): aspect ratio is now re-derived AFTER box-sizing/min-max.** The ratio ran before the clamps, so the ubiquitous `img { max-width:100% }` on a 1000×500 image in a 300px container produced a distorted 300×500. The unspecified axis now follows the clamped one (then re-applies its own min/max once); 300×150 as CSS2 §10.4 wants. Tests `MaxWidthClampFollowsAspectRatio`, `ClampedSpecifiedWidthRederivesAutoHeight`.
+2. **FIXED: `overflow: clip` now parses**, mapping to Hidden — the two differ only in scroll affordances, which don't exist yet, so the milestone's "hidden/clip" wording is now true rather than narrowed. Test `OverflowClipParsesAsHidden`.
+3. **HARDENED: the clip regression test now uses a 2px border**, so it actually distinguishes the padding-box clip from a border-box one (`ClipIsAtThePaddingBoxInsideTheBorder`).
+4. **FILED: T-CSS-REPLACED-PERCENT-INLINE-1** — inline replaced elements have no containing block in `measure_inline`, so `%`/`max-width:100%` stays bare-magnitude there. Pre-existing (not an 8.5.1 regression); block/flex paths resolve.
+5. **ACKNOWLEDGED: the ≥20000 probe threshold** misreading a genuinely huge container is the known cost of the sentinel-probe idiom — already ticketed as T-LAYOUT-INTRINSIC-SIZE-CONSTRAINT-1, which the reviewer independently endorsed as the clean fix.

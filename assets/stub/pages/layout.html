@@ -1,0 +1,120 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird M8.5 &mdash; Modern-Layout Resilience</title>
+    <style>
+      body { background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; margin: 0; }
+      .page { max-width: 760px; margin: 0 auto; padding: 28px 24px 48px 24px; }
+      .eyebrow { color: #b25e00; font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+      h1 { color: #14213d; margin: 6px 0 10px 0; }
+      h2 { color: #14213d; font-size: 19px; margin: 0 0 6px 0; }
+      .intro { color: #3c4658; margin-bottom: 22px; }
+      .card { background-color: #ffffff; border: 1px solid #cfd8ea; border-radius: 8px; padding: 18px;
+              margin-bottom: 18px; }
+      .card-lead { color: #3c4658; margin: 0 0 14px 0; }
+      .note { color: #566174; font-size: 14px; line-height: 1.5; margin-top: 14px; }
+      code { background-color: #e8ecf4; border-radius: 3px; padding: 1px 4px; }
+      a { color: #1b5fbf; }
+
+      /* 8.5.1 - a "service menu" of icons sourced from a 256x256 image but sized
+         entirely in percentages of fixed cells. Before percentage sizing these
+         ballooned to their intrinsic 256px (the seznam.cz failure); now each fits
+         its 44px cell. */
+      .iconrow { margin: 4px 0 2px 0; }
+      .iconcell { display: inline-block; width: 44px; height: 44px; margin-right: 10px;
+                  background-color: #eef2fb; border: 1px solid #cfd8ea; border-radius: 8px; }
+      .iconcell img { display: block; width: 100%; }
+      .caption { color: #7a8699; font-size: 12px; }
+
+      /* 8.5.2 - the same square image dropped into a wide 160x90 frame under each
+         object-fit value. fill stretches, contain letterboxes, cover crops,
+         none keeps intrinsic size, scale-down never upscales. */
+      .fitrow { margin: 6px 0 2px 0; }
+      .fitcell { display: inline-block; width: 160px; margin: 0 12px 12px 0; vertical-align: top; }
+      .fitframe { display: inline-block; background-color: #eef2fb; border: 1px solid #cfd8ea; border-radius: 6px; }
+      .fitframe img { display: block; width: 160px; height: 90px; }
+      .fit-fill img { object-fit: fill; }
+      .fit-contain img { object-fit: contain; }
+      .fit-cover img { object-fit: cover; }
+      .fit-none img { object-fit: none; }
+      .fitlabel { color: #3c4658; font-size: 12px; font-weight: bold; margin-top: 4px; }
+
+      /* 8.5.3 - a tall block inside a short overflow:hidden card is clipped to the
+         card instead of bleeding down the page. */
+      .clipcard { width: 260px; height: 90px; overflow: hidden; border: 2px solid #14213d;
+                  border-radius: 6px; background-color: #fffdf4; }
+      .clipcard .tall { background-color: #fde3c4; padding: 10px 12px; }
+      .opencard { width: 260px; border: 2px dashed #cfd8ea; border-radius: 6px; background-color: #ffffff;
+                  margin-top: 12px; }
+      .opencard .tall { background-color: #eef2fb; padding: 10px 12px; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <p class="eyebrow">M8.5 &mdash; MODERN-LAYOUT RESILIENCE</p>
+      <h1>Not perfect, but navigable</h1>
+      <p class="intro">A small slice added after pointing the engine at a modern flex/grid portal. The goal is not a
+      pixel-perfect render &mdash; it is to stop the two most violent failures so a modern page degrades gracefully
+      instead of detonating: images that balloon to their intrinsic size, and content that bleeds across the page.</p>
+
+      <div class="card">
+        <h2>Percentage-sized images</h2>
+        <p class="card-lead">Each icon below is the same 256&times;256 image, sized with <code>width: 100%</code> of a
+        fixed 44px cell; the height follows the image&rsquo;s intrinsic aspect ratio. A replaced element now resolves a
+        percentage against its containing block instead of falling back to its intrinsic pixel size.</p>
+        <div class="iconrow">
+          <span class="iconcell"><img src="assets/icons/hummingbird-256.png" alt="icon"></span>
+          <span class="iconcell"><img src="assets/icons/hummingbird-256.png" alt="icon"></span>
+          <span class="iconcell"><img src="assets/icons/hummingbird-256.png" alt="icon"></span>
+          <span class="iconcell"><img src="assets/icons/hummingbird-256.png" alt="icon"></span>
+          <span class="iconcell"><img src="assets/icons/hummingbird-256.png" alt="icon"></span>
+        </div>
+        <p class="caption">Five 44px cells, not five 256px images shoving the row off-screen.</p>
+        <p class="note">Before this change, a <code>%</code>/<code>rem</code> width on an <code>&lt;img&gt;</code> or SVG
+        resolved to its bare magnitude and the element fell back to the media&rsquo;s natural size &mdash; exactly why a
+        portal&rsquo;s icon menu rendered as a wall of giant circles.</p>
+      </div>
+
+      <div class="card">
+        <h2>object-fit</h2>
+        <p class="card-lead">The same square image placed in a wide 160&times;90 frame under each
+        <code>object-fit</code> value. A replaced element now scales its content to fit the box instead of always
+        stretching it.</p>
+        <div class="fitrow">
+          <span class="fitcell fit-fill"><span class="fitframe"><img src="assets/icons/hummingbird-256.png" alt="fill"></span>
+            <div class="fitlabel">fill (stretch)</div></span>
+          <span class="fitcell fit-contain"><span class="fitframe"><img src="assets/icons/hummingbird-256.png" alt="contain"></span>
+            <div class="fitlabel">contain</div></span>
+          <span class="fitcell fit-cover"><span class="fitframe"><img src="assets/icons/hummingbird-256.png" alt="cover"></span>
+            <div class="fitlabel">cover (crops)</div></span>
+          <span class="fitcell fit-none"><span class="fitframe"><img src="assets/icons/hummingbird-256.png" alt="none"></span>
+            <div class="fitlabel">none</div></span>
+        </div>
+        <p class="note"><code>fill</code> distorts the circle to the frame, <code>contain</code> letterboxes it whole,
+        <code>cover</code> fills the frame and clips the overflow, and <code>none</code> paints it at intrinsic size
+        (also clipped to the frame). Positioning is centered; <code>object-position</code> is a small follow-up.</p>
+      </div>
+
+      <div class="card">
+        <h2>overflow: hidden clipping</h2>
+        <p class="card-lead">The solid card is <code>overflow: hidden</code> and shorter than its content, so the
+        content is clipped to the card instead of spilling across the page.</p>
+        <div class="clipcard">
+          <div class="tall">This paragraph is taller than the 90&nbsp;pixel card that contains it. Because the card is
+          <code>overflow: hidden</code>, everything past its bottom edge is clipped away rather than painting over the
+          text and boxes that follow it on the page.</div>
+        </div>
+        <div class="opencard">
+          <div class="tall">The dashed box has default <code>overflow: visible</code>, so the same tall content simply
+          makes it grow &mdash; nothing is clipped here, for contrast.</div>
+        </div>
+        <p class="note">Clipping applies only to the <code>overflow: hidden</code> shorthand (both axes). Scroll
+        containers, scrollbars, and <code>overflow: auto/scroll</code> offsets remain M10 work &mdash; this slice only
+        stops the bleed.</p>
+      </div>
+
+      <p><a href="https://example.dev/m8">&laquo; Back to the M8 demo</a></p>
+    </div>
+  </body>
+</html>

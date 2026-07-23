@@ -130,6 +130,10 @@ struct ComputedStyle {
     enum class Overflow { Visible, Hidden, Scroll, Auto };
     Overflow overflow_x = Overflow::Visible;
     Overflow overflow_y = Overflow::Visible;
+    // How a replaced element's content fits its content box when the two differ
+    // in size/ratio (story 8.5.2). Default `Fill` = today's stretch behavior.
+    enum class ObjectFit { Fill, Contain, Cover, None, ScaleDown };
+    ObjectFit object_fit = ObjectFit::Fill;
     Cursor cursor = Cursor::Auto;
     VerticalAlign vertical_align = VerticalAlign::Baseline;
     TextAlign text_align = TextAlign::Left;

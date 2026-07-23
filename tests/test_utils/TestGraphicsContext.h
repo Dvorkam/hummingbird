@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "core/platform_api/IGraphicsContext.h"
 
 namespace Hummingbird::Test {
@@ -13,6 +15,19 @@ public:
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& /*rect*/, const Color& /*color*/) override {}
     void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
+
+    // Clip calls are recorded so tests can assert overflow:hidden clipping
+    // (story 8.5.3). `pushed_clips` holds each push_clip rect in order; the two
+    // counters track the raw push/pop calls.
+    void push_clip(const Hummingbird::Layout::Rect& rect) override {
+        pushed_clips.push_back(rect);
+        ++push_clip_count;
+    }
+    void pop_clip() override { ++pop_clip_count; }
+
+    std::vector<Hummingbird::Layout::Rect> pushed_clips;
+    int push_clip_count = 0;
+    int pop_clip_count = 0;
 
     TextMetrics measure_text(const std::string& text, const TextStyle& style) override {
         // Approximate metrics based on character count to keep tests deterministic.

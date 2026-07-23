@@ -1456,6 +1456,41 @@ TEST(StyleEngineTest, AppliesOverflowProperties) {
     EXPECT_EQ(style->overflow_y, ComputedStyle::Overflow::Scroll);
 }
 
+TEST(StyleEngineTest, OverflowClipParsesAsHidden) {
+    // `overflow: clip` maps to Hidden: the difference is scroll affordances,
+    // which do not exist yet — both clip paint at the padding box (8.5.3).
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { overflow: clip; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->overflow_x, ComputedStyle::Overflow::Hidden);
+    EXPECT_EQ(style->overflow_y, ComputedStyle::Overflow::Hidden);
+}
+
+TEST(StyleEngineTest, AppliesObjectFitProperty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Img);
+
+    std::string css = "img { object-fit: cover; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->object_fit, ComputedStyle::ObjectFit::Cover);
+}
+
 TEST(StyleEngineTest, AppliesCursorProperty) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
