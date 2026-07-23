@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <fstream>
 #include <functional>
+#include <iostream>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -23,6 +24,7 @@
 #include "engine/document/DocumentScripting.h"
 #include "engine/resources/ResourceStore.h"
 #include "layout/RenderObject.h"
+#include "layout/flow/TextStyleUtils.h"
 #include "layout/geometry/Geometry.h"
 #include "test_utils/TestGraphicsContext.h"
 
@@ -200,6 +202,49 @@ TEST(DocumentModelTest, MarksAnchorsVisitedByResolvedHref) {
     // /next resolves to the visited URL; /other does not.
     EXPECT_TRUE(anchors[0]->has_pseudo_state(Element::PseudoState::Visited));
     EXPECT_FALSE(anchors[1]->has_pseudo_state(Element::PseudoState::Visited));
+}
+
+TEST(DocumentModelTest, FlushesCountedCompatibilitySummary) {
+    using Hummingbird::DOM::Element;
+    using Hummingbird::DOM::Node;
+    using Hummingbird::Engine::DocumentModel;
+
+    DocumentModel model;
+    ASSERT_TRUE(model.parse_html("<html><body><p>hello</p></body></html>").ok);
+    model.apply_styles("p { font-family: montserrat; }");
+
+    Element* paragraph = nullptr;
+    std::function<void(Node*)> find_paragraph = [&](Node* node) {
+        if (auto* element = dynamic_cast<Element*>(node); element && element->get_tag_name() == "p") {
+            paragraph = element;
+            return;
+        }
+        for (const auto& child : node->get_children()) {
+            if (!paragraph) find_paragraph(child.get());
+        }
+    };
+    find_paragraph(model.dom_root());
+    ASSERT_NE(paragraph, nullptr);
+    ASSERT_TRUE(paragraph->get_computed_style());
+
+    std::stringstream buffer;
+    auto* old = std::cerr.rdbuf(buffer.rdbuf());
+    (void)Hummingbird::Layout::TextStyleUtils::resolve_text_font_path(paragraph->get_computed_style().get());
+    (void)Hummingbird::Layout::TextStyleUtils::resolve_text_font_path(paragraph->get_computed_style().get());
+    (void)Hummingbird::Layout::TextStyleUtils::resolve_text_font_path(paragraph->get_computed_style().get());
+    model.flush_compatibility_warnings("https://example.dev/fonts");
+    model.flush_compatibility_warnings("https://example.dev/fonts");
+    std::cerr.rdbuf(old);
+
+#if HB_LOG_LEVEL >= 2
+    const std::string output = buffer.str();
+    EXPECT_NE(output.find("[style] Unsupported font family list 'montserrat'"), std::string::npos);
+    EXPECT_NE(output.find("[compat-summary] https://example.dev/fonts: 3 occurrences, 1 unique, 2 suppressed"),
+              std::string::npos);
+    EXPECT_NE(output.find("[compat-summary] 3x [style] Unsupported font family list 'montserrat'"), std::string::npos);
+#else
+    EXPECT_TRUE(buffer.str().empty());
+#endif
 }
 
 TEST(DocumentModelTest, BudgetExhaustionShowsErrorPage) {

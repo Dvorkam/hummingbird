@@ -196,6 +196,7 @@ private:
     std::unique_ptr<DocumentStyleCoordinator> style_coordinator_;
     std::unique_ptr<DocumentScripting> scripting_;
     std::unordered_set<std::string> visited_urls_;
+    std::string current_document_url_;
     size_t style_layout_passes_ = 0;  // 7.4.1 invalidation budget instrumentation
 };
 

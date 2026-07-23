@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include "core/utils/CompatibilityWarnings.h"
 #include "style/types/ComputedStyle.h"
 
 using Hummingbird::Css::ComputedStyle;
@@ -57,4 +58,22 @@ TEST(TextStyleUtilsTest, ResolvesRobotoMonoForQuotedFamilyNames) {
     style.font_face = "\"roboto mono\", monospace";
     auto path = resolve_text_font_path(&style);
     EXPECT_NE(path.find("RobotoMono-"), std::string::npos);
+}
+
+TEST(TextStyleUtilsTest, CountsUnsupportedFamilyWarningsPerDocument) {
+    Hummingbird::Core::Utils::CompatibilityWarnings warnings;
+    ComputedStyle style;
+    style.font_face = "montserrat";
+    style.compatibility_warnings = &warnings;
+
+    (void)resolve_text_font_path(&style);
+    (void)resolve_text_font_path(&style);
+    (void)resolve_text_font_path(&style);
+
+    EXPECT_EQ(warnings.total_count(), 3u);
+    EXPECT_EQ(warnings.unique_count(), 1u);
+    auto entries = warnings.ranked();
+    ASSERT_EQ(entries.size(), 1u);
+    EXPECT_EQ(entries[0].count, 3u);
+    EXPECT_EQ(entries[0].detail, "montserrat");
 }

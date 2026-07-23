@@ -31,6 +31,40 @@ size_t count_nodes_recursive(const DOM::Node* node) {
 }
 }  // namespace
 
+void DocumentModel::flush_compatibility_warnings(std::string_view document_url) {
+    const size_t total = compatibility_warnings_.total_count();
+    const size_t unique = compatibility_warnings_.unique_count();
+    if (total > unique) {
+        const std::string_view label = document_url.empty() ? std::string_view{"<unknown document>"} : document_url;
+        HB_LOG_WARN("[compat-summary] " << label << ": " << total << " occurrences, " << unique << " unique, "
+                                        << (total - unique) << " suppressed");
+
+        constexpr size_t kSummaryLimit = 20;
+        size_t emitted = 0;
+        size_t repeated_entries = 0;
+        for (const auto& entry : compatibility_warnings_.ranked()) {
+            if (entry.count <= 1) {
+                continue;
+            }
+            ++repeated_entries;
+            if (emitted >= kSummaryLimit) {
+                continue;
+            }
+            if (entry.category == Core::Utils::kUnsupportedFontFamilyWarning) {
+                HB_LOG_WARN("[compat-summary] " << entry.count << "x [style] Unsupported font family list '"
+                                                << entry.detail << "', falling back to Roboto");
+            } else {
+                HB_LOG_WARN("[compat-summary] " << entry.count << "x [" << entry.category << "] " << entry.detail);
+            }
+            ++emitted;
+        }
+        if (repeated_entries > emitted) {
+            HB_LOG_WARN("[compat-summary] " << (repeated_entries - emitted) << " additional repeated warning(s)");
+        }
+    }
+    compatibility_warnings_.clear();
+}
+
 void DocumentModel::reset() {
     dom_tree_.reset();
     render_tree_.reset();

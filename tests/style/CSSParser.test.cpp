@@ -221,6 +221,17 @@ TEST(CSSParserTest, FontFamilyPreservesWholeValueVarExpression) {
     EXPECT_EQ(decl.value.ident, "var(--font-family-montserrat)");
 }
 
+TEST(CSSParserTest, FontFamilyPreservesNestedVarFallback) {
+    Parser parser("div { font-family: var(--headline-font-family, var(--font-family-georgia)); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    const auto& decl = sheet.rules[0].declarations[0];
+    EXPECT_EQ(decl.property, Property::FontFamily);
+    EXPECT_EQ(decl.value.type, Value::Type::Identifier);
+    EXPECT_EQ(decl.value.ident, "var(--headline-font-family, var(--font-family-georgia))");
+}
+
 TEST(CSSParserTest, ImportantOnCustomPropertyIsStripped) {
     Parser parser("div { --accent: #ff0000 !important; }");
     auto sheet = parser.parse();

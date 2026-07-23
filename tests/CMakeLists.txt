@@ -42,6 +42,7 @@ add_executable(HummingbirdTests
     core/UrlEncoding.test.cpp
     core/Timing.test.cpp
     core/WarnOnce.test.cpp
+    core/CompatibilityWarnings.test.cpp
     core/ElementSemanticRole.test.cpp
     core/DependencyFirewall.test.cpp
     html/HtmlTokenizer.test.cpp

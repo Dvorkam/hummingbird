@@ -277,7 +277,7 @@ StyleResult build_style_for(const RuleIndex& index, const DOM::Node* node, const
 }
 
 void compute_node(const RuleIndex& index, DOM::Node* node, const ComputedStyle* parent_style,
-                  const FontFaceRegistry* fonts) {
+                  const FontFaceRegistry* fonts, Core::Utils::CompatibilityWarnings* compatibility_warnings) {
     StyleResult own = build_style_for(index, node, parent_style);
     // Start from the element's own computed style: every non-inherited (box)
     // property is already correct by construction, so no per-field copy list is
@@ -298,11 +298,12 @@ void compute_node(const RuleIndex& index, DOM::Node* node, const ComputedStyle* 
     if (fonts && !fonts->empty()) {
         style.font_src = fonts->resolve(style.font_face);
     }
+    style.compatibility_warnings = compatibility_warnings;
 
     node->set_computed_style(std::make_shared<ComputedStyle>(std::move(style)));
 
     for (const auto& child : node->get_children()) {
-        compute_node(index, child.get(), node->get_computed_style().get(), fonts);
+        compute_node(index, child.get(), node->get_computed_style().get(), fonts, compatibility_warnings);
     }
 }
 
@@ -314,7 +315,7 @@ void StyleEngine::apply(const Stylesheet& sheet, DOM::Node* root, const MediaCon
     // Index the sheet once per apply (bucketed by key selector), then walk the
     // tree testing only candidate rules per element instead of the whole sheet.
     const RuleIndex index = build_rule_index(sheet, media);
-    compute_node(index, root, nullptr, fonts);
+    compute_node(index, root, nullptr, fonts, compatibility_warnings_);
 }
 
 }  // namespace Hummingbird::Css
