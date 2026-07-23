@@ -210,6 +210,17 @@ TEST(CSSParserTest, ImportantOnFontFamilyDoesNotJoinTheList) {
     EXPECT_EQ(decl.value.ident, "arial,sans-serif");
 }
 
+TEST(CSSParserTest, FontFamilyPreservesWholeValueVarExpression) {
+    Parser parser("div { font-family: var(--font-family-montserrat); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    const auto& decl = sheet.rules[0].declarations[0];
+    EXPECT_EQ(decl.property, Property::FontFamily);
+    EXPECT_EQ(decl.value.type, Value::Type::Identifier);
+    EXPECT_EQ(decl.value.ident, "var(--font-family-montserrat)");
+}
+
 TEST(CSSParserTest, ImportantOnCustomPropertyIsStripped) {
     Parser parser("div { --accent: #ff0000 !important; }");
     auto sheet = parser.parse();

@@ -475,6 +475,24 @@ TEST(StyleEngineTest, ResolvesVarForColors) {
     EXPECT_EQ(fallback_style->background->b, 0);
 }
 
+TEST(StyleEngineTest, ResolvesVarForFontFamily) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::P));
+
+    Parser parser(
+        "div { --font-family-montserrat: montserrat, sans-serif; }"
+        "p { font-family: var(--font-family-montserrat); }");
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->font_face, "montserrat, sans-serif");
+}
+
 TEST(StyleEngineTest, AppliesFloatProperty) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
