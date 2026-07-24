@@ -407,3 +407,16 @@ Demo corrections: `.fitframe` was an inline `<span>` (ignores width/height) → 
 3. **HARDENED: the clip regression test now uses a 2px border**, so it actually distinguishes the padding-box clip from a border-box one (`ClipIsAtThePaddingBoxInsideTheBorder`).
 4. **FILED: T-CSS-REPLACED-PERCENT-INLINE-1** — inline replaced elements have no containing block in `measure_inline`, so `%`/`max-width:100%` stays bare-magnitude there. Pre-existing (not an 8.5.1 regression); block/flex paths resolve.
 5. **ACKNOWLEDGED: the ≥20000 probe threshold** misreading a genuinely huge container is the known cost of the sentinel-probe idiom — already ticketed as T-LAYOUT-INTRINSIC-SIZE-CONSTRAINT-1, which the reviewer independently endorsed as the clean fix.
+
+**Pre-merge review (2026-07-24, 823 tests green).** The full milestone diff was
+reviewed before merging `milestone/8` to `master`. One bug fixed directly:
+**8.5.4's `rem` reference never reached `html { font-size: ... }`** — the engine
+established it from the node handed to `StyleEngine::apply`, which in the real
+pipeline is the HTML parser's synthetic `<root>` wrapper rather than `<html>`, so
+every real page pinned `rem` to the initial 16px. The style unit tests passed
+`<html>` in directly and so could not see it; the regression test now drives a
+parsed tree. One pre-existing gap filed rather than fixed:
+**T-CSS-SELECTOR-UNSUPPORTED-DROP-1** — an unsupported pseudo-class is dropped from
+a compound selector instead of invalidating the rule, so `div:first-child` styles
+every div and `a:not(.hidden)` styles exactly the excluded elements. Both are
+written up under "M8 pre-merge review follow-ups" in `doc/TODOs.md`.

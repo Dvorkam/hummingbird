@@ -31,6 +31,18 @@ the release is pending.
   the failed URL, a human-readable reason, reload guidance, and a retry link.
 - M8 built-in demonstrations for cookies, storage, textarea submission, sessions,
   and network errors.
+- **Modern-layout resilience** (M8.5), so pages built with contemporary CSS degrade
+  gracefully instead of breaking apart:
+  - `object-fit` (`fill`, `contain`, `cover`, `none`, `scale-down`) when a replaced
+    element's box does not match the media's aspect ratio. `object-position` is not
+    implemented yet; content is centred.
+  - Paint-time clipping for `overflow: hidden` and `overflow: clip`, so an oversized
+    child no longer paints across the rest of the page. Scrolling and scrollbars
+    remain out of scope.
+  - The `rem` unit, resolved against the document root's font size, alongside `em`
+    against the element's own.
+- A built-in layout demonstration page covering relative sizing, `object-fit`, and
+  overflow clipping.
 
 ### Improved
 
@@ -48,6 +60,14 @@ the release is pending.
 - `<input type="hidden">` no longer produces a layout box, and the legacy `size`
   attribute is no longer misinterpreted as a font size.
 - `file://` navigation is rejected at the page-controlled URL boundary.
+- Images and inline SVG sized with a percentage or a font-relative length now
+  follow that length instead of ballooning to the media's intrinsic size, keep
+  their aspect ratio when only one axis is given, and stay correct under
+  `max-width`/`box-sizing` clamping.
+- `font-family: var(--name)` resolves the variable instead of being treated as a
+  literal family name.
+- Repeated compatibility warnings are now summarised per document rather than
+  flooding the log.
 
 ### Guardrails and documentation
 
