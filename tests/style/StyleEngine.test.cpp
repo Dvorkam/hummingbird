@@ -5,8 +5,10 @@
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
+#include "core/dom/ElementUtils.h"
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
 #include "style/compute/FontFaceRegistry.h"
 #include "style/compute/StylesheetSource.h"
@@ -15,6 +17,23 @@
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
 namespace Attr = Hummingbird::Html::AttributeNames;
+
+namespace {
+const Element* find_element_by_id(const Node* node, std::string_view id) {
+    if (const auto* element = dynamic_cast<const Element*>(node)) {
+        const auto value = find_attribute_value(*element, Attr::Id);
+        if (value && *value == id) {
+            return element;
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (const auto* found = find_element_by_id(child.get(), id)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+}  // namespace
 
 TEST(StyleEngineTest, AppliesRulesAndCascade) {
     // DOM: <div class="box" id="main"><span></span></div>
@@ -42,6 +61,28 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
     // Child span should at least have a computed style object (even if empty).
     auto style_child = root->get_children()[0]->get_computed_style();
     ASSERT_TRUE(style_child);
+}
+
+TEST(StyleEngineTest, RemTracksTheHtmlFontSizeThroughTheParsedTreeWrapper) {
+    // The real pipeline styles the parser's synthetic <root> wrapper, not <html>.
+    // The rem reference must still come from the document's root ELEMENT, or
+    // `html { font-size: ... }` (and the 62.5% idiom) silently has no effect.
+    Hummingbird::Core::ArenaAllocator arena(8192);
+    Hummingbird::Html::Parser html_parser(arena, "<html><body><div id=\"icon\"></div></body></html>");
+    auto parsed = html_parser.parse();
+    ASSERT_TRUE(parsed.dom);
+
+    Parser parser("html { font-size: 20px; } #icon { width: 1.5rem; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, parsed.dom.get());
+
+    const auto* icon = find_element_by_id(parsed.dom.get(), "icon");
+    ASSERT_NE(icon, nullptr);
+    auto icon_style = icon->get_computed_style();
+    ASSERT_TRUE(icon_style);
+    ASSERT_TRUE(icon_style->width.has_value());
+    EXPECT_FLOAT_EQ(icon_style->width->px, 30.0f);  // 1.5rem x the html font size
 }
 
 TEST(StyleEngineTest, ResolvesEmAndRemAgainstTheirCorrectFontSizes) {
@@ -2365,3 +2406,4 @@ TEST(StyleEngineTest, EvaluatesMediaConditionsAgainstViewport) {
         EXPECT_FLOAT_EQ(style->width->px, 10.0f);
     }
 }
+
