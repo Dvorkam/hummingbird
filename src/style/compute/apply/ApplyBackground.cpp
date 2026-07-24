@@ -79,7 +79,7 @@ void apply_background_repeat_value(const Value& value, ComputedStyle& style) {
     }
 }
 
-void apply_background_position_value(const Value& value, ComputedStyle& style) {
+void apply_background_position_value(const Value& value, ComputedStyle& style, float root_font_size) {
     if (value.type != Value::Type::Identifier) {
         return;
     }
@@ -127,7 +127,7 @@ void apply_background_position_value(const Value& value, ComputedStyle& style) {
         return false;
     };
 
-    const float font_size = style.font_size;
+    const StyleValueUtils::LengthResolutionContext length_context{style.font_size, root_font_size};
     // Try to parse one axis token as a percentage or a length; keyword otherwise.
     auto apply_axis = [&](std::string_view token, std::optional<float>& offset, bool& is_percent, bool& axis_set) {
         token = Core::Utils::trim_ascii_whitespace(token);
@@ -139,7 +139,7 @@ void apply_background_position_value(const Value& value, ComputedStyle& style) {
                 return;
             }
         }
-        if (auto length = StyleValueUtils::parse_length_token(token, font_size)) {
+        if (auto length = StyleValueUtils::parse_length_token(token, length_context)) {
             offset = *length;
             is_percent = false;
             axis_set = true;
@@ -166,7 +166,7 @@ void apply_background_position_value(const Value& value, ComputedStyle& style) {
     }
 }
 
-void apply_background_size_value(const Value& value, ComputedStyle& style) {
+void apply_background_size_value(const Value& value, ComputedStyle& style, float root_font_size) {
     if (value.type != Value::Type::Identifier) {
         return;
     }
@@ -198,7 +198,7 @@ void apply_background_size_value(const Value& value, ComputedStyle& style) {
         return;
     }
 
-    const float font_size = style.font_size;
+    const StyleValueUtils::LengthResolutionContext length_context{style.font_size, root_font_size};
 
     // One axis of `background-size`: `auto`, a percentage (kept unresolved,
     // resolved against the box at paint time), or a length.
@@ -220,7 +220,7 @@ void apply_background_size_value(const Value& value, ComputedStyle& style) {
             }
             return std::nullopt;
         }
-        if (auto length = StyleValueUtils::parse_length_token(token, font_size)) {
+        if (auto length = StyleValueUtils::parse_length_token(token, length_context)) {
             return SizeAxis{*length, false};
         }
         return std::nullopt;
@@ -258,10 +258,10 @@ bool apply_background_property(Property property, const Value& value, ComputedSt
             apply_background_repeat_value(value, style);
             return true;
         case Property::BackgroundPosition:
-            apply_background_position_value(value, style);
+            apply_background_position_value(value, style, context.root_font_size);
             return true;
         case Property::BackgroundSize:
-            apply_background_size_value(value, style);
+            apply_background_size_value(value, style, context.root_font_size);
             return true;
         case Property::Background:
             return true;

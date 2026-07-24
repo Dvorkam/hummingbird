@@ -85,5 +85,6 @@ static constexpr std::string_view ScaleDown = "scale-down";
 
 static constexpr std::string_view Px = "px";
 static constexpr std::string_view Em = "em";
+static constexpr std::string_view Rem = "rem";
 
 }  // namespace Hummingbird::Css::ValueNames

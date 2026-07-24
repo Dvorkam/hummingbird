@@ -7,6 +7,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlTagNames.h"
 #include "layout/TreeBuilder.h"
 #include "layout/controls/RenderRule.h"
 #include "layout/flow/InlineBox.h"
@@ -23,6 +24,7 @@ using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
 namespace Attr = Hummingbird::Html::AttributeNames;
+namespace Tag = Hummingbird::Html::TagNames;
 using Hummingbird::IGraphicsContext;
 
 namespace {
@@ -213,6 +215,8 @@ TEST(BlockBoxLayoutTest, BlockStaysBesideFloatWhenRoom) {
 
     auto img_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
     img_style->float_type = Hummingbird::Css::ComputedStyle::Float::Right;
+    img_style->width = Hummingbird::Css::ComputedStyle::LengthValue::from_px(88.0f);
+    img_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(31.0f);
     root->get_children()[0]->set_computed_style(img_style);
 
     auto render_root = BlockBox::create(root.get());
@@ -252,6 +256,8 @@ TEST(BlockBoxLayoutTest, FloatImageInsideLinkIsFloated) {
     auto img_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
     img_style->display = Hummingbird::Css::ComputedStyle::Display::Inline;
     img_style->float_type = Hummingbird::Css::ComputedStyle::Float::Right;
+    img_style->width = Hummingbird::Css::ComputedStyle::LengthValue::from_px(88.0f);
+    img_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(31.0f);
     root->get_children()[0]->get_children()[0]->set_computed_style(img_style);
 
     auto render_root = BlockBox::create(root.get());
@@ -294,6 +300,55 @@ TEST(ReplacedSizingTest, PercentHeightResolvesAgainstContainingBlock) {
     auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
                                                     /*cb_width=*/200.0f, /*cb_height=*/400.0f);
     EXPECT_FLOAT_EQ(size.height, 100.0f);  // 25% of the 400px containing block
+}
+
+TEST(ReplacedSizingTest, IndefinitePercentHeightBehavesAsAuto) {
+    // Seznam's picture component applies width:100%; height:100% to each image,
+    // while its wrapper has auto height. The unresolved vertical percentage is
+    // auto, so the resolved width and intrinsic ratio determine the height; it
+    // must not become a literal 100px.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, Tag::Img);
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_percent(100.0f);
+    style.height = ComputedStyle::LengthValue::from_percent(100.0f);
+    ReplacedSizing::IntrinsicSize intrinsic{320.0f, 180.0f, true, true};
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/220.0f, /*cb_height=*/std::nullopt);
+    EXPECT_FLOAT_EQ(size.width, 220.0f);
+    EXPECT_FLOAT_EQ(size.height, 123.75f);
+}
+
+TEST(ReplacedSizingTest, CssAutoHeightOverridesHtmlPresentationalHint) {
+    // Responsive images commonly expose their natural dimensions as HTML
+    // attributes, then use CSS width:100%; height:auto. Style computation has
+    // already allowed CSS to override the low-priority height hint, so layout
+    // must not re-read and resurrect the raw 2304px attribute.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, Tag::Img);
+    img->set_attribute(Attr::Width, "4096");
+    img->set_attribute(Attr::Height, "2304");
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_percent(100.0f);
+    ReplacedSizing::IntrinsicSize intrinsic{1200.0f, 675.0f, true, true};
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/194.0f, /*cb_height=*/std::nullopt);
+    EXPECT_FLOAT_EQ(size.width, 194.0f);
+    EXPECT_FLOAT_EQ(size.height, 109.125f);
+}
+
+TEST(ReplacedSizingTest, UnstyledImageStillUsesHtmlDimensions) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, Tag::Img);
+    img->set_attribute(Attr::Width, "88");
+    img->set_attribute(Attr::Height, "31");
+    ReplacedSizing::IntrinsicSize intrinsic;
+
+    auto size = ReplacedSizing::compute_layout_size(*img, nullptr, 300.0f, 150.0f, intrinsic);
+    EXPECT_FLOAT_EQ(size.width, 88.0f);
+    EXPECT_FLOAT_EQ(size.height, 31.0f);
 }
 
 TEST(ReplacedSizingTest, PixelWidthIsUnaffectedByContainingBlock) {
@@ -431,6 +486,41 @@ TEST(BlockBoxLayoutTest, ReplacedPercentWidthResolvesAgainstContainingBlock) {
     // Before 8.5.1 this resolved to the bare magnitude (100px); now it is 100% of
     // the 200px containing block.
     EXPECT_FLOAT_EQ(render_root->get_children()[0]->get_rect().width, 200.0f);
+}
+
+TEST(BlockBoxLayoutTest, ReplacedElementsHonorEmAndRemComputedSizes) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto root = DomFactory::create_element(arena, Tag::Div);
+    root->set_attribute(Attr::Id, "root");
+    auto em_img = DomFactory::create_element(arena, Tag::Img);
+    em_img->set_attribute(Attr::Id, "em");
+    auto rem_img = DomFactory::create_element(arena, Tag::Img);
+    rem_img->set_attribute(Attr::Id, "rem");
+    root->append_child(std::move(em_img));
+    root->append_child(std::move(rem_img));
+
+    Parser parser(
+        "#root { font-size: 20px; } "
+        "img { display: block; font-size: 10px; } "
+        "#em { width: 2em; height: 2em; } "
+        "#rem { width: 1.5rem; height: 1.5rem; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(root.get());
+    Hummingbird::Test::TestGraphicsContext context;
+    render_root->layout(context, Rect{0, 0, 200, 0});
+
+    auto* em = find_by_id(render_root.get(), "em");
+    auto* rem = find_by_id(render_root.get(), "rem");
+    ASSERT_NE(em, nullptr);
+    ASSERT_NE(rem, nullptr);
+    EXPECT_FLOAT_EQ(em->get_rect().width, 20.0f);
+    EXPECT_FLOAT_EQ(em->get_rect().height, 20.0f);
+    EXPECT_FLOAT_EQ(rem->get_rect().width, 30.0f);
+    EXPECT_FLOAT_EQ(rem->get_rect().height, 30.0f);
 }
 
 // --- Story 8.5.2: object-fit placement -------------------------------------

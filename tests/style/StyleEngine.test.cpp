@@ -44,6 +44,55 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
     ASSERT_TRUE(style_child);
 }
 
+TEST(StyleEngineTest, ResolvesEmAndRemAgainstTheirCorrectFontSizes) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Html);
+    root->set_attribute(Attr::Id, "root");
+    auto local = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    local->set_attribute(Attr::Id, "local");
+    auto inherited = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    inherited->set_attribute(Attr::Id, "inherited");
+    auto custom = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    custom->set_attribute(Attr::Id, "custom");
+    root->append_child(std::move(local));
+    root->append_child(std::move(inherited));
+    root->append_child(std::move(custom));
+
+    Parser parser(
+        "#root { font-size: 1.25rem; width: 2rem; } "
+        "#local { font-size: 10px; width: 2em; height: 1.5rem; } "
+        "#inherited { width: 2em; height: 1.5rem; } "
+        "#custom { --icon-size: 1.5rem; width: var(--icon-size); height: var(--icon-size); }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto root_style = root->get_computed_style();
+    auto local_style = root->get_children()[0]->get_computed_style();
+    auto inherited_style = root->get_children()[1]->get_computed_style();
+    auto custom_style = root->get_children()[2]->get_computed_style();
+    ASSERT_TRUE(root_style);
+    ASSERT_TRUE(local_style);
+    ASSERT_TRUE(inherited_style);
+    ASSERT_TRUE(custom_style);
+    ASSERT_TRUE(root_style->width.has_value());
+    ASSERT_TRUE(local_style->width.has_value());
+    ASSERT_TRUE(local_style->height.has_value());
+    ASSERT_TRUE(inherited_style->width.has_value());
+    ASSERT_TRUE(inherited_style->height.has_value());
+    ASSERT_TRUE(custom_style->width.has_value());
+    ASSERT_TRUE(custom_style->height.has_value());
+
+    EXPECT_FLOAT_EQ(root_style->font_size, 20.0f);       // root rem uses the initial 16px reference
+    EXPECT_FLOAT_EQ(root_style->width->px, 32.0f);       // root's other rem does too
+    EXPECT_FLOAT_EQ(local_style->width->px, 20.0f);      // 2em × local 10px
+    EXPECT_FLOAT_EQ(local_style->height->px, 30.0f);     // 1.5rem × root 20px
+    EXPECT_FLOAT_EQ(inherited_style->width->px, 40.0f);  // 2em × inherited 20px
+    EXPECT_FLOAT_EQ(inherited_style->height->px, 30.0f);
+    EXPECT_FLOAT_EQ(custom_style->width->px, 30.0f);  // rem survives var() substitution
+    EXPECT_FLOAT_EQ(custom_style->height->px, 30.0f);
+}
+
 TEST(StyleEngineTest, FontSrcResolvedFromFontFaceRegistry) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
@@ -2128,6 +2177,25 @@ TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
     ASSERT_TRUE(img_style->height.has_value());
     EXPECT_FLOAT_EQ(img_style->width->px, 120.0f);
     EXPECT_FLOAT_EQ(img_style->height->px, 80.0f);
+}
+
+TEST(StyleEngineTest, CssAutoHeightOverridesHtmlPresentationalHint) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto img = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Img);
+    img->set_attribute(Attr::Width, "4096");
+    img->set_attribute(Attr::Height, "2304");
+
+    Parser parser("img { width: 100%; height: auto; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, img.get());
+
+    auto img_style = img->get_computed_style();
+    ASSERT_TRUE(img_style);
+    ASSERT_TRUE(img_style->width.has_value());
+    EXPECT_TRUE(img_style->width->has_percent);
+    EXPECT_FLOAT_EQ(img_style->width->percent, 100.0f);
+    EXPECT_FALSE(img_style->height.has_value());
 }
 
 TEST(StyleEngineTest, FontTagMapsSizeAndFace) {

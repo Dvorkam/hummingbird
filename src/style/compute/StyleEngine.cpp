@@ -171,8 +171,8 @@ MatchedDeclarations collect_matched_properties(const RuleIndex& index, const DOM
 
 void apply_properties_to_style(const PropertyMap& properties, ComputedStyle& style,
                                StyleDefaults::StyleOverrides& overrides, bool& display_set, float parent_font_size,
-                               const ComputedStyle* parent_style) {
-    Apply::Context context{parent_font_size, parent_style, &display_set};
+                               float root_font_size, const ComputedStyle* parent_style) {
+    Apply::Context context{parent_font_size, root_font_size, parent_style, &display_set};
     display_set = false;
     for (const auto& entry : PropertyRegistry::entries()) {
         auto it = properties.find(entry.property);
@@ -256,7 +256,8 @@ void inherit_from_parent(ComputedStyle& style, const ComputedStyle& parent,
 }
 
 // Returns a computed style based on matching rules and parent style (for inheritance in the future).
-StyleResult build_style_for(const RuleIndex& index, const DOM::Node* node, const ComputedStyle* parent_style) {
+StyleResult build_style_for(const RuleIndex& index, const DOM::Node* node, const ComputedStyle* parent_style,
+                            float root_font_size) {
     StyleResult result{default_computed_style(), {}};
     ComputedStyle& style = result.style;
     MatchedDeclarations matched = collect_matched_properties(index, node);
@@ -268,17 +269,26 @@ StyleResult build_style_for(const RuleIndex& index, const DOM::Node* node, const
         StyleDefaults::apply_legacy_attributes(*element, style, result.overrides);
     }
 
+    // Non-font em lengths use the element's computed font size. Make an
+    // inherited parent size available before applying this element's box
+    // properties; an explicit font-size runs first in registry order and wins.
+    if (parent_style && !result.overrides.font_size) {
+        style.font_size = parent_style->font_size;
+    }
+
     apply_custom_properties(matched.custom_properties, style);
 
     float parent_font_size = parent_style ? parent_style->font_size : style.font_size;
-    apply_properties_to_style(matched.properties, style, result.overrides, display_set, parent_font_size, parent_style);
+    apply_properties_to_style(matched.properties, style, result.overrides, display_set, parent_font_size,
+                              root_font_size, parent_style);
 
     return result;
 }
 
 void compute_node(const RuleIndex& index, DOM::Node* node, const ComputedStyle* parent_style,
-                  const FontFaceRegistry* fonts, Core::Utils::CompatibilityWarnings* compatibility_warnings) {
-    StyleResult own = build_style_for(index, node, parent_style);
+                  const FontFaceRegistry* fonts, Core::Utils::CompatibilityWarnings* compatibility_warnings,
+                  float root_font_size) {
+    StyleResult own = build_style_for(index, node, parent_style, root_font_size);
     // Start from the element's own computed style: every non-inherited (box)
     // property is already correct by construction, so no per-field copy list is
     // needed. Only inherited properties fall back to the parent. (Text nodes
@@ -302,8 +312,10 @@ void compute_node(const RuleIndex& index, DOM::Node* node, const ComputedStyle* 
 
     node->set_computed_style(std::make_shared<ComputedStyle>(std::move(style)));
 
+    const float descendant_root_font_size = parent_style ? root_font_size : node->get_computed_style()->font_size;
     for (const auto& child : node->get_children()) {
-        compute_node(index, child.get(), node->get_computed_style().get(), fonts, compatibility_warnings);
+        compute_node(index, child.get(), node->get_computed_style().get(), fonts, compatibility_warnings,
+                     descendant_root_font_size);
     }
 }
 
@@ -315,7 +327,8 @@ void StyleEngine::apply(const Stylesheet& sheet, DOM::Node* root, const MediaCon
     // Index the sheet once per apply (bucketed by key selector), then walk the
     // tree testing only candidate rules per element instead of the whole sheet.
     const RuleIndex index = build_rule_index(sheet, media);
-    compute_node(index, root, nullptr, fonts, compatibility_warnings_);
+    const float initial_root_font_size = default_computed_style().font_size;
+    compute_node(index, root, nullptr, fonts, compatibility_warnings_, initial_root_font_size);
 }
 
 }  // namespace Hummingbird::Css

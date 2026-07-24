@@ -303,7 +303,7 @@ Two failure classes were diagnosed from the crawl (`tmp/seznam.cz`) + log:
 
 * **(A) Giant icons** — replaced elements ignore percentage/`em`/`rem` sizing and
   `object-fit`, so the service-menu SVG icons render at their intrinsic ~200px
-  instead of the ~40px their CSS asks for. → 8.5.1 + 8.5.2.
+  instead of the ~40px their CSS asks for. → 8.5.1 + 8.5.2 + 8.5.4.
 * **(B) Bleeding content** — no overflow clipping, so a child that overflows an
   `overflow:hidden` box paints across the rest of the page. → 8.5.3. *(The other
   contributor — absolute-positioning correctness — is out of scope here; it stays
@@ -313,7 +313,7 @@ Two failure classes were diagnosed from the crawl (`tmp/seznam.cz`) + log:
 **Non-goals (kept tight on purpose):** no scroll containers / `overflow:auto|scroll`
 offsets / scrollbars (M10 "Overflow v2"); no flex/grid alignment completion
 (`T-CSS-FLEX-ALIGNMENT-2`, `T-CSS-GRID-TEMPLATE-AREAS-1`, M10); no `aspect-ratio`,
-multicol, `line-clamp`, or the cosmetic effect properties. This is three contained
+multicol, `line-clamp`, or the cosmetic effect properties. This is four contained
 rendering fixes, each independently demoable.
 
 ### 8.5.1: Percentage / `em` / `rem` Sizing For Replaced Elements (T-CSS-REPLACED-PERCENT-SIZE-1)
@@ -325,9 +325,10 @@ rendering fixes, each independently demoable.
   through `raw_px`, which reads only the **px** part of a `LengthValue` — so
   `width:100%` / `2rem` / `3em` on a replaced element resolves to ~0 and the code
   falls through to the intrinsic size. Resolve the percentage part against the
-  containing block's content width/height (`em`/`rem` are already resolved to px at
-  style-apply time, so those come for free once `raw_px` isn't the only path), in
-  the replaced-sizing path only.
+  containing block's content width/height in the replaced-sizing path. The original
+  story assumed `em`/`rem` were already resolved to px at style-apply time; the
+  2026-07-24 follow-up found that only partial `em` support existed and `rem` was
+  absent, so that missed acceptance work is completed explicitly in 8.5.4.
 * **Acceptance:** an `<img style="width:100%">` inside a 40px box lays out at 40px,
   not its intrinsic width; percentage `height` likewise resolves against the
   containing block.
@@ -366,11 +367,32 @@ rendering fixes, each independently demoable.
   nesting pops correctly). **Demo:** M8 hub — an oversized block inside a small
   `overflow:hidden` card, clipped to the card.
 
+### 8.5.4: Complete `em` / `rem` Length Semantics (T-CSS-RELATIVE-LENGTH-1)
+
+* **Goal:** make font-relative CSS lengths deterministic and distinct: `em` resolves
+  against the element's computed font size, while `rem` resolves against the
+  document root's computed font size.
+* **Scope:** add a distinct `Unit::Rem` through parsing, serialization, custom-property
+  substitution, and style application. Carry the root font-size reference through
+  style computation rather than treating `rem` as `em` or hard-coding 16px. Ensure an
+  element with no local `font-size` inherits its parent's size before resolving its
+  own `em` lengths. On the root element itself, `rem` uses the initial 16px reference,
+  avoiding a circular dependency when the root also sets `font-size`.
+* **Acceptance:** Seznam's identical `.w-6.h-6` wrappers (`1.5rem` on each axis)
+  compute to identical 24×24px boxes at the default root size regardless of the
+  wrapped image's intrinsic dimensions. With a 20px root and a 10px local font,
+  `2em` computes to 20px and `1.5rem` computes to 30px.
+* **Tests:** parser test proving `em` and `rem` remain distinct; style tests for local,
+  inherited, root-relative, and root-element resolution; replaced-layout regression
+  proving identically authored icon boxes no longer follow intrinsic image sizes.
+  **Demo:** the M8 layout page includes paired `em`/`rem` icon boxes.
+
 ### M8.5 Execution Checklist
 
 - [x] 8.5.1: Percentage/`em`/`rem` sizing for replaced elements *(percent width/height now resolve against the containing block at the `layout(bounds)` seam, with the same definiteness guard as `BlockBox::resolve_height_constraint`; the inline-measure path keeps the bare-magnitude fallback. Tests: `ReplacedSizingTest.*` + `BlockBoxLayoutTest.ReplacedPercentWidth*`. Demo: example.dev/layout icon row.)*
 - [x] 8.5.2: `object-fit` *(Fill/Contain/Cover/None/ScaleDown, centered; `cover`/`none` overflow is clipped to the content box via push_clip. New `ObjectFitUtils::compute_fit`; parsed+applied through the property registry. Tests: `ObjectFitTest.*` + `StyleEngineTest.AppliesObjectFitProperty`. Demo: example.dev/layout fit row. **`object-position` deferred** — `Value` is single-valued, so a 2-value position needs its own sub-struct/parser; centered default covers the seznam case. Filed as a follow-up on T-CSS-OBJECT-FIT-1.)*
 - [x] 8.5.3: Paint-time clip for `overflow:hidden` *(RenderObject::paint wraps descendants in push_clip/pop_clip when BOTH axes are Hidden — the `overflow:hidden` shorthand; single-axis and scroll/auto deliberately not clipped, see the code comment. Tests: `OverflowClipTest.*`. Demo: example.dev/layout clip card.)*
+- [x] 8.5.4: Complete `em`/`rem` semantics *(added and completed 2026-07-24 after the promised 8.5.1 regression exposed that `rem` was never represented and inherited-font `em` resolution was incomplete. `Unit::Rem` now stays distinct through parsing/serialization/var substitution and resolves through a root-font reference carried by style computation; inherited font size is available before box-length application. Tests: `CSSParserTest.KeepsEmAndRemAsDistinctLengthUnits`, `StyleEngineTest.ResolvesEmAndRemAgainstTheirCorrectFontSizes`, and `BlockBoxLayoutTest.ReplacedElementsHonorEmAndRemComputedSizes`. Demo: paired 24px `em`/`rem` icons on example.dev/layout.)*
 - [x] Rebuild `Hummingbird.exe` (2026-07-23) — **user to re-check seznam.cz** (icons sane + content clipped). 791 tests green.
 
 **Fixes from first in-app test (2026-07-23):** the demo surfaced three real bugs, all fixed:

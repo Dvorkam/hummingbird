@@ -46,6 +46,8 @@ std::string value_to_text(const Value& value) {
             out += ValueNames::Px;
         } else if (value.length.unit == Unit::Em) {
             out += ValueNames::Em;
+        } else if (value.length.unit == Unit::Rem) {
+            out += ValueNames::Rem;
         } else if (value.length.unit == Unit::Percent) {
             out += "%";
         }

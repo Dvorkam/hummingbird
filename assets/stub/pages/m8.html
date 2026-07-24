@@ -95,8 +95,12 @@
         images, <code>object-fit</code>, and <code>overflow: hidden</code> clipping &mdash; enough that a modern page is
         navigable rather than exploded.</p>
         <p class="go"><a href="https://example.dev/layout">Open the layout-resilience demo &raquo;</a></p>
-        <p class="note">Aims for &ldquo;not right, but navigable&rdquo;, not parity &mdash; the harder positioning and
-        grid work stays on the M10/M12 roadmap.</p>
+        <p class="note"><strong>Added in M8.5:</strong> percentage-sized replaced elements, including the CSS-correct
+        <code>auto</code> fallback for a percentage height whose containing block has no definite height, and correct
+        cascade handling for responsive images whose CSS sizing overrides large HTML natural-dimension hints. The
+        8.5.4 completion adds distinct <code>em</code>/<code>rem</code> semantics so identical root-relative icon
+        wrappers stay identical. This aims for &ldquo;not right, but navigable&rdquo;, not parity &mdash; the harder
+        positioning and grid work stays on the M10/M12 roadmap.</p>
       </div>
 
       <p><a href="https://example.dev">&laquo; Back to the demo hub</a></p>

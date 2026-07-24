@@ -25,6 +25,18 @@
       .iconcell { display: inline-block; width: 44px; height: 44px; margin-right: 10px;
                   background-color: #eef2fb; border: 1px solid #cfd8ea; border-radius: 8px; }
       .iconcell img { display: block; width: 100%; }
+      .autoheight-frame { width: 160px; background-color: #eef2fb; border: 1px solid #cfd8ea;
+                          border-radius: 8px; }
+      .autoheight-frame img { display: block; width: 100%; height: 100%; }
+      .responsive-frame { width: 160px; background-color: #eef2fb; border: 1px solid #cfd8ea;
+                          border-radius: 8px; }
+      .responsive-frame img { display: block; width: 100%; height: auto; }
+      .relative-row { margin-top: 12px; }
+      .relative-box { display: inline-block; margin-right: 10px; background-color: #eef2fb;
+                      border: 1px solid #cfd8ea; border-radius: 8px; }
+      .relative-box img { display: block; width: 100%; height: 100%; }
+      .em-icon { font-size: 12px; width: 2em; height: 2em; }
+      .rem-icon { font-size: 40px; width: 1.5rem; height: 1.5rem; }
       .caption { color: #7a8699; font-size: 12px; }
 
       /* 8.5.2 - the same square image dropped into a wide 160x90 frame under each
@@ -71,6 +83,22 @@
           <span class="iconcell"><img src="assets/icons/hummingbird-256.png" alt="icon"></span>
         </div>
         <p class="caption">Five 44px cells, not five 256px images shoving the row off-screen.</p>
+        <div class="autoheight-frame"><img src="assets/icons/hummingbird-256.png" alt="undistorted icon"></div>
+        <p class="caption">This frame has auto height while its image requests <code>height: 100%</code>. With no
+        definite vertical percentage basis, the height behaves as <code>auto</code> and keeps the intrinsic ratio
+        instead of becoming an accidental 100px.</p>
+        <div class="responsive-frame"><img src="assets/icons/hummingbird-256.png" width="4096" height="4096"
+             alt="responsive image with natural dimensions"></div>
+        <p class="caption">This image advertises 4096&times;4096 natural dimensions in HTML, then uses the standard
+        responsive pattern <code>width: 100%; height: auto</code>. Author CSS wins over those low-priority
+        presentational hints, so the raw 4096px height cannot reappear during layout.</p>
+        <div class="relative-row">
+          <span class="relative-box em-icon"><img src="assets/icons/hummingbird-256.png" alt="2em icon"></span>
+          <span class="relative-box rem-icon"><img src="assets/icons/hummingbird-256.png" alt="1.5rem icon"></span>
+        </div>
+        <p class="caption">These equal 24px icons use different relative units: the first is <code>2em</code> at a
+        local 12px font, while the second is <code>1.5rem</code> and deliberately has a wildly different local 40px
+        font. <code>rem</code> follows the root font, so intrinsic image size and local font size cannot change it.</p>
         <p class="note">Before this change, a <code>%</code>/<code>rem</code> width on an <code>&lt;img&gt;</code> or SVG
         resolved to its bare magnitude and the element fell back to the media&rsquo;s natural size &mdash; exactly why a
         portal&rsquo;s icon menu rendered as a wall of giant circles.</p>
