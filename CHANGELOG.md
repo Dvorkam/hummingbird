@@ -60,6 +60,8 @@ the release is pending.
 - `<input type="hidden">` no longer produces a layout box, and the legacy `size`
   attribute is no longer misinterpreted as a font size.
 - `file://` navigation is rejected at the page-controlled URL boundary.
+- The operating-system token in the browser identity now follows the build target
+  instead of always claiming Windows.
 - Images and inline SVG sized with a percentage or a font-relative length now
   follow that length instead of ballooning to the media's intrinsic size, keep
   their aspect ratio when only one axis is given, and stay correct under
