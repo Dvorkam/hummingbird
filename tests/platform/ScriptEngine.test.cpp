@@ -818,16 +818,18 @@ TEST(ScriptEngineTest, MissingApiTelemetryIsFailSoftAndDeduped) {
 
     auto result = engine->eval(
         "globalThis.ran = 0;"
-        "fetch('/a'); fetch('/b');"                                    // reported once
-        "localStorage.setItem('k', 'v'); localStorage.getItem('k');"   // reported once
-        "var x = new XMLHttpRequest(); x.open('GET', '/'); x.send();"  // reported once
-        "globalThis.ran = 1;",                                         // proves no abort
+        "fetch('/a'); fetch('/b');"                                     // reported once
+        "matchMedia('(min-width:0)'); matchMedia('(max-width:0)');"     // reported once (still a stub)
+        "var x = new XMLHttpRequest(); x.open('GET', '/'); x.send();"   // reported once
+        "globalThis.ran = 1;",                                          // proves no abort
         "inline");
     EXPECT_TRUE(result.ok) << result.error;
     ASSERT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
 
-    // Deduped, in first-touch order.
-    EXPECT_EQ(engine->missing_apis(), (std::vector<std::string>{"fetch", "localStorage", "XMLHttpRequest"}));
+    // Deduped, in first-touch order. localStorage AND sessionStorage are NOT here:
+    // both became real (if inert, with no store) APIs in 8.2.2 / 8.2.3, so they no
+    // longer report missing. matchMedia stays a fail-soft stub.
+    EXPECT_EQ(engine->missing_apis(), (std::vector<std::string>{"fetch", "matchMedia", "XMLHttpRequest"}));
 
     // Telemetry is per-document: navigation teardown clears it.
     engine->reset_bindings();

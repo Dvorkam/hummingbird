@@ -1,5 +1,6 @@
 #include "style/compute/StyleDefaults.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -17,6 +18,13 @@
 namespace Hummingbird::Css::StyleDefaults {
 
 namespace {
+constexpr float kTextareaDefaultWidth = 360.0f;
+constexpr float kTextareaDefaultVerticalPadding = 4.0f;
+constexpr float kTextareaLineHeightFactor = 1.2f;
+constexpr long kTextareaDefaultRows = 2;
+// `rows` is author input: cap it so a typo cannot demand a pathological box.
+constexpr long kTextareaMaxRows = 100;
+
 bool input_type_is_text_like(const DOM::Element& element) {
     const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
     if (!type || type->empty()) {
@@ -28,10 +36,27 @@ bool input_type_is_text_like(const DOM::Element& element) {
            !Core::Utils::equals_ignore_case(*type, "hidden") && !Core::Utils::equals_ignore_case(*type, "image");
 }
 
+long textarea_rows(const DOM::Element& element) {
+    const auto* rows_attribute = element.find_attribute(Hummingbird::Html::AttributeNames::Rows);
+    if (!rows_attribute) {
+        return kTextareaDefaultRows;
+    }
+    auto parsed = Core::Utils::parse_long(*rows_attribute, Core::Utils::NumberParseMode::Strict);
+    if (!parsed) {
+        return kTextareaDefaultRows;
+    }
+    return std::clamp(*parsed, 1L, kTextareaMaxRows);
+}
+
 bool input_type_is_toggle(const DOM::Element& element) {
     const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
     return type &&
            (Core::Utils::equals_ignore_case(*type, "checkbox") || Core::Utils::equals_ignore_case(*type, "radio"));
+}
+
+bool input_type_is_hidden(const DOM::Element& element) {
+    const auto* type = element.find_attribute(Hummingbird::Html::AttributeNames::Type);
+    return type && Core::Utils::equals_ignore_case(*type, "hidden");
 }
 }  // namespace
 
@@ -52,7 +77,14 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
             tag == Hummingbird::Html::TagNames::Code || tag == Hummingbird::Html::TagNames::Img ||
             tag == Hummingbird::Html::TagNames::Svg || tag == Hummingbird::Html::TagNames::Font) {
             style.display = ComputedStyle::Display::Inline;
-        } else if (tag == Hummingbird::Html::TagNames::Input || tag == Hummingbird::Html::TagNames::Button) {
+        } else if (tag == Hummingbird::Html::TagNames::Input && input_type_is_hidden(element)) {
+            // `input[type=hidden]` carries form state (parent id, CSRF token, …)
+            // and is never rendered — the UA sheet forces display:none. Without
+            // this it fell through to the generic input branch and painted as a
+            // stray 80x24 button box (seen on HN's comment form).
+            style.display = ComputedStyle::Display::None;
+        } else if (tag == Hummingbird::Html::TagNames::Input || tag == Hummingbird::Html::TagNames::Textarea ||
+                   tag == Hummingbird::Html::TagNames::Button) {
             style.display = ComputedStyle::Display::InlineBlock;
         } else if (tag == Hummingbird::Html::TagNames::Li) {
             style.display = ComputedStyle::Display::ListItem;
@@ -136,6 +168,32 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
             style.border_style = ComputedStyle::BorderStyle::Outset;
             style.background = Color{236, 236, 236, 255};
         }
+    } else if (tag == Hummingbird::Html::TagNames::Textarea) {
+        style.border_style = ComputedStyle::BorderStyle::Inset;
+        style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
+        style.border_color = {125, 125, 125, 255};
+        style.border_edge_color = {style.border_color, style.border_color, style.border_color, style.border_color};
+        style.border_radius.set_all({2.0f, false});
+        style.padding.left = style.padding.right = 8.0f;
+        style.padding.top = style.padding.bottom = kTextareaDefaultVerticalPadding;
+        style.background = Color{255, 255, 255, 255};
+        // Reserve one row per `rows`, and publish the row height as line_height so
+        // DocumentInputPainter advances by exactly what was reserved instead of
+        // guessing from font metrics. UA defaults run before inheritance, so the
+        // basis is the parent's font size — the size this textarea will inherit
+        // unless it is restyled. Author width/height/line-height still win by
+        // normal cascade order.
+        // KNOWN GAP (T-FORM-TEXTAREA-LAYOUT-1): an author `font-size` or
+        // `line-height` set on the textarea itself changes the painted row height
+        // but not this reserved box, so a `rows`-sized control can then hold
+        // slightly fewer lines. `cols` is unimplemented for the same reason.
+        if (style.line_height <= 0.0f) {
+            const float basis = parent_style ? parent_style->font_size : style.font_size;
+            style.line_height = basis * kTextareaLineHeightFactor;
+        }
+        style.width = ComputedStyle::LengthValue::from_px(kTextareaDefaultWidth);
+        style.height = ComputedStyle::LengthValue::from_px(
+            static_cast<float>(textarea_rows(element)) * style.line_height + 2.0f * kTextareaDefaultVerticalPadding);
     } else if (tag == Hummingbird::Html::TagNames::Button) {
         style.border_style = ComputedStyle::BorderStyle::Outset;
         style.border_width = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -150,10 +208,10 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
     } else if (tag == Hummingbird::Html::TagNames::Td || tag == Hummingbird::Html::TagNames::Th) {
         style.padding.left = style.padding.right = 2.0f;
         style.padding.top = style.padding.bottom = 2.0f;
-    } else if (tag == Hummingbird::Html::TagNames::Strong) {
+    } else if (tag == Hummingbird::Html::TagNames::Strong || tag == Hummingbird::Html::TagNames::B) {
         style.weight = ComputedStyle::FontWeight::Bold;
         overrides.weight = true;
-    } else if (tag == Hummingbird::Html::TagNames::Em) {
+    } else if (tag == Hummingbird::Html::TagNames::Em || tag == Hummingbird::Html::TagNames::I) {
         style.style = ComputedStyle::FontStyle::Italic;
         overrides.style = true;
     } else if (tag == Hummingbird::Html::TagNames::H1) {
@@ -184,6 +242,11 @@ void apply_user_agent_defaults(const DOM::Element& element, ComputedStyle& style
 }
 
 void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, StyleOverrides& overrides) {
+    // `width`/`height` attributes here set only an absolute pixel computed width.
+    // Percentages (`width="85%"`) are deliberately NOT turned into a computed
+    // width: the table column planner reads those attributes itself (see the
+    // PercentTable table-layout tests), and setting a computed width too would
+    // double-handle and fight it.
     auto parse_length_value = [](std::string_view value) -> std::optional<float> {
         auto parsed = Core::Utils::parse_float(value, Core::Utils::NumberParseMode::Strict);
         if (!parsed) {
@@ -222,7 +285,22 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
         return Core::Utils::to_lower(trimmed);
     };
 
-    const bool is_body = element.get_tag_name() == Hummingbird::Html::TagNames::Body;
+    const auto& tag = element.get_tag_name();
+    const bool is_body = tag == Hummingbird::Html::TagNames::Body;
+    // `size` and `face` are presentational attributes of <font>/<basefont> only.
+    // On other elements `size` means something else entirely — an <input>'s width
+    // in characters, a <select>'s visible rows, an <hr>'s thickness — so mapping
+    // it through the 1..7 font-size table there is wrong. HN's `<input size=20>`
+    // was landing on the largest font (48px), overflowing the field.
+    const bool is_font = tag == Hummingbird::Html::TagNames::Font;
+    // `bgcolor` is a legacy presentational attribute of <body> AND the table
+    // elements. HN's orange header bar is `<td bgcolor="#ff6600">`, so honoring it
+    // only on <body> left the bar (and its background) unpainted.
+    const bool is_table_bg_element =
+        tag == Hummingbird::Html::TagNames::Table || tag == Hummingbird::Html::TagNames::Tr ||
+        tag == Hummingbird::Html::TagNames::Td || tag == Hummingbird::Html::TagNames::Th ||
+        tag == Hummingbird::Html::TagNames::Thead || tag == Hummingbird::Html::TagNames::Tbody ||
+        tag == Hummingbird::Html::TagNames::Tfoot;
     for (const auto& [key, value] : element.get_attributes()) {
         if (key == Hummingbird::Html::AttributeNames::Align) {
             std::string normalized = Core::Utils::to_lower(value);
@@ -247,24 +325,24 @@ void apply_legacy_attributes(const DOM::Element& element, ComputedStyle& style, 
             if (auto parsed = parse_length_value(value)) {
                 style.height = ComputedStyle::LengthValue::from_px(*parsed);
             }
-        } else if (key == Hummingbird::Html::AttributeNames::Size) {
+        } else if (key == Hummingbird::Html::AttributeNames::BgColor && (is_body || is_table_bg_element)) {
+            if (auto parsed = Core::Utils::parse_html_color(value)) {
+                style.background = *parsed;
+                overrides.background = true;
+            }
+        } else if (key == Hummingbird::Html::AttributeNames::Size && is_font) {
             if (auto parsed = parse_font_size_value(value)) {
                 style.font_size = *parsed;
                 overrides.font_size = true;
             }
-        } else if (key == Hummingbird::Html::AttributeNames::Face) {
+        } else if (key == Hummingbird::Html::AttributeNames::Face && is_font) {
             std::string face = parse_font_face_value(value);
             if (!face.empty()) {
                 style.font_face = std::move(face);
                 overrides.font_face = true;
             }
         } else if (is_body) {
-            if (key == Hummingbird::Html::AttributeNames::BgColor) {
-                if (auto parsed = Core::Utils::parse_html_color(value)) {
-                    style.background = *parsed;
-                    overrides.background = true;
-                }
-            } else if (key == Hummingbird::Html::AttributeNames::Text) {
+            if (key == Hummingbird::Html::AttributeNames::Text) {
                 if (auto parsed = Core::Utils::parse_html_color(value)) {
                     style.color = *parsed;
                     overrides.color = true;

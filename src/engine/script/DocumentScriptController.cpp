@@ -81,6 +81,19 @@ void DocumentScriptController::set_focus_sink(std::function<void(DOM::Element*, 
     script_host_.set_focus_sink(std::move(sink));
 }
 
+void DocumentScriptController::set_cookie_accessors(std::function<std::string()> reader,
+                                                    std::function<void(std::string_view)> writer) {
+    script_host_.set_cookie_accessors(std::move(reader), std::move(writer));
+}
+
+void DocumentScriptController::set_storage_accessor(std::function<Core::StorageArea*()> accessor) {
+    script_host_.set_storage_accessor(std::move(accessor));
+}
+
+void DocumentScriptController::set_session_storage_accessor(std::function<Core::StorageArea*()> accessor) {
+    script_host_.set_session_storage_accessor(std::move(accessor));
+}
+
 void DocumentScriptController::set_location(std::string_view url) {
     if (script_engine_) {
         script_engine_->set_location(url);

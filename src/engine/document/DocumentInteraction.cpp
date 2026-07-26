@@ -180,7 +180,7 @@ DocumentInteraction::InputEditResult DocumentInteraction::handle_key_down(const 
     auto result = input_controller_.handle_key_down(event);
     InputEditResult output{result.handled, result.needs_repaint, std::nullopt};
 
-    if (event.key.key == Key::Enter && input_controller_.has_focus()) {
+    if (event.key.key == Key::Enter && input_controller_.has_focus() && !input_controller_.focused_is_multiline()) {
         const auto* focused = input_controller_.focused_element();
         if (focused) {
             output.submitted_form = model_.build_form_submission(*focused, base_url);

@@ -125,9 +125,13 @@ DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvi
     });
 }
 
-DocumentPipeline::~DocumentPipeline() = default;
+DocumentPipeline::~DocumentPipeline() {
+    model_->flush_compatibility_warnings(current_document_url_);
+}
 
 void DocumentPipeline::reset() {
+    model_->flush_compatibility_warnings(current_document_url_);
+    current_document_url_.clear();
     // Scripting teardown must run while the DOM arena is still alive: it
     // destroys the host's detached nodes (whose storage lives in the arena)
     // and neutralizes JS wrappers before model_->reset() frees the arena.
@@ -159,6 +163,19 @@ std::vector<std::string> DocumentPipeline::external_script_srcs() const {
     return srcs;
 }
 
+void DocumentPipeline::set_cookie_accessors(std::function<std::string()> reader,
+                                            std::function<void(std::string_view)> writer) {
+    scripting_->set_cookie_accessors(std::move(reader), std::move(writer));
+}
+
+void DocumentPipeline::set_storage_accessor(std::function<Core::StorageArea*()> accessor) {
+    scripting_->set_storage_accessor(std::move(accessor));
+}
+
+void DocumentPipeline::set_session_storage_accessor(std::function<Core::StorageArea*()> accessor) {
+    scripting_->set_session_storage_accessor(std::move(accessor));
+}
+
 void DocumentPipeline::set_extension_style_blocks(const std::vector<std::string>& style_blocks) {
     style_coordinator_->set_extension_style_blocks(style_blocks);
 }
@@ -182,6 +199,7 @@ void DocumentPipeline::mark_url_visited(std::string_view url) {
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
+    current_document_url_ = base_url;
     const Css::MediaContext media{viewport.width, viewport.height};
     // Flag anchors whose target has been visited before styling, so `:visited`
     // and the vlink color resolve during this apply (T-HIST-1).

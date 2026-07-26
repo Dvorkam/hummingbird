@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include <functional>
 #include <memory>
 #include <optional>
 #include <string>
@@ -20,6 +21,10 @@ class IImageDecoder;
 class IScriptEngine;
 struct InputEvent;
 }  // namespace Hummingbird
+
+namespace Hummingbird::Core {
+class StorageArea;
+}
 
 namespace Hummingbird::DOM {
 class Element;
@@ -88,6 +93,11 @@ public:
     // Raw src attributes of external <script>s in document order (for the
     // caller to request through the resource loader before running).
     std::vector<std::string> external_script_srcs() const;
+    // document.cookie accessors (8.1.5), forwarded to the script host.
+    void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
+    void set_storage_accessor(std::function<Core::StorageArea*()> accessor);
+    void set_session_storage_accessor(std::function<Core::StorageArea*()> accessor);
+
     void set_extension_style_blocks(const std::vector<std::string>& style_blocks);
     void apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
     bool rebuild_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport, std::string_view base_url);
@@ -186,6 +196,7 @@ private:
     std::unique_ptr<DocumentStyleCoordinator> style_coordinator_;
     std::unique_ptr<DocumentScripting> scripting_;
     std::unordered_set<std::string> visited_urls_;
+    std::string current_document_url_;
     size_t style_layout_passes_ = 0;  // 7.4.1 invalidation budget instrumentation
 };
 

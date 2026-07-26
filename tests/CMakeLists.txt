@@ -20,9 +20,21 @@ add_executable(HummingbirdTests
     engine/ExtensionLoader.test.cpp
     engine/ExtensionHost.test.cpp
     engine/ResourceStore.test.cpp
+    engine/RedirectPolicy.test.cpp
+    engine/RedirectChain.test.cpp
+    engine/DocumentCookie.test.cpp
+    engine/LocalStorage.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
     core/BookmarkStore.test.cpp
+    core/HttpHeaders.test.cpp
+    core/CookieJar.test.cpp
+    core/BrowserIdentity.test.cpp
+    core/IdentityPolicyStore.test.cpp
+    core/Origin.test.cpp
+    core/Referrer.test.cpp
+    core/StorageArea.test.cpp
+    core/StorageManager.test.cpp
     core/AssetPath.test.cpp
     core/AssetLoader.test.cpp
     core/TextEditBuffer.test.cpp
@@ -30,6 +42,7 @@ add_executable(HummingbirdTests
     core/UrlEncoding.test.cpp
     core/Timing.test.cpp
     core/WarnOnce.test.cpp
+    core/CompatibilityWarnings.test.cpp
     core/ElementSemanticRole.test.cpp
     core/DependencyFirewall.test.cpp
     html/HtmlTokenizer.test.cpp
@@ -61,12 +74,15 @@ add_executable(HummingbirdTests
     engine/ScriptHost.test.cpp
     engine/ScriptController.test.cpp
     engine/TodoMvc.test.cpp
+    engine/LoginFlow.test.cpp
+    engine/SessionStorage.test.cpp
     platform/ResourceProvider.test.cpp
     platform/ImageDecoder.test.cpp
     platform/ScriptEngine.test.cpp
     platform/CacheUtils.test.cpp
     platform/Blend2DFontCache.test.cpp
     network/StubNetwork.test.cpp
+    network/NetworkSeamHeaders.test.cpp
     network/CurlNetwork.test.cpp
     network/NetworkFactory.test.cpp
     layout/DdgHomeLayout.test.cpp

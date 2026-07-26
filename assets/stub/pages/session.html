@@ -1,0 +1,75 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird M8 &mdash; sessionStorage</title>
+    <style>
+      body { background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; margin: 0; }
+      .page { max-width: 760px; margin: 0 auto; padding: 28px 24px 48px 24px; }
+      .eyebrow { color: #b25e00; font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+      h1 { color: #14213d; margin: 6px 0 10px 0; }
+      h2 { color: #14213d; font-size: 17px; margin: 0 0 8px 0; }
+      .intro { color: #3c4658; margin-bottom: 22px; }
+      .card { background-color: #ffffff; border: 1px solid #cfd8ea; border-radius: 8px; padding: 18px;
+              margin-bottom: 16px; }
+      .label { color: #566174; font-size: 13px; letter-spacing: 1px; margin-bottom: 4px; }
+      .count { color: #b25e00; font-size: 30px; font-weight: bold; margin: 4px 0 8px 0; }
+      .wire { background-color: #14213d; border-radius: 6px; color: #e8ecf4; padding: 12px 14px;
+              white-space: pre-wrap; }
+      .note { color: #566174; font-size: 14px; line-height: 1.5; }
+      code { background-color: #e8ecf4; border-radius: 3px; padding: 1px 4px; }
+      a { color: #1b5fbf; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <p class="eyebrow">M8 &mdash; THE SESSION KEEPER</p>
+      <h1>sessionStorage</h1>
+      <p class="intro">The same key/value API as <a href="https://example.dev/storage">localStorage</a>, with a
+      different lifetime: it belongs to <em>this tab</em>, and it is never written to disk. Close the tab and it is
+      gone; open a second tab and it starts empty.</p>
+
+      <div class="card">
+        <p class="label">TIMES THIS TAB HAS LOADED THE PAGE</p>
+        <p class="count" id="count">&hellip;</p>
+        <p class="note">This counter lives in <code>sessionStorage</code>. Reload and it climbs &mdash; but unlike the
+        localStorage demo, <strong>close the browser and reopen it</strong> and it is back to <strong>1</strong>,
+        because sessionStorage does not survive the tab. It is the store for &ldquo;this visit only&rdquo; state.</p>
+      </div>
+
+      <div class="card">
+        <h2>What is stored for this tab</h2>
+        <p class="wire" id="dump">&hellip;</p>
+        <p class="note">Everything <code>sessionStorage</code> holds right now. It is scoped to the origin
+        <span id="origin">this site</span> <em>and</em> to this tab &mdash; a second tab on the same site has its own,
+        separate sessionStorage, so two tabs never see each other&rsquo;s here.</p>
+      </div>
+
+      <div class="card">
+        <h2>local vs session</h2>
+        <p class="note"><code>localStorage</code>: shared by every tab on the origin, persisted to disk, no expiry.
+        <code>sessionStorage</code>: private to one tab, in memory only, cleared when the tab closes. Same methods
+        (<code>getItem</code>/<code>setItem</code>/<code>removeItem</code>/<code>clear</code>/<code>length</code>/<code>key</code>),
+        same 5&nbsp;MB-ish quota, same <code>QuotaExceededError</code> on overflow &mdash; only the lifetime differs.</p>
+      </div>
+
+      <p><a href="https://example.dev/m8">&laquo; Back to the M8 demo</a></p>
+    </div>
+
+    <script>
+      var count = parseInt(sessionStorage.getItem('hb_tab_loads') || '0', 10);
+      count = count + 1;
+      sessionStorage.setItem('hb_tab_loads', String(count));
+      sessionStorage.setItem('hb_last_seen', 'session-demo');
+      document.getElementById('count').textContent = String(count);
+      document.getElementById('origin').textContent = location.href;
+
+      var lines = [];
+      for (var i = 0; i < sessionStorage.length; i++) {
+        var k = sessionStorage.key(i);
+        lines.push(k + ' = ' + sessionStorage.getItem(k));
+      }
+      document.getElementById('dump').textContent = lines.join('\n');
+    </script>
+  </body>
+</html>

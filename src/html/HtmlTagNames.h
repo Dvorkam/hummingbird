@@ -31,6 +31,7 @@ static constexpr std::string_view Img = "img";
 static constexpr std::string_view Br = "br";
 static constexpr std::string_view Hr = "hr";
 static constexpr std::string_view Input = "input";
+static constexpr std::string_view Textarea = "textarea";
 static constexpr std::string_view Button = "button";
 static constexpr std::string_view Form = "form";
 static constexpr std::string_view Ul = "ul";

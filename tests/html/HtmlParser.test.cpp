@@ -106,6 +106,122 @@ TEST(HtmlParserTest, SemanticTagsAreSupported) {
     EXPECT_FALSE(unsupported.count("article"));
 }
 
+namespace {
+// Parses `html` and returns the first <textarea> found, so the textarea cases
+// below can assert on its folded-in value.
+Hummingbird::DOM::Element* first_textarea(Hummingbird::DOM::Node* node) {
+    if (auto* element = dynamic_cast<Hummingbird::DOM::Element*>(node)) {
+        if (element->get_tag_name() == TagNames::Textarea) {
+            return element;
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (auto* found = first_textarea(child.get())) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+}  // namespace
+
+TEST(HtmlParserTest, TextareaIsSupported) {
+    std::string_view html = "<form><textarea name=\"text\"></textarea></form>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+    EXPECT_FALSE(result.unsupported_tags.count("textarea"));
+}
+
+// A textarea's content is its default value, not child text. The parser folds it
+// into `value` so the control has exactly one owner and nothing renders beneath
+// it.
+TEST(HtmlParserTest, TextareaContentBecomesItsValueRatherThanChildText) {
+    std::string_view html = "<textarea name=\"text\">existing draft</textarea>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+
+    auto* textarea = first_textarea(result.dom.get());
+    ASSERT_NE(textarea, nullptr);
+    const auto* value = textarea->find_attribute("value");
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(*value, "existing draft");
+    EXPECT_TRUE(textarea->get_children().empty());
+}
+
+TEST(HtmlParserTest, TextareaValueDecodesEntitiesAndKeepsMarkupLiteral) {
+    // Escapable raw text: `<` and `&` were escaped to survive serialization, so
+    // entities decode but the result is never re-tokenized as markup.
+    std::string_view html = "<textarea>a &lt; b &amp;&amp; c <b>not bold</b></textarea>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+
+    auto* textarea = first_textarea(result.dom.get());
+    ASSERT_NE(textarea, nullptr);
+    const auto* value = textarea->find_attribute("value");
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(*value, "a < b && c <b>not bold</b>");
+    EXPECT_TRUE(textarea->get_children().empty());
+}
+
+TEST(HtmlParserTest, TextareaDropsOneLeadingNewlineAfterTheStartTag) {
+    // Per the HTML spec that newline is a serialization artifact; a second one is
+    // real content.
+    std::string_view html = "<textarea>\nkept\n</textarea>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+
+    auto* textarea = first_textarea(result.dom.get());
+    ASSERT_NE(textarea, nullptr);
+    const auto* value = textarea->find_attribute("value");
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(*value, "kept\n");
+}
+
+TEST(HtmlParserTest, TextareaContentDoesNotCloseTheEnclosingForm) {
+    // Without RCDATA tokenization a '<' in the draft would open a bogus element
+    // and drag the submit button out of the form.
+    std::string_view html = "<form><textarea>3 < 4</textarea><input type=\"submit\"></form>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+
+    auto* textarea = first_textarea(result.dom.get());
+    ASSERT_NE(textarea, nullptr);
+    const auto* value = textarea->find_attribute("value");
+    ASSERT_NE(value, nullptr);
+    EXPECT_EQ(*value, "3 < 4");
+
+    auto* form = dynamic_cast<Hummingbird::DOM::Element*>(textarea->get_parent());
+    ASSERT_NE(form, nullptr);
+    EXPECT_EQ(form->get_tag_name(), TagNames::Form);
+    EXPECT_EQ(form->get_children().size(), 2u);  // textarea + submit, no stray node
+}
+
+// Raw text is literal all the way down: expanding entities here would rewrite the
+// source the JS engine executes.
+TEST(HtmlParserTest, ScriptBodyKeepsCharacterReferencesLiteral) {
+    std::string_view html = "<script>var s = \"&amp;\";</script>";
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+
+    auto* script = dynamic_cast<Hummingbird::DOM::Element*>(result.dom->get_children()[0].get());
+    ASSERT_NE(script, nullptr);
+    ASSERT_EQ(script->get_children().size(), 1u);
+    auto* text = dynamic_cast<Hummingbird::DOM::Text*>(script->get_children()[0].get());
+    ASSERT_NE(text, nullptr);
+    EXPECT_EQ(text->get_text(), "var s = \"&amp;\";");
+}
+
 TEST(HtmlParserTest, CustomElementsAreSupported) {
     std::string_view html = "<my-widget><x-child></x-child></my-widget>";
     Hummingbird::Core::ArenaAllocator arena(4096);

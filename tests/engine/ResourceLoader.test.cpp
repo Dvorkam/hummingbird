@@ -2,14 +2,18 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 
+#include "engine/resources/NetworkErrorPage.h"
 #include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/resources/ResourceUrl.h"
 #include "platform/decoders/CompositeImageDecoder.h"
+#include "platform/net/StubNetwork.h"
 #include "test_utils/TestFakes.h"
 
 namespace {
@@ -52,6 +56,7 @@ public:
         response.effective_url = url;
         response.body = body;
         response.error = error;
+        response.headers = response_headers;
         if (callback) callback(std::move(response));
     }
 
@@ -63,6 +68,7 @@ public:
         response.effective_url = url;
         response.body = body;
         response.error = error;
+        response.headers = response_headers;
         if (callback) callback(std::move(response));
     }
 
@@ -77,6 +83,7 @@ public:
 
     std::vector<Request> requests;
     std::string body;
+    Hummingbird::Core::HttpHeaders response_headers;
     NetworkError error = NetworkError::None;
 };
 
@@ -351,6 +358,130 @@ TEST(ResourceLoaderTest, NavigatePostUsesNetworkPostWithBodyAndContentType) {
     EXPECT_EQ(batch.document_url, "https://acme.test/html/");
 }
 
+// --- Referer header (T-NET-REFERRER-1) ---------------------------------------
+// The policy itself is covered by Referrer.test.cpp; these prove the loader
+// actually attaches it to real requests from the initiating document's URL.
+
+TEST(ResourceLoaderTest, SameOriginFormPostCarriesFullReferer) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "text=hi";
+    request.content_type = "application/x-www-form-urlencoded";
+    request.initiator_url = "https://news.ycombinator.com/item?id=42";
+
+    loader.navigate("https://news.ycombinator.com/comment", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Referer"),
+              "https://news.ycombinator.com/item?id=42");
+    // A form POST also carries Origin (initiating document's origin, no path) —
+    // the header HN's write-endpoint CSRF check requires.
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Origin"),
+              "https://news.ycombinator.com");
+}
+
+// --- browser identity (T-NET-IDENTITY-1) -------------------------------------
+
+TEST(ResourceLoaderTest, DefaultIdentityIsHonestUserAgent) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    loader.navigate("https://news.ycombinator.com/");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    const auto ua = network_ptr->requests[0].options.headers.get("User-Agent");
+    EXPECT_NE(ua.find("Hummingbird"), std::string::npos);
+    EXPECT_EQ(ua.find("Chrome/"), std::string::npos);
+    // Sec-CH-UA rides the https request and names Hummingbird truthfully.
+    EXPECT_NE(network_ptr->requests[0].options.headers.get("Sec-CH-UA").find("Hummingbird"), std::string::npos);
+}
+
+TEST(ResourceLoaderTest, CompatibilityModeSitePresentsChromeUserAgent) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    auto identity = std::make_shared<Hummingbird::Core::IdentityPolicyStore>();
+    identity->set_mode(*Hummingbird::Core::Origin::parse("https://news.ycombinator.com/"),
+                       Hummingbird::Core::IdentityMode::Compatibility);
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr,
+                          /*cookie_jar=*/nullptr, identity);
+
+    loader.navigate("https://news.ycombinator.com/comment");
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    const auto ua = network_ptr->requests[0].options.headers.get("User-Agent");
+    EXPECT_NE(ua.find("Chrome/120"), std::string::npos);
+    EXPECT_EQ(ua.find("Hummingbird"), std::string::npos) << "canonical UA carries no Hummingbird token";
+    // A different origin still gets the honest default.
+    loader.navigate("https://example.test/");
+    ASSERT_EQ(network_ptr->requests.size(), 2u);
+    EXPECT_NE(network_ptr->requests[1].options.headers.get("User-Agent").find("Hummingbird"), std::string::npos);
+}
+
+TEST(ResourceLoaderTest, GetNavigationSendsNoOriginHeader) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    ResourceLoader::DocumentRequest request{};
+    request.initiator_url = "https://example.test/from";  // a link click (GET)
+
+    loader.navigate("https://example.test/to", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    // Origin is a non-GET header: a plain navigation must not carry it.
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Origin").empty());
+}
+
+TEST(ResourceLoaderTest, CrossOriginNavigationSendsOriginOnlyReferer) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    ResourceLoader::DocumentRequest request{};
+    request.initiator_url = "https://example.test/secret/page";  // a link click to another site
+
+    loader.navigate("https://other.test/landing", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Referer"), "https://example.test/");
+}
+
+TEST(ResourceLoaderTest, UserInitiatedNavigationSendsNoReferer) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "ok";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    // No initiator_url: address-bar / bookmark / history navigation.
+    loader.navigate("https://example.test/");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Referer").empty());
+}
+
+TEST(ResourceLoaderTest, SubresourceCarriesDocumentReferer) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body { color: red; }";
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+    loader.request_stylesheets({"/style.css"}, "https://example.test/page.html");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Referer"),
+              "https://example.test/page.html");
+}
+
 TEST(ResourceLoaderTest, StoresAnimatedImagesWhenDecoderProvidesFrames) {
     auto fallback = std::make_unique<CapturingNetwork>();
     auto* fallback_ptr = fallback.get();
@@ -374,4 +505,302 @@ TEST(ResourceLoaderTest, StoresAnimatedImagesWhenDecoderProvidesFrames) {
     ASSERT_TRUE(second.has_value());
     ASSERT_NE(second->image, nullptr);
     EXPECT_EQ(second->image->pixels[0], 1);
+}
+
+// --- cookie wiring (8.1.1) ---------------------------------------------------
+// The jar itself is covered by CookieJar.test.cpp; these prove it is actually
+// attached to real requests, which is the half a jar-only test cannot show.
+
+TEST(ResourceLoaderTest, ServerSetCookieComesBackOnTheNextRequest) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html><body>ok</body></html>";
+    network_ptr->response_headers.add("Set-Cookie", "session=abc; Path=/");
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+
+    loader.navigate("https://example.test/login");
+    ASSERT_EQ(jar->size(), 1u);
+    // The first request could not have carried it yet.
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Cookie").empty());
+
+    loader.navigate("https://example.test/account");
+    ASSERT_EQ(network_ptr->requests.size(), 2u);
+    EXPECT_EQ(network_ptr->requests[1].options.headers.get("Cookie"), "session=abc");
+}
+
+TEST(ResourceLoaderTest, CookiesAttachToSubresourceRequestsToo) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.request_stylesheets({"https://example.test/site.css"}, "https://example.test/");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "session=abc");
+}
+
+TEST(ResourceLoaderTest, CookiesAttachToFormPostsToo) {
+    // The login POST is exactly the request the North Star depends on.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html>ok</html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "csrf=t0ken", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "user=me&pw=secret";
+    request.content_type = "application/x-www-form-urlencoded";
+    loader.navigate("https://example.test/login", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].method, "POST");
+    EXPECT_EQ(network_ptr->requests[0].body, "user=me&pw=secret");
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "csrf=t0ken");
+}
+
+TEST(ResourceLoaderTest, CookiesAreNotSentToADifferentSite) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.request_stylesheets({"https://cdn.other-site.test/x.css"}, "https://example.test/");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Cookie").empty());
+}
+
+TEST(ResourceLoaderTest, WithoutAJarNoCookieHeaderIsEverAdded) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+    network_ptr->response_headers.add("Set-Cookie", "session=abc");
+
+    // Null jar: cookies disabled, and a Set-Cookie response must not crash.
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, nullptr);
+    loader.navigate("https://example.test/login");
+    loader.navigate("https://example.test/account");
+
+    ASSERT_EQ(network_ptr->requests.size(), 2u);
+    EXPECT_TRUE(network_ptr->requests[1].options.headers.get("Cookie").empty());
+}
+
+// The composition the GUI demo actually exercises: the real StubNetwork route,
+// the real jar, and the real loader. The tests above use fakes on one side or
+// the other; this one has none, so it is what proves example.dev/cookies works.
+TEST(ResourceLoaderTest, CookieDemoCounterAdvancesAcrossRealNavigations) {
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    ResourceLoader loader(std::make_unique<CapturingNetwork>(), std::make_unique<Hummingbird::Platform::StubNetwork>(),
+                          nullptr, nullptr, jar);
+
+    // StubNetwork answers on a worker thread, so wait for the document to land.
+    const auto navigate_and_read = [&](const char* url) {
+        loader.navigate(url);
+        for (int attempt = 0; attempt < 200; ++attempt) {
+            auto batch = loader.consume_pending_updates();
+            if (batch.is_ready(ResourceType::Document)) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        auto view = loader.view(url, ResourceType::Document);
+        return view ? std::string(view->body) : std::string{};
+    };
+
+    const std::string first = navigate_and_read("https://example.dev/cookies");
+    EXPECT_NE(first.find("count\">1<"), std::string::npos) << first;
+    // The jar took the counter off the response...
+    EXPECT_FALSE(jar->cookie_header_for("https://example.dev/cookies", Hummingbird::Core::CookieClock::now()).empty());
+
+    const std::string second = navigate_and_read("https://example.dev/cookies");
+    // ...and sent it back, so the stub could count a second visit.
+    EXPECT_NE(second.find("count\">2<"), std::string::npos) << second;
+    EXPECT_NE(second.find("hb_visits=1"), std::string::npos) << "the echoed Cookie header should show what was sent";
+}
+
+// 8.1.2 at the wiring level: the jar knows the rule, but only ResourceLoader
+// knows who initiated a request, so this is where SameSite actually bites.
+TEST(ResourceLoaderTest, LaxCookiesAreWithheldFromCrossSiteSubresources) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    // Lax by default.
+    jar->store_from_header("https://tracker.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    // A page on example.test pulling a stylesheet from tracker.test: the cookie
+    // domain-matches the request, but the initiator makes it cross-site.
+    loader.request_stylesheets({"https://tracker.test/t.css"}, "https://example.test/page");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Cookie").empty());
+}
+
+TEST(ResourceLoaderTest, SameSiteSubresourcesStillCarryCookies) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "body";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.request_stylesheets({"https://example.test/site.css"}, "https://example.test/page");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "session=abc");
+}
+
+TEST(ResourceLoaderTest, StrictCookiesStillRideTopLevelNavigation) {
+    // The address-bar case: no initiating document, so nothing is cross-site and
+    // the session survives a reload. This is the North Star's path.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "s=1; SameSite=Strict", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.navigate("https://example.test/account");
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "s=1");
+}
+
+// --- navigation initiator / CSRF (T-COOKIE-NAV-INITIATOR-1) -------------------
+// SameSite's whole purpose is refusing to authenticate a request another site
+// caused. That only works if the loader is told who caused it.
+
+TEST(ResourceLoaderTest, CrossSiteFormPostDoesNotCarryLaxCookies) {
+    // The classic CSRF vector: attacker.test auto-submits a form POSTing to
+    // example.test. The session cookie must NOT ride along.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "amount=1000&to=attacker";
+    request.initiator_host = "attacker.test";
+    loader.navigate("https://example.test/transfer", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_TRUE(network_ptr->requests[0].options.headers.get("Cookie").empty())
+        << "a cross-site POST must not be authenticated";
+}
+
+TEST(ResourceLoaderTest, SameSiteFormPostStillCarriesCookies) {
+    // The legitimate case the rule must not break: the site's own login form.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "session=abc", Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    ResourceLoader::DocumentRequest request{};
+    request.method = ResourceLoader::DocumentRequest::Method::Post;
+    request.body = "user=me";
+    request.initiator_host = "example.test";
+    loader.navigate("https://example.test/login", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "session=abc");
+}
+
+TEST(ResourceLoaderTest, CrossSiteLinkClickCarriesLaxButNotStrict) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    const auto when = Hummingbird::Core::CookieClock::now();
+    jar->store_from_header("https://example.test/", "lax=1", when);
+    jar->store_from_header("https://example.test/", "strict=2; SameSite=Strict", when);
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    ResourceLoader::DocumentRequest request{};
+    request.initiator_host = "other-site.test";  // a cross-site link click
+    loader.navigate("https://example.test/article", request);
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "lax=1");
+}
+
+TEST(ResourceLoaderTest, UserInitiatedNavigationCarriesEverything) {
+    // Address bar / bookmark / history: no initiating document, nothing is
+    // cross-site, so even Strict rides along. This is the North Star's path.
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    network_ptr->body = "<html></html>";
+
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://example.test/", "strict=2; SameSite=Strict",
+                           Hummingbird::Core::CookieClock::now());
+
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr, jar);
+    loader.navigate("https://example.test/account");  // no initiator set
+
+    ASSERT_EQ(network_ptr->requests.size(), 1u);
+    EXPECT_EQ(network_ptr->requests[0].options.headers.get("Cookie"), "strict=2");
+}
+
+// --- network error pages (8.3.2) ---------------------------------------------
+
+TEST(NetworkErrorPageTest, NamesTheUrlAndOffersRetry) {
+    auto page = Hummingbird::Engine::NetworkErrorPage::build("https://offline.invalid/x",
+                                                             Hummingbird::NetworkError::CurlError);
+    EXPECT_NE(page.find("offline.invalid/x"), std::string::npos);
+    EXPECT_NE(page.find("href=\"https://offline.invalid/x\""), std::string::npos) << "retry link back to the url";
+    EXPECT_NE(page.find("Try again"), std::string::npos);
+}
+
+TEST(NetworkErrorPageTest, EscapesTheUrlSoItCannotInjectMarkup) {
+    auto page = Hummingbird::Engine::NetworkErrorPage::build("https://x/\"><script>evil()</script>",
+                                                             Hummingbird::NetworkError::CurlError);
+    EXPECT_EQ(page.find("<script>evil"), std::string::npos) << "the url must be escaped";
+}
+
+TEST(NetworkErrorPageTest, DistinguishesRedirectFailuresFromUnreachable) {
+    auto loop = Hummingbird::Engine::NetworkErrorPage::build("https://x/", Hummingbird::NetworkError::RedirectLoop);
+    auto down = Hummingbird::Engine::NetworkErrorPage::build("https://x/", Hummingbird::NetworkError::CurlError);
+    EXPECT_NE(loop.find("redirect"), std::string::npos);
+    EXPECT_NE(down.find("offline"), std::string::npos);
+    EXPECT_NE(loop, down);
+}
+
+TEST(ResourceLoaderTest, UnreachableDocumentRendersTheErrorPage) {
+    // The real backend reaches nothing (empty body) and there is no stub to serve
+    // a demo page: this is a genuine failure, so the navigation must land on the
+    // internal error page rather than a blank document.
+    auto network = std::make_unique<CapturingNetwork>();  // default body is empty
+    ResourceLoader loader(std::move(network), /*fallback=*/nullptr, nullptr, nullptr);
+
+    loader.navigate("https://offline.invalid/");
+    auto batch = loader.consume_pending_updates();
+    ASSERT_TRUE(batch.is_ready(ResourceType::Document));
+    EXPECT_EQ(batch.document_error, Hummingbird::NetworkError::CurlError);
+
+    auto view = loader.view("https://offline.invalid/", ResourceType::Document);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_NE(std::string(view->body).find("Try again"), std::string::npos);
+    EXPECT_NE(std::string(view->body).find("offline.invalid"), std::string::npos);
 }

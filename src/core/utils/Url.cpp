@@ -220,6 +220,12 @@ std::string_view url_without_fragment(std::string_view url) {
     return pos == std::string_view::npos ? url : url.substr(0, pos);
 }
 
+bool is_fetchable_web_url(std::string_view url) {
+    auto parts = parse_absolute_url(url);
+    if (!parts) return false;
+    return parts->scheme == "http" || parts->scheme == "https";
+}
+
 bool is_javascript_url(std::string_view url) {
     return starts_with_ci(Utils::trim_ascii_whitespace(url), "javascript:");
 }

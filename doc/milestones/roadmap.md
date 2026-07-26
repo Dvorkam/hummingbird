@@ -17,9 +17,10 @@ Platform).
   critical path, and stories.
 * `doc/TODOs.md` tracks the live backlog; completed items are archived in
   `doc/todo_archive/`.
-* Status legend: **Done** (shipped, tag noted) / **Next** (detailed doc exists, work
-  queued) / **Planned** (themed, target chosen, not yet broken into stories) /
-  **Aspirational** (direction is committed, expect re-scoping before work starts).
+* Status legend: **Done** (shipped, tag noted) / **Complete** (implementation and
+  proof gates finished; release pending) / **Next** (detailed doc exists, work queued)
+  / **Planned** (themed, target chosen, not yet broken into stories) / **Aspirational**
+  (direction is committed, expect re-scoping before work starts).
 
 > **Renumbering note (2026-07):** Milestones 6+ were restructured twice-over. First,
 > "The Layouter" was pulled forward to M6 and "The Speedster" was merged into the
@@ -41,7 +42,7 @@ not when its subsystem "looks finished."
 |---|---|---|
 | M6 Layouter | DDG HTML homepage (visual parity) | flexbox + CSS compat + CI harness |
 | M7 Programmable Document | TodoMVC (pinned snapshot) | DOM mutation + events + timers/microtasks |
-| M8 Session Keeper | Hacker News: log in, post a comment | cookies + storage + session persistence |
+| M8 Session Keeper | Hacker News: log in, post a comment *(explicit compatibility mode required)* | cookies + storage + session persistence |
 | M9 Fetcher | HNPWA browsing live API data | fetch/XHR + CORS + HTTP cache |
 | M10 Layouter II | Wikipedia desktop + old.reddit | fixed/sticky + scroll containers + z-index |
 | M11 Inputter | Real login + rich text forms | focus, selection, clipboard, forms v2 |
@@ -173,7 +174,7 @@ Detailed doc: [milestone6.md](milestone6.md)
 
 ---
 
-## Milestone 7: The Programmable Document (DOM + Events + Scheduling) — Complete (2026-07-20)
+## Milestone 7: The Programmable Document (DOM + Events + Scheduling) — Done (v0.7.0, Jul 2026)
 
 Detailed doc: [milestone7.md](milestone7.md)
 
@@ -190,7 +191,7 @@ Detailed doc: [milestone7.md](milestone7.md)
 
 ---
 
-## Milestone 8: The Session Keeper (Cookies + Storage + Identity) — Planned
+## Milestone 8: The Session Keeper (Cookies + Storage + Identity) — Complete (v0.8.0 release pending, Jul 2026)
 
 Detailed doc: [milestone8.md](milestone8.md)
 
@@ -198,13 +199,15 @@ Detailed doc: [milestone8.md](milestone8.md)
 **Goal:** Support the state layer every logged-in site assumes.
 
 * **Cookies v1:** domain/path matching, Secure/HttpOnly, SameSite baseline (Lax/Strict); correct semantics across redirects; persistent cookie jar across restarts.
-* **DOM Storage:** `localStorage`/`sessionStorage` (synchronous API, per-origin, persisted). Every SPA login flow touches this — it cannot wait for the fetch milestone.
+* **DOM Storage:** persistent per-origin `localStorage` and in-memory, per-tab
+  `sessionStorage`. Every SPA login flow touches storage — it cannot wait for the
+  fetch milestone.
 * **Navigation plumbing:** POST hardening, redirect chains, basic error pages.
-* **Proof target:** **Log into Hacker News, post a comment, restart the browser, still be logged in.**
+* **Proof target:** **Log into Hacker News, post a comment, restart the browser, still be logged in.** Hacker News rejects Hummingbird's normal User-Agent on its login/comment endpoints, so this flow requires explicitly enabling per-origin compatibility mode with `Ctrl+Shift+U`; the override is never automatic.
 
 ---
 
-## Milestone 9: The Fetcher (Fetch/XHR + CORS + Cache) — Planned
+## Milestone 9: The Fetcher (Fetch/XHR + CORS + Cache) — Next
 
 Detailed doc: [milestone9.md](milestone9.md) *(draft — revalidate at kickoff)*
 
@@ -237,7 +240,9 @@ Detailed doc: [milestone9.md](milestone9.md) *(draft — revalidate at kickoff)*
 **Theme:** *Human Interaction*
 **Goal:** Make login and composing text practical (this is where "viable" often lives or dies).
 
-* **Form Controls v2:** `<input type=text/password>`, `<textarea>`; value editing, selection, caret movement, copy/paste.
+* **Form Controls v2:** `<input type=text/password>` plus the full textarea model;
+  extend M8's deliberately narrow HN-comment textarea MVP with value editing,
+  selection, caret movement, copy/paste, and normal form semantics.
 * **Focus System:** tab order, focus rings, keyboard routing.
 * **Composition Plan:** Latin input "good enough" first; IME/composition events as a follow-up epic behind interfaces.
 * **Text rendering reality check:** emoji + font-fallback chain baseline (comment sections are full of them; full shaping/bidi stays deferred).

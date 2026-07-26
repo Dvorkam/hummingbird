@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "core/ArenaAllocator.h"
+#include "core/utils/CompatibilityWarnings.h"
 #include "engine/document/DocumentLinkDiscovery.h"
 #include "engine/forms/FormSubmission.h"
 #include "layout/TreeBuilder.h"
@@ -39,6 +40,7 @@ public:
     DocumentModel(size_t arena_block_size, size_t arena_max_blocks) : dom_arena_(arena_block_size, arena_max_blocks) {}
 
     void reset();
+    void flush_compatibility_warnings(std::string_view document_url);
     ParseResult parse_html(std::string_view html);
     // `font_resolver`, when non-null, turns parsed @font-face rules into a
     // registry consulted during style compute; remote fonts it could not resolve
@@ -80,7 +82,8 @@ private:
     // budget failure shows a user-facing page instead of a blank tab (T-DOM-2).
     bool load_budget_error_page();
 
-    Css::StyleEngine style_engine_;
+    Core::Utils::CompatibilityWarnings compatibility_warnings_;
+    Css::StyleEngine style_engine_{&compatibility_warnings_};
     Layout::TreeBuilder tree_builder_;
 
     Core::ArenaAllocator dom_arena_{kDomArenaBlockSize, kDomArenaMaxBlocks};

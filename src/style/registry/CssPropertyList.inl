@@ -46,6 +46,8 @@ HB_CSS_PROPERTY(Overflow, Overflow, "overflow", "overflow", ParserHook::parse_id
                 PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(OverflowY, OverflowY, "overflow-y", "overflow-y", ParserHook::parse_identifier,
                 ApplyHook::apply_overflow, PropertyFlags::LayoutAffecting)
+HB_CSS_PROPERTY(ObjectFit, ObjectFit, "object-fit", "object-fit", ParserHook::parse_identifier,
+                ApplyHook::apply_object_fit, PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(Font, Font, "font", "font", ParserHook::parse_font_shorthand, ApplyHook::apply_font_family,
                 PropertyFlags::Inherited | PropertyFlags::LayoutAffecting)
 HB_CSS_PROPERTY(FontSize, FontSize, "font-size", "font-size", ParserHook::parse_font_size, ApplyHook::apply_font_size,

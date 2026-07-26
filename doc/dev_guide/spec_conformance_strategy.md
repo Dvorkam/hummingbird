@@ -50,11 +50,17 @@ against the prose. It means **adopt the conformance test suite** as the ratchet:
 Two cheap disciplines, kept continuously, mean the flip is a non-event when it
 comes:
 
-1. **Keep a deviation register.** Every "MVP: we do X, the spec says Y" gets a
-   TODO with the deviation stated explicitly (see `doc/TODOs.md`, e.g.
-   `T-EVENT-SPEC-GAPS-1`, which enumerates the event-system deviations). When we
-   later go conformance-first we then have a punch-list, not a rediscovery
-   exercise. **Never skip logging a deliberate deviation.**
+1. **Keep a deviation register.** Every "MVP: we do X, the spec says Y" gets
+   written down explicitly. When we later go conformance-first we then have a
+   punch-list, not a rediscovery exercise. **Never skip logging a deliberate
+   deviation.**
+
+   Registers live in **`doc/conformance/`**, one file per spec/module, and own
+   the adherence picture; `doc/TODOs.md` owns the work items and links to them.
+   A gap is described in exactly one of the two — see
+   `doc/conformance/README.md` for that split and why it matters. Small
+   one-off deviations can stay as a note on their `T-*` ticket until a module
+   accumulates enough to be worth its own register; do not create empty ones.
 2. **Retrofit a conformance slice per module as it stabilizes.** When a module
    settles (e.g. URL parsing, or the event system after its milestone), wire in a
    focused conformance slice for *that module only* and let it be the regression
@@ -75,6 +81,34 @@ conformance suite (WPT) catches spec-violating primitives long before a user
 does. Until we adopt one, targeted unit tests on each primitive are the
 stopgap — every such bug fix should land with a regression test that pins the
 spec-correct behavior.
+
+## Security-relevant deviations are a different class
+
+Most deviations are cosmetic or feature gaps: a missing CSS corner costs
+fidelity. A deviation in a **security mechanism** costs a guarantee, and the
+difference matters for how it is tracked.
+
+Cookies (M8) are the first module where this bites. `SameSite` is not a rendering
+feature — it is the browser's built-in CSRF defense, and `Secure`/`HttpOnly` are
+the confidentiality controls around a session. A partial implementation of these
+does not degrade gracefully: it looks like protection while providing none, which
+is worse than not claiming the feature at all.
+
+Discipline for this class:
+
+- **State the guarantee, not just the gap.** `T-COOKIE-NAV-INITIATOR-1` was first
+  filed as "Strict over-sends" (a fidelity framing) when the real defect is "Lax's
+  CSRF protection does not apply to cross-site form POSTs" (a guarantee framing).
+  The second wording is what makes the priority obvious.
+- **Priority follows the guarantee.** A security deviation that silently voids a
+  protection is P0 for its milestone, not a nice-to-have.
+- **Never describe a partially-enforced control as supported.** Say which half
+  works. Cookie SameSite is exact for subresources and inert for navigations, and
+  both halves belong in the same sentence.
+- **These are the first candidates for a conformance slice.** RFC 6265bis has
+  well-defined behavior and WPT has a `cookies/` suite; when the cookie module
+  stabilizes it is a better first ratchet than a rendering module, because the
+  cost of being quietly wrong is higher.
 
 ## Summary
 

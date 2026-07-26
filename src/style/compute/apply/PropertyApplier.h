@@ -8,6 +8,7 @@ namespace Hummingbird::Css::Apply {
 
 struct Context {
     float parent_font_size = 0.0f;
+    float root_font_size = 16.0f;
     const ComputedStyle* parent_style = nullptr;
     bool* display_set = nullptr;
 };

@@ -43,10 +43,15 @@ class RoutingNetwork final : public INetwork {
 public:
     void set_response(const std::string& url, std::string body) { responses_[url] = std::move(body); }
 
+    // Response headers the fake server returns for `url` (Set-Cookie, ...).
+    void set_response_headers(const std::string& url, Core::HttpHeaders headers) {
+        response_headers_[url] = std::move(headers);
+    }
+
     void get(const std::string& url, std::function<void(NetworkResponse)> callback,
              const NetworkRequestOptions& options = {}) override {
-        (void)options;
         requested_.push_back(url);
+        sent_headers_.push_back(options.headers);
         auto it = responses_.find(url);
         NetworkResponse response;
         response.url = url;
@@ -54,6 +59,9 @@ public:
         if (it != responses_.end()) {
             response.status = 200;
             response.body = it->second;
+        }
+        if (auto headers = response_headers_.find(url); headers != response_headers_.end()) {
+            response.headers = headers->second;
         }
         if (callback) callback(std::move(response));
     }
@@ -67,10 +75,14 @@ public:
     void shutdown() override {}
 
     const std::vector<std::string>& requested() const { return requested_; }
+    // Request headers supplied for each call, parallel to requested().
+    const std::vector<Core::HttpHeaders>& sent_headers() const { return sent_headers_; }
 
 private:
     std::unordered_map<std::string, std::string> responses_;
+    std::unordered_map<std::string, Core::HttpHeaders> response_headers_;
     std::vector<std::string> requested_;
+    std::vector<Core::HttpHeaders> sent_headers_;
 };
 
 class DeferredNetwork final : public INetwork {

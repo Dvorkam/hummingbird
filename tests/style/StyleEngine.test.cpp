@@ -5,8 +5,10 @@
 #include "core/ArenaAllocator.h"
 #include "core/dom/DomFactory.h"
 #include "core/dom/Element.h"
+#include "core/dom/ElementUtils.h"
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlParser.h"
 #include "html/HtmlTagNames.h"
 #include "style/compute/FontFaceRegistry.h"
 #include "style/compute/StylesheetSource.h"
@@ -15,6 +17,23 @@
 using namespace Hummingbird::Css;
 using namespace Hummingbird::DOM;
 namespace Attr = Hummingbird::Html::AttributeNames;
+
+namespace {
+const Element* find_element_by_id(const Node* node, std::string_view id) {
+    if (const auto* element = dynamic_cast<const Element*>(node)) {
+        const auto value = find_attribute_value(*element, Attr::Id);
+        if (value && *value == id) {
+            return element;
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (const auto* found = find_element_by_id(child.get(), id)) {
+            return found;
+        }
+    }
+    return nullptr;
+}
+}  // namespace
 
 TEST(StyleEngineTest, AppliesRulesAndCascade) {
     // DOM: <div class="box" id="main"><span></span></div>
@@ -42,6 +61,77 @@ TEST(StyleEngineTest, AppliesRulesAndCascade) {
     // Child span should at least have a computed style object (even if empty).
     auto style_child = root->get_children()[0]->get_computed_style();
     ASSERT_TRUE(style_child);
+}
+
+TEST(StyleEngineTest, RemTracksTheHtmlFontSizeThroughTheParsedTreeWrapper) {
+    // The real pipeline styles the parser's synthetic <root> wrapper, not <html>.
+    // The rem reference must still come from the document's root ELEMENT, or
+    // `html { font-size: ... }` (and the 62.5% idiom) silently has no effect.
+    Hummingbird::Core::ArenaAllocator arena(8192);
+    Hummingbird::Html::Parser html_parser(arena, "<html><body><div id=\"icon\"></div></body></html>");
+    auto parsed = html_parser.parse();
+    ASSERT_TRUE(parsed.dom);
+
+    Parser parser("html { font-size: 20px; } #icon { width: 1.5rem; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, parsed.dom.get());
+
+    const auto* icon = find_element_by_id(parsed.dom.get(), "icon");
+    ASSERT_NE(icon, nullptr);
+    auto icon_style = icon->get_computed_style();
+    ASSERT_TRUE(icon_style);
+    ASSERT_TRUE(icon_style->width.has_value());
+    EXPECT_FLOAT_EQ(icon_style->width->px, 30.0f);  // 1.5rem x the html font size
+}
+
+TEST(StyleEngineTest, ResolvesEmAndRemAgainstTheirCorrectFontSizes) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Html);
+    root->set_attribute(Attr::Id, "root");
+    auto local = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    local->set_attribute(Attr::Id, "local");
+    auto inherited = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    inherited->set_attribute(Attr::Id, "inherited");
+    auto custom = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    custom->set_attribute(Attr::Id, "custom");
+    root->append_child(std::move(local));
+    root->append_child(std::move(inherited));
+    root->append_child(std::move(custom));
+
+    Parser parser(
+        "#root { font-size: 1.25rem; width: 2rem; } "
+        "#local { font-size: 10px; width: 2em; height: 1.5rem; } "
+        "#inherited { width: 2em; height: 1.5rem; } "
+        "#custom { --icon-size: 1.5rem; width: var(--icon-size); height: var(--icon-size); }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto root_style = root->get_computed_style();
+    auto local_style = root->get_children()[0]->get_computed_style();
+    auto inherited_style = root->get_children()[1]->get_computed_style();
+    auto custom_style = root->get_children()[2]->get_computed_style();
+    ASSERT_TRUE(root_style);
+    ASSERT_TRUE(local_style);
+    ASSERT_TRUE(inherited_style);
+    ASSERT_TRUE(custom_style);
+    ASSERT_TRUE(root_style->width.has_value());
+    ASSERT_TRUE(local_style->width.has_value());
+    ASSERT_TRUE(local_style->height.has_value());
+    ASSERT_TRUE(inherited_style->width.has_value());
+    ASSERT_TRUE(inherited_style->height.has_value());
+    ASSERT_TRUE(custom_style->width.has_value());
+    ASSERT_TRUE(custom_style->height.has_value());
+
+    EXPECT_FLOAT_EQ(root_style->font_size, 20.0f);       // root rem uses the initial 16px reference
+    EXPECT_FLOAT_EQ(root_style->width->px, 32.0f);       // root's other rem does too
+    EXPECT_FLOAT_EQ(local_style->width->px, 20.0f);      // 2em × local 10px
+    EXPECT_FLOAT_EQ(local_style->height->px, 30.0f);     // 1.5rem × root 20px
+    EXPECT_FLOAT_EQ(inherited_style->width->px, 40.0f);  // 2em × inherited 20px
+    EXPECT_FLOAT_EQ(inherited_style->height->px, 30.0f);
+    EXPECT_FLOAT_EQ(custom_style->width->px, 30.0f);  // rem survives var() substitution
+    EXPECT_FLOAT_EQ(custom_style->height->px, 30.0f);
 }
 
 TEST(StyleEngineTest, FontSrcResolvedFromFontFaceRegistry) {
@@ -321,6 +411,23 @@ TEST(StyleEngineTest, SubmitInputUsesCompactDefaultWidth) {
     EXPECT_FLOAT_EQ(text_style->width->px, 180.0f);
 }
 
+TEST(StyleEngineTest, HiddenInputIsNotRendered) {
+    // HN's comment form carries `parent`, `goto`, and `hmac` as
+    // `input[type=hidden]`. They must be display:none, not painted as stray
+    // button boxes next to the textarea.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto hidden = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    hidden->set_attribute(Attr::Type, "hidden");
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, hidden.get());
+
+    auto style = hidden->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->display, ComputedStyle::Display::None);
+}
+
 TEST(StyleEngineTest, TableCellsUseDefaultPaddingForReadability) {
     Hummingbird::Core::ArenaAllocator arena(1024);
     auto td = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
@@ -456,6 +563,42 @@ TEST(StyleEngineTest, ResolvesVarForColors) {
     EXPECT_EQ(fallback_style->background->r, 255);
     EXPECT_EQ(fallback_style->background->g, 0);
     EXPECT_EQ(fallback_style->background->b, 0);
+}
+
+TEST(StyleEngineTest, ResolvesVarForFontFamily) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::P));
+
+    Parser parser(
+        "div { --font-family-montserrat: montserrat, sans-serif; }"
+        "p { font-family: var(--font-family-montserrat); }");
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->font_face, "montserrat, sans-serif");
+}
+
+TEST(StyleEngineTest, ResolvesNestedVarFallbackForFontFamily) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+    root->append_child(DomFactory::create_element(arena, Hummingbird::Html::TagNames::P));
+
+    Parser parser(
+        "div { --font-family-georgia: Georgia, serif; }"
+        "p { font-family: var(--headline-font-family, var(--font-family-georgia)); }");
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_children()[0]->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->font_face, "Georgia, serif");
 }
 
 TEST(StyleEngineTest, AppliesFloatProperty) {
@@ -1439,6 +1582,41 @@ TEST(StyleEngineTest, AppliesOverflowProperties) {
     EXPECT_EQ(style->overflow_y, ComputedStyle::Overflow::Scroll);
 }
 
+TEST(StyleEngineTest, OverflowClipParsesAsHidden) {
+    // `overflow: clip` maps to Hidden: the difference is scroll affordances,
+    // which do not exist yet — both clip paint at the padding box (8.5.3).
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Div);
+
+    std::string css = "div { overflow: clip; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->overflow_x, ComputedStyle::Overflow::Hidden);
+    EXPECT_EQ(style->overflow_y, ComputedStyle::Overflow::Hidden);
+}
+
+TEST(StyleEngineTest, AppliesObjectFitProperty) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Img);
+
+    std::string css = "img { object-fit: cover; }";
+    Parser parser(css);
+    auto sheet = parser.parse();
+
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    auto style = root->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_EQ(style->object_fit, ComputedStyle::ObjectFit::Cover);
+}
+
 TEST(StyleEngineTest, AppliesCursorProperty) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto root = DomFactory::create_element(arena, Hummingbird::Html::TagNames::A);
@@ -2042,6 +2220,25 @@ TEST(StyleEngineTest, WidthHeightAttributesMapToStyleWhenUnset) {
     EXPECT_FLOAT_EQ(img_style->height->px, 80.0f);
 }
 
+TEST(StyleEngineTest, CssAutoHeightOverridesHtmlPresentationalHint) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto img = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Img);
+    img->set_attribute(Attr::Width, "4096");
+    img->set_attribute(Attr::Height, "2304");
+
+    Parser parser("img { width: 100%; height: auto; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, img.get());
+
+    auto img_style = img->get_computed_style();
+    ASSERT_TRUE(img_style);
+    ASSERT_TRUE(img_style->width.has_value());
+    EXPECT_TRUE(img_style->width->has_percent);
+    EXPECT_FLOAT_EQ(img_style->width->percent, 100.0f);
+    EXPECT_FALSE(img_style->height.has_value());
+}
+
 TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
     Hummingbird::Core::ArenaAllocator arena(2048);
     auto font = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Font);
@@ -2058,6 +2255,63 @@ TEST(StyleEngineTest, FontTagMapsSizeAndFace) {
     EXPECT_FLOAT_EQ(font_style->font_size, 32.0f);
     EXPECT_EQ(font_style->font_face, "sans-serif");
     EXPECT_EQ(font_style->display, ComputedStyle::Display::Inline);
+}
+
+TEST(StyleEngineTest, InputSizeAttributeDoesNotChangeFontSize) {
+    // `size` on <input> is the field's width in characters, not a <font>-style
+    // font size. HN's `<input size="20">` was mapping through the 1..7 table to
+    // 48px and overflowing the field; it must leave the font size at the default.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto input = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Input);
+    input->set_attribute(Attr::Type, "text");
+    input->set_attribute(Attr::Size, "20");
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, input.get());
+
+    auto style = input->get_computed_style();
+    ASSERT_TRUE(style);
+    EXPECT_FLOAT_EQ(style->font_size, 16.0f);
+}
+
+TEST(StyleEngineTest, BoldAndItalicPresentationalTags) {
+    // <b>/<i> are the presentational siblings of <strong>/<em>. HN's masthead
+    // uses `<b class="hnname">Hacker News</b>`, which must render bold.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto b = DomFactory::create_element(arena, Hummingbird::Html::TagNames::B);
+    auto i = DomFactory::create_element(arena, Hummingbird::Html::TagNames::I);
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, b.get());
+    engine.apply(empty_sheet, i.get());
+
+    auto b_style = b->get_computed_style();
+    auto i_style = i->get_computed_style();
+    ASSERT_TRUE(b_style);
+    ASSERT_TRUE(i_style);
+    EXPECT_EQ(b_style->weight, ComputedStyle::FontWeight::Bold);
+    EXPECT_EQ(i_style->style, ComputedStyle::FontStyle::Italic);
+}
+
+TEST(StyleEngineTest, BgColorAttributeAppliesToTableCells) {
+    // HN's orange header bar is `<td bgcolor="#ff6600">`; bgcolor is a legacy
+    // attribute of the table elements, not just <body>.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto td = DomFactory::create_element(arena, Hummingbird::Html::TagNames::Td);
+    td->set_attribute(Attr::BgColor, "#ff6600");
+
+    StyleEngine engine;
+    Stylesheet empty_sheet;
+    engine.apply(empty_sheet, td.get());
+
+    auto style = td->get_computed_style();
+    ASSERT_TRUE(style);
+    ASSERT_TRUE(style->background.has_value());
+    EXPECT_EQ(style->background->r, 0xff);
+    EXPECT_EQ(style->background->g, 0x66);
+    EXPECT_EQ(style->background->b, 0x00);
 }
 
 TEST(StyleEngineTest, AppliesTextEffectsProperties) {
@@ -2152,3 +2406,4 @@ TEST(StyleEngineTest, EvaluatesMediaConditionsAgainstViewport) {
         EXPECT_FLOAT_EQ(style->width->px, 10.0f);
     }
 }
+

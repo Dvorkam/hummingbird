@@ -200,6 +200,46 @@ TEST(TableLayoutTest, ExpandsColumnsWhenTableIsPercentWidth) {
     EXPECT_FLOAT_EQ(cell22_render->get_rect().width, 104.0f);
 }
 
+TEST(TableLayoutTest, NestedPercentWidthTableDoesNotBalloonOuterTable) {
+    // HN's header: an outer table whose cell holds `<table width="100%">`. During
+    // the outer cell's intrinsic measurement the inner table must act as auto
+    // (shrink to content), not fill the ~100000px probe — otherwise the outer
+    // table ballooned to ~67000px and pushed the logout link off-screen.
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto body = DomFactory::create_element(arena, TagNames::Body);
+    auto outer = DomFactory::create_element(arena, TagNames::Table);
+    auto outer_row = DomFactory::create_element(arena, TagNames::Tr);
+    auto outer_cell = DomFactory::create_element(arena, TagNames::Td);
+
+    auto inner = DomFactory::create_element(arena, TagNames::Table);
+    inner->set_attribute(Attr::Width, "100%");
+    auto inner_row = DomFactory::create_element(arena, TagNames::Tr);
+    auto inner_cell = DomFactory::create_element(arena, TagNames::Td);
+    inner_cell->append_child(DomFactory::create_text(arena, "logout"));
+    inner_row->append_child(std::move(inner_cell));
+    inner->append_child(std::move(inner_row));
+    outer_cell->append_child(std::move(inner));
+    outer_row->append_child(std::move(outer_cell));
+    outer->append_child(std::move(outer_row));
+    body->append_child(std::move(outer));
+
+    Stylesheet sheet;
+    StyleEngine engine;
+    engine.apply(sheet, body.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(body.get());
+    ASSERT_NE(render_root, nullptr);
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect viewport{0, 0, 1024, 400};
+    render_root->layout(context, viewport);
+
+    auto* outer_render = dynamic_cast<RenderTable*>(render_root->get_children()[0].get());
+    ASSERT_NE(outer_render, nullptr);
+    EXPECT_LT(outer_render->get_rect().width, 1024.0f)
+        << "outer table ballooned to " << outer_render->get_rect().width;
+}
+
 TEST(TableLayoutTest, ColspanExpandsColumnWidths) {
     Hummingbird::Core::ArenaAllocator arena(4096);
     auto body = DomFactory::create_element(arena, TagNames::Body);

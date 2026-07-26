@@ -13,6 +13,7 @@
 #include "app/ExtensionBootstrap.h"
 #include "app/RenderCoordinator.h"
 #include "core/GraphicsTypes.h"
+#include "core/net/IdentityPolicyStore.h"
 #include "core/platform_api/IWindow.h"
 #include "core/platform_api/ImageDecoderFactory.h"
 #include "core/platform_api/InputEvent.h"
@@ -72,6 +73,26 @@ BrowserApp::BrowserApp(std::unique_ptr<IWindow> window)
     event_router_ = std::make_unique<BrowserEventRouter>(*this, *chrome_event_router_, *document_event_router_,
                                                          *render_coordinator_);
 
+    // Story 8.1.4: restore the profile's persistent cookies before the first
+    // tab exists, so the very first navigation is already authenticated. Kept at
+    // the app layer rather than in TabManager so engine tests never touch disk.
+    if (const auto& jar = tab_controller_.manager().cookie_jar()) {
+        const size_t restored =
+            jar->load_from(Hummingbird::Core::CookieJar::default_path(), Hummingbird::Core::CookieClock::now());
+        if (restored > 0) {
+            HB_LOG_INFO("[cookies] restored " << restored << " cookie(s)");
+        }
+    }
+
+    // Restore per-origin browser-identity choices (which sites the user set to
+    // Compatibility mode), so the choice survives a restart like cookies do.
+    if (const auto& identity = tab_controller_.manager().identity_store()) {
+        const size_t restored = identity->load_from(Hummingbird::Core::IdentityPolicyStore::default_path());
+        if (restored > 0) {
+            HB_LOG_INFO("[identity] restored " << restored << " compatibility-mode site(s)");
+        }
+    }
+
     const auto first_tab_id = tab_controller_.create_tab();
     auto provider = create_resource_provider();
     auto decoder = create_image_decoder();
@@ -119,6 +140,26 @@ void BrowserApp::shutdown() {
 
     // stop input first (safe even if already stopped)
     if (window_) window_->stop_text_input();
+
+    // Persist before anything is torn down. Session cookies are dropped by
+    // save_to itself, so closing the browser really does end the session.
+    if (const auto& jar = tab_controller_.manager().cookie_jar()) {
+        const size_t saved =
+            jar->save_to(Hummingbird::Core::CookieJar::default_path(), Hummingbird::Core::CookieClock::now());
+        HB_LOG_DEBUG("[cookies] persisted " << saved << " cookie(s)");
+    }
+
+    // localStorage (8.2.2). No startup restore is needed — the manager loads each
+    // origin lazily on first access — so only the shutdown flush lives here.
+    if (const auto& storage = tab_controller_.manager().storage_manager()) {
+        const size_t saved = storage->save_all();
+        HB_LOG_DEBUG("[storage] persisted " << saved << " origin store(s)");
+    }
+
+    if (const auto& identity = tab_controller_.manager().identity_store()) {
+        const size_t saved = identity->save_to(Hummingbird::Core::IdentityPolicyStore::default_path());
+        HB_LOG_DEBUG("[identity] persisted " << saved << " compatibility-mode site(s)");
+    }
 
     extension_host_->shutdown();
     tab_controller_.shutdown();
@@ -244,17 +285,17 @@ void BrowserApp::sync_tab_text_input_mode() {
     tab_text_input_active_ = should_be_active;
 }
 
-void BrowserApp::navigate_active_tab(std::string_view url) {
-    active_tab().navigate(url);
+void BrowserApp::navigate_active_tab(std::string_view url, Hummingbird::Engine::NavigationSource source) {
+    active_tab().navigate(url, source);
 }
 
 void BrowserApp::navigate_active_tab(const Hummingbird::Engine::FormSubmission& submission) {
     active_tab().navigate(submission);
 }
 
-void BrowserApp::navigate_and_reflect_url(std::string_view url) {
+void BrowserApp::navigate_and_reflect_url(std::string_view url, Hummingbird::Engine::NavigationSource source) {
     browser_chrome_.url_bar().set_text(url);
-    navigate_active_tab(url);
+    navigate_active_tab(url, source);
     render_coordinator_->set_document_dirty();
     render_coordinator_->set_chrome_dirty();
 }
@@ -298,6 +339,27 @@ void BrowserApp::bookmark_active_tab() {
         bookmarks_.save();
         HB_LOG_INFO("[bookmarks] added " << url);
     }
+}
+
+void BrowserApp::toggle_active_site_compatibility() {
+    const auto& identity = tab_controller_.manager().identity_store();
+    if (!identity) return;
+
+    const std::string url(active_tab().requested_url());
+    auto origin = Hummingbird::Core::Origin::parse(url);
+    if (!origin) {
+        HB_LOG_INFO("[identity] no tuple origin for " << url << "; compatibility mode not applicable");
+        return;
+    }
+
+    const auto mode = identity->toggle(*origin);
+    const bool compat = mode == Hummingbird::Core::IdentityMode::Compatibility;
+    HB_LOG_INFO("[identity] " << origin->serialize() << " -> "
+                              << (compat ? "Compatibility (Chrome-shaped UA)" : "Transparent (honest UA)")
+                              << "; reloading");
+    // Reload so the new identity takes effect on the very next request. User
+    // initiated, so it is a safe GET — never a silent POST replay.
+    navigate_and_reflect_url(active_tab().requested_url());
 }
 
 void BrowserApp::notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url) {

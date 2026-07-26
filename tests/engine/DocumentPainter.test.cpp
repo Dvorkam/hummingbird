@@ -2,7 +2,9 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <memory>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -29,6 +31,31 @@ class RectRecordingContext : public TestGraphicsContext {
 public:
     void fill_rect(const Rect& rect, const Color& color) override { rects.emplace_back(rect, color); }
     std::vector<std::pair<Rect, Color>> rects;
+};
+
+class TextMeasuringContext : public TestGraphicsContext {
+public:
+    Hummingbird::TextMetrics measure_text(const std::string& text, const Hummingbird::TextStyle& style) override {
+        measured_text.push_back(text);
+        return TestGraphicsContext::measure_text(text, style);
+    }
+
+    std::vector<std::string> measured_text;
+};
+
+// Records draw_text calls with their baseline position.
+class TextRecordingContext : public TestGraphicsContext {
+public:
+    struct DrawnText {
+        std::string text;
+        float x;
+        float y;
+    };
+    void draw_text(const std::string& text, float x, float y, const Hummingbird::TextStyle& style) override {
+        drawn.push_back({text, x, y});
+        TestGraphicsContext::draw_text(text, x, y, style);
+    }
+    std::vector<DrawnText> drawn;
 };
 }  // namespace
 
@@ -92,6 +119,69 @@ TEST(DocumentInputPainterTest, FocusRingFollowsBorderRadius) {
 
     EXPECT_GT(ring_rects, 0);     // the ring was drawn
     EXPECT_FALSE(covers_corner);  // ...and its corner is rounded, not filled square
+}
+
+TEST(DocumentInputPainterTest, TextareaNewlinesAreNotSentToFontMeasurement) {
+    ArenaAllocator arena(1024);
+    ArenaPtr<Element> textarea = Element::create(arena, "textarea");
+    textarea->set_attribute("value", "first line\nsecond line");
+    auto node = BlockBox::create(textarea.get());
+    const Rect absolute{10.0f, 10.0f, 120.0f, 48.0f};
+    node->set_rect(absolute);
+
+    TextMeasuringContext graphics;
+    Hummingbird::Engine::paint_input_control(*textarea, *node, absolute, {0.0f, 0.0f}, graphics,
+                                             /*repaint_background*/ false, /*focused*/ false, /*caret*/ 0,
+                                             /*scroll_y*/ 0.0f);
+
+    EXPECT_TRUE(std::all_of(graphics.measured_text.begin(), graphics.measured_text.end(),
+                            [](const std::string& text) { return text.find('\n') == std::string::npos; }));
+}
+
+TEST(DocumentInputPainterTest, TextareaDrawsEachLineOnItsOwnRow) {
+    ArenaAllocator arena(1024);
+    ArenaPtr<Element> textarea = Element::create(arena, "textarea");
+    textarea->set_attribute("value", "first\nsecond");
+    auto node = BlockBox::create(textarea.get());
+    const Rect absolute{10.0f, 10.0f, 120.0f, 64.0f};
+    node->set_rect(absolute);
+
+    TextRecordingContext graphics;
+    Hummingbird::Engine::paint_input_control(*textarea, *node, absolute, {0.0f, 0.0f}, graphics,
+                                             /*repaint_background*/ false, /*focused*/ false, /*caret*/ 0,
+                                             /*scroll_y*/ 0.0f);
+
+    ASSERT_EQ(graphics.drawn.size(), 2u);
+    EXPECT_EQ(graphics.drawn[0].text, "first");
+    EXPECT_EQ(graphics.drawn[1].text, "second");
+    // Same left edge, and the second row sits strictly below the first.
+    EXPECT_FLOAT_EQ(graphics.drawn[0].x, graphics.drawn[1].x);
+    EXPECT_GT(graphics.drawn[1].y, graphics.drawn[0].y);
+}
+
+TEST(DocumentInputPainterTest, TextareaCaretTracksTheLineItIsOn) {
+    ArenaAllocator arena(1024);
+    ArenaPtr<Element> textarea = Element::create(arena, "textarea");
+    textarea->set_attribute("value", "first\nsecond");
+    auto node = BlockBox::create(textarea.get());
+    const Rect absolute{10.0f, 10.0f, 120.0f, 64.0f};
+    node->set_rect(absolute);
+
+    // Caret at index 0 (start of line 1) vs. at the end of line 2.
+    const auto caret_rect_for = [&](size_t caret) {
+        RectRecordingContext graphics;
+        Hummingbird::Engine::paint_input_control(*textarea, *node, absolute, {0.0f, 0.0f}, graphics,
+                                                 /*repaint_background*/ false, /*focused*/ true, caret,
+                                                 /*scroll_y*/ 0.0f);
+        // The caret is the last thin fill the painter emits.
+        return graphics.rects.back().first;
+    };
+
+    const Rect first_line = caret_rect_for(0);
+    const Rect second_line = caret_rect_for(std::string("first\nsecond").size());
+    EXPECT_GT(second_line.y, first_line.y);
+    // Both stay inside the control.
+    EXPECT_LE(second_line.y + second_line.height, absolute.y + absolute.height);
 }
 
 TEST(DocumentInputPainterTest, CheckboxRendersBoxAndCheckmark) {

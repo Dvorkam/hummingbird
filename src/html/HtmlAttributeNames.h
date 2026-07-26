@@ -24,6 +24,7 @@ static constexpr std::string_view Method = "method";
 static constexpr std::string_view Name = "name";
 static constexpr std::string_view NoWrap = "nowrap";
 static constexpr std::string_view Rel = "rel";
+static constexpr std::string_view Rows = "rows";
 static constexpr std::string_view Size = "size";
 static constexpr std::string_view Src = "src";
 static constexpr std::string_view Text = "text";

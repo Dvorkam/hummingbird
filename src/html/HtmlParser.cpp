@@ -135,6 +135,9 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
         m_style_blocks.emplace_back();
         state.in_style = true;
     }
+    if (lowered_name == Hummingbird::Html::TagNames::Textarea && should_push) {
+        state.textarea_has_value = false;
+    }
 }
 
 void Parser::handle_end_tag(const EndTagToken& end_data, ParseState& state) {
@@ -152,7 +155,44 @@ void Parser::handle_character_data(const CharacterDataToken& char_data, ParseSta
         return;
     }
     DOM::Node* parent = state.open_elements.back();
+    auto* parent_element = dynamic_cast<DOM::Element*>(parent);
+    const std::string_view parent_tag = parent_element ? std::string_view{parent_element->get_tag_name()} : "";
+
+    // Raw text (script) is literal: expanding `&amp;` here would rewrite the
+    // source the JS engine later executes.
+    if (TagMetadata::is_raw_text_tag(parent_tag)) {
+        append_text_node(parent, char_data.data);
+        return;
+    }
+
     auto decoded = Utils::decode_named_entities(char_data.data);
+
+    // A textarea's content IS its default value, not child text. Folding it into
+    // the `value` attribute at parse time gives the control exactly one owner —
+    // the same attribute <input> already uses — so focus, editing, painting, and
+    // form submission all reuse the existing single-value path unchanged, and no
+    // stray text node renders underneath the control.
+    if (parent_element && parent_tag == Hummingbird::Html::TagNames::Textarea) {
+        // Per the HTML spec a single newline directly after the start tag is a
+        // serialization artifact and is dropped.
+        std::string_view value{decoded};
+        if (!state.textarea_has_value) {
+            if (value.starts_with("\r\n")) {
+                value.remove_prefix(2);
+            } else if (value.starts_with("\n")) {
+                value.remove_prefix(1);
+            }
+        }
+        std::string combined;
+        if (const auto* existing = parent_element->find_attribute(Hummingbird::Html::AttributeNames::Value)) {
+            combined = *existing;
+        }
+        combined.append(value);
+        parent_element->set_attribute(Hummingbird::Html::AttributeNames::Value, combined);
+        state.textarea_has_value = true;
+        return;
+    }
+
     append_text_node(parent, decoded);
 }
 

@@ -861,6 +861,92 @@ TEST(EngineTabTest, EnterSubmitsPostFormWithEncodedBody) {
     EXPECT_EQ(result.submitted_form->content_type, "application/x-www-form-urlencoded");
 }
 
+TEST(EngineTabTest, TextareaNewlineStaysInFormPayloadUntilSubmitControlIsClicked) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <style>
+      textarea { width: 200px; height: 64px; }
+      input[type=submit] { width: 80px; position: absolute; left: 220px; top: 0; }
+    </style>
+  </head>
+  <body>
+    <form action="/comment" method="post">
+      <textarea name="text" rows="3"></textarea><input type="submit" value="add comment">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 400, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    Hummingbird::Layout::Point textarea_point{12.0f, 12.0f};
+    EXPECT_TRUE(harness.tab().focus_input_at(textarea_point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("first line"));
+
+    Hummingbird::InputEvent enter_event;
+    enter_event.type = Hummingbird::EventType::KeyDown;
+    enter_event.key.key = Hummingbird::Key::Enter;
+    auto enter_result = harness.tab().handle_key_down(enter_event);
+    EXPECT_TRUE(enter_result.handled);
+    EXPECT_FALSE(enter_result.submitted_form.has_value());
+
+    EXPECT_TRUE(harness.tab().handle_text_input("second line"));
+    auto submitted = harness.tab().submit_form_at({230.0f, 12.0f}, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->url, "https://example.dev/comment");
+    EXPECT_EQ(submitted->method, Hummingbird::Engine::FormSubmitMethod::Post);
+    EXPECT_EQ(submitted->body, "text=first+line%0Asecond+line");
+}
+
+// An edit form arrives with the draft already in the textarea's content. It must
+// render, be editable, and round-trip through submission — the case that made
+// the value live in the `value` attribute rather than in a child text node.
+TEST(EngineTabTest, PrefilledTextareaSubmitsItsParsedContent) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head>
+    <style>
+      textarea { width: 200px; height: 64px; }
+      input[type=submit] { width: 80px; position: absolute; left: 220px; top: 0; }
+    </style>
+  </head>
+  <body>
+    <form action="/comment" method="post">
+      <textarea name="text" rows="3">saved &amp; draft</textarea><input type="submit" value="update">
+    </form>
+  </body>
+</html>
+)HTML";
+
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+
+    HeadlessTabHarness harness(std::make_unique<InlineNetwork>(html), std::make_unique<InlineNetwork>(html),
+                               std::move(provider), nullptr);
+    harness.set_viewport({0, 0, 400, 200});
+    harness.navigate("https://example.dev");
+    ASSERT_TRUE(harness.tick());
+
+    // Focusing puts the caret at the end of the existing draft, so typing appends.
+    Hummingbird::Layout::Point textarea_point{12.0f, 12.0f};
+    EXPECT_TRUE(harness.tab().focus_input_at(textarea_point, harness.viewport()));
+    EXPECT_TRUE(harness.tab().handle_text_input("!"));
+
+    auto submitted = harness.tab().submit_form_at({230.0f, 12.0f}, harness.viewport());
+    ASSERT_TRUE(submitted.has_value());
+    EXPECT_EQ(submitted->body, "text=saved+%26+draft%21");
+}
+
 // End-to-end regression on the pinned DuckDuckGo HTML homepage snapshot
 // (tests/fixtures/ddg): drive the real focus -> type -> submit -> navigate flow
 // through the tab. Guards the exact DDG form contract (POST to /html/, the

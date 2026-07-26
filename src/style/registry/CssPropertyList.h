@@ -131,6 +131,7 @@ enum class ApplyHook : std::uint8_t {
     apply_flex_basis,
     apply_order,
     apply_grid,
+    apply_object_fit,
     apply_noop,
     Count,  // Sentinel: number of applier hooks. Keep last.
 };

@@ -1,5 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
-project(Hummingbird VERSION 0.6.0)
+project(Hummingbird VERSION 0.8.0)
+
+# Single source of truth for the version: generate a header from PROJECT_VERSION
+# so the User-Agent (and anything else) tracks the real version automatically
+# instead of drifting. Change the version above and everything follows.
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/Version.h.in
+    ${CMAKE_BINARY_DIR}/generated/core/Version.h
+    @ONLY)
 
 # Set C++ standard to C++20
 set(CMAKE_CXX_STANDARD 20)
@@ -80,6 +88,15 @@ add_library(Core STATIC
     src/core/ArenaAllocator.cpp
     src/core/BookmarkStore.cpp
     src/core/dom/DomFactory.cpp
+    src/core/net/BrowserIdentity.cpp
+    src/core/net/Cookie.cpp
+    src/core/net/CookieJar.cpp
+    src/core/net/HttpHeaders.cpp
+    src/core/net/IdentityPolicyStore.cpp
+    src/core/net/Origin.cpp
+    src/core/net/Referrer.cpp
+    src/core/net/StorageArea.cpp
+    src/core/net/StorageManager.cpp
     src/core/utils/AssetLoader.cpp
     src/core/utils/AssetPath.cpp
     src/core/utils/TextEditBuffer.cpp
@@ -88,6 +105,7 @@ add_library(Core STATIC
 target_include_directories(Core
     PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_BINARY_DIR}/generated
 )
 
 # --- Platform Library ---
@@ -203,6 +221,8 @@ add_library(Engine STATIC
     src/engine/extensions/ExtensionSettings.cpp
     src/engine/script/DocumentScriptController.cpp
     src/engine/script/DocumentScriptHost.cpp
+    src/engine/resources/NetworkErrorPage.cpp
+    src/engine/resources/RedirectPolicy.cpp
     src/engine/resources/ResourceLoader.cpp
     src/engine/resources/ResourceRequestPlanner.cpp
     src/engine/resources/ResourceSecurityPolicy.cpp

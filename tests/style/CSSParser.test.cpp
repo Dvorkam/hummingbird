@@ -25,6 +25,24 @@ TEST(CSSParserTest, ParsesSingleRule) {
     EXPECT_EQ(rule.declarations[0].value.color.b, 0);
 }
 
+TEST(CSSParserTest, KeepsEmAndRemAsDistinctLengthUnits) {
+    Parser parser(".local { width: 2em; } .root { height: 1.5rem; }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 2u);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    ASSERT_EQ(sheet.rules[1].declarations.size(), 1u);
+
+    const auto& em = sheet.rules[0].declarations[0].value;
+    ASSERT_EQ(em.type, Value::Type::Length);
+    EXPECT_FLOAT_EQ(em.length.value, 2.0f);
+    EXPECT_EQ(em.length.unit, Unit::Em);
+
+    const auto& rem = sheet.rules[1].declarations[0].value;
+    ASSERT_EQ(rem.type, Value::Type::Length);
+    EXPECT_FLOAT_EQ(rem.length.value, 1.5f);
+    EXPECT_EQ(rem.length.unit, Unit::Rem);
+}
+
 TEST(CSSParserTest, ParsesFontFaceRule) {
     Parser parser(
         "@font-face { font-family: \"My Icons\"; "
@@ -208,6 +226,28 @@ TEST(CSSParserTest, ImportantOnFontFamilyDoesNotJoinTheList) {
     const auto& decl = sheet.rules[0].declarations[0];
     EXPECT_TRUE(decl.important);
     EXPECT_EQ(decl.value.ident, "arial,sans-serif");
+}
+
+TEST(CSSParserTest, FontFamilyPreservesWholeValueVarExpression) {
+    Parser parser("div { font-family: var(--font-family-montserrat); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    const auto& decl = sheet.rules[0].declarations[0];
+    EXPECT_EQ(decl.property, Property::FontFamily);
+    EXPECT_EQ(decl.value.type, Value::Type::Identifier);
+    EXPECT_EQ(decl.value.ident, "var(--font-family-montserrat)");
+}
+
+TEST(CSSParserTest, FontFamilyPreservesNestedVarFallback) {
+    Parser parser("div { font-family: var(--headline-font-family, var(--font-family-georgia)); }");
+    auto sheet = parser.parse();
+    ASSERT_EQ(sheet.rules.size(), 1u);
+    ASSERT_EQ(sheet.rules[0].declarations.size(), 1u);
+    const auto& decl = sheet.rules[0].declarations[0];
+    EXPECT_EQ(decl.property, Property::FontFamily);
+    EXPECT_EQ(decl.value.type, Value::Type::Identifier);
+    EXPECT_EQ(decl.value.ident, "var(--headline-font-family, var(--font-family-georgia))");
 }
 
 TEST(CSSParserTest, ImportantOnCustomPropertyIsStripped) {

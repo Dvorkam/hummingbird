@@ -52,6 +52,7 @@ void apply_color_value(const Value& value, ComputedStyle& style, StyleDefaults::
 
 bool apply_text_property(Property property, const Value& value, ComputedStyle& style,
                          StyleDefaults::StyleOverrides& overrides, Context& context) {
+    const StyleValueUtils::LengthResolutionContext length_context{style.font_size, context.root_font_size};
     switch (property) {
         case Property::FontSize:
             if (value.type == Value::Type::Length) {
@@ -60,6 +61,9 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                     overrides.font_size = true;
                 } else if (value.length.unit == Unit::Em) {
                     style.font_size = value.length.value * context.parent_font_size;
+                    overrides.font_size = true;
+                } else if (value.length.unit == Unit::Rem) {
+                    style.font_size = value.length.value * context.root_font_size;
                     overrides.font_size = true;
                 }
             }
@@ -70,6 +74,9 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                 overrides.line_height = true;
             } else if (value.type == Value::Type::Length && value.length.unit == Unit::Em) {
                 style.line_height = value.length.value * style.font_size;
+                overrides.line_height = true;
+            } else if (value.type == Value::Type::Length && value.length.unit == Unit::Rem) {
+                style.line_height = value.length.value * context.root_font_size;
                 overrides.line_height = true;
             } else if (value.type == Value::Type::Number) {
                 style.line_height = value.number * style.font_size;
@@ -168,11 +175,11 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
                 overrides.letter_spacing = true;
                 return true;
             }
-            style.letter_spacing = StyleValueUtils::value_to_length(value, style.letter_spacing, style.font_size);
+            style.letter_spacing = StyleValueUtils::value_to_length(value, style.letter_spacing, length_context);
             overrides.letter_spacing = true;
             return true;
         case Property::TextIndent:
-            style.text_indent = StyleValueUtils::value_to_length(value, style.text_indent, style.font_size);
+            style.text_indent = StyleValueUtils::value_to_length(value, style.text_indent, length_context);
             overrides.text_indent = true;
             return true;
         case Property::TextOverflow:
@@ -206,7 +213,7 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
             }
             return true;
         case Property::TextDecorationThickness: {
-            auto thickness = StyleValueUtils::value_to_length(value, 0.0f, style.font_size);
+            auto thickness = StyleValueUtils::value_to_length(value, 0.0f, length_context);
             if (thickness > 0.0f) {
                 style.underline_thickness = thickness;
                 overrides.underline_thickness = true;
@@ -214,7 +221,7 @@ bool apply_text_property(Property property, const Value& value, ComputedStyle& s
             return true;
         }
         case Property::TextUnderlineOffset: {
-            auto offset = StyleValueUtils::value_to_length(value, 0.0f, style.font_size);
+            auto offset = StyleValueUtils::value_to_length(value, 0.0f, length_context);
             if (offset > 0.0f) {
                 style.underline_offset = offset;
                 overrides.underline_offset = true;

@@ -40,7 +40,12 @@ cmake_test_discovery_*.json
 .gemini/settings.json
 debug.log
 
-#tmp
+# Folders
 tmp
-# User-written bookmark list (7.6.2)
+.claude
+
+#files
 assets/config/bookmarks.tsv
+assets/config/cookies.tsv
+assets/config/identity.tsv
+assets/config/storage/

@@ -3,6 +3,7 @@
 #include "core/dom/Element.h"
 #include "core/utils/StringUtils.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlTagMetadata.h"
 #include "html/HtmlTagNames.h"
 
 namespace Hummingbird::Engine {
@@ -11,15 +12,26 @@ bool is_input_element(const DOM::Element* element) {
     return element && element->get_tag_name() == Hummingbird::Html::TagNames::Input;
 }
 
+bool is_textarea_element(const DOM::Element* element) {
+    return element && element->get_tag_name() == Hummingbird::Html::TagNames::Textarea;
+}
+
+bool is_text_control_element(const DOM::Element* element) {
+    return element && Hummingbird::Html::TagMetadata::is_text_control_tag(element->get_tag_name());
+}
+
 bool is_button_element(const DOM::Element* element) {
     return element && element->get_tag_name() == Hummingbird::Html::TagNames::Button;
 }
 
 bool is_interactive_control_element(const DOM::Element* element) {
-    return is_input_element(element) || is_button_element(element);
+    return is_input_element(element) || is_textarea_element(element) || is_button_element(element);
 }
 
 bool is_editable_input_element(const DOM::Element* element) {
+    if (is_textarea_element(element)) {
+        return true;
+    }
     if (!is_input_element(element)) {
         return false;
     }

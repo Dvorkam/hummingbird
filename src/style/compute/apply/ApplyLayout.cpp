@@ -16,7 +16,8 @@
 namespace Hummingbird::Css::Apply {
 
 namespace {
-std::optional<std::pair<float, float>> parse_transform_translate(std::string_view text, float font_size) {
+std::optional<std::pair<float, float>> parse_transform_translate(
+    std::string_view text, const StyleValueUtils::LengthResolutionContext& length_context) {
     auto trimmed = Core::Utils::trim_ascii_whitespace(text);
     if (trimmed.empty() || trimmed == ValueNames::None) {
         return std::nullopt;
@@ -27,7 +28,7 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
         if (index >= tokens.size()) {
             return std::nullopt;
         }
-        auto value = StyleValueUtils::parse_length_token(tokens[index], font_size);
+        auto value = StyleValueUtils::parse_length_token(tokens[index], length_context);
         if (value) {
             ++index;
             return *value;
@@ -42,7 +43,10 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
             if (tokens[index] == ValueNames::Px) {
                 ++index;
             } else if (tokens[index] == ValueNames::Em) {
-                out *= font_size;
+                out *= length_context.font_size;
+                ++index;
+            } else if (tokens[index] == ValueNames::Rem) {
+                out *= length_context.root_font_size;
                 ++index;
             }
         }
@@ -61,13 +65,13 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
             first = args.substr(0, comma);
             second = args.substr(comma + 1);
         }
-        auto x = StyleValueUtils::parse_length_or_number(first, font_size);
+        auto x = StyleValueUtils::parse_length_or_number(first, length_context);
         if (!x) {
             return std::nullopt;
         }
         float y_value = 0.0f;
         if (!second.empty()) {
-            auto y = StyleValueUtils::parse_length_or_number(second, font_size);
+            auto y = StyleValueUtils::parse_length_or_number(second, length_context);
             if (!y) {
                 return std::nullopt;
             }
@@ -82,7 +86,7 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
     }
     if (trimmed.starts_with("translateX(") && trimmed.ends_with(")")) {
         auto args = trimmed.substr(11, trimmed.size() - 12);
-        auto value = StyleValueUtils::parse_length_or_number(args, font_size);
+        auto value = StyleValueUtils::parse_length_or_number(args, length_context);
         if (!value) {
             return std::nullopt;
         }
@@ -90,7 +94,7 @@ std::optional<std::pair<float, float>> parse_transform_translate(std::string_vie
     }
     if (trimmed.starts_with("translateY(") && trimmed.ends_with(")")) {
         auto args = trimmed.substr(11, trimmed.size() - 12);
-        auto value = StyleValueUtils::parse_length_or_number(args, font_size);
+        auto value = StyleValueUtils::parse_length_or_number(args, length_context);
         if (!value) {
             return std::nullopt;
         }
@@ -139,8 +143,10 @@ void apply_edge(EdgeSizes& edges, float value) {
 }
 
 // A single corner radius value. Percentages are kept unresolved (they need the
-// box dimensions, which only exist at paint time); px/em resolve to px here.
-CornerRadius value_to_corner_radius(const Value& value, float font_size) {
+// box dimensions, which only exist at paint time); absolute/font-relative
+// lengths resolve to px here.
+CornerRadius value_to_corner_radius(const Value& value,
+                                    const StyleValueUtils::LengthResolutionContext& length_context) {
     CornerRadius corner;
     if (value.type == Value::Type::Number) {
         corner.value = std::max(0.0f, value.number);
@@ -151,11 +157,12 @@ CornerRadius value_to_corner_radius(const Value& value, float font_size) {
         corner.percent = true;
         return corner;
     }
-    corner.value = std::max(0.0f, StyleValueUtils::value_to_length(value, 0.0f, font_size));
+    corner.value = std::max(0.0f, StyleValueUtils::value_to_length(value, 0.0f, length_context));
     return corner;
 }
 
-void apply_optional_length(std::optional<ComputedStyle::LengthValue>& target, const Value& value, float font_size) {
+void apply_optional_length(std::optional<ComputedStyle::LengthValue>& target, const Value& value,
+                           const StyleValueUtils::LengthResolutionContext& length_context) {
     // `auto` unsets the length. This matters when it overrides an earlier value
     // such as a UA default (e.g. an <input> submit button whose author CSS says
     // `height:auto` must drop our default 24px height so it can size/stretch).
@@ -167,7 +174,9 @@ void apply_optional_length(std::optional<ComputedStyle::LengthValue>& target, co
         if (value.length.unit == Unit::Px) {
             target = ComputedStyle::LengthValue::from_px(value.length.value);
         } else if (value.length.unit == Unit::Em) {
-            target = ComputedStyle::LengthValue::from_px(value.length.value * font_size);
+            target = ComputedStyle::LengthValue::from_px(value.length.value * length_context.font_size);
+        } else if (value.length.unit == Unit::Rem) {
+            target = ComputedStyle::LengthValue::from_px(value.length.value * length_context.root_font_size);
         } else if (value.length.unit == Unit::Percent) {
             target = ComputedStyle::LengthValue::from_percent(value.length.value);
         }
@@ -182,18 +191,19 @@ void apply_optional_length(std::optional<ComputedStyle::LengthValue>& target, co
     }
 }
 
-void apply_length(float& target, const Value& value, float font_size) {
-    target = StyleValueUtils::value_to_length(value, target, font_size);
+void apply_length(float& target, const Value& value, const StyleValueUtils::LengthResolutionContext& length_context) {
+    target = StyleValueUtils::value_to_length(value, target, length_context);
 }
 
-void apply_margin_value(float& target, bool& auto_flag, const Value& value, float font_size) {
+void apply_margin_value(float& target, bool& auto_flag, const Value& value,
+                        const StyleValueUtils::LengthResolutionContext& length_context) {
     if (value.type == Value::Type::Identifier && value.ident == ValueNames::Auto) {
         auto_flag = true;
         target = 0.0f;
         return;
     }
     auto_flag = false;
-    target = StyleValueUtils::value_to_length(value, target, font_size);
+    target = StyleValueUtils::value_to_length(value, target, length_context);
 }
 
 void apply_border_style(ComputedStyle& style, const Value& value) {
@@ -228,12 +238,13 @@ std::optional<Color> parse_outline_color_token(std::string_view token) {
     return std::nullopt;
 }
 
-void apply_outline_shorthand(ComputedStyle& style, const Value& value) {
+void apply_outline_shorthand(ComputedStyle& style, const Value& value,
+                             const StyleValueUtils::LengthResolutionContext& length_context) {
     if (value.type != Value::Type::Identifier) {
         return;
     }
     for (auto token : StyleValueUtils::split_tokens(value.ident)) {
-        if (auto length = StyleValueUtils::parse_length_token(token, style.font_size)) {
+        if (auto length = StyleValueUtils::parse_length_token(token, length_context)) {
             style.outline_width = std::max(0.0f, *length);
             continue;
         }
@@ -267,11 +278,40 @@ std::optional<ComputedStyle::Overflow> parse_overflow_value(const Value& value) 
     if (value.ident == ValueNames::Hidden) {
         return ComputedStyle::Overflow::Hidden;
     }
+    // `clip` maps to Hidden: the two differ only in scroll affordances
+    // (programmatic scrolling, overflow-clip-margin), none of which exist yet —
+    // both mean "clip paint at the padding box" (8.5.3). Revisit with M10's
+    // scroll containers.
+    if (value.ident == ValueNames::Clip) {
+        return ComputedStyle::Overflow::Hidden;
+    }
     if (value.ident == ValueNames::Scroll) {
         return ComputedStyle::Overflow::Scroll;
     }
     if (value.ident == ValueNames::Auto) {
         return ComputedStyle::Overflow::Auto;
+    }
+    return std::nullopt;
+}
+
+std::optional<ComputedStyle::ObjectFit> parse_object_fit_value(const Value& value) {
+    if (value.type != Value::Type::Identifier) {
+        return std::nullopt;
+    }
+    if (value.ident == ValueNames::Fill) {
+        return ComputedStyle::ObjectFit::Fill;
+    }
+    if (value.ident == ValueNames::Contain) {
+        return ComputedStyle::ObjectFit::Contain;
+    }
+    if (value.ident == ValueNames::Cover) {
+        return ComputedStyle::ObjectFit::Cover;
+    }
+    if (value.ident == ValueNames::None) {
+        return ComputedStyle::ObjectFit::None;
+    }
+    if (value.ident == ValueNames::ScaleDown) {
+        return ComputedStyle::ObjectFit::ScaleDown;
     }
     return std::nullopt;
 }
@@ -402,9 +442,10 @@ void apply_order_value(ComputedStyle& style, const Value& value) {
     }
 }
 
-// Decodes one canonical grid track token ("Npx"/"Nem"/"N%"/"Nfr"/"auto") that
+// Decodes one canonical grid track token ("Npx"/"Nem"/"Nrem"/"N%"/"Nfr"/"auto") that
 // the parser produced (see Parser::read_one_grid_track).
-ComputedStyle::GridTrack parse_grid_track_token(std::string_view text, float font_size) {
+ComputedStyle::GridTrack parse_grid_track_token(std::string_view text,
+                                                const StyleValueUtils::LengthResolutionContext& length_context) {
     using GridTrack = ComputedStyle::GridTrack;
     if (text.empty() || text == ValueNames::Auto) {
         return GridTrack::automatic();
@@ -418,8 +459,13 @@ ComputedStyle::GridTrack parse_grid_track_token(std::string_view text, float fon
     if (ends_with("px")) {
         return GridTrack::fixed(Core::Utils::parse_float(text.substr(0, text.size() - 2)).value_or(0.0f));
     }
+    if (ends_with("rem")) {
+        return GridTrack::fixed(Core::Utils::parse_float(text.substr(0, text.size() - 3)).value_or(0.0f) *
+                                length_context.root_font_size);
+    }
     if (ends_with("em")) {
-        return GridTrack::fixed(Core::Utils::parse_float(text.substr(0, text.size() - 2)).value_or(0.0f) * font_size);
+        return GridTrack::fixed(Core::Utils::parse_float(text.substr(0, text.size() - 2)).value_or(0.0f) *
+                                length_context.font_size);
     }
     if (text.back() == '%') {
         return GridTrack::percent(Core::Utils::parse_float(text.substr(0, text.size() - 1)).value_or(0.0f));
@@ -427,14 +473,15 @@ ComputedStyle::GridTrack parse_grid_track_token(std::string_view text, float fon
     return GridTrack::automatic();
 }
 
-std::vector<ComputedStyle::GridTrack> parse_grid_track_list(std::string_view text, float font_size) {
+std::vector<ComputedStyle::GridTrack> parse_grid_track_list(
+    std::string_view text, const StyleValueUtils::LengthResolutionContext& length_context) {
     std::vector<ComputedStyle::GridTrack> tracks;
     size_t pos = 0;
     while (pos < text.size()) {
         size_t space = text.find(' ', pos);
         std::string_view token = space == std::string_view::npos ? text.substr(pos) : text.substr(pos, space - pos);
         if (!token.empty()) {
-            tracks.push_back(parse_grid_track_token(token, font_size));
+            tracks.push_back(parse_grid_track_token(token, length_context));
         }
         if (space == std::string_view::npos) break;
         pos = space + 1;
@@ -442,20 +489,21 @@ std::vector<ComputedStyle::GridTrack> parse_grid_track_list(std::string_view tex
     return tracks;
 }
 
-void apply_grid_property(Property property, ComputedStyle& style, const Value& value) {
+void apply_grid_property(Property property, ComputedStyle& style, const Value& value,
+                         const StyleValueUtils::LengthResolutionContext& length_context) {
     if (value.type != Value::Type::Identifier) {
         return;
     }
     const std::string& text = value.ident;
     switch (property) {
         case Property::GridTemplateColumns:
-            style.grid_template_columns = parse_grid_track_list(text, style.font_size);
+            style.grid_template_columns = parse_grid_track_list(text, length_context);
             return;
         case Property::GridTemplateRows:
-            style.grid_template_rows = parse_grid_track_list(text, style.font_size);
+            style.grid_template_rows = parse_grid_track_list(text, length_context);
             return;
         case Property::GridAutoRows: {
-            auto tracks = parse_grid_track_list(text, style.font_size);
+            auto tracks = parse_grid_track_list(text, length_context);
             if (!tracks.empty()) style.grid_auto_rows = tracks.front();
             return;
         }
@@ -477,7 +525,7 @@ void apply_grid_property(Property property, ComputedStyle& style, const Value& v
         }
         case Property::Gap: {
             // Canonical "<row> <col>" (px/em tracks; non-length -> 0).
-            auto tracks = parse_grid_track_list(text, style.font_size);
+            auto tracks = parse_grid_track_list(text, length_context);
             auto to_px = [](const ComputedStyle::GridTrack& t) {
                 return t.kind == ComputedStyle::GridTrack::Kind::Fixed ? std::max(0.0f, t.value) : 0.0f;
             };
@@ -496,6 +544,7 @@ void apply_grid_property(Property property, ComputedStyle& style, const Value& v
 
 bool apply_layout_property(Property property, const Value& value, ComputedStyle& style,
                            StyleDefaults::StyleOverrides& overrides, Context& context) {
+    const StyleValueUtils::LengthResolutionContext length_context{style.font_size, context.root_font_size};
     switch (property) {
         case Property::Display:
             if (apply_display_value(style, value) && context.display_set) {
@@ -516,35 +565,40 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
                 style.overflow_y = *overflow;
             }
             return true;
+        case Property::ObjectFit:
+            if (auto fit = parse_object_fit_value(value)) {
+                style.object_fit = *fit;
+            }
+            return true;
         case Property::Margin:
-            apply_edge(style.margin, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            apply_edge(style.margin, StyleValueUtils::value_to_length(value, 0.0f, length_context));
             return true;
         case Property::MarginTop:
-            apply_margin_value(style.margin.top, style.margin_top_auto, value, style.font_size);
+            apply_margin_value(style.margin.top, style.margin_top_auto, value, length_context);
             return true;
         case Property::MarginRight:
-            apply_margin_value(style.margin.right, style.margin_right_auto, value, style.font_size);
+            apply_margin_value(style.margin.right, style.margin_right_auto, value, length_context);
             return true;
         case Property::MarginBottom:
-            apply_margin_value(style.margin.bottom, style.margin_bottom_auto, value, style.font_size);
+            apply_margin_value(style.margin.bottom, style.margin_bottom_auto, value, length_context);
             return true;
         case Property::MarginLeft:
-            apply_margin_value(style.margin.left, style.margin_left_auto, value, style.font_size);
+            apply_margin_value(style.margin.left, style.margin_left_auto, value, length_context);
             return true;
         case Property::Padding:
-            apply_edge(style.padding, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            apply_edge(style.padding, StyleValueUtils::value_to_length(value, 0.0f, length_context));
             return true;
         case Property::PaddingTop:
-            apply_length(style.padding.top, value, style.font_size);
+            apply_length(style.padding.top, value, length_context);
             return true;
         case Property::PaddingRight:
-            apply_length(style.padding.right, value, style.font_size);
+            apply_length(style.padding.right, value, length_context);
             return true;
         case Property::PaddingBottom:
-            apply_length(style.padding.bottom, value, style.font_size);
+            apply_length(style.padding.bottom, value, length_context);
             return true;
         case Property::PaddingLeft:
-            apply_length(style.padding.left, value, style.font_size);
+            apply_length(style.padding.left, value, length_context);
             return true;
         case Property::BoxSizing:
             if (value.type == Value::Type::Identifier) {
@@ -557,7 +611,7 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             return true;
         case Property::Transform:
             if (value.type == Value::Type::Identifier) {
-                auto translate = parse_transform_translate(value.ident, style.font_size);
+                auto translate = parse_transform_translate(value.ident, length_context);
                 if (translate) {
                     style.transform_has_translate = true;
                     style.transform_translate_x = translate->first;
@@ -570,38 +624,38 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             }
             return true;
         case Property::BorderWidth:
-            apply_edge(style.border_width, StyleValueUtils::value_to_length(value, 0.0f, style.font_size));
+            apply_edge(style.border_width, StyleValueUtils::value_to_length(value, 0.0f, length_context));
             return true;
         case Property::BorderTopWidth:
-            style.border_width.top = StyleValueUtils::value_to_length(value, style.border_width.top, style.font_size);
+            style.border_width.top = StyleValueUtils::value_to_length(value, style.border_width.top, length_context);
             return true;
         case Property::BorderRightWidth:
             style.border_width.right =
-                StyleValueUtils::value_to_length(value, style.border_width.right, style.font_size);
+                StyleValueUtils::value_to_length(value, style.border_width.right, length_context);
             return true;
         case Property::BorderBottomWidth:
             style.border_width.bottom =
-                StyleValueUtils::value_to_length(value, style.border_width.bottom, style.font_size);
+                StyleValueUtils::value_to_length(value, style.border_width.bottom, length_context);
             return true;
         case Property::BorderLeftWidth:
-            style.border_width.left = StyleValueUtils::value_to_length(value, style.border_width.left, style.font_size);
+            style.border_width.left = StyleValueUtils::value_to_length(value, style.border_width.left, length_context);
             return true;
         case Property::BorderRadius:
             // Shorthand normally expands to the four corner longhands in the
             // parser; handle a direct value defensively as all-corners.
-            style.border_radius.set_all(value_to_corner_radius(value, style.font_size));
+            style.border_radius.set_all(value_to_corner_radius(value, length_context));
             return true;
         case Property::BorderTopLeftRadius:
-            style.border_radius.top_left = value_to_corner_radius(value, style.font_size);
+            style.border_radius.top_left = value_to_corner_radius(value, length_context);
             return true;
         case Property::BorderTopRightRadius:
-            style.border_radius.top_right = value_to_corner_radius(value, style.font_size);
+            style.border_radius.top_right = value_to_corner_radius(value, length_context);
             return true;
         case Property::BorderBottomRightRadius:
-            style.border_radius.bottom_right = value_to_corner_radius(value, style.font_size);
+            style.border_radius.bottom_right = value_to_corner_radius(value, length_context);
             return true;
         case Property::BorderBottomLeftRadius:
-            style.border_radius.bottom_left = value_to_corner_radius(value, style.font_size);
+            style.border_radius.bottom_left = value_to_corner_radius(value, length_context);
             return true;
         case Property::BorderColor:
             if (value.type == Value::Type::Color) {
@@ -630,11 +684,11 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             }
             return true;
         case Property::Outline:
-            apply_outline_shorthand(style, value);
+            apply_outline_shorthand(style, value, length_context);
             return true;
         case Property::OutlineWidth:
             style.outline_width =
-                std::max(0.0f, StyleValueUtils::value_to_length(value, style.outline_width, style.font_size));
+                std::max(0.0f, StyleValueUtils::value_to_length(value, style.outline_width, length_context));
             return true;
         case Property::OutlineColor:
             if (value.type == Value::Type::Color) {
@@ -642,40 +696,40 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             }
             return true;
         case Property::OutlineOffset:
-            style.outline_offset = StyleValueUtils::value_to_length(value, style.outline_offset, style.font_size);
+            style.outline_offset = StyleValueUtils::value_to_length(value, style.outline_offset, length_context);
             return true;
         case Property::BorderStyle:
             apply_border_style(style, value);
             return true;
         case Property::Width:
-            apply_optional_length(style.width, value, style.font_size);
+            apply_optional_length(style.width, value, length_context);
             return true;
         case Property::Height:
-            apply_optional_length(style.height, value, style.font_size);
+            apply_optional_length(style.height, value, length_context);
             return true;
         case Property::MinWidth:
-            apply_optional_length(style.min_width, value, style.font_size);
+            apply_optional_length(style.min_width, value, length_context);
             return true;
         case Property::MinHeight:
-            apply_optional_length(style.min_height, value, style.font_size);
+            apply_optional_length(style.min_height, value, length_context);
             return true;
         case Property::MaxWidth:
-            apply_optional_length(style.max_width, value, style.font_size);
+            apply_optional_length(style.max_width, value, length_context);
             return true;
         case Property::MaxHeight:
-            apply_optional_length(style.max_height, value, style.font_size);
+            apply_optional_length(style.max_height, value, length_context);
             return true;
         case Property::Top:
-            apply_optional_length(style.top, value, style.font_size);
+            apply_optional_length(style.top, value, length_context);
             return true;
         case Property::Right:
-            apply_optional_length(style.right, value, style.font_size);
+            apply_optional_length(style.right, value, length_context);
             return true;
         case Property::Bottom:
-            apply_optional_length(style.bottom, value, style.font_size);
+            apply_optional_length(style.bottom, value, length_context);
             return true;
         case Property::Left:
-            apply_optional_length(style.left, value, style.font_size);
+            apply_optional_length(style.left, value, length_context);
             return true;
         case Property::ZIndex:
             apply_z_index_value(style, value);
@@ -706,7 +760,7 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
                 style.flex_basis.reset();
                 return true;
             }
-            apply_optional_length(style.flex_basis, value, style.font_size);
+            apply_optional_length(style.flex_basis, value, length_context);
             return true;
         case Property::Order:
             apply_order_value(style, value);
@@ -720,14 +774,14 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
         case Property::GridColumn:
         case Property::GridRow:
         case Property::Gap:
-            apply_grid_property(property, style, value);
+            apply_grid_property(property, style, value, length_context);
             return true;
         case Property::RowGap:
-            style.row_gap = std::max(0.0f, StyleValueUtils::value_to_length(value, style.row_gap, style.font_size));
+            style.row_gap = std::max(0.0f, StyleValueUtils::value_to_length(value, style.row_gap, length_context));
             return true;
         case Property::ColumnGap:
             style.column_gap =
-                std::max(0.0f, StyleValueUtils::value_to_length(value, style.column_gap, style.font_size));
+                std::max(0.0f, StyleValueUtils::value_to_length(value, style.column_gap, length_context));
             return true;
         case Property::Border:
             return true;
@@ -740,6 +794,7 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
                 auto to_px = [&](const Length& length) {
                     if (length.unit == Unit::Px) return length.value;
                     if (length.unit == Unit::Em) return length.value * style.font_size;
+                    if (length.unit == Unit::Rem) return length.value * context.root_font_size;
                     return 0.0f;
                 };
                 ComputedStyle::BoxShadow shadow;
@@ -762,6 +817,7 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
                 auto to_px = [&](const Length& length) {
                     if (length.unit == Unit::Px) return length.value;
                     if (length.unit == Unit::Em) return length.value * style.font_size;
+                    if (length.unit == Unit::Rem) return length.value * context.root_font_size;
                     return 0.0f;
                 };
                 ComputedStyle::BoxShadow shadow;
@@ -781,6 +837,7 @@ bool apply_layout_property(Property property, const Value& value, ComputedStyle&
             auto to_px = [&](const std::optional<Length>& edge) -> std::optional<float> {
                 if (!edge) return std::nullopt;
                 if (edge->unit == Unit::Em) return edge->value * style.font_size;
+                if (edge->unit == Unit::Rem) return edge->value * context.root_font_size;
                 return edge->value;  // px (and unitless treated as px at parse)
             };
             ComputedStyle::ClipRect rect;

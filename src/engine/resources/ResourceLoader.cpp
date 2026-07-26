@@ -1,12 +1,18 @@
 #include "engine/resources/ResourceLoader.h"
 
+#include <algorithm>
 #include <functional>
+#include <optional>
 #include <ostream>
 #include <utility>
 
 #include "core/BookmarkStore.h"
+#include "core/net/Referrer.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
+#include "core/utils/Url.h"
+#include "engine/resources/NetworkErrorPage.h"
+#include "engine/resources/RedirectPolicy.h"
 #include "engine/resources/ResourceRequestPlanner.h"
 #include "engine/resources/ResourceUpdateProcessor.h"
 
@@ -25,22 +31,200 @@ bool is_builtin_demo_url(std::string_view url) {
     }
     return false;
 }
+
+// The cookie context for a top-level document navigation (8.1.2).
+//
+// `initiator_host` is the document that caused the navigation — a link click or
+// form submit. Empty means user-initiated (address bar, bookmark, history),
+// which is not a cross-site request and carries every cookie. Together with
+// safe_method this is what makes SameSite=Lax refuse a cross-site form POST,
+// the CSRF case Lax exists to block (T-COOKIE-NAV-INITIATOR-1).
+Core::CookieRequestContext document_cookie_context(bool is_post, std::string initiator_host) {
+    Core::CookieRequestContext context;
+    context.top_level_navigation = true;
+    context.safe_method = !is_post;
+    context.initiator_host = std::move(initiator_host);
+    return context;
+}
+
+// Subresources DO know their initiator: the document that referenced them. This
+// is the case the 8.1.2 acceptance criterion names, and it is exact.
+Core::CookieRequestContext subresource_cookie_context(std::string_view base_url) {
+    Core::CookieRequestContext context;
+    context.top_level_navigation = false;
+    context.safe_method = true;
+    if (auto parts = Core::parse_absolute_url(base_url)) {
+        context.initiator_host = parts->host;
+    }
+    return context;
+}
 }  // namespace
 
 ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
-                               ImageDecoderPtr image_decoder)
+                               ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar,
+                               std::shared_ptr<Core::IdentityPolicyStore> identity_store)
     : network_(std::move(network)),
       fallback_network_(std::move(fallback_network)),
       resource_provider_(std::move(resource_provider)),
-      image_decoder_(std::move(image_decoder)) {
-    if (!network_ || !fallback_network_) {
-        HB_LOG_ERROR("[network] failed to create network backend(s)");
+      image_decoder_(std::move(image_decoder)),
+      cookie_jar_(std::move(cookie_jar)),
+      identity_store_(std::move(identity_store)) {
+    // Only "nothing can fetch at all" is an error. Having just one backend is a
+    // deliberate configuration (tests, headless harnesses, stub-only demo runs),
+    // and shouting about it on every construction trained the eye to ignore a
+    // line that should mean something.
+    if (!network_ && !fallback_network_) {
+        HB_LOG_ERROR("[network] no network backend available; requests will fail");
+    } else if (!network_ || !fallback_network_) {
+        HB_LOG_DEBUG("[network] single backend configured (primary=" << (network_ ? "yes" : "no") << " fallback="
+                                                                     << (fallback_network_ ? "yes" : "no") << ")");
     }
+    // Both are optional collaborators, and a loader constructed without them is a
+    // valid configuration rather than a fault. Warning here fires once per
+    // construction regardless of whether anything ever needed them; the paths
+    // that DO need them already warn at the point of use, which is where the
+    // absence actually costs something.
     if (!resource_provider_) {
-        HB_LOG_WARN("[resource] no resource provider available");
+        HB_LOG_DEBUG("[resource] constructed without a resource provider");
     }
     if (!image_decoder_) {
-        HB_LOG_WARN("[image] no decoder available");
+        HB_LOG_DEBUG("[image] constructed without a decoder");
+    }
+}
+
+void ResourceLoader::send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
+                                  std::function<void(NetworkResponse)> callback,
+                                  const Core::CookieRequestContext& context, std::optional<std::string> post_body,
+                                  RedirectChain chain) {
+    // Recomputed per hop: a chain can cross hosts and paths, so the previous
+    // hop's Cookie header must never ride along.
+    if (cookie_jar_) {
+        std::lock_guard<std::mutex> lg(cookie_mutex_);
+        const std::string cookies = cookie_jar_->cookie_header_for(url, Core::CookieClock::now(), context);
+        if (cookies.empty()) {
+            options.headers.remove("Cookie");
+        } else {
+            options.headers.set("Cookie", cookies);
+        }
+    }
+
+    // Recomputed per hop like the Cookie header: the referrer policy depends on
+    // this hop's target, so a chain crossing origins re-derives (or drops) the
+    // Referer each hop rather than forwarding the first hop's value.
+    if (auto referer = Core::compute_referrer_header(chain.referrer_source, url)) {
+        options.headers.set("Referer", *referer);
+    } else {
+        options.headers.remove("Referer");
+    }
+
+    // Origin accompanies every non-GET request (Fetch spec). It is the
+    // initiating document's origin, not reduced or downgraded, and is what a
+    // server's CSRF check reads to confirm the POST came from its own page — the
+    // one header a browser adds to a same-origin form POST that a top-level GET
+    // navigation lacks. Without it HN answers /comment with 429 "Sorry.".
+    if (post_body) {
+        if (auto origin = Core::compute_origin_header(chain.referrer_source)) {
+            options.headers.set("Origin", *origin);
+        } else {
+            options.headers.remove("Origin");
+        }
+    }
+
+    // Browser identity (User-Agent + Sec-CH-UA), chosen per target origin and
+    // recomputed per hop so a chain crossing origins presents each site the
+    // identity selected for it. A null store (tests) means Transparent, and the
+    // engine owning this is why CurlNetwork no longer hard-codes a User-Agent.
+    if (auto target = Core::Origin::parse(url)) {
+        const auto mode = identity_store_ ? identity_store_->mode_for(*target) : Core::IdentityMode::Transparent;
+        const bool secure = target->scheme() == "https";
+        for (const auto& header : Core::identity_headers(mode, secure)) {
+            options.headers.set(header.name, header.value);
+        }
+    }
+    chain.visited.push_back(url);
+
+    // A form POST's outgoing identity/CSRF headers, at DEBUG — invaluable when a
+    // write is rejected (e.g. HN's 429), but off in a normal release build.
+    if (post_body) {
+        HB_LOG_DEBUG("[network] POST " << url << " Referer=" << options.headers.get("Referer") << " Origin="
+                                       << options.headers.get("Origin") << " UA=" << options.headers.get("User-Agent")
+                                       << " Cookie=" << (options.headers.get("Cookie").empty() ? "no" : "yes"));
+    }
+
+    auto on_response = [this, &network, url, options, callback, context, post_body,
+                        chain](NetworkResponse response) mutable {
+        if (cookie_jar_ && !response.headers.empty()) {
+            // Attribute Set-Cookie to this hop's URL. Cookies set mid-chain are
+            // therefore stored before the next hop's header is computed, which is
+            // what makes a login 302 land authenticated.
+            std::lock_guard<std::mutex> lg(cookie_mutex_);
+            cookie_jar_->store_from_response(url, response.headers, Core::CookieClock::now());
+        }
+
+        auto decision =
+            RedirectPolicy::decide(response.status, response.headers.get("Location"), url, post_body.has_value());
+        if (!decision) {
+            // Not a redirect (or not a followable one): this is the answer.
+            if (response.effective_url.empty()) {
+                response.effective_url = url;
+            }
+            if (callback) callback(std::move(response));
+            return;
+        }
+
+        const auto fail = [&](NetworkError error, const char* what) {
+            HB_LOG_WARN("[network] " << what << " after " << chain.hops << " hops: " << url << " -> " << decision->url);
+            NetworkResponse failed;
+            failed.url = chain.visited.front();
+            failed.effective_url = url;
+            failed.status = response.status;
+            failed.error = error;
+            if (callback) callback(std::move(failed));
+        };
+
+        if (chain.hops + 1 > RedirectPolicy::kMaxHops) {
+            fail(NetworkError::TooManyRedirects, "redirect hop limit exceeded");
+            return;
+        }
+        if (std::find(chain.visited.begin(), chain.visited.end(), decision->url) != chain.visited.end()) {
+            fail(NetworkError::RedirectLoop, "redirect loop detected");
+            return;
+        }
+
+        // A rewritten-to-GET hop carries no body, so its content type is
+        // meaningless; leaving it set would advertise a body we are not sending.
+        NetworkRequestOptions next = options;
+        std::optional<std::string> next_body;
+        if (decision->keep_post) {
+            next_body = post_body;
+        } else {
+            next.content_type.clear();
+        }
+
+        // Recompute the SameSite context for the next hop (story 8.1.3). The hop
+        // that issued the redirect is the next one's initiator, so a chain that
+        // crosses sites makes every later hop cross-site — otherwise an
+        // address-bar navigation to A that bounces to B would hand over B's
+        // Strict cookies on A's "no initiator, nothing is cross-site" standing.
+        Core::CookieRequestContext next_context = context;
+        if (auto parts = Core::parse_absolute_url(url)) {
+            next_context.initiator_host = parts->host;
+        }
+        // Safe-method status follows the rewrite: a 302 that turns POST into GET
+        // makes the next hop safe; a 307 that preserves POST does not.
+        next_context.safe_method = !decision->keep_post;
+
+        ++chain.hops;
+        HB_LOG_DEBUG("[network] redirect " << response.status << " " << url << " -> " << decision->url
+                                           << (decision->keep_post ? " (POST preserved)" : " (as GET)"));
+        send_request(network, decision->url, std::move(next), std::move(callback), next_context, std::move(next_body),
+                     std::move(chain));
+    };
+
+    if (post_body) {
+        network.post(url, *post_body, std::move(on_response), options);
+    } else {
+        network.get(url, std::move(on_response), options);
     }
 }
 
@@ -71,8 +255,11 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
     active_nav_.store(id, std::memory_order_release);
     std::string url_copy(url);
 
+    // False just means the URL is already tracked as Loading or Ready — i.e. a
+    // reload, or a return visit. The fetch proceeds either way and the entry is
+    // overwritten when it lands, so this is routine, not a failure.
     if (!resource_store_.begin_request(url_copy, ResourceType::Document)) {
-        HB_LOG_WARN("[resource] failed to register document request: " << url_copy);
+        HB_LOG_DEBUG("[resource] re-requesting already-tracked document: " << url_copy);
     }
 
     // Built-in about:bookmarks page (7.6.2): rendered synchronously from the
@@ -83,6 +270,18 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         return;
     }
 
+    // Refuse to navigate anywhere but http/https (and the built-in pages handled
+    // above). A page linking to `file://localhost/C:/…` must not make the engine
+    // read local disk and render it as a document — libcurl would happily serve
+    // it. The transport blocks this too; doing it here means the rule holds for
+    // every backend and shows up as a failed navigation rather than a silent
+    // transport error.
+    if (!Core::is_fetchable_web_url(url_copy)) {
+        HB_LOG_WARN("[network] refusing navigation to non-web scheme: " << url_copy);
+        enqueue_resource_update(ResourceType::Document, url_copy, {}, /*success*/ false, url_copy);
+        return;
+    }
+
     if (is_builtin_demo_url(url_copy) && fallback_network_) {
         auto callback = [this, id, url_copy](NetworkResponse response) {
             if (id != active_nav_.load(std::memory_order_acquire)) return;
@@ -90,13 +289,14 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
                                     std::move(response.effective_url), response.error);
         };
-        if (request.method == DocumentRequest::Method::Post) {
-            NetworkRequestOptions post_options{};
-            post_options.content_type = request.content_type;
-            fallback_network_->post(url_copy, request.body, std::move(callback), post_options);
-        } else {
-            fallback_network_->get(url_copy, std::move(callback));
-        }
+        NetworkRequestOptions options{};
+        options.content_type = request.content_type;
+        const bool is_post = request.method == DocumentRequest::Method::Post;
+        RedirectChain chain;
+        chain.referrer_source = request.initiator_url;
+        send_request(*fallback_network_, url_copy, options, std::move(callback),
+                     document_cookie_context(is_post, request.initiator_host),
+                     is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
         return;
     }
 
@@ -109,13 +309,14 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                 enqueue_resource_update(ResourceType::Document, url_copy, std::move(response.body), success,
                                         std::move(response.effective_url), response.error);
             };
-            if (request.method == DocumentRequest::Method::Post) {
-                NetworkRequestOptions post_options{};
-                post_options.content_type = request.content_type;
-                fallback_network_->post(url_copy, request.body, std::move(callback), post_options);
-            } else {
-                fallback_network_->get(url_copy, std::move(callback));
-            }
+            NetworkRequestOptions options{};
+            options.content_type = request.content_type;
+            const bool is_post = request.method == DocumentRequest::Method::Post;
+            RedirectChain chain;
+            chain.referrer_source = request.initiator_url;
+            send_request(*fallback_network_, url_copy, options, std::move(callback),
+                         document_cookie_context(is_post, request.initiator_host),
+                         is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
         } else {
             enqueue_resource_update(ResourceType::Document, url_copy, {}, false);
         }
@@ -127,38 +328,63 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
     options.content_type = request.content_type;
 
     auto callback = [this, id, url_copy, request_method = request.method, post_body = request.body,
-                     post_content_type = request.content_type](NetworkResponse response) {
+                     post_content_type = request.content_type, initiator_host = request.initiator_host,
+                     initiator_url = request.initiator_url](NetworkResponse response) {
         if (id != active_nav_.load(std::memory_order_acquire)) return;
 
         if (response.body.empty()) {
+            // A redirect-policy failure is a definitive answer about this URL,
+            // not a transport hiccup: retrying it against the stub network would
+            // mask a loop behind a demo page. Surface it so the tab (and 8.3.2's
+            // error page) can report it.
+            if (response.error == NetworkError::TooManyRedirects || response.error == NetworkError::RedirectLoop) {
+                HB_LOG_WARN("[network] redirect chain failed for " << url_copy << ", showing error page");
+                std::string body = NetworkErrorPage::build(url_copy, response.error);
+                enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), /*success*/ true,
+                                        std::move(response.effective_url), response.error);
+                return;
+            }
             if (response.error == NetworkError::TlsVerificationFailed) {
                 HB_LOG_WARN("[network] TLS verification failed for " << url_copy << ", showing warning page");
                 std::string body = ResourceSecurityPolicy::build_tls_error_body(url_copy);
                 enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), true,
                                         std::move(response.effective_url), response.error);
             } else {
+                // curl reached nothing (DNS/refused/timeout). Try the stub, which
+                // serves the built-in demo pages offline; if it too has nothing for
+                // this URL, this is a genuine failure — render the 8.3.2 error page
+                // instead of a blank document.
                 HB_LOG_WARN("[network] curl returned empty for " << url_copy << ", using stub");
-                if (!fallback_network_) return;
-                if (request_method == DocumentRequest::Method::Post) {
-                    NetworkRequestOptions post_options{};
-                    post_options.content_type = post_content_type;
-                    fallback_network_->post(
-                        url_copy, post_body,
-                        [this, id, url_copy](NetworkResponse fallback) {
-                            if (id != active_nav_.load(std::memory_order_acquire)) return;
-                            bool success = !fallback.body.empty();
-                            enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
-                                                    std::move(fallback.effective_url), fallback.error);
-                        },
-                        post_options);
-                } else {
-                    fallback_network_->get(url_copy, [this, id, url_copy](NetworkResponse fallback) {
-                        if (id != active_nav_.load(std::memory_order_acquire)) return;
-                        bool success = !fallback.body.empty();
-                        enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body), success,
-                                                std::move(fallback.effective_url), fallback.error);
-                    });
+                const NetworkError original_error =
+                    response.error == NetworkError::None ? NetworkError::CurlError : response.error;
+                if (!fallback_network_) {
+                    std::string body = NetworkErrorPage::build(url_copy, original_error);
+                    enqueue_resource_update(ResourceType::Document, url_copy, std::move(body), /*success*/ true,
+                                            std::move(response.effective_url), original_error);
+                    return;
                 }
+                NetworkRequestOptions fallback_options{};
+                fallback_options.content_type = post_content_type;
+                RedirectChain fallback_chain;
+                fallback_chain.referrer_source = initiator_url;
+                send_request(
+                    *fallback_network_, url_copy, fallback_options,
+                    [this, id, url_copy, original_error](NetworkResponse fallback) {
+                        if (id != active_nav_.load(std::memory_order_acquire)) return;
+                        if (fallback.body.empty()) {
+                            std::string body = NetworkErrorPage::build(url_copy, original_error);
+                            enqueue_resource_update(ResourceType::Document, url_copy, std::move(body),
+                                                    /*success*/ true, std::move(fallback.effective_url),
+                                                    original_error);
+                            return;
+                        }
+                        enqueue_resource_update(ResourceType::Document, url_copy, std::move(fallback.body),
+                                                /*success*/ true, std::move(fallback.effective_url), fallback.error);
+                    },
+                    document_cookie_context(request_method == DocumentRequest::Method::Post, initiator_host),
+                    request_method == DocumentRequest::Method::Post ? std::optional<std::string>(post_body)
+                                                                    : std::nullopt,
+                    std::move(fallback_chain));
             }
             return;
         }
@@ -168,11 +394,12 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                                 std::move(response.effective_url), response.error);
     };
 
-    if (request.method == DocumentRequest::Method::Post) {
-        network_->post(url_copy, request.body, std::move(callback), options);
-    } else {
-        network_->get(url_copy, std::move(callback), options);
-    }
+    const bool is_post = request.method == DocumentRequest::Method::Post;
+    RedirectChain chain;
+    chain.referrer_source = request.initiator_url;
+    send_request(*network_, url_copy, options, std::move(callback),
+                 document_cookie_context(is_post, request.initiator_host),
+                 is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
 }
 
 void ResourceLoader::allow_insecure_host(std::string_view host) {
@@ -318,8 +545,10 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         HB_LOG_DEBUG("[resource] fetching " << options.type_label << ": " << url);
         NetworkRequestOptions request_options{};
         request_options.allow_insecure = security_policy_.is_insecure_allowed_for_url(url);
-        fetcher->get(
-            url,
+        RedirectChain chain;
+        chain.referrer_source = std::string(base_url);
+        send_request(
+            *fetcher, url, request_options,
             [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
                 if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
                 bool success = !response.body.empty();
@@ -328,7 +557,7 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
                 }
                 enqueue_resource_update(type, url, std::move(response.body), success, {}, response.error);
             },
-            request_options);
+            subresource_cookie_context(base_url), std::nullopt, std::move(chain));
     }
 }
 

@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include "core/dom/Element.h"
 #include "core/utils/Log.h"
@@ -30,8 +31,28 @@ struct InputPaintData {
     std::string value;
     float text_x;
     float text_y;
-    float text_height;
+    // Vertical advance per line, and the caret's height. For a multiline control
+    // this must equal the per-row height layout reserved, or an N-row box cannot
+    // hold N lines.
+    float line_height;
+    bool multiline = false;
 };
+
+// Splits a control's value on '\n'. A single-line value yields exactly one line,
+// and a trailing newline yields a final empty line (where the caret belongs).
+std::vector<std::string> split_lines(const std::string& value) {
+    std::vector<std::string> lines;
+    size_t start = 0;
+    while (true) {
+        const size_t end = value.find('\n', start);
+        if (end == std::string::npos) {
+            lines.push_back(value.substr(start));
+            return lines;
+        }
+        lines.push_back(value.substr(start, end - start));
+        start = end + 1;
+    }
+}
 
 // Inputs with `background: none` (DDG) paint nothing themselves, so erasing a
 // deleted character needs the backdrop actually behind the control: the
@@ -106,26 +127,53 @@ std::optional<InputPaintData> build_input_paint_data(const DOM::Element& element
             text_style.color = high_contrast_text(background);
         }
     }
+    const bool multiline = is_textarea_element(&element);
     std::string value = input_value(element);
-    TextMetrics metrics = graphics.measure_text(value, text_style);
-    TextMetrics caret_metrics =
-        metrics.height > 0.0f ? metrics : graphics.measure_text(kCaretFallbackGlyph, text_style);
-    float text_height = metrics.height > 0.0f ? metrics.height : caret_metrics.height;
+    // A multiline value's newlines are line breaks, not glyphs: handing the whole
+    // string to the shaper would ask it for a U+000A glyph it does not have. Only
+    // a single-line control measures its own value.
+    TextMetrics metrics = multiline ? TextMetrics{} : graphics.measure_text(value, text_style);
+    float line_height = metrics.height;
+    if (line_height <= 0.0f) {
+        line_height = graphics.measure_text(kCaretFallbackGlyph, text_style).height;
+    }
+    // Layout reserved rows using the UA's computed line-height (StyleDefaults);
+    // paint has to advance by the same amount to stay inside the box.
+    if (multiline && style && style->line_height > 0.0f) {
+        line_height = style->line_height;
+    }
     float text_x = content.x;
-    float text_y = content.y + std::max(0.0f, (content.height - text_height) * 0.5f);
+    // A single-line value centers in its box; multiline text starts at the top.
+    float text_y = multiline ? content.y : content.y + std::max(0.0f, (content.height - line_height) * 0.5f);
     if (!is_editable_input_element(&element)) {
         text_style.bold = true;
         text_x = content.x + std::max(0.0f, (content.width - metrics.width) * 0.5f);
     }
 
     return InputPaintData{
-        absolute, content, std::move(text_style), std::move(value), text_x, text_y, text_height,
+        absolute, content, std::move(text_style), std::move(value), text_x, text_y, line_height, multiline,
     };
 }
 
 void paint_input_value(const InputPaintData& data, IGraphicsContext& graphics) {
-    if (!data.value.empty()) {
-        graphics.draw_text(data.value, data.text_x, data.text_y, data.text_style);
+    if (!data.multiline) {
+        if (!data.value.empty()) {
+            graphics.draw_text(data.value, data.text_x, data.text_y, data.text_style);
+        }
+        return;
+    }
+
+    float line_y = data.text_y;
+    for (const std::string& line : split_lines(data.value)) {
+        // Stop once rows would spill past the control; internal scrolling is an
+        // M11 follow-up (T-FORM-TEXTAREA-LAYOUT-1).
+        if (line_y + data.line_height > data.content.y + data.content.height) {
+            return;
+        }
+        if (!line.empty()) {
+            graphics.draw_text(line, data.text_x, line_y, data.text_style);
+        }
+        line_y += data.line_height;
     }
 }
 
@@ -133,13 +181,26 @@ void paint_input_caret(const InputPaintData& data, IGraphicsContext& graphics, s
                        bool repaint_background) {
     caret = Core::Utils::TextEditBuffer::clamp_caret_for(data.value, caret);
     std::string prefix = data.value.substr(0, caret);
+    float caret_y = data.text_y;
+    if (data.multiline) {
+        // The caret sits on the line holding the text before it, indented by that
+        // line's own width — so only the trailing partial line measures.
+        const auto line_index = static_cast<float>(std::count(prefix.begin(), prefix.end(), '\n'));
+        caret_y += line_index * data.line_height;
+        if (const size_t line_start = prefix.rfind('\n'); line_start != std::string::npos) {
+            prefix.erase(0, line_start + 1);
+        }
+    }
     float caret_offset = graphics.measure_text(prefix, data.text_style).width;
     float caret_x = data.text_x + caret_offset;
     float max_caret_x = data.content.x + std::max(0.0f, data.content.width - 1.0f);
     if (caret_x > max_caret_x) {
         caret_x = max_caret_x;
     }
-    Layout::Rect caret_rect{caret_x, data.text_y, kCaretWidth, data.text_height};
+    // Keep the caret inside the box until internal scrolling exists (M11).
+    float max_caret_y = data.content.y + std::max(0.0f, data.content.height - data.line_height);
+    caret_y = std::min(caret_y, max_caret_y);
+    Layout::Rect caret_rect{caret_x, caret_y, kCaretWidth, data.line_height};
     graphics.fill_rect(caret_rect, data.text_style.color);
     HB_LOG_DEBUG("[input] paint focused rect=" << data.absolute.x << "," << data.absolute.y << " "
                                                << data.absolute.width << "x" << data.absolute.height
@@ -251,7 +312,7 @@ void paint_input_control(const DOM::Element& element, const Layout::RenderObject
             paint_input_focus_ring(absolute, node.get_computed_style(), graphics);
         }
         HB_LOG_DEBUG("[input] draw focused value='" << paint_data->value << "' text_pos=" << paint_data->text_x << ","
-                                                    << paint_data->text_y << " text_h=" << paint_data->text_height
+                                                    << paint_data->text_y << " line_h=" << paint_data->line_height
                                                     << " color=(" << static_cast<int>(paint_data->text_style.color.r)
                                                     << "," << static_cast<int>(paint_data->text_style.color.g) << ","
                                                     << static_cast<int>(paint_data->text_style.color.b) << ","

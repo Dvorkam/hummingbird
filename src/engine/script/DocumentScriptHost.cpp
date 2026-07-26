@@ -444,6 +444,59 @@ void DocumentScriptHost::set_focused(DOM::Node* node, bool focused) {
     }
 }
 
+std::string DocumentScriptHost::get_document_cookie() {
+    // No jar wired up (most unit tests) reads as "no cookies", not an error:
+    // document.cookie returning "" is a perfectly ordinary state.
+    return cookie_reader_ ? cookie_reader_() : std::string{};
+}
+
+void DocumentScriptHost::set_document_cookie(std::string_view value) {
+    if (cookie_writer_) {
+        cookie_writer_(value);
+    }
+}
+
+Core::StorageArea* DocumentScriptHost::storage_area_for(StorageKind kind) {
+    const StorageAccessor& accessor = kind == StorageKind::Session ? session_storage_accessor_ : storage_accessor_;
+    return accessor ? accessor() : nullptr;
+}
+
+std::optional<std::string> DocumentScriptHost::storage_get_item(StorageKind kind, std::string_view key) {
+    Core::StorageArea* area = storage_area_for(kind);
+    return area ? area->get_item(key) : std::nullopt;
+}
+
+DocumentScriptHost::StorageWriteResult DocumentScriptHost::storage_set_item(StorageKind kind, std::string_view key,
+                                                                            std::string_view value) {
+    Core::StorageArea* area = storage_area_for(kind);
+    if (!area) {
+        return StorageWriteResult::Ok;  // no store: drop the write, like cookies with no jar
+    }
+    return area->set_item(key, value) ? StorageWriteResult::Ok : StorageWriteResult::QuotaExceeded;
+}
+
+void DocumentScriptHost::storage_remove_item(StorageKind kind, std::string_view key) {
+    if (Core::StorageArea* area = storage_area_for(kind)) {
+        area->remove_item(key);
+    }
+}
+
+void DocumentScriptHost::storage_clear(StorageKind kind) {
+    if (Core::StorageArea* area = storage_area_for(kind)) {
+        area->clear();
+    }
+}
+
+size_t DocumentScriptHost::storage_length(StorageKind kind) {
+    Core::StorageArea* area = storage_area_for(kind);
+    return area ? area->length() : 0;
+}
+
+std::optional<std::string> DocumentScriptHost::storage_key(StorageKind kind, size_t index) {
+    Core::StorageArea* area = storage_area_for(kind);
+    return area ? area->key_at(index) : std::nullopt;
+}
+
 DOM::Node* DocumentScriptHost::query_selector(DOM::Node* scope, std::string_view selector) {
     DOM::Node* root = scope ? scope : root_;
     if (!root) return nullptr;

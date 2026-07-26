@@ -5,16 +5,21 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 #include "core/SecurityState.h"
+#include "core/net/IdentityPolicyStore.h"
+#include "core/net/StorageArea.h"
+#include "core/net/StorageManager.h"
 #include "core/utils/Timing.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
 #include "engine/resources/ResourceStore.h"
 #include "engine/tab/NavigationHistory.h"
 #include "engine/tab/NavigationLifecycle.h"
+#include "engine/tab/NavigationSource.h"
 #include "engine/tab/TabAnimationTicker.h"
 #include "engine/tab/TabLayoutState.h"
 #include "layout/geometry/Geometry.h"
@@ -53,9 +58,13 @@ public:
         bool hash_changed = false;
         bool mutated = false;
     };
+    // `cookie_jar` and `storage_manager` are shared by every tab of a profile;
+    // null disables cookies / localStorage respectively.
     Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
-        std::unique_ptr<IScriptEngine> script_engine);
+        std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr,
+        std::shared_ptr<Core::StorageManager> storage_manager = nullptr,
+        std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr);
     ~Tab();
 
     Tab(const Tab&) = delete;
@@ -65,7 +74,8 @@ public:
 
     void shutdown();
 
-    void navigate(std::string_view url);
+    void navigate(std::string_view url, NavigationSource source = NavigationSource::User);
+    // Form submits are always document-initiated.
     void navigate(const FormSubmission& submission);
 
     // Back/forward navigation over the per-tab history (7.6.1). Returns false when
@@ -128,6 +138,10 @@ public:
     bool allow_insecure_for_current_host();
 
 private:
+    // Host of the document initiating a navigation, or "" for a user-initiated
+    // one. Must be called before begin_navigation_session switches the URL.
+    std::string initiator_host_for(NavigationSource source) const;
+    std::string initiator_url_for(NavigationSource source) const;
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_incremental_resource_updates(const ResourceLoader::BatchResult& batch, IGraphicsContext& graphics,
                                               const Layout::Rect& viewport);
@@ -169,6 +183,11 @@ private:
     std::atomic<bool> shutting_down_{false};
 
     std::unique_ptr<ResourceLoader> resource_loader_;
+    // Shared per profile; null in most unit tests, which disables localStorage.
+    std::shared_ptr<Core::StorageManager> storage_manager_;
+    // Per-tab sessionStorage (8.2.3): in-memory, keyed by Origin::key(), never
+    // persisted, dropped when the tab is destroyed.
+    std::unordered_map<std::string, Core::StorageArea> session_storage_;
     std::unique_ptr<DocumentPipeline> document_pipeline_;
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;

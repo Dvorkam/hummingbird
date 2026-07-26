@@ -31,6 +31,19 @@ Each diagram's `glob` selects our source minus the adapters via the regex
 | `platform_api` | class | The platform **port**: interfaces (`IGraphicsContext`, `INetwork`, `IResourceProvider`, `IImageDecoder`, `IScriptEngine`, `IWindow`, …) + the value types crossing it. |
 | `engine_document_pipeline` | class | The engine's own classes (`Hummingbird::Engine` namespace only) across `document`/`resources`/`script`/`tab`/`forms`/`extensions`. |
 
+## Visitor-oriented pipeline explorer
+
+[`page_pipeline.html`](../diagrams/page_pipeline.html) is a hand-maintained,
+interactive companion to the generated UML. It is deliberately scoped to one
+question a new visitor has: how an HTML response becomes pixels in the running
+application. It links to the current implementation files and shows the
+resource/script feedback loops that a class diagram makes difficult to see.
+
+It has no build step or external dependencies. Open it directly in a browser or
+serve the repository through any static-file host. Keep it factual and update it
+when the document pipeline's externally visible control flow changes; generated
+UML remains the source for broad package/class relationships.
+
 Noise control: class diagrams filter to our namespaces (`Hummingbird` /
 `Hummingbird::Engine`) and exclude anonymous members (`.*anonymous.*`), which
 libclang otherwise emits once per translation unit (e.g. `InputEvent`'s union

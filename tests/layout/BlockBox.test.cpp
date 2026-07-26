@@ -7,11 +7,14 @@
 #include "core/dom/Element.h"
 #include "core/dom/Text.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlTagNames.h"
 #include "layout/TreeBuilder.h"
 #include "layout/controls/RenderRule.h"
 #include "layout/flow/InlineBox.h"
 #include "layout/flow/TextBox.h"
+#include "layout/replaced/ObjectFitUtils.h"
 #include "layout/replaced/RenderImage.h"
+#include "layout/replaced/ReplacedSizingUtils.h"
 #include "style/compute/StyleEngine.h"
 #include "style/parser/CssParser.h"
 #include "style/types/ComputedStyle.h"
@@ -21,6 +24,7 @@ using namespace Hummingbird::Layout;
 using namespace Hummingbird::DOM;
 using namespace Hummingbird::Css;
 namespace Attr = Hummingbird::Html::AttributeNames;
+namespace Tag = Hummingbird::Html::TagNames;
 using Hummingbird::IGraphicsContext;
 
 namespace {
@@ -211,6 +215,8 @@ TEST(BlockBoxLayoutTest, BlockStaysBesideFloatWhenRoom) {
 
     auto img_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
     img_style->float_type = Hummingbird::Css::ComputedStyle::Float::Right;
+    img_style->width = Hummingbird::Css::ComputedStyle::LengthValue::from_px(88.0f);
+    img_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(31.0f);
     root->get_children()[0]->set_computed_style(img_style);
 
     auto render_root = BlockBox::create(root.get());
@@ -250,6 +256,8 @@ TEST(BlockBoxLayoutTest, FloatImageInsideLinkIsFloated) {
     auto img_style = std::make_shared<Hummingbird::Css::ComputedStyle>(Hummingbird::Css::default_computed_style());
     img_style->display = Hummingbird::Css::ComputedStyle::Display::Inline;
     img_style->float_type = Hummingbird::Css::ComputedStyle::Float::Right;
+    img_style->width = Hummingbird::Css::ComputedStyle::LengthValue::from_px(88.0f);
+    img_style->height = Hummingbird::Css::ComputedStyle::LengthValue::from_px(31.0f);
     root->get_children()[0]->get_children()[0]->set_computed_style(img_style);
 
     auto render_root = BlockBox::create(root.get());
@@ -266,6 +274,381 @@ TEST(BlockBoxLayoutTest, FloatImageInsideLinkIsFloated) {
     const auto& link_rect = render_root->get_children()[0]->get_rect();
     EXPECT_FLOAT_EQ(link_rect.width, 88.0f);
     EXPECT_FLOAT_EQ(link_rect.x, 112.0f);
+}
+
+// --- Story 8.5.1: percentage sizing for replaced elements -------------------
+
+TEST(ReplacedSizingTest, PercentWidthResolvesAgainstContainingBlock) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_percent(50.0f);
+    ReplacedSizing::IntrinsicSize intrinsic;  // no intrinsic size
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/200.0f, /*cb_height=*/400.0f);
+    EXPECT_FLOAT_EQ(size.width, 100.0f);  // 50% of the 200px containing block
+}
+
+TEST(ReplacedSizingTest, PercentHeightResolvesAgainstContainingBlock) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.height = ComputedStyle::LengthValue::from_percent(25.0f);
+    ReplacedSizing::IntrinsicSize intrinsic;
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/200.0f, /*cb_height=*/400.0f);
+    EXPECT_FLOAT_EQ(size.height, 100.0f);  // 25% of the 400px containing block
+}
+
+TEST(ReplacedSizingTest, IndefinitePercentHeightBehavesAsAuto) {
+    // Seznam's picture component applies width:100%; height:100% to each image,
+    // while its wrapper has auto height. The unresolved vertical percentage is
+    // auto, so the resolved width and intrinsic ratio determine the height; it
+    // must not become a literal 100px.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, Tag::Img);
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_percent(100.0f);
+    style.height = ComputedStyle::LengthValue::from_percent(100.0f);
+    ReplacedSizing::IntrinsicSize intrinsic{320.0f, 180.0f, true, true};
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/220.0f, /*cb_height=*/std::nullopt);
+    EXPECT_FLOAT_EQ(size.width, 220.0f);
+    EXPECT_FLOAT_EQ(size.height, 123.75f);
+}
+
+TEST(ReplacedSizingTest, CssAutoHeightOverridesHtmlPresentationalHint) {
+    // Responsive images commonly expose their natural dimensions as HTML
+    // attributes, then use CSS width:100%; height:auto. Style computation has
+    // already allowed CSS to override the low-priority height hint, so layout
+    // must not re-read and resurrect the raw 2304px attribute.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, Tag::Img);
+    img->set_attribute(Attr::Width, "4096");
+    img->set_attribute(Attr::Height, "2304");
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_percent(100.0f);
+    ReplacedSizing::IntrinsicSize intrinsic{1200.0f, 675.0f, true, true};
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/194.0f, /*cb_height=*/std::nullopt);
+    EXPECT_FLOAT_EQ(size.width, 194.0f);
+    EXPECT_FLOAT_EQ(size.height, 109.125f);
+}
+
+TEST(ReplacedSizingTest, UnstyledImageStillUsesHtmlDimensions) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, Tag::Img);
+    img->set_attribute(Attr::Width, "88");
+    img->set_attribute(Attr::Height, "31");
+    ReplacedSizing::IntrinsicSize intrinsic;
+
+    auto size = ReplacedSizing::compute_layout_size(*img, nullptr, 300.0f, 150.0f, intrinsic);
+    EXPECT_FLOAT_EQ(size.width, 88.0f);
+    EXPECT_FLOAT_EQ(size.height, 31.0f);
+}
+
+TEST(ReplacedSizingTest, PixelWidthIsUnaffectedByContainingBlock) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_px(120.0f);
+    ReplacedSizing::IntrinsicSize intrinsic;
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/200.0f, /*cb_height=*/400.0f);
+    EXPECT_FLOAT_EQ(size.width, 120.0f);  // absolute length, no percentage
+}
+
+TEST(ReplacedSizingTest, PercentWidthFallsBackToMagnitudeWithoutBasis) {
+    // The inline-measure path plumbs no containing block; a percentage keeps the
+    // pre-8.5.1 bare-magnitude behavior rather than resolving to 0 or crashing.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_percent(50.0f);
+    ReplacedSizing::IntrinsicSize intrinsic;
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/std::nullopt, /*cb_height=*/std::nullopt);
+    EXPECT_FLOAT_EQ(size.width, 50.0f);  // bare magnitude fallback
+}
+
+TEST(ReplacedSizingTest, PercentWidthDoesNotBalloonAgainstIntrinsicProbe) {
+    // The containing-block basis is the ~100000px intrinsic-measurement probe, so
+    // a percentage is indefinite: it must not resolve to a probe-sized width (that
+    // is the shrink-to-fit ballooning bug for replaced elements).
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_percent(100.0f);
+    ReplacedSizing::IntrinsicSize intrinsic{256.0f, 256.0f, true, true};
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/100000.0f, /*cb_height=*/0.0f);
+    EXPECT_LT(size.width, 20000.0f);     // did not balloon to the probe width
+    EXPECT_FLOAT_EQ(size.width, 100.0f);  // treated as bare magnitude while measuring
+}
+
+TEST(ReplacedSizingTest, AspectRatioDerivesAutoHeightFromWidth) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_px(44.0f);  // height auto
+    ReplacedSizing::IntrinsicSize intrinsic{256.0f, 256.0f, true, true};
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/400.0f, /*cb_height=*/400.0f);
+    EXPECT_FLOAT_EQ(size.width, 44.0f);
+    EXPECT_FLOAT_EQ(size.height, 44.0f);  // 44 / (256/256), not the intrinsic 256
+}
+
+TEST(ReplacedSizingTest, AspectRatioDerivesAutoWidthFromHeight) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.height = ComputedStyle::LengthValue::from_px(50.0f);  // width auto
+    ReplacedSizing::IntrinsicSize intrinsic{200.0f, 100.0f, true, true};  // ratio 2:1
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/400.0f, /*cb_height=*/400.0f);
+    EXPECT_FLOAT_EQ(size.height, 50.0f);
+    EXPECT_FLOAT_EQ(size.width, 100.0f);  // 50 * (200/100)
+}
+
+TEST(ReplacedSizingTest, MaxWidthClampFollowsAspectRatio) {
+    // The ubiquitous responsive-image pattern: no width/height, max-width:100%.
+    // Clamping the width must pull the height along the intrinsic ratio —
+    // 1000x500 in a 300px container is 300x150, not 300x500.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.max_width = ComputedStyle::LengthValue::from_percent(100.0f);
+    ReplacedSizing::IntrinsicSize intrinsic{1000.0f, 500.0f, true, true};
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/300.0f, /*cb_height=*/400.0f);
+    EXPECT_FLOAT_EQ(size.width, 300.0f);
+    EXPECT_FLOAT_EQ(size.height, 150.0f);
+}
+
+TEST(ReplacedSizingTest, ClampedSpecifiedWidthRederivesAutoHeight) {
+    // An explicit width that max-width then shrinks: the auto height must follow
+    // the clamped width, not the pre-clamp one.
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_px(1000.0f);
+    style.max_width = ComputedStyle::LengthValue::from_px(300.0f);
+    ReplacedSizing::IntrinsicSize intrinsic{1000.0f, 500.0f, true, true};
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/2000.0f, /*cb_height=*/400.0f);
+    EXPECT_FLOAT_EQ(size.width, 300.0f);
+    EXPECT_FLOAT_EQ(size.height, 150.0f);
+}
+
+TEST(ReplacedSizingTest, BothDimensionsSpecifiedIgnoresAspectRatio) {
+    Hummingbird::Core::ArenaAllocator arena(1024);
+    auto img = DomFactory::create_element(arena, "img");
+    ComputedStyle style = default_computed_style();
+    style.width = ComputedStyle::LengthValue::from_px(88.0f);
+    style.height = ComputedStyle::LengthValue::from_px(31.0f);
+    ReplacedSizing::IntrinsicSize intrinsic{200.0f, 100.0f, true, true};
+
+    auto size = ReplacedSizing::compute_layout_size(*img, &style, 300.0f, 150.0f, intrinsic,
+                                                    /*cb_width=*/400.0f, /*cb_height=*/400.0f);
+    EXPECT_FLOAT_EQ(size.width, 88.0f);
+    EXPECT_FLOAT_EQ(size.height, 31.0f);  // ratio not applied when both are set
+}
+
+TEST(BlockBoxLayoutTest, ReplacedPercentWidthResolvesAgainstContainingBlock) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, "div");
+    root->append_child(DomFactory::create_element(arena, "img"));
+
+    root->set_computed_style(std::make_shared<ComputedStyle>(default_computed_style()));
+    auto img_style = std::make_shared<ComputedStyle>(default_computed_style());
+    img_style->display = ComputedStyle::Display::Block;
+    img_style->width = ComputedStyle::LengthValue::from_percent(100.0f);
+    root->get_children()[0]->set_computed_style(img_style);
+
+    auto render_root = BlockBox::create(root.get());
+    render_root->append_child(RenderImage::create(dynamic_cast<Element*>(root->get_children()[0].get())));
+
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect bounds{0, 0, 200, 0};
+    render_root->layout(context, bounds);
+
+    // Before 8.5.1 this resolved to the bare magnitude (100px); now it is 100% of
+    // the 200px containing block.
+    EXPECT_FLOAT_EQ(render_root->get_children()[0]->get_rect().width, 200.0f);
+}
+
+TEST(BlockBoxLayoutTest, ReplacedElementsHonorEmAndRemComputedSizes) {
+    Hummingbird::Core::ArenaAllocator arena(4096);
+    auto root = DomFactory::create_element(arena, Tag::Div);
+    root->set_attribute(Attr::Id, "root");
+    auto em_img = DomFactory::create_element(arena, Tag::Img);
+    em_img->set_attribute(Attr::Id, "em");
+    auto rem_img = DomFactory::create_element(arena, Tag::Img);
+    rem_img->set_attribute(Attr::Id, "rem");
+    root->append_child(std::move(em_img));
+    root->append_child(std::move(rem_img));
+
+    Parser parser(
+        "#root { font-size: 20px; } "
+        "img { display: block; font-size: 10px; } "
+        "#em { width: 2em; height: 2em; } "
+        "#rem { width: 1.5rem; height: 1.5rem; }");
+    auto sheet = parser.parse();
+    StyleEngine engine;
+    engine.apply(sheet, root.get());
+
+    TreeBuilder builder;
+    auto render_root = builder.build(root.get());
+    Hummingbird::Test::TestGraphicsContext context;
+    render_root->layout(context, Rect{0, 0, 200, 0});
+
+    auto* em = find_by_id(render_root.get(), "em");
+    auto* rem = find_by_id(render_root.get(), "rem");
+    ASSERT_NE(em, nullptr);
+    ASSERT_NE(rem, nullptr);
+    EXPECT_FLOAT_EQ(em->get_rect().width, 20.0f);
+    EXPECT_FLOAT_EQ(em->get_rect().height, 20.0f);
+    EXPECT_FLOAT_EQ(rem->get_rect().width, 30.0f);
+    EXPECT_FLOAT_EQ(rem->get_rect().height, 30.0f);
+}
+
+// --- Story 8.5.2: object-fit placement -------------------------------------
+
+TEST(ObjectFitTest, FillReturnsContentBoxUnchanged) {
+    Rect content{0, 0, 200, 100};
+    auto r = ObjectFitUtils::compute_fit(ComputedStyle::ObjectFit::Fill, content, 100.0f, 100.0f);
+    EXPECT_FALSE(r.needs_clip);
+    EXPECT_FLOAT_EQ(r.dest.width, 200.0f);
+    EXPECT_FLOAT_EQ(r.dest.height, 100.0f);
+}
+
+TEST(ObjectFitTest, ContainPreservesRatioAndCenters) {
+    Rect content{0, 0, 200, 100};  // wide box, square image
+    auto r = ObjectFitUtils::compute_fit(ComputedStyle::ObjectFit::Contain, content, 100.0f, 100.0f);
+    EXPECT_FALSE(r.needs_clip);
+    EXPECT_FLOAT_EQ(r.dest.width, 100.0f);   // scaled to fit the 100px height
+    EXPECT_FLOAT_EQ(r.dest.height, 100.0f);
+    EXPECT_FLOAT_EQ(r.dest.x, 50.0f);        // centered horizontally: (200-100)/2
+    EXPECT_FLOAT_EQ(r.dest.y, 0.0f);
+}
+
+TEST(ObjectFitTest, CoverFillsBoxAndFlagsClip) {
+    Rect content{0, 0, 200, 100};
+    auto r = ObjectFitUtils::compute_fit(ComputedStyle::ObjectFit::Cover, content, 100.0f, 100.0f);
+    EXPECT_TRUE(r.needs_clip);               // 200x200 exceeds the 100px-tall box
+    EXPECT_FLOAT_EQ(r.dest.width, 200.0f);
+    EXPECT_FLOAT_EQ(r.dest.height, 200.0f);
+    EXPECT_FLOAT_EQ(r.dest.x, 0.0f);
+    EXPECT_FLOAT_EQ(r.dest.y, -50.0f);       // centered vertically: (100-200)/2
+}
+
+TEST(ObjectFitTest, NoneUsesIntrinsicSize) {
+    Rect content{0, 0, 200, 100};
+    auto r = ObjectFitUtils::compute_fit(ComputedStyle::ObjectFit::None, content, 100.0f, 100.0f);
+    EXPECT_FALSE(r.needs_clip);
+    EXPECT_FLOAT_EQ(r.dest.width, 100.0f);
+    EXPECT_FLOAT_EQ(r.dest.height, 100.0f);
+    EXPECT_FLOAT_EQ(r.dest.x, 50.0f);
+}
+
+TEST(ObjectFitTest, ScaleDownNeverScalesUp) {
+    // Small box, big image -> behaves like contain (scale down).
+    Rect small{0, 0, 50, 50};
+    auto down = ObjectFitUtils::compute_fit(ComputedStyle::ObjectFit::ScaleDown, small, 100.0f, 100.0f);
+    EXPECT_FLOAT_EQ(down.dest.width, 50.0f);
+    EXPECT_FLOAT_EQ(down.dest.height, 50.0f);
+
+    // Big box, small image -> behaves like none (no upscaling).
+    Rect big{0, 0, 200, 200};
+    auto up = ObjectFitUtils::compute_fit(ComputedStyle::ObjectFit::ScaleDown, big, 100.0f, 100.0f);
+    EXPECT_FLOAT_EQ(up.dest.width, 100.0f);
+    EXPECT_FLOAT_EQ(up.dest.height, 100.0f);
+    EXPECT_FLOAT_EQ(up.dest.x, 50.0f);  // centered in the 200px box
+}
+
+// --- Story 8.5.3: overflow:hidden paint-time clip ---------------------------
+
+namespace {
+struct OverflowPaint {
+    Hummingbird::Test::TestGraphicsContext context;
+    Rect root_rect;
+};
+
+// Lays out a <div><div></div></div> in a 200-wide box and paints it, returning
+// the recording context plus the root's laid-out border box. The caller sets the
+// root's overflow (and optionally a uniform border) before calling.
+OverflowPaint paint_overflow_fixture(ComputedStyle::Overflow ox, ComputedStyle::Overflow oy, float border = 0.0f) {
+    Hummingbird::Core::ArenaAllocator arena(2048);
+    auto root = DomFactory::create_element(arena, "div");
+    root->append_child(DomFactory::create_element(arena, "div"));
+
+    auto root_style = std::make_shared<ComputedStyle>(default_computed_style());
+    root_style->overflow_x = ox;
+    root_style->overflow_y = oy;
+    root_style->border_width = {border, border, border, border};
+    root->set_computed_style(root_style);
+    root->get_children()[0]->set_computed_style(std::make_shared<ComputedStyle>(default_computed_style()));
+
+    auto render_root = BlockBox::create(root.get());
+    render_root->append_child(BlockBox::create(dynamic_cast<Element*>(root->get_children()[0].get())));
+
+    OverflowPaint out;
+    Rect bounds{0, 0, 200, 100};
+    render_root->layout(out.context, bounds);
+    out.root_rect = render_root->get_rect();
+    render_root->paint(out.context, Point{0, 0});
+    return out;
+}
+}  // namespace
+
+TEST(OverflowClipTest, OverflowHiddenClipsChildrenToBorderBox) {
+    auto out = paint_overflow_fixture(ComputedStyle::Overflow::Hidden, ComputedStyle::Overflow::Hidden);
+    EXPECT_EQ(out.context.push_clip_count, 1);
+    EXPECT_EQ(out.context.pop_clip_count, 1);
+    ASSERT_EQ(out.context.pushed_clips.size(), 1u);
+    // The clip is the root's border box (root painted at offset 0,0).
+    EXPECT_FLOAT_EQ(out.context.pushed_clips[0].x, out.root_rect.x);
+    EXPECT_FLOAT_EQ(out.context.pushed_clips[0].y, out.root_rect.y);
+    EXPECT_FLOAT_EQ(out.context.pushed_clips[0].width, out.root_rect.width);
+    EXPECT_FLOAT_EQ(out.context.pushed_clips[0].height, out.root_rect.height);
+    EXPECT_FLOAT_EQ(out.context.pushed_clips[0].width, 200.0f);  // fills the container
+}
+
+TEST(OverflowClipTest, OverflowVisibleDoesNotClip) {
+    auto out = paint_overflow_fixture(ComputedStyle::Overflow::Visible, ComputedStyle::Overflow::Visible);
+    EXPECT_EQ(out.context.push_clip_count, 0);
+    EXPECT_EQ(out.context.pop_clip_count, 0);
+}
+
+TEST(OverflowClipTest, SingleAxisHiddenDoesNotClip) {
+    // Only overflow-x hidden: a rectangular clip cannot leave the y axis
+    // unbounded, so by design we do not clip this case.
+    auto out = paint_overflow_fixture(ComputedStyle::Overflow::Hidden, ComputedStyle::Overflow::Visible);
+    EXPECT_EQ(out.context.push_clip_count, 0);
+}
+
+TEST(OverflowClipTest, ClipIsAtThePaddingBoxInsideTheBorder) {
+    // With a real border the clip must sit INSIDE it (the padding box), so the
+    // border stays visible under overflowing content. A zero-border fixture
+    // cannot distinguish this from a border-box clip.
+    auto out = paint_overflow_fixture(ComputedStyle::Overflow::Hidden, ComputedStyle::Overflow::Hidden,
+                                      /*border=*/2.0f);
+    ASSERT_EQ(out.context.pushed_clips.size(), 1u);
+    EXPECT_FLOAT_EQ(out.context.pushed_clips[0].x, out.root_rect.x + 2.0f);
+    EXPECT_FLOAT_EQ(out.context.pushed_clips[0].y, out.root_rect.y + 2.0f);
+    EXPECT_FLOAT_EQ(out.context.pushed_clips[0].width, out.root_rect.width - 4.0f);
+    EXPECT_FLOAT_EQ(out.context.pushed_clips[0].height, out.root_rect.height - 4.0f);
 }
 
 namespace {

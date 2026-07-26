@@ -13,6 +13,7 @@
 #include "layout/flow/inline/InlineVerticalAlignUtils.h"
 #include "layout/geometry/metrics/ReplacedElementUtils.h"
 #include "layout/paint/PaintUtils.h"
+#include "layout/replaced/ObjectFitUtils.h"
 #include "layout/replaced/ReplacedSizingUtils.h"
 #include "style/types/ComputedStyle.h"
 
@@ -39,8 +40,12 @@ void RenderSvg::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
         intrinsic.height = static_cast<float>(m_image->height);
         intrinsic.has_height = true;
     }
-    ReplacedElementUtils::LayoutSize size =
-        ReplacedSizing::compute_layout_size(*element, style, kDefaultSvgWidth, kDefaultSvgHeight, intrinsic);
+    // Resolve percentage dimensions against the containing block (story 8.5.1);
+    // a non-positive extent is indefinite -> percentage treated as auto.
+    const std::optional<float> cb_w = bounds.width > 0.0f ? std::optional<float>(bounds.width) : std::nullopt;
+    const std::optional<float> cb_h = bounds.height > 0.0f ? std::optional<float>(bounds.height) : std::nullopt;
+    ReplacedElementUtils::LayoutSize size = ReplacedSizing::compute_layout_size(
+        *element, style, kDefaultSvgWidth, kDefaultSvgHeight, intrinsic, cb_w, cb_h);
 
     m_rect.x = bounds.x;
     m_rect.y = bounds.y;
@@ -61,7 +66,18 @@ void RenderSvg::paint_self(IGraphicsContext& context, const Point& offset) const
     }
 
     if (m_image) {
-        context.draw_image(*m_image, content);
+        // object-fit (story 8.5.2): fit the rasterized SVG inside the content box;
+        // clip a cover/none result that exceeds the box.
+        const auto fit = style ? style->object_fit : Css::ComputedStyle::ObjectFit::Fill;
+        const auto placement = ObjectFitUtils::compute_fit(fit, content, static_cast<float>(m_image->width),
+                                                           static_cast<float>(m_image->height));
+        if (placement.needs_clip) {
+            context.push_clip(content);
+            context.draw_image(*m_image, placement.dest);
+            context.pop_clip();
+        } else {
+            context.draw_image(*m_image, placement.dest);
+        }
         return;
     }
 

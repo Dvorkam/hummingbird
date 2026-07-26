@@ -124,6 +124,124 @@ JSValue QuickJSScriptEngine::js_document_create_text_node(JSContext* ctx, JSValu
 
 // --- window.location (7.2.5) -----------------------------------------------
 
+// document.cookie (8.1.5). The getter returns only what script may see: the jar
+// withholds HttpOnly cookies from this path, which is the flag's entire purpose.
+JSValue QuickJSScriptEngine::js_document_get_cookie(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/,
+                                                    JSValueConst* /*argv*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) {
+        return JS_NewString(ctx, "");
+    }
+    return JS_NewString(ctx, engine->host_->get_document_cookie().c_str());
+}
+
+// Assigning document.cookie sets ONE cookie; it does not replace the jar. The
+// string is parsed by the same code as a server's Set-Cookie, so attribute
+// handling cannot drift between the two paths.
+JSValue QuickJSScriptEngine::js_document_set_cookie(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                    JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) {
+        return JS_UNDEFINED;
+    }
+    const char* value = JS_ToCString(ctx, argv[0]);
+    if (!value) {
+        return JS_UNDEFINED;
+    }
+    engine->host_->set_document_cookie(value);
+    JS_FreeCString(ctx, value);
+    return JS_UNDEFINED;
+}
+
+// window.localStorage (8.2.2) and window.sessionStorage (8.2.3). All six route
+// through the host to the StorageArea for the current origin; the host degrades
+// to empty/no-op when there is no store (opaque origin, or no store), so these
+// never need a guard beyond host_ itself. Web Storage coerces both key and value
+// to strings, which JS_ToCString does here.
+//
+// `magic` selects which of the two areas: 0 = localStorage, 1 = sessionStorage.
+// The two objects install the same six functions with different magic, so the
+// binding code exists once.
+static IScriptHost::StorageKind storage_kind_of(int magic) {
+    return magic == 1 ? IScriptHost::StorageKind::Session : IScriptHost::StorageKind::Local;
+}
+
+JSValue QuickJSScriptEngine::js_storage_get_item(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                 JSValueConst* argv, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NULL;
+    const char* key = JS_ToCString(ctx, argv[0]);
+    if (!key) return JS_NULL;
+    auto value = engine->host_->storage_get_item(storage_kind_of(magic), key);
+    JS_FreeCString(ctx, key);
+    // getItem returns null (not undefined) for a missing key, per spec.
+    return value ? JS_NewString(ctx, value->c_str()) : JS_NULL;
+}
+
+JSValue QuickJSScriptEngine::js_storage_set_item(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                 JSValueConst* argv, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 2) return JS_UNDEFINED;
+    const char* key = JS_ToCString(ctx, argv[0]);
+    const char* value = JS_ToCString(ctx, argv[1]);
+    IScriptHost::StorageWriteResult result = IScriptHost::StorageWriteResult::Ok;
+    if (key && value) {
+        result = engine->host_->storage_set_item(storage_kind_of(magic), key, value);
+    }
+    if (key) JS_FreeCString(ctx, key);
+    if (value) JS_FreeCString(ctx, value);
+    if (result == IScriptHost::StorageWriteResult::QuotaExceeded) {
+        // The spec throws a DOMException named QuotaExceededError; pages check
+        // e.name, so build an Error carrying that name rather than a bare
+        // TypeError. JS_Throw returns JS_EXCEPTION.
+        JSValue error = JS_NewError(ctx);
+        JS_SetPropertyStr(ctx, error, "name", JS_NewString(ctx, "QuotaExceededError"));
+        JS_SetPropertyStr(ctx, error, "message",
+                          JS_NewString(ctx, "Failed to execute 'setItem' on 'Storage': quota exceeded."));
+        return JS_Throw(ctx, error);
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_storage_remove_item(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                    JSValueConst* argv, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_UNDEFINED;
+    const char* key = JS_ToCString(ctx, argv[0]);
+    if (key) {
+        engine->host_->storage_remove_item(storage_kind_of(magic), key);
+        JS_FreeCString(ctx, key);
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_storage_clear(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/,
+                                              JSValueConst* /*argv*/, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (engine && engine->host_) {
+        engine->host_->storage_clear(storage_kind_of(magic));
+    }
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_storage_key(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv,
+                                            int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_ || argc < 1) return JS_NULL;
+    uint32_t index = 0;
+    if (JS_ToUint32(ctx, &index, argv[0]) != 0) return JS_NULL;
+    auto key = engine->host_->storage_key(storage_kind_of(magic), index);
+    return key ? JS_NewString(ctx, key->c_str()) : JS_NULL;
+}
+
+// A getter-with-magic: QuickJS calls this as (ctx, this_val, magic), so it takes
+// no argc/argv unlike the five method functions above.
+JSValue QuickJSScriptEngine::js_storage_get_length(JSContext* ctx, JSValueConst /*this_val*/, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) return JS_NewInt32(ctx, 0);
+    return JS_NewInt32(ctx, static_cast<int32_t>(engine->host_->storage_length(storage_kind_of(magic))));
+}
+
 JSValue QuickJSScriptEngine::js_location_get_href(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/,
                                                   JSValueConst* /*argv*/) {
     auto* engine = engine_from_context(ctx);
@@ -1225,6 +1343,30 @@ void QuickJSScriptEngine::define_accessor(JSValueConst proto, const char* name, 
     JS_FreeAtom(context_, atom);
 }
 
+JSValue QuickJSScriptEngine::make_storage_object(int magic) {
+    JSValue obj = JS_NewObject(context_);
+    JS_SetPropertyStr(context_, obj, "getItem",
+                      JS_NewCFunctionMagic(context_, js_storage_get_item, "getItem", 1, JS_CFUNC_generic_magic, magic));
+    JS_SetPropertyStr(context_, obj, "setItem",
+                      JS_NewCFunctionMagic(context_, js_storage_set_item, "setItem", 2, JS_CFUNC_generic_magic, magic));
+    JS_SetPropertyStr(
+        context_, obj, "removeItem",
+        JS_NewCFunctionMagic(context_, js_storage_remove_item, "removeItem", 1, JS_CFUNC_generic_magic, magic));
+    JS_SetPropertyStr(context_, obj, "clear",
+                      JS_NewCFunctionMagic(context_, js_storage_clear, "clear", 0, JS_CFUNC_generic_magic, magic));
+    JS_SetPropertyStr(context_, obj, "key",
+                      JS_NewCFunctionMagic(context_, js_storage_key, "key", 1, JS_CFUNC_generic_magic, magic));
+    // `length` is a magic getter, whose call convention (ctx, this, magic) differs
+    // from the generic form, so it is registered through JS_CFUNC_getter_magic
+    // with the standard quickjs cast to the union function type.
+    JSAtom atom = JS_NewAtom(context_, "length");
+    JSValue getter = JS_NewCFunctionMagic(context_, reinterpret_cast<JSCFunctionMagic*>(js_storage_get_length),
+                                          "length", 0, JS_CFUNC_getter_magic, magic);
+    JS_DefinePropertyGetSet(context_, obj, atom, getter, JS_UNDEFINED, JS_PROP_CONFIGURABLE);
+    JS_FreeAtom(context_, atom);
+    return obj;
+}
+
 void QuickJSScriptEngine::define_method(JSValueConst proto, const char* name, JSCFunction* method, int length) {
     JS_SetPropertyStr(context_, proto, name, JS_NewCFunction(context_, method, name, length));
 }
@@ -1275,6 +1417,7 @@ void QuickJSScriptEngine::install_document_bindings() {
                       JS_NewCFunction(context_, js_node_remove_event_listener, "removeEventListener", 3));
     JS_SetPropertyStr(context_, document, "dispatchEvent",
                       JS_NewCFunction(context_, js_node_dispatch_event, "dispatchEvent", 1));
+    define_accessor(document, "cookie", js_document_get_cookie, js_document_set_cookie);
     // Retain a reference so the event machinery can use `document` as an
     // EventTarget value (target / currentTarget / `this`).
     document_object_ = JS_DupValue(context_, document);
@@ -1314,11 +1457,23 @@ void QuickJSScriptEngine::install_window_bindings() {
                       JS_NewCFunction(context_, js_request_animation_frame, "requestAnimationFrame", 1));
     JS_SetPropertyStr(context_, window, "cancelAnimationFrame",
                       JS_NewCFunction(context_, js_cancel_animation_frame, "cancelAnimationFrame", 1));
+    // window.localStorage (8.2.2) + window.sessionStorage (8.2.3). One object each
+    // per document; the methods route through the host to the right StorageArea
+    // (local = shared/persisted, session = per-tab), so no per-object opaque state
+    // is needed. Set unconditionally so they win over the 7.5.2 fail-soft stubs
+    // (whose typeof guards then skip).
+    JSValue local_storage = make_storage_object(/*magic=*/0);
+    JSValue session_storage = make_storage_object(/*magic=*/1);
+    JS_SetPropertyStr(context_, window, "localStorage", JS_DupValue(context_, local_storage));
+    JS_SetPropertyStr(context_, window, "sessionStorage", JS_DupValue(context_, session_storage));
+
     window_object_ = JS_DupValue(context_, window);
 
     // Both `window` and bare `location` are global (window.location === location).
-    JS_SetPropertyStr(context_, global, "location", location);  // transfers the ref
-    JS_SetPropertyStr(context_, global, "window", window);      // transfers the ref
+    JS_SetPropertyStr(context_, global, "location", location);               // transfers the ref
+    JS_SetPropertyStr(context_, global, "window", window);                   // transfers the ref
+    JS_SetPropertyStr(context_, global, "localStorage", local_storage);      // transfers the ref
+    JS_SetPropertyStr(context_, global, "sessionStorage", session_storage);  // transfers the ref
     JS_SetPropertyStr(context_, global, "setTimeout", JS_NewCFunction(context_, js_set_timeout, "setTimeout", 2));
     JS_SetPropertyStr(context_, global, "setInterval", JS_NewCFunction(context_, js_set_interval, "setInterval", 2));
     JS_SetPropertyStr(context_, global, "clearTimeout", JS_NewCFunction(context_, js_clear_timer, "clearTimeout", 1));

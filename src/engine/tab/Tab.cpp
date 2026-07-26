@@ -56,12 +56,53 @@ DocumentPipeline::HitTestContext make_hit_test_context(const Layout::Point& poin
 
 Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_network,
          std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
-         std::unique_ptr<IScriptEngine> script_engine)
+         std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar,
+         std::shared_ptr<Core::StorageManager> storage_manager,
+         std::shared_ptr<Core::IdentityPolicyStore> identity_store)
     : resource_loader_(std::make_unique<ResourceLoader>(std::move(network), std::move(fallback_network),
-                                                        std::move(resource_provider), std::move(image_decoder))),
+                                                        std::move(resource_provider), std::move(image_decoder),
+                                                        std::move(cookie_jar), std::move(identity_store))),
+      storage_manager_(std::move(storage_manager)),
       document_pipeline_(
           std::make_unique<DocumentPipeline>(&resource_loader_->store(), resource_loader_->resource_provider(),
-                                             resource_loader_->image_decoder(), std::move(script_engine))) {}
+                                             resource_loader_->image_decoder(), std::move(script_engine))) {
+    // document.cookie (8.1.5). The Tab is the only layer holding both halves:
+    // the profile's shared jar and the URL of the document currently loaded.
+    // Reading the URL lazily inside the lambdas is what keeps it correct across
+    // navigations without re-wiring anything.
+    document_pipeline_->set_cookie_accessors(
+        [this]() -> std::string {
+            auto* jar = resource_loader_->cookie_jar();
+            if (!jar) return {};
+            return jar->script_visible_cookies(navigation_lifecycle_.requested_url(), Core::CookieClock::now());
+        },
+        [this](std::string_view value) {
+            auto* jar = resource_loader_->cookie_jar();
+            if (!jar) return;
+            jar->store_from_header(navigation_lifecycle_.requested_url(), value, Core::CookieClock::now());
+        });
+
+    // window.localStorage (8.2.2). Same shape as cookies: the manager is shared
+    // per profile, the origin is read lazily from the current URL, and an opaque
+    // origin (or no manager) yields nullptr so the store degrades to empty.
+    document_pipeline_->set_storage_accessor([this]() -> Core::StorageArea* {
+        if (!storage_manager_) return nullptr;
+        auto origin = Core::Origin::parse(navigation_lifecycle_.requested_url());
+        if (!origin) return nullptr;  // opaque origin: no persistent store, per spec
+        return &storage_manager_->area_for(*origin);
+    });
+
+    // window.sessionStorage (8.2.3). Per-tab and never persisted: the store lives
+    // in this Tab's own map, keyed by origin, created lazily. It survives
+    // navigation within the tab (the Tab outlives each document) and is dropped
+    // when the tab is destroyed — exactly the sessionStorage lifetime. Two tabs
+    // therefore see different sessionStorage even on the same origin.
+    document_pipeline_->set_session_storage_accessor([this]() -> Core::StorageArea* {
+        auto origin = Core::Origin::parse(navigation_lifecycle_.requested_url());
+        if (!origin) return nullptr;  // opaque origin: no store, per spec
+        return &session_storage_[origin->key()];
+    });
+}
 
 Tab::~Tab() {
     shutdown();
@@ -72,14 +113,40 @@ void Tab::shutdown() {
     resource_loader_->shutdown();
 }
 
-void Tab::navigate(std::string_view url) {
+std::string Tab::initiator_host_for(NavigationSource source) const {
+    if (source != NavigationSource::Document) {
+        return {};
+    }
+    // The document currently loaded is the initiator. Must be read BEFORE
+    // begin_navigation_session, which switches requested_url() to the target.
+    if (auto parts = Core::parse_absolute_url(navigation_lifecycle_.requested_url())) {
+        return parts->host;
+    }
+    return {};
+}
+
+std::string Tab::initiator_url_for(NavigationSource source) const {
+    // Only a document-initiated navigation carries a referrer; address-bar,
+    // bookmark, and history navigations send none. Read BEFORE the session
+    // switches requested_url() to the target, same as initiator_host_for.
+    if (source != NavigationSource::Document) {
+        return {};
+    }
+    return std::string(navigation_lifecycle_.requested_url());
+}
+
+void Tab::navigate(std::string_view url, NavigationSource source) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
+
+    ResourceLoader::DocumentRequest request{};
+    request.initiator_host = initiator_host_for(source);
+    request.initiator_url = initiator_url_for(source);
 
     begin_navigation_session(url);
     if (!in_history_navigation_) {
         history_.push(std::string(navigation_lifecycle_.requested_url()));
     }
-    resource_loader_->navigate(navigation_lifecycle_.requested_url());
+    resource_loader_->navigate(navigation_lifecycle_.requested_url(), request);
 }
 
 bool Tab::go_back(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -110,12 +177,17 @@ void Tab::navigate_history_entry(const std::string& url, IGraphicsContext& graph
 void Tab::navigate(const FormSubmission& submission) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
+    ResourceLoader::DocumentRequest request{};
+    // A submit always comes from the loaded document. Captured before the
+    // session switches to the target URL.
+    request.initiator_host = initiator_host_for(NavigationSource::Document);
+    request.initiator_url = initiator_url_for(NavigationSource::Document);
+
     begin_navigation_session(submission.url);
     if (!in_history_navigation_) {
         history_.push(std::string(navigation_lifecycle_.requested_url()));
     }
 
-    ResourceLoader::DocumentRequest request{};
     if (submission.method == FormSubmitMethod::Post) {
         request.method = ResourceLoader::DocumentRequest::Method::Post;
         request.body = submission.body;

@@ -1,9 +1,8 @@
-> **Status: DRAFT — do not execute as written.** Pre-written 2026-07, four milestones
-> ahead. The API surface (fetch/CORS/cache) is spec-shaped and will hold, but this doc
-> has two hard dependencies to revalidate at kickoff: (1) M7's microtask pump must
-> exist exactly as specced (fetch is Promise-based); (2) the `browser.*` request-hook
-> design in 9.4 assumes the M5-era extension host shape. Rewrite story Scope lines
-> against the then-current codebase before starting.
+> **Status: Next — revalidate at kickoff.** Pre-written 2026-07. M7's microtask pump
+> and M8's session/network groundwork now exist; confirm their current seams before
+> implementation. The `browser.*` request-hook design in 9.4 still assumes the M5-era
+> extension-host shape. Rewrite story Scope lines against the current codebase before
+> starting.
 
 ## Milestone 9 North Star Deliverable
 

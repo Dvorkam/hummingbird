@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird M8 &mdash; The Session Keeper</title>
+    <style>
+      body { background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; margin: 0; }
+      .page { max-width: 760px; margin: 0 auto; padding: 28px 24px 48px 24px; }
+      .eyebrow { color: #b25e00; font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+      h1 { color: #14213d; margin: 6px 0 10px 0; }
+      h2 { color: #14213d; font-size: 19px; margin: 0 0 6px 0; }
+      .intro { color: #3c4658; margin-bottom: 22px; }
+      .card { background-color: #ffffff; border: 1px solid #cfd8ea; border-radius: 8px; padding: 18px;
+              margin-bottom: 18px; }
+      .card-lead { color: #3c4658; margin: 0 0 14px 0; }
+      .card label { display: block; font-weight: bold; margin-bottom: 8px; }
+      .card textarea {
+        width: 420px; height: 88px; background-color: #fffdf4; border: 1px solid #9aa7bd;
+        border-radius: 4px; color: #1d2433; padding: 7px 9px;
+      }
+      .card textarea:focus { border-color: #fca311; }
+      .card input[type=submit] {
+        display: block; background-color: #14213d; border: 1px solid #14213d; border-radius: 4px;
+        color: #ffffff; font-weight: bold; margin-top: 12px; padding: 8px 14px;
+      }
+      .go { display: block; font-weight: bold; margin-top: 12px; }
+      .note { color: #566174; font-size: 14px; line-height: 1.5; margin-top: 14px; }
+      code { background-color: #e8ecf4; border-radius: 3px; padding: 1px 4px; }
+      a { color: #1b5fbf; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <p class="eyebrow">M8 &mdash; THE SESSION KEEPER</p>
+      <h1>Remembering things between requests</h1>
+      <p class="intro">Milestone 8 gives the browser a memory: a cookie jar that survives a restart, and enough of a
+      multiline text control to write something worth sending.</p>
+
+      <div class="card">
+        <h2>Cookies</h2>
+        <p class="card-lead">A jar wired into every request, with domain and path matching, expiry,
+        <code>Secure</code>, <code>HttpOnly</code> and <code>SameSite</code> &mdash; persisted to disk so a session
+        outlives the process.</p>
+        <p class="go"><a href="https://example.dev/cookies">Open the live cookie demo &raquo;</a></p>
+        <p class="note">Counts your visits using nothing but the jar, shows the exact <code>Cookie</code> header the
+        browser sent next to what <code>document.cookie</code> is allowed to see, and survives closing the
+        browser.</p>
+      </div>
+
+      <div class="card">
+        <h2>localStorage</h2>
+        <p class="card-lead">A per-origin key/value store the page&rsquo;s own JavaScript owns &mdash; never sent to a
+        server, no expiry, persisted to disk with a 5&nbsp;MB cap.</p>
+        <p class="go"><a href="https://example.dev/storage">Open the localStorage demo &raquo;</a></p>
+        <p class="note">Counts how many times you have loaded the page using nothing but <code>localStorage</code>, and
+        survives closing the browser &mdash; the count keeps climbing.</p>
+      </div>
+
+      <div class="card">
+        <h2>sessionStorage</h2>
+        <p class="card-lead">The same key/value API, scoped to a single tab and held only in memory &mdash; it dies
+        with the tab and is never written to disk.</p>
+        <p class="go"><a href="https://example.dev/session">Open the sessionStorage demo &raquo;</a></p>
+        <p class="note">Counts loads like the localStorage demo, but the count resets when you close the browser, and a
+        second tab starts its own count from one.</p>
+      </div>
+
+      <div class="card">
+        <h2>Textarea</h2>
+        <p class="card-lead">A deliberately narrow multiline control: enough to type a comment and submit it, which is
+        what the Hacker News proof target needs.</p>
+        <form action="https://example.dev/search" method="post">
+          <label for="comment">Comment</label>
+          <textarea id="comment" name="text" rows="4">Edit this saved draft &mdash; 3 &lt; 4 &amp; markup like &lt;b&gt; stays literal.</textarea>
+          <input type="submit" value="Submit comment">
+        </form>
+        <p class="note">Focus the field, type, use <code>Enter</code> for a new line, and submit to see the
+        <code>name=value</code> payload. It arrives prefilled, so it also shows a textarea&rsquo;s content becoming its
+        default value with character references decoded and markup left literal. Selection, clipboard, wrapping,
+        scrolling, resize, and the general textarea DOM APIs remain M11 follow-ups.</p>
+      </div>
+
+      <div class="card">
+        <h2>Network errors</h2>
+        <p class="card-lead">When a site can&rsquo;t be reached &mdash; offline, a wrong address, or a redirect that
+        never settles &mdash; the browser shows a stable error page with a retry, instead of a blank window.</p>
+        <p class="go"><a href="https://offline.invalid/">Visit a site that doesn&rsquo;t exist &raquo;</a></p>
+        <p class="note">The <code>.invalid</code> address can never resolve, so this always fails. You&rsquo;ll get the
+        internal error page; its <strong>Try again</strong> button (or <code>F5</code>) re-attempts the navigation.</p>
+      </div>
+
+      <div class="card">
+        <h2>Modern-layout resilience</h2>
+        <p class="card-lead">A small addendum from pointing the engine at a modern flex/grid portal: percentage-sized
+        images, <code>object-fit</code>, and <code>overflow: hidden</code> clipping &mdash; enough that a modern page is
+        navigable rather than exploded.</p>
+        <p class="go"><a href="https://example.dev/layout">Open the layout-resilience demo &raquo;</a></p>
+        <p class="note"><strong>Added in M8.5:</strong> percentage-sized replaced elements, including the CSS-correct
+        <code>auto</code> fallback for a percentage height whose containing block has no definite height, and correct
+        cascade handling for responsive images whose CSS sizing overrides large HTML natural-dimension hints. The
+        8.5.4 completion adds distinct <code>em</code>/<code>rem</code> semantics so identical root-relative icon
+        wrappers stay identical. This aims for &ldquo;not right, but navigable&rdquo;, not parity &mdash; the harder
+        positioning and grid work stays on the M10/M12 roadmap.</p>
+      </div>
+
+      <p><a href="https://example.dev">&laquo; Back to the demo hub</a></p>
+    </div>
+  </body>
+</html>

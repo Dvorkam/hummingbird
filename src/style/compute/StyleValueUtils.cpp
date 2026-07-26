@@ -42,7 +42,7 @@ Value parse_substituted_value(std::string_view text) {
     return Value::identifier(std::string(trimmed));
 }
 
-float value_to_length(const Value& value, float fallback, float font_size) {
+float value_to_length(const Value& value, float fallback, const LengthResolutionContext& context) {
     // A unitless number is a valid length only for 0, but treat any unitless
     // value as px (lenient, matches apply_optional_length). Without this,
     // `padding: 0` — a unitless Number — returned the fallback (the current
@@ -57,12 +57,15 @@ float value_to_length(const Value& value, float fallback, float font_size) {
         return value.length.value;
     }
     if (value.length.unit == Unit::Em) {
-        return value.length.value * font_size;
+        return value.length.value * context.font_size;
+    }
+    if (value.length.unit == Unit::Rem) {
+        return value.length.value * context.root_font_size;
     }
     return fallback;
 }
 
-std::optional<float> parse_length_token(std::string_view token, float font_size) {
+std::optional<float> parse_length_token(std::string_view token, const LengthResolutionContext& context) {
     token = Core::Utils::trim_ascii_whitespace(token);
     if (token.empty()) {
         return std::nullopt;
@@ -74,10 +77,17 @@ std::optional<float> parse_length_token(std::string_view token, float font_size)
         }
         return std::nullopt;
     }
+    if (token.size() > 3 && token.ends_with(ValueNames::Rem)) {
+        auto value = Core::Utils::parse_float(token.substr(0, token.size() - 3));
+        if (value) {
+            return *value * context.root_font_size;
+        }
+        return std::nullopt;
+    }
     if (token.size() > 2 && token.ends_with(ValueNames::Em)) {
         auto value = Core::Utils::parse_float(token.substr(0, token.size() - 2));
         if (value) {
-            return *value * font_size;
+            return *value * context.font_size;
         }
         return std::nullopt;
     }
@@ -91,8 +101,8 @@ std::optional<float> parse_length_token(std::string_view token, float font_size)
     return std::nullopt;
 }
 
-std::optional<float> parse_length_or_number(std::string_view token, float font_size) {
-    if (auto length = parse_length_token(token, font_size)) {
+std::optional<float> parse_length_or_number(std::string_view token, const LengthResolutionContext& context) {
+    if (auto length = parse_length_token(token, context)) {
         return *length;
     }
     if (auto value = Core::Utils::parse_float(token)) {
@@ -107,6 +117,9 @@ std::optional<Unit> parse_unit_token(std::string_view token) {
     }
     if (token == ValueNames::Em) {
         return Unit::Em;
+    }
+    if (token == ValueNames::Rem) {
+        return Unit::Rem;
     }
     if (token == "%") {
         return Unit::Percent;

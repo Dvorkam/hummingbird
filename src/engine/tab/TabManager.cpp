@@ -28,7 +28,8 @@ TabId TabManager::create_tab() {
                                      factory_.create_fallback_network ? factory_.create_fallback_network() : nullptr,
                                      factory_.create_resource_provider ? factory_.create_resource_provider() : nullptr,
                                      factory_.create_image_decoder ? factory_.create_image_decoder() : nullptr,
-                                     factory_.create_script_engine ? factory_.create_script_engine() : nullptr);
+                                     factory_.create_script_engine ? factory_.create_script_engine() : nullptr,
+                                     cookie_jar_, storage_manager_, identity_store_);
 
     tabs_.push_back(Entry{id, std::move(tab)});
     active_id_ = id;

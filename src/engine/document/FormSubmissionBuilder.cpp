@@ -13,6 +13,7 @@
 #include "core/utils/Url.h"
 #include "core/utils/UrlEncoding.h"
 #include "html/HtmlAttributeNames.h"
+#include "html/HtmlTagMetadata.h"
 #include "html/HtmlTagNames.h"
 
 namespace Hummingbird::Engine {
@@ -53,9 +54,11 @@ const DOM::Element* find_form_by_id(const DOM::Node* node, std::string_view id) 
     return nullptr;
 }
 
-void maybe_add_input_field(const DOM::Element& element, std::unordered_set<const DOM::Element*>& visited,
-                           std::vector<FormField>& fields) {
-    if (element.get_tag_name() != Hummingbird::Html::TagNames::Input) {
+void maybe_add_form_field(const DOM::Element& element, std::unordered_set<const DOM::Element*>& visited,
+                          std::vector<FormField>& fields) {
+    // <textarea> submits through the same `value` attribute as <input>: the
+    // parser folds its content into one there (see Parser::handle_character_data).
+    if (!Hummingbird::Html::TagMetadata::is_text_control_tag(element.get_tag_name())) {
         return;
     }
     if (!visited.insert(&element).second) {
@@ -75,7 +78,7 @@ void maybe_add_input_field(const DOM::Element& element, std::unordered_set<const
 void collect_form_inputs(const DOM::Node* node, std::unordered_set<const DOM::Element*>& visited,
                          std::vector<FormField>& fields) {
     if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
-        maybe_add_input_field(*element, visited, fields);
+        maybe_add_form_field(*element, visited, fields);
     }
 
     for (const auto& child : node->get_children()) {
@@ -88,7 +91,7 @@ void collect_associated_inputs(const DOM::Node* node, std::string_view form_id,
     if (auto* element = dynamic_cast<const DOM::Element*>(node)) {
         if (const auto* form_attr = element->find_attribute(Hummingbird::Html::AttributeNames::Form)) {
             if (*form_attr == form_id) {
-                maybe_add_input_field(*element, visited, fields);
+                maybe_add_form_field(*element, visited, fields);
             }
         }
     }

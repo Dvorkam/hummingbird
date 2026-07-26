@@ -5,6 +5,34 @@
 
 namespace Hummingbird::Css {
 
+namespace {
+std::string build_var_expression_from(const std::vector<Value>& list, size_t start) {
+    if (start >= list.size() || list[start].type != Value::Type::Identifier || list[start].ident != "var") {
+        return "";
+    }
+    if (start + 1 >= list.size() || list[start + 1].type != Value::Type::Identifier) {
+        return "";
+    }
+
+    std::string expr = "var(";
+    expr += list[start + 1].ident;
+    if (start + 2 < list.size()) {
+        std::string fallback;
+        if (list[start + 2].type == Value::Type::Identifier && list[start + 2].ident == "var") {
+            fallback = build_var_expression_from(list, start + 2);
+        } else {
+            fallback = value_to_text(list[start + 2]);
+        }
+        if (!fallback.empty()) {
+            expr += ", ";
+            expr += fallback;
+        }
+    }
+    expr += ")";
+    return expr;
+}
+}  // namespace
+
 std::string value_to_text(const Value& value) {
     if (value.type == Value::Type::Identifier) {
         return value.ident;
@@ -18,6 +46,8 @@ std::string value_to_text(const Value& value) {
             out += ValueNames::Px;
         } else if (value.length.unit == Unit::Em) {
             out += ValueNames::Em;
+        } else if (value.length.unit == Unit::Rem) {
+            out += ValueNames::Rem;
         } else if (value.length.unit == Unit::Percent) {
             out += "%";
         }
@@ -74,26 +104,7 @@ void merge_var_terms(std::vector<Value>& values) {
 }
 
 std::string build_var_expression(const std::vector<Value>& list) {
-    if (list.empty()) {
-        return "";
-    }
-    if (list[0].type != Value::Type::Identifier || list[0].ident != "var") {
-        return "";
-    }
-    if (list.size() < 2 || list[1].type != Value::Type::Identifier) {
-        return "";
-    }
-    std::string expr = "var(";
-    expr += list[1].ident;
-    if (list.size() >= 3) {
-        std::string fallback = value_to_text(list[2]);
-        if (!fallback.empty()) {
-            expr += ", ";
-            expr += fallback;
-        }
-    }
-    expr += ")";
-    return expr;
+    return build_var_expression_from(list, 0);
 }
 
 }  // namespace Hummingbird::Css

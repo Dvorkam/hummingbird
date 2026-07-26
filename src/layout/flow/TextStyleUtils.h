@@ -8,6 +8,7 @@
 
 #include "core/GraphicsTypes.h"
 #include "core/utils/AssetPath.h"
+#include "core/utils/CompatibilityWarnings.h"
 #include "core/utils/Log.h"
 #include "core/utils/StringUtils.h"
 #include "style/types/ComputedStyle.h"
@@ -147,7 +148,13 @@ inline FontFamily resolve_font_family(const Css::ComputedStyle* style) {
     // return only picks the built-in fallback family / monospace cache-key bit;
     // the actual font path comes from font_src (resolve_text_font_path).
     if (!families.empty() && !(style && !style->font_src.empty())) {
-        HB_LOG_WARN("[style] Unsupported font family list '" << raw << "', falling back to Roboto");
+        // First occurrence logs immediately, under the same `[style]` tag the
+        // flush summary reconstructs (one greppable form). Repeats are counted
+        // and reported by DocumentModel::flush_compatibility_warnings.
+        auto* warnings = style ? style->compatibility_warnings : nullptr;
+        if (!warnings || warnings->record(Core::Utils::kUnsupportedFontFamilyWarning, raw)) {
+            HB_LOG_WARN("[style] Unsupported font family list '" << raw << "', falling back to Roboto");
+        }
     }
     return prefers_monospace ? FontFamily::Monospace : FontFamily::Sans;
 }

@@ -80,7 +80,11 @@ static constexpr std::string_view Blue = "blue";
 static constexpr std::string_view Black = "black";
 static constexpr std::string_view White = "white";
 
+static constexpr std::string_view Fill = "fill";
+static constexpr std::string_view ScaleDown = "scale-down";
+
 static constexpr std::string_view Px = "px";
 static constexpr std::string_view Em = "em";
+static constexpr std::string_view Rem = "rem";
 
 }  // namespace Hummingbird::Css::ValueNames

@@ -1,0 +1,6 @@
+#pragma once
+
+// Generated from CMake `project(... VERSION ...)` by configure_file — do not edit
+// the generated copy. The version lives in one place (the top-level CMakeLists);
+// this header carries it into the C++ (currently the User-Agent string).
+#define HB_VERSION_STRING "@PROJECT_VERSION@"

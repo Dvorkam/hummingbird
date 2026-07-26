@@ -179,7 +179,9 @@ bool DocumentEventRouter::handle_document_hit_navigation(const Hummingbird::Layo
         return true;
     }
 
-    app_.navigate_and_reflect_url(*link);
+    // A link click: the loaded document is the initiator, which is what lets
+    // SameSite treat a cross-site link as cross-site.
+    app_.navigate_and_reflect_url(*link, Hummingbird::Engine::NavigationSource::Document);
     return true;
 }
 

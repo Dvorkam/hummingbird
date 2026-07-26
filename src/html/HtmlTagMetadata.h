@@ -9,9 +9,31 @@ namespace Hummingbird::Html::TagMetadata {
 
 // Raw-text elements: their content is consumed literally up to the matching end
 // tag, so `<` inside (e.g. JS/CSS string literals) is never treated as markup.
+// Character references are NOT expanded here — `&amp;` in a script body is two
+// literal tokens to the JS engine, not an ampersand.
 inline bool is_raw_text_tag(std::string_view name) {
     return Core::Utils::equals_ignore_case(name, Hummingbird::Html::TagNames::Script) ||
            Core::Utils::equals_ignore_case(name, Hummingbird::Html::TagNames::Style);
+}
+
+// Escapable raw-text (RCDATA) elements: markup is likewise not recognized, but
+// character references ARE expanded, because the content is human-readable text
+// that had to escape `<` and `&` to survive serialization.
+inline bool is_escapable_raw_text_tag(std::string_view name) {
+    return Core::Utils::equals_ignore_case(name, Hummingbird::Html::TagNames::Textarea);
+}
+
+// Either flavor suspends markup tokenization until the matching end tag.
+inline bool suspends_markup(std::string_view name) {
+    return is_raw_text_tag(name) || is_escapable_raw_text_tag(name);
+}
+
+// Native text-entry controls: the engine paints them itself and drives editing
+// through one shared caret/value path, and layout sizes them as atomic boxes
+// rather than from child content. Kept here so layout, style, and the engine
+// agree on one list.
+inline bool is_text_control_tag(std::string_view name) {
+    return name == Hummingbird::Html::TagNames::Input || name == Hummingbird::Html::TagNames::Textarea;
 }
 
 inline bool is_void_tag(std::string_view name) {
@@ -33,33 +55,33 @@ inline bool is_supported_tag(std::string_view name) {
         return true;
     }
     static constexpr std::string_view kKnownTags[] = {
-        Hummingbird::Html::TagNames::Html,    Hummingbird::Html::TagNames::Head,
-        Hummingbird::Html::TagNames::Body,    Hummingbird::Html::TagNames::Title,
-        Hummingbird::Html::TagNames::Style,   Hummingbird::Html::TagNames::Script,
-        Hummingbird::Html::TagNames::Div,     Hummingbird::Html::TagNames::P,
-        Hummingbird::Html::TagNames::Span,    Hummingbird::Html::TagNames::H1,
-        Hummingbird::Html::TagNames::H2,      Hummingbird::Html::TagNames::H3,
-        Hummingbird::Html::TagNames::H4,      Hummingbird::Html::TagNames::H5,
-        Hummingbird::Html::TagNames::H6,      Hummingbird::Html::TagNames::B,
-        Hummingbird::Html::TagNames::Strong,  Hummingbird::Html::TagNames::I,
-        Hummingbird::Html::TagNames::Em,      Hummingbird::Html::TagNames::Img,
-        Hummingbird::Html::TagNames::Svg,     Hummingbird::Html::TagNames::Br,
-        Hummingbird::Html::TagNames::Hr,      Hummingbird::Html::TagNames::Input,
-        Hummingbird::Html::TagNames::Button,  Hummingbird::Html::TagNames::Form,
-        Hummingbird::Html::TagNames::Ul,      Hummingbird::Html::TagNames::Ol,
-        Hummingbird::Html::TagNames::Li,      Hummingbird::Html::TagNames::Dl,
-        Hummingbird::Html::TagNames::Dt,      Hummingbird::Html::TagNames::Dd,
-        Hummingbird::Html::TagNames::Pre,     Hummingbird::Html::TagNames::Code,
-        Hummingbird::Html::TagNames::A,       Hummingbird::Html::TagNames::Blockquote,
-        Hummingbird::Html::TagNames::Font,    Hummingbird::Html::TagNames::Header,
-        Hummingbird::Html::TagNames::Nav,     Hummingbird::Html::TagNames::Main,
-        Hummingbird::Html::TagNames::Section, Hummingbird::Html::TagNames::Article,
-        Hummingbird::Html::TagNames::Aside,   Hummingbird::Html::TagNames::Footer,
-        Hummingbird::Html::TagNames::Meta,    Hummingbird::Html::TagNames::Link,
-        Hummingbird::Html::TagNames::Table,   Hummingbird::Html::TagNames::Thead,
-        Hummingbird::Html::TagNames::Tbody,   Hummingbird::Html::TagNames::Tfoot,
-        Hummingbird::Html::TagNames::Tr,      Hummingbird::Html::TagNames::Td,
-        Hummingbird::Html::TagNames::Th};
+        Hummingbird::Html::TagNames::Html,       Hummingbird::Html::TagNames::Head,
+        Hummingbird::Html::TagNames::Body,       Hummingbird::Html::TagNames::Title,
+        Hummingbird::Html::TagNames::Style,      Hummingbird::Html::TagNames::Script,
+        Hummingbird::Html::TagNames::Div,        Hummingbird::Html::TagNames::P,
+        Hummingbird::Html::TagNames::Span,       Hummingbird::Html::TagNames::H1,
+        Hummingbird::Html::TagNames::H2,         Hummingbird::Html::TagNames::H3,
+        Hummingbird::Html::TagNames::H4,         Hummingbird::Html::TagNames::H5,
+        Hummingbird::Html::TagNames::H6,         Hummingbird::Html::TagNames::B,
+        Hummingbird::Html::TagNames::Strong,     Hummingbird::Html::TagNames::I,
+        Hummingbird::Html::TagNames::Em,         Hummingbird::Html::TagNames::Img,
+        Hummingbird::Html::TagNames::Svg,        Hummingbird::Html::TagNames::Br,
+        Hummingbird::Html::TagNames::Hr,         Hummingbird::Html::TagNames::Input,
+        Hummingbird::Html::TagNames::Textarea,   Hummingbird::Html::TagNames::Button,
+        Hummingbird::Html::TagNames::Form,       Hummingbird::Html::TagNames::Ul,
+        Hummingbird::Html::TagNames::Ol,         Hummingbird::Html::TagNames::Li,
+        Hummingbird::Html::TagNames::Dl,         Hummingbird::Html::TagNames::Dt,
+        Hummingbird::Html::TagNames::Dd,         Hummingbird::Html::TagNames::Pre,
+        Hummingbird::Html::TagNames::Code,       Hummingbird::Html::TagNames::A,
+        Hummingbird::Html::TagNames::Blockquote, Hummingbird::Html::TagNames::Font,
+        Hummingbird::Html::TagNames::Header,     Hummingbird::Html::TagNames::Nav,
+        Hummingbird::Html::TagNames::Main,       Hummingbird::Html::TagNames::Section,
+        Hummingbird::Html::TagNames::Article,    Hummingbird::Html::TagNames::Aside,
+        Hummingbird::Html::TagNames::Footer,     Hummingbird::Html::TagNames::Meta,
+        Hummingbird::Html::TagNames::Link,       Hummingbird::Html::TagNames::Table,
+        Hummingbird::Html::TagNames::Thead,      Hummingbird::Html::TagNames::Tbody,
+        Hummingbird::Html::TagNames::Tfoot,      Hummingbird::Html::TagNames::Tr,
+        Hummingbird::Html::TagNames::Td,         Hummingbird::Html::TagNames::Th};
     for (auto tag : kKnownTags) {
         if (tag == name) return true;
     }

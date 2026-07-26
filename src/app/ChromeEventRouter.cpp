@@ -1,5 +1,7 @@
 #include "app/ChromeEventRouter.h"
 
+#include <string>
+
 #include "app/BrowserApp.h"
 #include "app/BrowserChrome.h"
 #include "app/RenderCoordinator.h"
@@ -115,6 +117,26 @@ bool ChromeEventRouter::handle_global_key_shortcut(const Hummingbird::InputEvent
     // Ctrl+Shift+O: open the bookmarks page (matches Edge/Firefox).
     if (event.key.key == Key::O && event.mods.ctrl && event.mods.shift && !event.key.repeat) {
         app_.navigate_and_reflect_url("about:bookmarks");
+        return true;
+    }
+
+    // F5 / Ctrl+R: reload the current page. Re-navigating to requested_url()
+    // rather than the URL bar's text, so an edit the user typed but did not
+    // submit does not become the reload target. NavigationSource::User is
+    // correct — a reload is user-initiated, not caused by the document.
+    if ((event.key.key == Key::F5 || (event.key.key == Key::R && event.mods.ctrl)) && !event.key.repeat) {
+        const std::string current(app_.active_tab().requested_url());
+        if (!current.empty()) {
+            app_.navigate_and_reflect_url(current);
+        }
+        return true;
+    }
+
+    // Ctrl+Shift+U: flip the current site between honest (Transparent) and
+    // Chrome-shaped (Compatibility) identity and reload. The opt-in escape hatch
+    // for sites that reject Hummingbird's real User-Agent (e.g. HN's 429).
+    if (event.key.key == Key::U && event.mods.ctrl && event.mods.shift && !event.key.repeat) {
+        app_.toggle_active_site_compatibility();
         return true;
     }
 

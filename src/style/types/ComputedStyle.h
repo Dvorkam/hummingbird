@@ -7,6 +7,10 @@
 
 #include "core/GraphicsTypes.h"
 
+namespace Hummingbird::Core::Utils {
+class CompatibilityWarnings;
+}
+
 namespace Hummingbird::Css {
 
 struct EdgeSizes {
@@ -54,6 +58,10 @@ struct CornerRadii {
 };
 
 struct ComputedStyle {
+    // Non-owning observer of the current document's compatibility diagnostics.
+    // DocumentModel owns it and outlives every DOM/layout style that points here.
+    Core::Utils::CompatibilityWarnings* compatibility_warnings = nullptr;
+
     // A computed length that may carry both an absolute part (px, with em already
     // resolved at apply time) and a percentage part, so `calc(100% - 20px)` is one
     // value. Plain lengths use only `px`; plain percentages only `percent`. The
@@ -130,6 +138,10 @@ struct ComputedStyle {
     enum class Overflow { Visible, Hidden, Scroll, Auto };
     Overflow overflow_x = Overflow::Visible;
     Overflow overflow_y = Overflow::Visible;
+    // How a replaced element's content fits its content box when the two differ
+    // in size/ratio (story 8.5.2). Default `Fill` = today's stretch behavior.
+    enum class ObjectFit { Fill, Contain, Cover, None, ScaleDown };
+    ObjectFit object_fit = ObjectFit::Fill;
     Cursor cursor = Cursor::Auto;
     VerticalAlign vertical_align = VerticalAlign::Baseline;
     TextAlign text_align = TextAlign::Left;

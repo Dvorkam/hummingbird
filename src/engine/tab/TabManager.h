@@ -6,6 +6,9 @@
 #include <optional>
 #include <vector>
 
+#include "core/net/CookieJar.h"
+#include "core/net/IdentityPolicyStore.h"
+#include "core/net/StorageManager.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
@@ -61,8 +64,25 @@ private:
 
     size_t index_for_id(TabId id) const;
 
+public:
+    // The profile's single cookie jar, handed to every tab this manager creates.
+    // Shared rather than per-tab so a login survives opening a second tab; 8.1.4
+    // persists it and 8.1.5 exposes it to `document.cookie`.
+    const std::shared_ptr<Core::CookieJar>& cookie_jar() const { return cookie_jar_; }
+
+    // The profile's localStorage manager, likewise shared so two tabs on one
+    // origin see the same store (8.2.2).
+    const std::shared_ptr<Core::StorageManager>& storage_manager() const { return storage_manager_; }
+
+    // The profile's per-origin browser-identity policy (Transparent vs
+    // Compatibility), shared so a mode chosen in one tab holds in every tab.
+    const std::shared_ptr<Core::IdentityPolicyStore>& identity_store() const { return identity_store_; }
+
 private:
     TabFactory factory_;
+    std::shared_ptr<Core::CookieJar> cookie_jar_ = std::make_shared<Core::CookieJar>();
+    std::shared_ptr<Core::StorageManager> storage_manager_ = std::make_shared<Core::StorageManager>();
+    std::shared_ptr<Core::IdentityPolicyStore> identity_store_ = std::make_shared<Core::IdentityPolicyStore>();
     std::vector<Entry> tabs_;
     std::optional<TabId> active_id_;
     TabId next_id_ = 1;

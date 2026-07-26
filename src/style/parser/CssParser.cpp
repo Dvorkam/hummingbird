@@ -719,6 +719,21 @@ bool Parser::consume_declaration(std::vector<Declaration>& decls) {
 
     PropertyRegistry::ParserHook parser_hook = PropertyRegistry::parser_hook(property);
     if (parser_hook == PropertyRegistry::ParserHook::parse_font_family) {
+        // font-family has a dedicated list parser, but a whole-value var()
+        // expression must stay packaged so StyleEngine can substitute the custom
+        // property after cascade/inheritance. Without this branch,
+        // `var(--font-family)` was flattened into the literal family name
+        // "var --font-family" and warned on every text measurement.
+        skip_whitespace_tokens();
+        if (peek().type == TokenType::Identifier && peek().lexeme == "var") {
+            std::vector<Value> values = parse_value_list(&important);
+            std::string var_expr = build_var_expression(values);
+            match(TokenType::Semicolon);  // consume if present
+            if (!var_expr.empty()) {
+                push_decl(property, Value::identifier(std::move(var_expr)));
+            }
+            return true;
+        }
         std::string list = parse_font_family_list(&important);
         match(TokenType::Semicolon);  // consume if present
         if (!list.empty()) {

@@ -119,6 +119,18 @@ private:
     static JSValue js_node_dispatch_event(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
     // window.location accessors (7.2.5).
+    static JSValue js_document_get_cookie(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_document_set_cookie(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
+    // window.localStorage (8.2.2).
+    // magic = 0 (localStorage) or 1 (sessionStorage); see storage_kind_of().
+    static JSValue js_storage_get_item(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
+    static JSValue js_storage_set_item(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
+    static JSValue js_storage_remove_item(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv,
+                                          int magic);
+    static JSValue js_storage_clear(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
+    static JSValue js_storage_key(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
+    static JSValue js_storage_get_length(JSContext* ctx, JSValueConst this_val, int magic);
     static JSValue js_location_get_href(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_get_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_set_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
@@ -183,6 +195,9 @@ private:
 
     void define_getter(JSValueConst proto, const char* name, JSCFunction* getter);
     void define_accessor(JSValueConst proto, const char* name, JSCFunction* getter, JSCFunction* setter);
+    // Builds a Web Storage object (localStorage/sessionStorage) whose six members
+    // carry `magic` so they route to the right area. Caller owns the returned ref.
+    JSValue make_storage_object(int magic);
     void define_method(JSValueConst proto, const char* name, JSCFunction* method, int length);
 
     JSValue wrap_node(DOM::Node* node);
