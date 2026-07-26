@@ -2,11 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.8.0] - Unreleased
+## [0.8.0] - 2026-07-26
 
 Milestone 8 — "The Session Keeper": persistent browser state and the navigation
-plumbing needed for a real authenticated session. The implementation is complete;
-the release is pending.
+plumbing needed for a real authenticated session. Logging in to Hacker News,
+posting a comment, restarting the browser, and still being logged in works
+end to end (that site requires the explicit per-origin compatibility mode).
 
 ### Added
 
