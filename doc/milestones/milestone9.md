@@ -202,32 +202,52 @@ milestone. They run **first** because 9.1–9.3 build directly on them.
 
 * **Story 9.0.3: Cookie Hardening For Script-Driven Requests**
 * **Goal:** close the three cookie gaps that stop being theoretical once a page can
-  issue its own requests. Bundles **T-COOKIE-PUBLIC-SUFFIX-1** (P1),
-  **T-COOKIE-LIMITS-1**, and **T-COOKIE-CHARSET-1**.
-* **Scope:**
-  - *Public suffix* — `is_same_site` (`core/net/Cookie.cpp`) approximates the
-    registrable domain as the last two labels, and `parse_set_cookie` will accept
-    `Domain=co.uk`. CORS credentials decisions lean on that same function, so the
-    approximation graduates from "cookie scoping wart" to "cross-origin policy
-    input." Back it with a bundled PSL subset or a curated multi-label list.
-  - *Limits* — the jar enforces no size or count limits at all (RFC 6265 §6.1
-    minimums: 4096-byte name+value, 50 per domain, 3000 total, LRU eviction within
-    a domain). fetch hands a page unbounded request volume, and therefore unbounded
-    `Set-Cookie` volume, which makes this a page-controlled resource-exhaustion
-    path into a file the browser writes to disk.
-  - *Charset* — RFC 6265 §4.1.1 token/cookie-octet validation in `parse_set_cookie`
-    (reject CTLs and the separators that would let a stored value forge a second
-    cookie when re-serialized). fetch also lets JS set request headers, so this is
-    the header-injection-shaped half.
+  issue its own requests. Split into three sub-stories so each lands as its own
+  reviewable commit; they are independent and can be read in any order, but the
+  numbering is the intended sequence.
+
+* **Story 9.0.3.1: Registrable Domain From A Public Suffix List
+  (T-COOKIE-PUBLIC-SUFFIX-1, P1)**
+* **Goal:** stop approximating the registrable domain as "the last two labels."
+* **Scope:** `is_same_site` (`core/net/Cookie.cpp`) takes the last two labels as
+  the registrable domain, and `parse_set_cookie` will therefore accept
+  `Domain=co.uk`. CORS credentials decisions lean on that same function, so the
+  approximation graduates from "cookie scoping wart" to "cross-origin policy
+  input." **Decided at kickoff: a curated multi-label suffix list, not the full
+  ICANN PSL** — a hand-maintained table of the suffixes that actually matter
+  (`co.uk`, `com.au`, `github.io`, …) plus the wildcard/exception rules the format
+  needs. The full list is a vendored data file with its own refresh, versioning,
+  and staleness policy; that is a separate ticket, filed when this lands.
 * **Acceptance:** `Domain=co.uk` from `example.co.uk` is rejected while
-  `Domain=example.co.uk` is accepted; `a.co.uk` and `b.co.uk` are not same-site; an
-  oversized cookie is refused and the per-domain/total caps hold; a `Set-Cookie`
-  carrying CTLs or an embedded `;` is rejected rather than round-tripped.
-* **Tests:** parse + same-site matrix over `com`/`co.uk`/`github.io`; jar limit
-  tests; parse-level charset matrix. *(Consider closing
-  T-COOKIE-CONFORMANCE-VECTORS-1 in the same pass — its stated precondition
-  "settle redirect behavior first" is now met, and it would give this slice a
-  tracked number.)*
+  `Domain=example.co.uk` is accepted; `a.co.uk` and `b.co.uk` are not same-site;
+  `a.example.com` and `b.example.com` still are.
+* **Tests:** parse + same-site matrix over `com`/`co.uk`/`github.io`.
+
+* **Story 9.0.3.2: Cookie Jar Limits (T-COOKIE-LIMITS-1)**
+* **Goal:** bound what a page can put in the jar.
+* **Scope:** the jar enforces no size or count limits at all. Apply the RFC 6265
+  §6.1 minimums: 4096-byte name+value, 50 per domain, 3000 total, LRU eviction
+  within a domain. fetch hands a page unbounded request volume, and therefore
+  unbounded `Set-Cookie` volume, which makes this a page-controlled
+  resource-exhaustion path into a file the browser writes to disk.
+* **Acceptance:** an oversized cookie is refused; the per-domain and total caps
+  hold; eviction within a domain is least-recently-used.
+* **Tests:** jar limit tests.
+
+* **Story 9.0.3.3: Cookie Charset Validation (T-COOKIE-CHARSET-1)**
+* **Goal:** reject cookies whose bytes would not survive a round trip.
+* **Scope:** RFC 6265 §4.1.1 token/cookie-octet validation in `parse_set_cookie` —
+  reject CTLs and the separators that would let a stored value forge a second
+  cookie when re-serialized. fetch also lets JS set request headers, so this is the
+  header-injection-shaped half.
+* **Acceptance:** a `Set-Cookie` carrying CTLs or an embedded `;` is rejected
+  rather than round-tripped.
+* **Tests:** parse-level charset matrix.
+
+*(T-COOKIE-CONFORMANCE-VECTORS-1 stays in the carried backlog. Its precondition
+"settle redirect behavior first" is now met and it would give this slice a tracked
+number, but it is a separate pass over conformance vectors, not part of these
+three fixes.)*
 
 ### 9.1 - fetch/XHR v1
 
@@ -532,7 +552,9 @@ P0: Foundations (must precede fetch)
       observed teardown *through* a surviving global and were repointed at the DOM,
       which is the only channel that spans both documents. Demo:
       example.dev/m9 ↔ example.dev/isolation-next.)*
-- [ ] 9.0.3: Cookie Hardening For Script-Driven Requests
+- [ ] 9.0.3.1: Registrable Domain From A Public Suffix List
+- [ ] 9.0.3.2: Cookie Jar Limits
+- [ ] 9.0.3.3: Cookie Charset Validation
 
 P0: fetch + CORS (North Star)
 - [ ] 9.1.1: fetch() Core
