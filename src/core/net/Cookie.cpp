@@ -199,6 +199,7 @@ std::optional<Cookie> parse_set_cookie(std::string_view header_value, std::strin
     cookie.name = std::string(name);
     cookie.value = std::string(value);
     cookie.created = now;
+    cookie.last_access = now;
 
     // Max-Age wins over Expires (§5.3 step 3), so track them separately and
     // resolve after the whole attribute list is read.

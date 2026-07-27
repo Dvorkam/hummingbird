@@ -27,6 +27,14 @@ bool CookieJar::store_from_header(std::string_view request_url, std::string_view
         return false;
     }
 
+    // §6.1: refuse an oversized cookie outright rather than store it and evict
+    // something real to make room. Applies to a replacement too — a cookie may
+    // not grow past the cap by being re-set.
+    if (parsed->name.size() + parsed->value.size() > kMaxCookieBytes) {
+        HB_LOG_DEBUG("[cookies] refusing oversized cookie: " << parsed->name);
+        return false;
+    }
+
     // §5.3 step 11: a same-identity cookie replaces the stored one. Preserve the
     // original creation time so the send-order tiebreak stays stable across a
     // refresh, which is what makes ordering deterministic for a session cookie
@@ -48,8 +56,87 @@ bool CookieJar::store_from_header(std::string_view request_url, std::string_view
         // Deleting a cookie that is not stored is a no-op, not a stored corpse.
         return true;
     }
+    evict_for(parsed->domain, now);
     cookies_.push_back(std::move(*parsed));
     return true;
+}
+
+namespace {
+// RFC 6265 §5.3 step 11's ordering: the least-recently-used cookie, with
+// creation time breaking a tie so eviction is deterministic under test (two
+// cookies stored at the same `now` are otherwise indistinguishable).
+bool less_recently_used(const Cookie& a, const Cookie& b) {
+    if (a.last_access != b.last_access) return a.last_access < b.last_access;
+    return a.created < b.created;
+}
+}  // namespace
+
+size_t CookieJar::evict_for(std::string_view incoming_domain, CookieTime now) {
+    const auto same_domain = [&](const Cookie& cookie) {
+        return Utils::equals_ignore_case(cookie.domain, incoming_domain);
+    };
+    const size_t in_domain = static_cast<size_t>(std::count_if(cookies_.begin(), cookies_.end(), same_domain));
+    if (in_domain < kMaxPerDomain && cookies_.size() < kMaxTotal) {
+        return 0;  // room for one more on both counts: nothing to do
+    }
+
+    // Step 11's first pass: expired cookies are evicted before any live one.
+    size_t dropped = purge_expired(now);
+
+    // Per-domain cap, then the global one. Each loop leaves room for the
+    // incoming cookie, hence `>=` rather than `>`.
+    while (static_cast<size_t>(std::count_if(cookies_.begin(), cookies_.end(), same_domain)) >= kMaxPerDomain) {
+        auto victim = cookies_.end();
+        for (auto it = cookies_.begin(); it != cookies_.end(); ++it) {
+            if (!same_domain(*it)) continue;
+            if (victim == cookies_.end() || less_recently_used(*it, *victim)) victim = it;
+        }
+        if (victim == cookies_.end()) break;
+        cookies_.erase(victim);
+        ++dropped;
+    }
+    while (cookies_.size() >= kMaxTotal) {
+        auto victim = std::min_element(cookies_.begin(), cookies_.end(), less_recently_used);
+        if (victim == cookies_.end()) break;
+        cookies_.erase(victim);
+        ++dropped;
+    }
+    return dropped;
+}
+
+size_t CookieJar::trim_to_limits(CookieTime now) {
+    size_t dropped = 0;
+    if (cookies_.size() > kMaxTotal) {
+        dropped += purge_expired(now);
+    }
+    // Per-domain first: a jar can be under the total cap while one domain is far
+    // over its own.
+    std::vector<std::string> domains;
+    for (const auto& cookie : cookies_) {
+        if (std::find(domains.begin(), domains.end(), cookie.domain) == domains.end()) {
+            domains.push_back(cookie.domain);
+        }
+    }
+    for (const std::string& domain : domains) {
+        const auto in_domain = [&](const Cookie& cookie) { return cookie.domain == domain; };
+        while (static_cast<size_t>(std::count_if(cookies_.begin(), cookies_.end(), in_domain)) > kMaxPerDomain) {
+            auto victim = cookies_.end();
+            for (auto it = cookies_.begin(); it != cookies_.end(); ++it) {
+                if (!in_domain(*it)) continue;
+                if (victim == cookies_.end() || less_recently_used(*it, *victim)) victim = it;
+            }
+            if (victim == cookies_.end()) break;
+            cookies_.erase(victim);
+            ++dropped;
+        }
+    }
+    while (cookies_.size() > kMaxTotal) {
+        auto victim = std::min_element(cookies_.begin(), cookies_.end(), less_recently_used);
+        if (victim == cookies_.end()) break;
+        cookies_.erase(victim);
+        ++dropped;
+    }
+    return dropped;
 }
 
 size_t CookieJar::store_from_response(std::string_view request_url, const HttpHeaders& headers, CookieTime now) {
@@ -63,7 +150,7 @@ size_t CookieJar::store_from_response(std::string_view request_url, const HttpHe
 }
 
 std::vector<Cookie> CookieJar::cookies_for(std::string_view request_url, CookieTime now,
-                                           const CookieRequestContext& context) const {
+                                           const CookieRequestContext& context) {
     auto request = parse_absolute_url(request_url);
     if (!request) {
         return {};
@@ -72,7 +159,7 @@ std::vector<Cookie> CookieJar::cookies_for(std::string_view request_url, CookieT
     const bool secure_transport = scheme_is_secure(request->scheme);
 
     std::vector<Cookie> matched;
-    for (const auto& cookie : cookies_) {
+    for (auto& cookie : cookies_) {
         if (cookie.is_expired(now)) continue;
         // HttpOnly exists precisely so an XSS payload cannot read the session
         // cookie, so this filter is the whole point of the flag.
@@ -87,6 +174,9 @@ std::vector<Cookie> CookieJar::cookies_for(std::string_view request_url, CookieT
         }
         if (!path_matches(path, cookie.path)) continue;
         if (cookie.secure && !secure_transport) continue;
+        // §5.3: retrieval is what makes a cookie "recently used", and that is the
+        // only thing last_access feeds (story 9.0.3.2).
+        cookie.last_access = now;
         matched.push_back(cookie);
     }
 
@@ -101,7 +191,7 @@ std::vector<Cookie> CookieJar::cookies_for(std::string_view request_url, CookieT
 }
 
 std::string CookieJar::cookie_header_for(std::string_view request_url, CookieTime now,
-                                         const CookieRequestContext& context) const {
+                                         const CookieRequestContext& context) {
     std::string header;
     for (const auto& cookie : cookies_for(request_url, now, context)) {
         if (!header.empty()) {
@@ -114,7 +204,7 @@ std::string CookieJar::cookie_header_for(std::string_view request_url, CookieTim
     return header;
 }
 
-std::string CookieJar::script_visible_cookies(std::string_view document_url, CookieTime now) const {
+std::string CookieJar::script_visible_cookies(std::string_view document_url, CookieTime now) {
     CookieRequestContext context;
     context.script_access = true;
     // JS reads its own document's cookies, so the initiator is the document
@@ -261,12 +351,21 @@ size_t CookieJar::load_from(const std::filesystem::path& path, CookieTime now) {
         // Purge on load: a cookie that expired while the browser was closed must
         // not come back to life.
         if (cookie.is_expired(now)) continue;
+        // last_access is not persisted (see Cookie.h): seed it from creation
+        // time so eviction order is defined on the first request after a start.
+        cookie.last_access = cookie.created;
         cookies_.push_back(std::move(cookie));
         ++loaded;
     }
 
     if (skipped > 0) {
         HB_LOG_WARN("[cookies] skipped " << skipped << " malformed line(s) in " << path.string());
+    }
+    // The file is as untrusted as the network that filled it — an oversized jar
+    // on disk must not become an oversized jar in memory (§6.1, story 9.0.3.2).
+    if (const size_t dropped = trim_to_limits(now); dropped > 0) {
+        HB_LOG_WARN("[cookies] dropped " << dropped << " cookie(s) over the storage limits on load");
+        loaded -= std::min(loaded, dropped);
     }
     return loaded;
 }

@@ -396,6 +396,111 @@ TEST(CookieParseTest, DomainAttributeCannotBeAPublicSuffix) {
     EXPECT_TRUE(at_suffix->host_only);
 }
 
+// --- storage limits (RFC 6265 §6.1, story 9.0.3.2) ---------------------------
+
+namespace {
+// Stores `count` distinct cookies for `host`, each at its own `now`, so
+// last-access order is unambiguous. Returns how many were accepted.
+size_t fill(CookieJar& jar, std::string_view host, size_t count, int first_second = 0) {
+    size_t accepted = 0;
+    const std::string url = std::string("https://") + std::string(host) + "/";
+    for (size_t i = 0; i < count; ++i) {
+        const std::string header = "c" + std::to_string(i) + "=v";
+        if (jar.store_from_header(url, header, later(first_second + static_cast<int>(i)))) ++accepted;
+    }
+    return accepted;
+}
+
+bool jar_has(const CookieJar& jar, std::string_view name) {
+    for (const auto& cookie : jar.entries()) {
+        if (cookie.name == name) return true;
+    }
+    return false;
+}
+}  // namespace
+
+TEST(CookieLimitsTest, OversizedCookieIsRefusedRatherThanStored) {
+    CookieJar jar;
+    const std::string big_value(CookieJar::kMaxCookieBytes, 'x');
+    EXPECT_FALSE(jar.store_from_header("https://example.dev/", "big=" + big_value, now()));
+    EXPECT_TRUE(jar.empty());
+
+    // Right at the cap (name + value) is still accepted.
+    const std::string exact(CookieJar::kMaxCookieBytes - 3, 'x');
+    EXPECT_TRUE(jar.store_from_header("https://example.dev/", "ok=" + exact, now()));
+    EXPECT_EQ(jar.size(), 1u);
+
+    // A replacement may not grow past the cap either: the stored one survives.
+    EXPECT_FALSE(jar.store_from_header("https://example.dev/", "ok=" + big_value, now()));
+    ASSERT_EQ(jar.size(), 1u);
+    EXPECT_EQ(jar.entries()[0].value, exact);
+}
+
+// Eviction is least-recently-USED, not oldest-created. The two are the same
+// until something is read, so the victim here is deliberately the *newest*
+// cookie by creation time — the only one a request never touched.
+TEST(CookieLimitsTest, PerDomainCapEvictsLeastRecentlyUsedNotOldest) {
+    CookieJar jar;
+    constexpr size_t kFill = CookieJar::kMaxPerDomain - 1;
+    ASSERT_EQ(fill(jar, "example.dev", kFill), kFill);  // c0..c48 on path "/"
+    // The newest cookie sits on a path no later request will match.
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "lonely=1; Path=/lonely", later(1000)));
+    ASSERT_EQ(jar.size(), CookieJar::kMaxPerDomain);
+
+    // A request for "/" touches c0..c48 but not `lonely`, whose path does not
+    // match — so `lonely` becomes the least recently used despite being newest.
+    ASSERT_EQ(jar.cookies_for("https://example.dev/", later(2000)).size(), kFill);
+
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "newcomer=1", later(2001)));
+    EXPECT_EQ(jar.size(), CookieJar::kMaxPerDomain);  // cap held
+    EXPECT_TRUE(jar_has(jar, "newcomer"));
+    EXPECT_FALSE(jar_has(jar, "lonely"));  // never used, so it went first
+    EXPECT_TRUE(jar_has(jar, "c0"));       // oldest, but recently used
+}
+
+TEST(CookieLimitsTest, PerDomainCapDoesNotEvictOtherDomains) {
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://other.test/", "keep=1", now()));
+    ASSERT_EQ(fill(jar, "example.dev", CookieJar::kMaxPerDomain, 1), CookieJar::kMaxPerDomain);
+
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "newcomer=1", later(500)));
+    EXPECT_EQ(jar.size(), CookieJar::kMaxPerDomain + 1);  // other.test's is untouched
+    EXPECT_TRUE(jar_has(jar, "keep"));
+}
+
+TEST(CookieLimitsTest, ExpiredCookiesAreEvictedBeforeLiveOnes) {
+    CookieJar jar;
+    // One short-lived cookie plus a full domain's worth of session cookies.
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "doomed=1; Max-Age=5", now()));
+    ASSERT_EQ(fill(jar, "example.dev", CookieJar::kMaxPerDomain - 1, 1), CookieJar::kMaxPerDomain - 1);
+    ASSERT_EQ(jar.size(), CookieJar::kMaxPerDomain);
+
+    // After `doomed` expires, storing one more evicts the corpse, not a live
+    // cookie — §5.3 step 11's first pass.
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "newcomer=1", later(100)));
+    EXPECT_FALSE(jar_has(jar, "doomed"));
+    EXPECT_TRUE(jar_has(jar, "c0"));
+    EXPECT_TRUE(jar_has(jar, "newcomer"));
+    EXPECT_EQ(jar.size(), CookieJar::kMaxPerDomain);
+}
+
+TEST(CookieLimitsTest, TotalCapHoldsAcrossManyDomains) {
+    CookieJar jar;
+    // 3000 cookies at 40 per domain needs 75 domains, all under the per-domain
+    // cap, so only the total cap can be doing the work here.
+    constexpr size_t kPerHost = 40;
+    const size_t hosts = CookieJar::kMaxTotal / kPerHost;
+    for (size_t h = 0; h < hosts; ++h) {
+        const std::string host = "h" + std::to_string(h) + ".test";
+        ASSERT_EQ(fill(jar, host, kPerHost, static_cast<int>(h * kPerHost)), kPerHost);
+    }
+    ASSERT_EQ(jar.size(), CookieJar::kMaxTotal);
+
+    ASSERT_TRUE(jar.store_from_header("https://fresh.test/", "newcomer=1", later(100000)));
+    EXPECT_EQ(jar.size(), CookieJar::kMaxTotal);
+    EXPECT_TRUE(jar_has(jar, "newcomer"));
+}
+
 // --- persistence (8.1.4) -----------------------------------------------------
 
 namespace {

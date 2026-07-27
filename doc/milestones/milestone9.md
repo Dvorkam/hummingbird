@@ -565,7 +565,21 @@ P0: Foundations (must precede fetch)
       and case handling) + `CookieMatchTest.SameSiteUsesTheRegistrableDomain` +
       `CookieParseTest.DomainAttributeCannotBeAPublicSuffix`. Follow-up for the
       real list: `T-COOKIE-PUBLIC-SUFFIX-FULL-LIST-1`.)*
-- [ ] 9.0.3.2: Cookie Jar Limits
+- [x] 9.0.3.2: Cookie Jar Limits *(`CookieJar::kMaxCookieBytes`/`kMaxPerDomain`/
+      `kMaxTotal` = 4096/50/3000. An oversized cookie is refused rather than
+      stored — including a replacement, so a cookie cannot grow past the cap by
+      being re-set. `evict_for()` runs §5.3 step 11 only when a cap is about to be
+      exceeded: expired cookies first, then the least-recently-used of the domain,
+      then of the whole jar. `load_from` trims through the same path, because the
+      file on disk is as untrusted as the network that filled it. LRU needed a
+      last-access time, so `cookies_for`/`cookie_header_for`/`script_visible_cookies`
+      are **no longer const** — per §5.3, retrieval is what makes a cookie recently
+      used. `Cookie::last_access` is runtime-only and seeded from `created` on
+      load: persisting it would bump the jar's file format and discard every
+      existing session for the sake of an eviction tiebreak. Tests:
+      `CookieLimitsTest.*` — the LRU case deliberately evicts the **newest** cookie
+      by creation time, the only one no request had touched, so it cannot pass
+      under a FIFO implementation.)*
 - [ ] 9.0.3.3: Cookie Charset Validation
 
 P0: fetch + CORS (North Star)
