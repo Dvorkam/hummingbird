@@ -396,6 +396,67 @@ TEST(CookieParseTest, DomainAttributeCannotBeAPublicSuffix) {
     EXPECT_TRUE(at_suffix->host_only);
 }
 
+// --- charset validation (RFC 6265 §4.1.1, story 9.0.3.3) ---------------------
+
+TEST(CookieCharsetTest, NameMustBeAToken) {
+    const auto parse = [](std::string_view header) {
+        return Hummingbird::Core::parse_set_cookie(header, "https://example.dev/", now());
+    };
+    EXPECT_TRUE(parse("session_id-2=ok").has_value());
+    EXPECT_TRUE(parse("__Host-x=ok").has_value());
+
+    // Separators and CTLs in the name are exactly what would forge a second
+    // cookie in the re-serialized Cookie header.
+    EXPECT_FALSE(parse("bad name=1").has_value());
+    EXPECT_FALSE(parse("bad,name=1").has_value());
+    EXPECT_FALSE(parse("bad\tname=1").has_value());
+    EXPECT_FALSE(parse("bad\"name=1").has_value());
+    EXPECT_FALSE(parse("bad(name=1").has_value());
+    EXPECT_FALSE(parse(std::string("bad\nname=1")).has_value());
+}
+
+TEST(CookieCharsetTest, ValueRejectsInjectionBytesButToleratesWhatSitesActuallySend) {
+    const auto parse = [](std::string_view header) {
+        return Hummingbird::Core::parse_set_cookie(header, "https://example.dev/", now());
+    };
+    // CTLs would corrupt both the Cookie header and the jar's TSV file.
+    EXPECT_FALSE(parse(std::string("a=one\ttwo")).has_value());
+    EXPECT_FALSE(parse(std::string("a=one\nHost: evil")).has_value());
+    EXPECT_FALSE(parse(std::string("a=one\rtwo")).has_value());
+    EXPECT_FALSE(parse(std::string("a=one\x7f")).has_value());
+
+    // Deliberate deviation from the strict cookie-octet grammar: real sites send
+    // spaces, commas, quotes and UTF-8 in values, and none of them can terminate
+    // a header field or a TSV field.
+    EXPECT_TRUE(parse("a=hello world").has_value());
+    EXPECT_TRUE(parse("a=1,2,3").has_value());
+    EXPECT_TRUE(parse("a=\"quoted\"").has_value());
+    EXPECT_TRUE(parse("a=p\xc5\x99\xc3\xadli\xc5\xa1").has_value());  // UTF-8
+}
+
+TEST(CookieCharsetTest, AttributesCarryingInjectionBytesAreRejected) {
+    // Domain and path are written to the jar file too, so the same bytes are
+    // just as dangerous there.
+    EXPECT_FALSE(
+        Hummingbird::Core::parse_set_cookie("a=1; Path=/x\ty", "https://example.dev/", now()).has_value());
+    EXPECT_FALSE(
+        Hummingbird::Core::parse_set_cookie("a=1; Path=/x\ny", "https://example.dev/", now()).has_value());
+    // ...while an ordinary Path still works.
+    EXPECT_TRUE(Hummingbird::Core::parse_set_cookie("a=1; Path=/x/y", "https://example.dev/", now()).has_value());
+}
+
+// The jar re-serializes every stored cookie into a `Cookie` header, so a name or
+// value that survived validation must not be able to add a pair to it.
+TEST(CookieCharsetTest, ARejectedCookieNeverReachesTheHeader) {
+    CookieJar jar;
+    EXPECT_FALSE(jar.store_from_header("https://example.dev/", std::string("evil=x\r\nSet-Cookie: admin=1"), now()));
+    EXPECT_TRUE(jar.empty());
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now()), "");
+
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "good=1", now()));
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now()), "good=1");
+}
+
 // --- storage limits (RFC 6265 §6.1, story 9.0.3.2) ---------------------------
 
 namespace {

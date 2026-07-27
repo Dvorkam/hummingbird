@@ -238,9 +238,12 @@ CookieTime from_epoch_seconds(long long seconds) {
     return CookieTime{} + std::chrono::seconds{seconds};
 }
 
-// The TSV format cannot represent a field containing a tab or newline. Such a
-// cookie is malformed per RFC 6265 §4.1.1 anyway (T-COOKIE-CHARSET-1 will reject
-// it at parse); until then, skip it on write rather than corrupt the file.
+// The TSV format cannot represent a field containing a tab or newline. Since
+// story 9.0.3.3, parse_set_cookie rejects those bytes outright and load_from
+// cannot produce them (it splits on exactly those characters), so nothing should
+// ever fail this check — it stays as a guard on the serialization boundary,
+// where the cost of being wrong is a corrupt cookie file rather than one lost
+// cookie. Reaching it means a parse bug, hence the warning.
 bool is_serializable(const Cookie& cookie) {
     for (const std::string* field : {&cookie.name, &cookie.value, &cookie.domain, &cookie.path}) {
         if (field->find_first_of("\t\r\n") != std::string::npos) return false;
@@ -288,7 +291,7 @@ size_t CookieJar::save_to(const std::filesystem::path& path, CookieTime now) con
         // would otherwise sit in the file until the next clean shutdown.
         if (cookie.is_expired(now)) continue;
         if (!is_serializable(cookie)) {
-            HB_LOG_DEBUG("[cookies] skipping unserializable cookie: " << cookie.name);
+            HB_LOG_WARN("[cookies] unserializable cookie reached the jar: " << cookie.name);
             continue;
         }
         file << cookie.name << '\t' << cookie.value << '\t' << cookie.domain << '\t' << cookie.path << '\t'

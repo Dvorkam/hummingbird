@@ -580,7 +580,18 @@ P0: Foundations (must precede fetch)
       `CookieLimitsTest.*` — the LRU case deliberately evicts the **newest** cookie
       by creation time, the only one no request had touched, so it cannot pass
       under a FIFO implementation.)*
-- [ ] 9.0.3.3: Cookie Charset Validation
+- [x] 9.0.3.3: Cookie Charset Validation *(`parse_set_cookie` now requires the
+      name to be an RFC 2616 token, and rejects CTLs/DEL/`;` in the value and in
+      the Domain and Path attributes — every field the jar re-serializes into both
+      a `Cookie` header and its own TSV file. **Deliberate deviation:** §4.1.1's
+      cookie-octet also excludes SP, `,`, `"` and non-ASCII; real sites send all
+      of those and none can terminate a header or TSV field, so only the injection
+      set is enforced — what shipping browsers do. `CookieJar`'s `is_serializable`
+      skip, which existed only because parsing did not validate, is now an
+      invariant guard at the serialization boundary and logs a warning instead of
+      a debug line, because reaching it means a parse bug. Tests:
+      `CookieCharsetTest.*`, including a jar-level case that a rejected
+      `Set-Cookie` never reaches the `Cookie` header.)*
 
 P0: fetch + CORS (North Star)
 - [ ] 9.1.1: fetch() Core

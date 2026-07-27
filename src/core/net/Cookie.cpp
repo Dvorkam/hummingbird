@@ -32,6 +32,60 @@ bool is_ip_literal(std::string_view host) {
            std::any_of(host.begin(), host.end(), is_digit);
 }
 
+// RFC 2616 token: US-ASCII minus CTLs and separators. RFC 6265 §4.1.1 requires
+// a cookie-name to be one. A name outside this set is what would let a stored
+// cookie forge a second one when the jar re-serializes it into a Cookie header.
+bool is_token_char(char c) {
+    const auto u = static_cast<unsigned char>(c);
+    if (u < 0x20 || u >= 0x7F) return false;  // CTLs, DEL, and non-ASCII
+    switch (c) {
+        case '(':
+        case ')':
+        case '<':
+        case '>':
+        case '@':
+        case ',':
+        case ';':
+        case ':':
+        case '\\':
+        case '"':
+        case '/':
+        case '[':
+        case ']':
+        case '?':
+        case '=':
+        case '{':
+        case '}':
+        case ' ':
+            return false;
+        default:
+            return true;
+    }
+}
+
+bool is_valid_cookie_name(std::string_view name) {
+    return !name.empty() && std::all_of(name.begin(), name.end(), is_token_char);
+}
+
+// True for the bytes that must never survive into a stored cookie, because the
+// jar writes every field back out twice: into a `Cookie` request header, and
+// into its own tab-separated file. A CTL corrupts both; a ';' forges a second
+// cookie in the first.
+//
+// DEVIATION (deliberate, and what shipping browsers do): §4.1.1's cookie-octet
+// also excludes SP, ',' and '"', and non-ASCII entirely. Real sites send all of
+// those in values, and rejecting them would break pages for no security gain —
+// none of them can terminate a header field or a TSV field. Only the injection
+// set is enforced.
+bool is_injection_byte(char c) {
+    const auto u = static_cast<unsigned char>(c);
+    return u < 0x20 || u == 0x7F || c == ';';
+}
+
+bool has_injection_byte(std::string_view text) {
+    return std::any_of(text.begin(), text.end(), is_injection_byte);
+}
+
 int month_from_name(std::string_view token) {
     static constexpr std::string_view kMonths[] = {"jan", "feb", "mar", "apr", "may", "jun",
                                                    "jul", "aug", "sep", "oct", "nov", "dec"};
@@ -194,6 +248,12 @@ std::optional<Cookie> parse_set_cookie(std::string_view header_value, std::strin
     if (name.empty() || pair.find('=') == std::string_view::npos) {
         return std::nullopt;
     }
+    // §4.1.1 charset (story 9.0.3.3): the name must be a token, and neither name
+    // nor value may carry a byte that could forge a second cookie or a second
+    // field when the jar writes them back out.
+    if (!is_valid_cookie_name(name) || has_injection_byte(value)) {
+        return std::nullopt;
+    }
 
     Cookie cookie;
     cookie.name = std::string(name);
@@ -279,6 +339,13 @@ std::optional<Cookie> parse_set_cookie(std::string_view header_value, std::strin
 
     cookie.path = (path_attr.empty() || path_attr.front() != '/') ? default_cookie_path(cookie_path_of_url(request_url))
                                                                   : path_attr;
+    // Domain and path are re-serialized into the jar file just as name and value
+    // are, so the same bytes are just as dangerous there (9.0.3.3). The host and
+    // the default path come from a parsed URL and cannot carry them; an
+    // attacker-supplied attribute can.
+    if (has_injection_byte(cookie.domain) || has_injection_byte(cookie.path)) {
+        return std::nullopt;
+    }
 
     // RFC 6265bis §5.4: SameSite=None is only meaningful on a Secure cookie, and
     // announcing cross-site availability without it is rejected rather than
