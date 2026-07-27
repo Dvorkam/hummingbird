@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
+#include "core/net/PublicSuffix.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "core/utils/Url.h"
@@ -257,6 +258,16 @@ std::optional<Cookie> parse_set_cookie(std::string_view header_value, std::strin
     if (domain_attr.empty()) {
         cookie.host_only = true;
         cookie.domain = request->host;
+    } else if (is_public_suffix(domain_attr)) {
+        // §5.3 step 5: a Domain that is a public suffix is only tolerated when it
+        // IS the request host (a site literally served from `co.uk`), and then
+        // only as a host-only cookie. Anything else would let a page on
+        // `a.co.uk` plant a cookie that `b.co.uk` reads back.
+        if (!Utils::equals_ignore_case(request->host, domain_attr)) {
+            return std::nullopt;
+        }
+        cookie.host_only = true;
+        cookie.domain = request->host;
     } else {
         if (!domain_matches(request->host, domain_attr)) {
             return std::nullopt;
@@ -283,16 +294,14 @@ bool is_same_site(std::string_view request_host, std::string_view initiator_host
     if (initiator_host.empty()) return true;
     if (Utils::equals_ignore_case(request_host, initiator_host)) return true;
 
-    // Approximate the registrable domain as the last two labels. See the header
-    // for why this is wrong under multi-label public suffixes.
-    const auto registrable = [](std::string_view host) -> std::string_view {
-        size_t last_dot = host.find_last_of('.');
-        if (last_dot == std::string_view::npos) return host;
-        size_t prev_dot = host.find_last_of('.', last_dot - 1);
-        if (prev_dot == std::string_view::npos) return host;
-        return host.substr(prev_dot + 1);
-    };
-    return Utils::equals_ignore_case(registrable(request_host), registrable(initiator_host));
+    // Same site means same registrable domain (9.0.3.1). An empty result means
+    // there is no registrable domain at all — an IP literal, or a host that is
+    // itself a public suffix — and two such hosts are same-site only when they
+    // are the same host, which the equality check above already ruled out.
+    const std::string_view request_site = registrable_domain(request_host);
+    const std::string_view initiator_site = registrable_domain(initiator_host);
+    if (request_site.empty() || initiator_site.empty()) return false;
+    return Utils::equals_ignore_case(request_site, initiator_site);
 }
 
 bool same_site_allows(const Cookie& cookie, std::string_view request_host, const CookieRequestContext& context) {

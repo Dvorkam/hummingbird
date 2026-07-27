@@ -352,6 +352,50 @@ TEST(CookieMatchTest, SameSiteTreatsAnEmptyInitiatorAsSameSite) {
     EXPECT_FALSE(Hummingbird::Core::is_same_site("example.dev", "attacker.test"));
 }
 
+// Same-site is decided by registrable domain, so a multi-label registry does not
+// merge unrelated sites the way "last two labels" did (9.0.3.1).
+TEST(CookieMatchTest, SameSiteUsesTheRegistrableDomain) {
+    // Single-label suffix: unchanged behavior.
+    EXPECT_TRUE(Hummingbird::Core::is_same_site("api.example.com", "www.example.com"));
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("example.com", "other.com"));
+
+    // Multi-label suffix: the case the old approximation got wrong.
+    EXPECT_TRUE(Hummingbird::Core::is_same_site("api.example.co.uk", "www.example.co.uk"));
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("a.co.uk", "b.co.uk"));
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("alice.github.io", "mallory.github.io"));
+
+    // Neither host has a registrable domain: same-site only with itself, which
+    // the equality check already covers.
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("co.uk", "example.co.uk"));
+    EXPECT_TRUE(Hummingbird::Core::is_same_site("127.0.0.1", "127.0.0.1"));
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("127.0.0.1", "127.0.0.2"));
+}
+
+// RFC 6265 §5.3 step 5: a Domain that is a public suffix cannot be used to widen
+// a cookie's scope. Before 9.0.3.1 `Domain=co.uk` from example.co.uk was
+// accepted, which handed b.co.uk a cookie a.co.uk had planted.
+TEST(CookieParseTest, DomainAttributeCannotBeAPublicSuffix) {
+    // The registrable domain itself is fine, and is not host-only.
+    auto ok = Hummingbird::Core::parse_set_cookie("a=1; Domain=example.co.uk", "https://www.example.co.uk/", now());
+    ASSERT_TRUE(ok.has_value());
+    EXPECT_EQ(ok->domain, "example.co.uk");
+    EXPECT_FALSE(ok->host_only);
+
+    // The public suffix above it is not.
+    EXPECT_FALSE(
+        Hummingbird::Core::parse_set_cookie("a=1; Domain=co.uk", "https://www.example.co.uk/", now()).has_value());
+    EXPECT_FALSE(Hummingbird::Core::parse_set_cookie("a=1; Domain=com", "https://example.com/", now()).has_value());
+    EXPECT_FALSE(
+        Hummingbird::Core::parse_set_cookie("a=1; Domain=github.io", "https://alice.github.io/", now()).has_value());
+
+    // A site literally served from a public suffix may still set its own cookie,
+    // but only as host-only — it never reaches a subdomain.
+    auto at_suffix = Hummingbird::Core::parse_set_cookie("a=1; Domain=co.uk", "https://co.uk/", now());
+    ASSERT_TRUE(at_suffix.has_value());
+    EXPECT_EQ(at_suffix->domain, "co.uk");
+    EXPECT_TRUE(at_suffix->host_only);
+}
+
 // --- persistence (8.1.4) -----------------------------------------------------
 
 namespace {

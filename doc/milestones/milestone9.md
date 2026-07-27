@@ -552,7 +552,19 @@ P0: Foundations (must precede fetch)
       observed teardown *through* a surviving global and were repointed at the DOM,
       which is the only channel that spans both documents. Demo:
       example.dev/m9 ↔ example.dev/isolation-next.)*
-- [ ] 9.0.3.1: Registrable Domain From A Public Suffix List
+- [x] 9.0.3.1: Registrable Domain From A Public Suffix List *(new
+      `core/net/PublicSuffix.{h,cpp}`: `public_suffix`, `is_public_suffix`,
+      `registrable_domain`, over a curated ~80-rule table written in
+      publicsuffix.org syntax and matched with the full PSL algorithm — longest
+      match wins, `*` matches one label, `!` is an exception, and the implicit `*`
+      default rule covers every single-label TLD without a table entry.
+      `is_same_site` now compares registrable domains; `parse_set_cookie`
+      implements §5.3 step 5, so `Domain=co.uk` is rejected unless the request host
+      IS `co.uk`, and then only as host-only. Tests:
+      `tests/core/PublicSuffix.test.cpp` (8 cases incl. wildcard/exception rules
+      and case handling) + `CookieMatchTest.SameSiteUsesTheRegistrableDomain` +
+      `CookieParseTest.DomainAttributeCannotBeAPublicSuffix`. Follow-up for the
+      real list: `T-COOKIE-PUBLIC-SUFFIX-FULL-LIST-1`.)*
 - [ ] 9.0.3.2: Cookie Jar Limits
 - [ ] 9.0.3.3: Cookie Charset Validation
 

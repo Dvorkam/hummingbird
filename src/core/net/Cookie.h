@@ -93,13 +93,10 @@ struct CookieRequestContext {
     bool script_access = false;
 };
 
-// True when `request_host` and `initiator_host` are same-site.
-//
-// DEVIATION: compares registrable domain approximated as the last two labels,
-// because there is no public suffix list yet (T-COOKIE-PUBLIC-SUFFIX-1). That is
-// correct for single-label suffixes (example.dev, news.ycombinator.com) and
-// wrong under multi-label ones, where it would call a.co.uk and b.co.uk
-// same-site. Both this and the Domain check need the same PSL.
+// True when `request_host` and `initiator_host` are same-site: same registrable
+// domain, per core/net/PublicSuffix.h (story 9.0.3.1). Hosts with no registrable
+// domain — an IP literal, or a host that IS a public suffix — are same-site only
+// with themselves.
 bool is_same_site(std::string_view request_host, std::string_view initiator_host);
 
 // RFC 6265bis §5.5: whether `cookie`'s SameSite lets it ride this request.
