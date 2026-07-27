@@ -186,6 +186,10 @@ private:
     // (eval, event dispatch, each timer callback) so queued microtasks run before
     // control returns to layout/paint or the next task. A throwing job is logged
     // and draining continues.
+    //
+    // Drains only at the OUTERMOST entry: while `script_entry_depth_` is non-zero
+    // the JS stack is not empty, and a real event loop does not reach a microtask
+    // checkpoint there (T-DISPATCH-MICROTASK-REENTRANT-1, story 9.0.1).
     void drain_microtasks();
 
     // window/location + hashchange (7.2.5).
@@ -251,6 +255,13 @@ private:
     // Set when a script assigns location.hash; consumed by the app to sync the
     // URL bar + tab history (7.7.3). Not set by app-initiated navigation.
     std::optional<std::string> script_location_change_;
+    // Nesting depth of JS entry points (eval, event dispatch, timer/rAF
+    // callback). A host callback can re-enter the engine while script is still
+    // on the stack — JS element.focus() routes through IScriptHost and comes
+    // back as a nested focus dispatch — so entry points bracket their JS
+    // execution and only the outermost one reaches the microtask checkpoint.
+    // Story 7.7.1 gave the mutation epoch the same guard on the engine side.
+    int script_entry_depth_ = 0;
     JSClassID node_class_id_ = 0;
     JSClassID token_list_class_id_ = 0;
     JSClassID string_map_class_id_ = 0;

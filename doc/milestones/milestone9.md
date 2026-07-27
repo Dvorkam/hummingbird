@@ -507,7 +507,15 @@ constructors and listener options are framework-surface items).
 ## Execution Order Checklist
 
 P0: Foundations (must precede fetch)
-- [ ] 9.0.1: Microtask Drain Depth Guard
+- [x] 9.0.1: Microtask Drain Depth Guard *(`QuickJSScriptEngine` now tracks a
+      `script_entry_depth_`; every JS entry point — eval, DOM event dispatch, the
+      hashchange dispatch, and each timer/rAF callback — brackets its JS execution
+      with a `ScriptEntryScope`, and `drain_microtasks()` returns early while the
+      depth is non-zero. The outermost entry drains what the whole re-entrant chain
+      queued. Test: `ScriptEngineTest.NestedDispatchDefersMicrotaskCheckpointToOutermost`
+      — a click listener queues a `.then`, calls `focus()` (which re-enters through
+      the host as a nested focus dispatch), and the continuation runs only after the
+      click listener returns. Verified failing without the guard.)*
 - [ ] 9.0.2: Per-Document JS Global Isolation
 - [ ] 9.0.3: Cookie Hardening For Script-Driven Requests
 

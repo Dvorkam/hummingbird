@@ -18,6 +18,25 @@
 
 namespace Hummingbird::Platform {
 
+namespace {
+// RAII: brackets one JS entry point (a script eval, an event dispatch, a single
+// timer or animation-frame callback) so the engine can tell a nested entry from
+// the outermost one. Only the outermost may run the microtask checkpoint
+// (T-DISPATCH-MICROTASK-REENTRANT-1, story 9.0.1).
+class ScriptEntryScope {
+public:
+    explicit ScriptEntryScope(int& depth) : depth_(depth) { ++depth_; }
+    ~ScriptEntryScope() {
+        if (depth_ > 0) --depth_;
+    }
+    ScriptEntryScope(const ScriptEntryScope&) = delete;
+    ScriptEntryScope& operator=(const ScriptEntryScope&) = delete;
+
+private:
+    int& depth_;
+};
+}  // namespace
+
 QuickJSScriptEngine* QuickJSScriptEngine::engine_from_context(JSContext* ctx) {
     return static_cast<QuickJSScriptEngine*>(JS_GetContextOpaque(ctx));
 }
@@ -1076,7 +1095,10 @@ bool QuickJSScriptEngine::dispatch_dom_event(DOM::Node* target, const ScriptDomE
     if (!event.code.empty()) {
         JS_SetPropertyStr(context_, js_event, "code", JS_NewString(context_, event.code.c_str()));
     }
-    dispatch_event(target, event.type, js_event);
+    {
+        ScriptEntryScope entry(script_entry_depth_);
+        dispatch_event(target, event.type, js_event);
+    }
     const bool not_canceled = !event_flag(js_event, "defaultPrevented");
     JS_FreeValue(context_, js_event);
     drain_microtasks();  // microtask checkpoint after the dispatch task (7.3.2)
@@ -1176,27 +1198,38 @@ ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_
         return error_result("QuickJS runtime unavailable");
     }
     std::string filename_str(filename);
-    JSValue result = JS_Eval(context_, source.data(), source.size(), filename_str.c_str(), JS_EVAL_TYPE_GLOBAL);
-    if (JS_IsException(result)) {
-        JSValue exception = JS_GetException(context_);
-        const char* message = JS_ToCString(context_, exception);
-        std::string error = message ? message : "Unknown JS exception";
-        if (message) {
-            JS_FreeCString(context_, message);
+    std::string error;
+    bool threw = false;
+    {
+        ScriptEntryScope entry(script_entry_depth_);
+        JSValue result = JS_Eval(context_, source.data(), source.size(), filename_str.c_str(), JS_EVAL_TYPE_GLOBAL);
+        if (JS_IsException(result)) {
+            JSValue exception = JS_GetException(context_);
+            const char* message = JS_ToCString(context_, exception);
+            error = message ? message : "Unknown JS exception";
+            if (message) {
+                JS_FreeCString(context_, message);
+            }
+            JS_FreeValue(context_, exception);
+            threw = true;
         }
-        JS_FreeValue(context_, exception);
         JS_FreeValue(context_, result);
-        // Even on a top-level error, promise jobs it queued before throwing run.
-        drain_microtasks();
+    }
+    // Microtask checkpoint after the script task (7.3.2). Runs on the error path
+    // too: promise jobs the script queued before throwing still run.
+    drain_microtasks();
+    if (threw) {
         return error_result(std::move(error));
     }
-    JS_FreeValue(context_, result);
-    drain_microtasks();  // microtask checkpoint after the script task (7.3.2)
     return ok_result();
 }
 
 void QuickJSScriptEngine::drain_microtasks() {
     if (!runtime_) return;
+    // Nested entry: the JS stack is not empty, so this is not a checkpoint. The
+    // outermost entry point drains what the whole re-entrant chain queued
+    // (T-DISPATCH-MICROTASK-REENTRANT-1, story 9.0.1).
+    if (script_entry_depth_ > 0) return;
     for (;;) {
         JSContext* job_ctx = nullptr;
         int rc = JS_ExecutePendingJob(runtime_, &job_ctx);
@@ -1519,7 +1552,10 @@ bool QuickJSScriptEngine::update_location(std::string_view url) {
     JSValue event = make_event("hashchange", window_target());
     JS_SetPropertyStr(context_, event, "oldURL", JS_NewString(context_, old_url.c_str()));
     JS_SetPropertyStr(context_, event, "newURL", JS_NewString(context_, location_url_.c_str()));
-    dispatch_event(window_target(), "hashchange", event);
+    {
+        ScriptEntryScope entry(script_entry_depth_);
+        dispatch_event(window_target(), "hashchange", event);
+    }
     JS_FreeValue(context_, event);
     drain_microtasks();  // checkpoint after hashchange listeners (7.3.2)
     return true;
@@ -1642,15 +1678,19 @@ bool QuickJSScriptEngine::run_due_timers(double now_ms) {
             timers_.erase(it);
         }
 
-        JSValue ret = JS_Call(context_, callback, JS_UNDEFINED, static_cast<int>(call_args.size()), call_args.data());
-        if (JS_IsException(ret)) {
-            JSValue exc = JS_GetException(context_);
-            const char* message = JS_ToCString(context_, exc);
-            HB_LOG_WARN("[js] timer callback threw: " << (message ? message : "unknown"));
-            if (message) JS_FreeCString(context_, message);
-            JS_FreeValue(context_, exc);
+        {
+            ScriptEntryScope entry(script_entry_depth_);
+            JSValue ret =
+                JS_Call(context_, callback, JS_UNDEFINED, static_cast<int>(call_args.size()), call_args.data());
+            if (JS_IsException(ret)) {
+                JSValue exc = JS_GetException(context_);
+                const char* message = JS_ToCString(context_, exc);
+                HB_LOG_WARN("[js] timer callback threw: " << (message ? message : "unknown"));
+                if (message) JS_FreeCString(context_, message);
+                JS_FreeValue(context_, exc);
+            }
+            JS_FreeValue(context_, ret);
         }
-        JS_FreeValue(context_, ret);
         JS_FreeValue(context_, callback);
         for (JSValue arg : call_args) JS_FreeValue(context_, arg);
         // Each timer callback is its own task: drain microtasks before the next.
@@ -1697,15 +1737,18 @@ bool QuickJSScriptEngine::run_animation_frames(double now_ms) {
 
     JSValue arg = JS_NewFloat64(context_, now_ms);
     for (auto& cb : frame) {
-        JSValue ret = JS_Call(context_, cb.callback, JS_UNDEFINED, 1, &arg);
-        if (JS_IsException(ret)) {
-            JSValue exc = JS_GetException(context_);
-            const char* message = JS_ToCString(context_, exc);
-            HB_LOG_WARN("[js] requestAnimationFrame callback threw: " << (message ? message : "unknown"));
-            if (message) JS_FreeCString(context_, message);
-            JS_FreeValue(context_, exc);
+        {
+            ScriptEntryScope entry(script_entry_depth_);
+            JSValue ret = JS_Call(context_, cb.callback, JS_UNDEFINED, 1, &arg);
+            if (JS_IsException(ret)) {
+                JSValue exc = JS_GetException(context_);
+                const char* message = JS_ToCString(context_, exc);
+                HB_LOG_WARN("[js] requestAnimationFrame callback threw: " << (message ? message : "unknown"));
+                if (message) JS_FreeCString(context_, message);
+                JS_FreeValue(context_, exc);
+            }
+            JS_FreeValue(context_, ret);
         }
-        JS_FreeValue(context_, ret);
         JS_FreeValue(context_, cb.callback);
         drain_microtasks();  // microtask checkpoint after the callback (7.3.2)
     }

@@ -788,6 +788,48 @@ TEST(ScriptEngineTest, MicrotaskRunsBeforeNextTimerTask) {
     EXPECT_EQ(fx.log(), "smtu");
 }
 
+// A host callback can re-enter the engine while script is still on the stack:
+// JS element.focus() routes through IScriptHost and comes back as a nested focus
+// dispatch. That nested dispatch must NOT run the outer script's queued promise
+// continuations — a real event loop reaches a microtask checkpoint when the JS
+// stack empties, not when an inner task returns. The outermost entry drains what
+// the whole re-entrant chain queued (T-DISPATCH-MICROTASK-REENTRANT-1, 9.0.1).
+TEST(ScriptEngineTest, NestedDispatchDefersMicrotaskCheckpointToOutermost) {
+    TimerFixture fx;
+    auto field_el = Hummingbird::DOM::Element::create(fx.arena, "input");
+    field_el->set_attribute("id", "field");
+    fx.root->append_child(std::move(field_el));
+
+    // The focus sink is the re-entry point: it dispatches `focus` from inside
+    // the click listener's call to focus().
+    fx.host.set_focus_sink([&](Hummingbird::DOM::Element* el, bool focused) {
+        if (!focused) return;
+        fx.engine->dispatch_dom_event(el, Hummingbird::ScriptDomEvent{"focus", false, false, "", ""});
+    });
+
+    auto r = fx.engine->eval(
+        "function log(c){var o=document.getElementById('out');"
+        "  o.setAttribute('data-log', o.getAttribute('data-log') + c);}"
+        "document.getElementById('field').addEventListener('focus', function(){"
+        "  log('f'); Promise.resolve().then(function(){ log('n'); }); });"
+        "document.getElementById('out').addEventListener('click', function(){"
+        "  log('c');"
+        "  Promise.resolve().then(function(){ log('m'); });"
+        "  document.getElementById('field').focus();"
+        "  log('d'); });",
+        "inline");
+    ASSERT_TRUE(r.ok) << r.error;
+    EXPECT_EQ(fx.log(), "");  // nothing runs until the click
+
+    fx.engine->dispatch_dom_event(fx.out, Hummingbird::ScriptDomEvent{"click", true, true, "", ""});
+
+    // 'c' -> nested focus 'f' -> back in the click listener 'd', and only then
+    // the checkpoint: 'm' (queued by the outer listener) before 'n' (queued by
+    // the nested one), FIFO. Without the guard the nested dispatch's drain would
+    // run 'm' — and 'n' — before 'd'.
+    EXPECT_EQ(fx.log(), "cfdmn");
+}
+
 TEST(ScriptEngineTest, ChainedMicrotasksAllDrainInOrder) {
     TimerFixture fx;
     // A microtask that queues another microtask: the checkpoint keeps draining
