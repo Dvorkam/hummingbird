@@ -895,6 +895,59 @@ TEST(DocumentPipelineTest, JsFocusBlurDispatchFocusEvents) {
     EXPECT_TRUE(painted_has("change+blur"));
 }
 
+// The demo at example.dev/m9, driven through the real pipeline: a click handler
+// queues a promise continuation and calls focus(), which re-enters the engine as
+// a nested focus dispatch. The continuation must run after the click handler
+// returns, not when the nested dispatch does (9.0.1). The platform-level test
+// exercises the engine directly; this one proves the same holds across the real
+// focus-sink round trip through DocumentPipeline.
+TEST(DocumentPipelineTest, PromiseContinuationRunsAfterAReentrantFocusDispatch) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } input, p { display: block; } </style></head>
+  <body>
+    <p id="log"></p>
+    <input id="field" value="">
+    <script>
+      var log = document.getElementById('log');
+      function add(c) { log.textContent = log.textContent + c; }
+      document.getElementById('field').addEventListener('focus', function() { add('2'); });
+      document.addEventListener('click', function() {
+        add('1');
+        Promise.resolve().then(function() { add('4'); });
+        document.getElementById('field').focus();
+        add('3');
+      });
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.run_scripts();
+
+    DocumentPipeline::HitTestContext click{Point{5.0f, 5.0f}, viewport, "https://example.dev", 0.0f, 1};
+    pipeline.dispatch_click(click);
+
+    graphics.drawn_texts.clear();
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.paint(graphics, {viewport, false, 0.0f});
+    EXPECT_NE(std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), "1234"),
+              graphics.drawn_texts.end());
+}
+
 TEST(DocumentPipelineTest, FragmentNavigationFiresHashchangeWithoutTeardown) {
     // navigate_fragment fires hashchange in place; the listener (and DOM) survive,
     // so a second fragment change fires again (7.2.5).

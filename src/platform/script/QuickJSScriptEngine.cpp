@@ -1134,31 +1134,16 @@ QuickJSScriptEngine::QuickJSScriptEngine() {
         HB_LOG_ERROR("[script] failed to create QuickJS runtime");
         return;
     }
-    context_ = JS_NewContext(runtime_);
-    if (!context_) {
-        HB_LOG_ERROR("[script] failed to create QuickJS context");
+    register_runtime_classes();
+    if (!create_context()) {
         JS_FreeRuntime(runtime_);
         runtime_ = nullptr;
-        return;
     }
-
-    JS_SetContextOpaque(context_, this);
-    JS_NewClassID(runtime_, &node_class_id_);
-    JSClassDef class_def{};
-    class_def.class_name = "Node";
-    JS_NewClass(runtime_, node_class_id_, &class_def);
-    install_node_prototype();
-    install_token_list_class();
-    install_string_map_class();
-
-    // Install console bindings unconditionally so non-DOM scripts (e.g., extensions)
-    // can log without needing to bind a host.
-    install_console_bindings();
 }
 
 QuickJSScriptEngine::~QuickJSScriptEngine() {
     if (context_) {
-        reset_bindings();
+        release_document_state();
         JS_FreeValue(context_, document_object_);
         document_object_ = JS_UNDEFINED;
         JS_FreeValue(context_, window_object_);
@@ -1170,6 +1155,60 @@ QuickJSScriptEngine::~QuickJSScriptEngine() {
         JS_FreeRuntime(runtime_);
         runtime_ = nullptr;
     }
+}
+
+void QuickJSScriptEngine::register_runtime_classes() {
+    if (!runtime_) {
+        return;
+    }
+    JSClassDef node_def{};
+    node_def.class_name = "Node";
+    JS_NewClassID(runtime_, &node_class_id_);
+    JS_NewClass(runtime_, node_class_id_, &node_def);
+
+    JSClassDef token_list_def{};
+    token_list_def.class_name = "DOMTokenList";
+    JS_NewClassID(runtime_, &token_list_class_id_);
+    JS_NewClass(runtime_, token_list_class_id_, &token_list_def);
+
+    // dataset is a live string map: property reads/writes intercept through the
+    // exotic get/set handlers, which translate keys to data-* attributes. It has
+    // no prototype of its own, so a context swap leaves nothing to reinstall.
+    static JSClassExoticMethods exotic{};
+    exotic.get_property = js_string_map_get;
+    exotic.set_property = js_string_map_set;
+    JSClassDef string_map_def{};
+    string_map_def.class_name = "DOMStringMap";
+    string_map_def.exotic = &exotic;
+    JS_NewClassID(runtime_, &string_map_class_id_);
+    JS_NewClass(runtime_, string_map_class_id_, &string_map_def);
+}
+
+bool QuickJSScriptEngine::create_context() {
+    if (!runtime_) {
+        return false;
+    }
+    context_ = JS_NewContext(runtime_);
+    if (!context_) {
+        HB_LOG_ERROR("[script] failed to create QuickJS context");
+        return false;
+    }
+    JS_SetContextOpaque(context_, this);
+    // Class IDs are per-runtime, but every context needs its own prototypes.
+    install_node_prototype();
+    install_token_list_prototype();
+    // Install console bindings unconditionally so non-DOM scripts (e.g., extensions)
+    // can log without needing to bind a host.
+    install_console_bindings();
+    // Rebuild whatever surface the current bindings call for: on a context swap
+    // the hosts are unchanged, so the next document must not come up bare.
+    if (host_) {
+        install_document_bindings();
+    }
+    if (extension_host_) {
+        install_extension_bindings();
+    }
+    return true;
 }
 
 void QuickJSScriptEngine::bind_host(IScriptHost* host) {
@@ -1258,6 +1297,38 @@ void QuickJSScriptEngine::free_listeners() {
 }
 
 void QuickJSScriptEngine::reset_bindings() {
+    release_document_state();
+    if (!runtime_ || !context_) {
+        return;
+    }
+    // Give the next document a fresh JS global: a global one page set must not
+    // be visible to the next page in the same tab, and a promise continuation
+    // captured by a stale global must not survive into it
+    // (T-JS-GLOBAL-ISOLATION-1, story 9.0.2). Class IDs live on the runtime and
+    // survive; every per-context value is rebuilt by create_context().
+    JS_FreeValue(context_, document_object_);
+    document_object_ = JS_UNDEFINED;
+    JS_FreeValue(context_, window_object_);
+    window_object_ = JS_UNDEFINED;
+    JS_FreeContext(context_);
+    context_ = nullptr;
+    console_ready_ = false;
+    document_ready_ = false;
+    extension_ready_ = false;
+    failsoft_ready_ = false;
+    create_context();
+}
+
+void QuickJSScriptEngine::release_document_state() {
+    // Pending promise jobs hold a raw JSContext*, so the queue must be empty
+    // before the context can be swapped out from under them. It always is:
+    // every script entry point drains to exhaustion at its outermost exit
+    // (9.0.1), and teardown never runs from inside script. Drain defensively
+    // rather than free a context the job queue still points at.
+    if (runtime_ && JS_IsJobPending(runtime_)) {
+        HB_LOG_WARN("[script] microtask queue not empty at document teardown");
+        drain_microtasks();
+    }
     // Drop event callbacks and timers first: neither may outlive the document,
     // and their callbacks could otherwise still reference a wrapper we are about
     // to free.
@@ -1329,38 +1400,16 @@ void QuickJSScriptEngine::install_node_prototype() {
     JS_SetClassProto(context_, node_class_id_, proto);
 }
 
-void QuickJSScriptEngine::install_token_list_class() {
-    if (!context_ || !runtime_) {
+void QuickJSScriptEngine::install_token_list_prototype() {
+    if (!context_ || token_list_class_id_ == 0) {
         return;
     }
-    JS_NewClassID(runtime_, &token_list_class_id_);
-    JSClassDef class_def{};
-    class_def.class_name = "DOMTokenList";
-    JS_NewClass(runtime_, token_list_class_id_, &class_def);
-
     JSValue proto = JS_NewObject(context_);
     define_method(proto, "add", js_token_list_add, 1);
     define_method(proto, "remove", js_token_list_remove, 1);
     define_method(proto, "toggle", js_token_list_toggle, 1);
     define_method(proto, "contains", js_token_list_contains, 1);
     JS_SetClassProto(context_, token_list_class_id_, proto);
-}
-
-void QuickJSScriptEngine::install_string_map_class() {
-    if (!context_ || !runtime_) {
-        return;
-    }
-    // dataset is a live string map: property reads/writes intercept through the
-    // exotic get/set handlers, which translate keys to data-* attributes.
-    static JSClassExoticMethods exotic{};
-    exotic.get_property = js_string_map_get;
-    exotic.set_property = js_string_map_set;
-
-    JS_NewClassID(runtime_, &string_map_class_id_);
-    JSClassDef class_def{};
-    class_def.class_name = "DOMStringMap";
-    class_def.exotic = &exotic;
-    JS_NewClass(runtime_, string_map_class_id_, &class_def);
 }
 
 void QuickJSScriptEngine::define_getter(JSValueConst proto, const char* name, JSCFunction* getter) {

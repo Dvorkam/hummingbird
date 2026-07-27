@@ -158,9 +158,22 @@ private:
     // touched-but-unimplemented API name.
     static JSValue js_report_missing_api(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    // Registers the Node/DOMTokenList/DOMStringMap class IDs and defs. Class IDs
+    // are per-RUNTIME, so this runs once in the constructor and survives every
+    // context swap; only their prototypes are per-context (see create_context).
+    void register_runtime_classes();
+    // Builds a fresh JSContext — a fresh JS global — and reinstalls the whole
+    // binding surface on it. Called from the constructor and from reset_bindings
+    // on navigation (T-JS-GLOBAL-ISOLATION-1, story 9.0.2).
+    bool create_context();
+    // Drops every per-document JS reference (listeners, timers, animation
+    // frames, node wrappers, telemetry) held in the current context. Split out
+    // of reset_bindings so the destructor can tear down without rebuilding a
+    // context it is about to free.
+    void release_document_state();
+
     void install_node_prototype();
-    void install_token_list_class();
-    void install_string_map_class();
+    void install_token_list_prototype();
     void install_console_bindings();
     void install_document_bindings();
     void install_window_bindings();

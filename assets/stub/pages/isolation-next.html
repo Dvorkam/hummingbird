@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird &mdash; Per-document JS isolation (page two)</title>
+    <style>
+      body { background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; margin: 0; }
+      .page { max-width: 760px; margin: 0 auto; padding: 28px 24px 48px 24px; }
+      h1 { color: #14213d; font-size: 22px; margin: 0 0 10px 0; }
+      .card { background-color: #ffffff; border: 1px solid #cfd8ea; border-radius: 8px; padding: 18px;
+              margin-bottom: 18px; }
+      .card-lead { color: #3c4658; margin: 0 0 14px 0; }
+      .out { background-color: #fffdf4; border: 1px solid #9aa7bd; border-radius: 4px; color: #1d2433;
+             display: block; padding: 9px 11px; }
+      .note { color: #566174; font-size: 14px; line-height: 1.5; margin-top: 14px; }
+      code { background-color: #e8ecf4; border-radius: 3px; padding: 1px 4px; }
+      a { color: #1b5fbf; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <h1>Page two &mdash; same tab, different global</h1>
+
+      <div class="card">
+        <p class="card-lead">The page you came from set <code>globalThis.hbMarker</code> just before you left it.
+        This page runs in the same tab, on the same script engine. Here is what it can see:</p>
+        <p class="out" id="leak">Waiting for script&hellip;</p>
+        <p class="note">It sets its own <code>globalThis.hbMarker</code> too, so navigating back proves isolation in
+        the other direction. Added in M9 (story 9.0.2).</p>
+      </div>
+
+      <p><a href="https://example.dev/m9">&laquo; Back to the M9 demo</a></p>
+    </div>
+
+    <script>
+      var leak = document.getElementById("leak");
+      leak.textContent = (typeof globalThis.hbMarker === "undefined")
+        ? "globalThis.hbMarker is undefined here — nothing leaked in from the previous page."
+        : "LEAKED: globalThis.hbMarker = " + globalThis.hbMarker;
+      globalThis.hbMarker = "set-by-isolation-next";
+    </script>
+  </body>
+</html>

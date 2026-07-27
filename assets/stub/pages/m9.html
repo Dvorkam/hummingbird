@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Hummingbird M9 &mdash; The Fetcher</title>
+    <style>
+      body { background-color: #f4f6fb; color: #1d2433; font-family: roboto, sans-serif; margin: 0; }
+      .page { max-width: 760px; margin: 0 auto; padding: 28px 24px 48px 24px; }
+      .eyebrow { color: #b25e00; font-size: 13px; font-weight: bold; letter-spacing: 1px; }
+      h1 { color: #14213d; margin: 6px 0 10px 0; }
+      h2 { color: #14213d; font-size: 19px; margin: 0 0 6px 0; }
+      .intro { color: #3c4658; margin-bottom: 22px; }
+      .card { background-color: #ffffff; border: 1px solid #cfd8ea; border-radius: 8px; padding: 18px;
+              margin-bottom: 18px; }
+      .card-lead { color: #3c4658; margin: 0 0 14px 0; }
+      .out { background-color: #fffdf4; border: 1px solid #9aa7bd; border-radius: 4px; color: #1d2433;
+             display: block; margin-top: 12px; padding: 9px 11px; }
+      button { background-color: #14213d; border: 1px solid #14213d; border-radius: 4px; color: #ffffff;
+               font-weight: bold; padding: 8px 14px; }
+      input[type=text] { background-color: #fffdf4; border: 1px solid #9aa7bd; border-radius: 4px;
+                         color: #1d2433; padding: 7px 9px; width: 220px; }
+      input[type=text]:focus { border-color: #fca311; }
+      .go { display: block; font-weight: bold; margin-top: 12px; }
+      .note { color: #566174; font-size: 14px; line-height: 1.5; margin-top: 14px; }
+      code { background-color: #e8ecf4; border-radius: 3px; padding: 1px 4px; }
+      a { color: #1b5fbf; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <p class="eyebrow">M9 &mdash; THE FETCHER</p>
+      <h1>Asking the network for itself</h1>
+      <p class="intro">Milestone 9 gives the page its own voice on the network: <code>fetch()</code>, a CORS model,
+      and an HTTP cache. It starts with the two event-loop guarantees everything promise-based rests on.</p>
+
+      <div class="card">
+        <h2>Event-loop ordering</h2>
+        <p class="card-lead">A promise continuation runs when the JavaScript stack empties &mdash; not when some
+        inner handler happens to return. Clicking below runs a handler that queues a <code>.then</code>, then calls
+        <code>focus()</code>, which fires a <em>nested</em> focus handler while the click handler is still running.</p>
+        <p><button id="run">Run the ordering check</button>
+        <input id="field" type="text" value="focus target"></p>
+        <p class="out" id="order">Not run yet.</p>
+        <p class="note">Correct output is <code>1 2 3 4</code>: the nested focus handler (2) runs immediately, the
+        click handler finishes (3), and only then does the queued promise continuation (4) run. Added in M9
+        (story 9.0.1).</p>
+      </div>
+
+      <div class="card">
+        <h2>Per-document JavaScript isolation</h2>
+        <p class="card-lead">Each navigated document gets a fresh JavaScript global. A variable one page leaves on
+        <code>globalThis</code> is invisible to the next page in the same tab, even though they share one engine.</p>
+        <p class="out" id="leak">Waiting for script&hellip;</p>
+        <p class="go"><a href="https://example.dev/isolation-next">Navigate to the second page &raquo;</a></p>
+        <p class="note">This page sets <code>globalThis.hbMarker</code> after reporting what it found. Follow the
+        link, then come back &mdash; both pages always report an empty global, because neither can see the other's.
+        Added in M9 (story 9.0.2).</p>
+      </div>
+
+      <p><a href="https://example.dev">&laquo; back to example.dev</a></p>
+    </div>
+
+    <script>
+      var order = document.getElementById("order");
+      function log(msg) { order.textContent = order.textContent + msg; }
+
+      document.getElementById("field").addEventListener("focus", function () {
+        log("2 nested focus handler. ");
+      });
+      document.getElementById("run").addEventListener("click", function () {
+        order.textContent = "";
+        log("1 click handler starts. ");
+        Promise.resolve().then(function () { log("4 promise continuation."); });
+        document.getElementById("field").focus();
+        log("3 click handler ends. ");
+      });
+
+      var leak = document.getElementById("leak");
+      leak.textContent = (typeof globalThis.hbMarker === "undefined")
+        ? "globalThis.hbMarker is undefined here — nothing leaked in from the previous page."
+        : "LEAKED: globalThis.hbMarker = " + globalThis.hbMarker;
+      globalThis.hbMarker = "set-by-m9";
+    </script>
+  </body>
+</html>

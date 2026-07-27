@@ -516,7 +516,22 @@ P0: Foundations (must precede fetch)
       — a click listener queues a `.then`, calls `focus()` (which re-enters through
       the host as a nested focus dispatch), and the continuation runs only after the
       click listener returns. Verified failing without the guard.)*
-- [ ] 9.0.2: Per-Document JS Global Isolation
+- [x] 9.0.2: Per-Document JS Global Isolation *(`reset_bindings()` now frees the
+      `JSContext` and builds a new one, so each navigated document gets a fresh JS
+      global. Class IDs are per-runtime and are registered once in the constructor
+      (`register_runtime_classes`); everything per-context — the Node and
+      DOMTokenList prototypes, console/document/window/extension bindings, the
+      fail-soft stubs, `document_object_`/`window_object_` — is rebuilt by
+      `create_context()`, which reinstalls whatever the currently bound hosts call
+      for. Teardown of per-document JS references split into
+      `release_document_state()` so the destructor does not build a context it is
+      about to free. Tests: `NavigationGivesTheNextDocumentAFreshGlobal` (a global,
+      a function declaration, and a clobbered `document.getElementById` all fail to
+      reach page B), plus the rewritten `NavigationTeardownReleasesPerDocumentState`
+      and `ResetBindingsRebuildsWrappersForTheNextDocument`. Two older tests
+      observed teardown *through* a surviving global and were repointed at the DOM,
+      which is the only channel that spans both documents. Demo:
+      example.dev/m9 ↔ example.dev/isolation-next.)*
 - [ ] 9.0.3: Cookie Hardening For Script-Driven Requests
 
 P0: fetch + CORS (North Star)

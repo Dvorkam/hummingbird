@@ -483,6 +483,8 @@ TEST(ScriptEngineTest, ListenersTornDownOnNavigation) {
     auto root = Hummingbird::DOM::Element::create(arena, "div");
     auto el = Hummingbird::DOM::Element::create(arena, "div");
     el->set_attribute("id", "x");
+    el->set_attribute("data-count", "0");
+    Hummingbird::DOM::Element* el_ptr = el.get();
     root->append_child(std::move(el));
 
     Hummingbird::Engine::DocumentScriptHost host;
@@ -492,36 +494,37 @@ TEST(ScriptEngineTest, ListenersTornDownOnNavigation) {
     ASSERT_NE(engine, nullptr);
     engine->bind_host(&host);
 
+    // Count into a DOM attribute, not a global: since 9.0.2 the JS global is
+    // replaced on navigation, so only the DOM is observable on both sides.
     ASSERT_TRUE(engine
-                    ->eval("globalThis.count = 0;"
-                           "document.getElementById('x')"
-                           "  .addEventListener('ping', function() { globalThis.count++; });"
-                           "document.getElementById('x').dispatchEvent('ping');"
-                           "if (globalThis.count !== 1) throw new Error('baseline ' + globalThis.count);",
+                    ->eval("document.getElementById('x').addEventListener('ping', function() {"
+                           "  var e = document.getElementById('x');"
+                           "  e.setAttribute('data-count', String(Number(e.getAttribute('data-count')) + 1)); });"
+                           "document.getElementById('x').dispatchEvent('ping');",
                            "inline")
                     .ok);
+    ASSERT_EQ(host.get_attribute(el_ptr, "data-count"), "1");  // baseline
 
     // Simulate navigation teardown: the registry is swept.
     engine->reset_bindings();
 
-    auto after = engine->eval(
-        "document.getElementById('x').dispatchEvent('ping');"
-        "if (globalThis.count !== 1) throw new Error('stale listener fired: ' + globalThis.count);"
-        "true;",
-        "inline");
+    auto after = engine->eval("document.getElementById('x').dispatchEvent('ping');", "inline");
     EXPECT_TRUE(after.ok) << after.error;
+    EXPECT_EQ(host.get_attribute(el_ptr, "data-count"), "1");  // no stale listener fired
 }
 
 // One consolidated teardown/leak check for the JS<->native ownership contract
 // (doc/dev_guide/dom_arena_ownership.md, story 7.5.4): a single navigation must
-// release every per-document JS reference at once — listeners, timers, and node
-// wrappers — and it documents the one thing that intentionally does NOT reset,
-// the JS global object (T-JS-GLOBAL-ISOLATION-1).
+// release every per-document JS reference at once — listeners, timers, node
+// wrappers, and (since story 9.0.2) the JS global object itself.
 TEST(ScriptEngineTest, NavigationTeardownReleasesPerDocumentState) {
     Hummingbird::Core::ArenaAllocator arena(4096, 4);
     auto root = Hummingbird::DOM::Element::create(arena, "div");
     auto el = Hummingbird::DOM::Element::create(arena, "button");
     el->set_attribute("id", "x");
+    el->set_attribute("data-clicks", "0");
+    el->set_attribute("data-timers", "0");
+    Hummingbird::DOM::Element* el_ptr = el.get();
     root->append_child(std::move(el));
 
     Hummingbird::Engine::DocumentScriptHost host;
@@ -531,51 +534,93 @@ TEST(ScriptEngineTest, NavigationTeardownReleasesPerDocumentState) {
     engine->bind_host(&host);
 
     // Page A registers a listener, schedules a repeating timer, stashes a node
-    // wrapper in a global, and sets a plain global marker.
+    // wrapper in a global, and sets a plain global marker. The listener and the
+    // timer count into DOM attributes, not globals: the DOM outlives the JS
+    // global, so their post-teardown checks stay observable either way.
     ASSERT_TRUE(engine
-                    ->eval("globalThis.clicks = 0;"
-                           "globalThis.timers = 0;"
+                    ->eval("function bump(name) { var e = document.getElementById('x');"
+                           "  e.setAttribute(name, String(Number(e.getAttribute(name)) + 1)); }"
                            "globalThis.marker = 'page-a';"
                            "var el = document.getElementById('x');"
-                           "el.addEventListener('ping', function() { globalThis.clicks++; });"
-                           "setInterval(function() { globalThis.timers++; }, 10);"
+                           "el.addEventListener('ping', function() { bump('data-clicks'); });"
+                           "setInterval(function() { bump('data-timers'); }, 10);"
                            "globalThis.saved = el;"
-                           "el.dispatchEvent('ping');"
-                           "if (globalThis.clicks !== 1) throw new Error('baseline click ' + globalThis.clicks);",
+                           "el.dispatchEvent('ping');",
                            "inline")
                     .ok);
+    EXPECT_EQ(host.get_attribute(el_ptr, "data-clicks"), "1");  // baseline: the listener works
     EXPECT_TRUE(engine->has_pending_timers());
 
     // --- navigation teardown (before the arena would be reset) ---
     engine->reset_bindings();
 
     // Listener registry swept: re-dispatching fires nothing.
-    ASSERT_TRUE(engine
-                    ->eval("document.getElementById('x').dispatchEvent('ping');"
-                           "if (globalThis.clicks !== 1) throw new Error('stale listener fired ' + globalThis.clicks);",
-                           "inline")
-                    .ok);
+    ASSERT_TRUE(engine->eval("document.getElementById('x').dispatchEvent('ping');", "inline").ok);
+    EXPECT_EQ(host.get_attribute(el_ptr, "data-clicks"), "1");
 
     // Timers swept: none pending, and advancing the clock fires nothing.
     EXPECT_FALSE(engine->has_pending_timers());
     EXPECT_FALSE(engine->run_due_timers(1000.0));
-    ASSERT_TRUE(
-        engine
-            ->eval("if (globalThis.timers !== 0) throw new Error('stale timer fired ' + globalThis.timers);", "inline")
-            .ok);
+    EXPECT_EQ(host.get_attribute(el_ptr, "data-timers"), "0");
 
-    // Stashed wrapper neutralized: reads as an empty node, never a dangling deref.
+    // The global object itself is per-document (9.0.2): page A's marker is gone,
+    // and so is the global that stashed a node wrapper — the wrapper is no longer
+    // reachable from script at all, which is why it can never be dereferenced
+    // after the arena resets.
     ASSERT_TRUE(engine
-                    ->eval("if (globalThis.saved.nodeType !== 0 || globalThis.saved.parentNode !== null)"
-                           "  throw new Error('stale wrapper not neutralized');",
+                    ->eval("if (globalThis.marker !== undefined)"
+                           "  throw new Error('stale global survived: ' + globalThis.marker);"
+                           "if (globalThis.saved !== undefined)"
+                           "  throw new Error('stale wrapper still reachable');",
                            "inline")
                     .ok);
 
-    // KNOWN GAP (T-JS-GLOBAL-ISOLATION-1): the JS global object persists across
-    // navigation, so a script-set global is still visible. This locks in today's
-    // behavior; flip it to `=== undefined` when per-document isolation lands.
-    ASSERT_TRUE(
-        engine->eval("if (globalThis.marker !== 'page-a') throw new Error('global unexpectedly reset');", "inline").ok);
+    // ...and the fresh global came up with the full binding surface reinstalled.
+    ASSERT_TRUE(engine
+                    ->eval("if (typeof document.getElementById !== 'function')"
+                           "  throw new Error('document bindings missing');"
+                           "if (typeof window.setTimeout !== 'function' || typeof setTimeout !== 'function')"
+                           "  throw new Error('window bindings missing');"
+                           "if (document.getElementById('x').getAttribute('id') !== 'x')"
+                           "  throw new Error('node access broken after context swap');",
+                           "inline")
+                    .ok);
+}
+
+// The acceptance case for T-JS-GLOBAL-ISOLATION-1 (story 9.0.2): two documents in
+// the same tab share an engine, and page A must not be able to reach page B —
+// neither through a plain global, nor by monkey-patching a binding it inherited.
+TEST(ScriptEngineTest, NavigationGivesTheNextDocumentAFreshGlobal) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto el = Hummingbird::DOM::Element::create(arena, "span");
+    el->set_attribute("id", "x");
+    root->append_child(std::move(el));
+
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    // Page A leaves behind a global, a global function, and a clobbered binding.
+    ASSERT_TRUE(engine
+                    ->eval("globalThis.marker = 'page-a';"
+                           "function pageAHelper() { return 'a'; }"
+                           "document.getElementById = function() { return null; };",
+                           "inline")
+                    .ok);
+
+    engine->reset_bindings();  // navigation
+
+    // Page B sees none of it, and gets a working document binding back.
+    auto page_b = engine->eval(
+        "if (globalThis.marker !== undefined) throw new Error('marker leaked: ' + globalThis.marker);"
+        "if (typeof pageAHelper !== 'undefined') throw new Error('function declaration leaked');"
+        "var found = document.getElementById('x');"
+        "if (!found || found.getAttribute('id') !== 'x') throw new Error('clobbered binding leaked');",
+        "inline");
+    EXPECT_TRUE(page_b.ok) << page_b.error;
 }
 
 TEST(ScriptEngineTest, WrapperIdentityIsStablePerNode) {
@@ -604,7 +649,13 @@ TEST(ScriptEngineTest, WrapperIdentityIsStablePerNode) {
     EXPECT_TRUE(result.ok) << result.error;
 }
 
-TEST(ScriptEngineTest, ResetBindingsNeutralizesStaleWrappers) {
+// Navigation drops the wrapper cache and rebuilds it against the new context.
+// Since 9.0.2 replaced the JS global too, a wrapper stashed by the previous page
+// is no longer reachable from script at all — the opaque-handle neutralization
+// in release_document_state() stays as defense in depth, but the property a page
+// can actually observe is that the next document gets fresh, working wrappers
+// over the same nodes.
+TEST(ScriptEngineTest, ResetBindingsRebuildsWrappersForTheNextDocument) {
     Hummingbird::Core::ArenaAllocator arena(4096, 4);
     auto root = Hummingbird::DOM::Element::create(arena, "div");
     auto child = Hummingbird::DOM::Element::create(arena, "span");
@@ -622,12 +673,14 @@ TEST(ScriptEngineTest, ResetBindingsNeutralizesStaleWrappers) {
     ASSERT_TRUE(engine->eval("globalThis.saved = document.getElementById('x');", "inline").ok);
     engine->reset_bindings();
 
-    // The stale wrapper must not dereference the (now invalid) node: its opaque
-    // handle was cleared, so accessors read as null rather than crashing.
     auto result = engine->eval(
-        "var t = (globalThis.saved.parentNode === null) && (globalThis.saved.nodeType === 0);"
-        "if (!t) throw new Error('stale wrapper not neutralized');"
-        "t;",
+        "if (globalThis.saved !== undefined) throw new Error('stale wrapper still reachable');"
+        "var fresh = document.getElementById('x');"
+        "if (fresh.nodeType !== 1 || fresh.parentNode === null)"
+        "  throw new Error('rebuilt wrapper is not live');"
+        "if (fresh !== document.getElementById('x'))"
+        "  throw new Error('wrapper identity not re-established');"
+        "true;",
         "inline");
     EXPECT_TRUE(result.ok) << result.error;
 }
