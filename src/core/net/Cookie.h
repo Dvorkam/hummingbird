@@ -27,11 +27,9 @@ struct Cookie {
     // date, and 8.1.4 must not persist it.
     std::optional<CookieTime> expires;
     CookieTime created{};
-    // RFC 6265 §5.3's last-access-time, used only to pick an eviction victim
-    // (story 9.0.3.2). Deliberately NOT persisted: adding a field would bump the
-    // jar's file format and discard every existing session for the sake of an
-    // eviction tiebreak. load_from seeds it from `created`, so LRU order is
-    // exact within a run and degrades to creation order across a restart.
+    // RFC 6265 §5.3's last-access-time: which cookie eviction sacrifices when a
+    // storage cap is hit (story 9.0.3.2). Persisted alongside `created`, so LRU
+    // order survives a restart rather than silently degrading to creation order.
     CookieTime last_access{};
     // Set when the Set-Cookie carried no Domain attribute: the cookie then goes
     // back only to the exact host that set it, never to a subdomain.

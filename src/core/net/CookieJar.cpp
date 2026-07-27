@@ -226,9 +226,16 @@ size_t CookieJar::purge_expired(CookieTime now) {
 // --- persistence (story 8.1.4) ----------------------------------------------
 
 namespace {
-// A version tag so a future format change can be detected rather than
-// misparsed. Bump it and the old file is discarded as unreadable.
-constexpr std::string_view kFileHeader = "HBCOOKIES\t1";
+// A version tag so a format change is detected rather than misparsed. Bumping
+// it discards the old file: pre-alpha, the correct format wins over preserving
+// saved sessions, and the CHANGELOG says so.
+//
+// v2 (story 9.0.3.2) added the last-access column. Without it, LRU eviction
+// silently degraded to creation order after every restart — the jar would
+// sacrifice a cookie you use constantly in favor of one you never touch.
+constexpr std::string_view kFileHeader = "HBCOOKIES\t2";
+// Columns per record. Bump alongside kFileHeader whenever this changes.
+constexpr size_t kFieldCount = 11;
 
 long long to_epoch_seconds(CookieTime time) {
     return std::chrono::duration_cast<std::chrono::seconds>(time.time_since_epoch()).count();
@@ -297,7 +304,7 @@ size_t CookieJar::save_to(const std::filesystem::path& path, CookieTime now) con
         file << cookie.name << '\t' << cookie.value << '\t' << cookie.domain << '\t' << cookie.path << '\t'
              << to_epoch_seconds(*cookie.expires) << '\t' << to_epoch_seconds(cookie.created) << '\t'
              << (cookie.host_only ? 1 : 0) << '\t' << (cookie.secure ? 1 : 0) << '\t' << (cookie.http_only ? 1 : 0)
-             << '\t' << static_cast<int>(cookie.same_site) << '\n';
+             << '\t' << static_cast<int>(cookie.same_site) << '\t' << to_epoch_seconds(cookie.last_access) << '\n';
         ++written;
     }
     return written;
@@ -327,14 +334,16 @@ size_t CookieJar::load_from(const std::filesystem::path& path, CookieTime now) {
         if (line.empty()) continue;
 
         const auto parts = split_tabs(line);
-        if (parts.size() != 10) {
+        if (parts.size() != kFieldCount) {
             ++skipped;
             continue;
         }
         const auto expires = Utils::parse_long(parts[4], Utils::NumberParseMode::Strict);
         const auto created = Utils::parse_long(parts[5], Utils::NumberParseMode::Strict);
         const auto same_site = Utils::parse_long(parts[9], Utils::NumberParseMode::Strict);
-        if (parts[0].empty() || !expires || !created || !same_site || *same_site < 0 || *same_site > 2) {
+        const auto last_access = Utils::parse_long(parts[10], Utils::NumberParseMode::Strict);
+        if (parts[0].empty() || !expires || !created || !same_site || !last_access || *same_site < 0 ||
+            *same_site > 2) {
             ++skipped;
             continue;
         }
@@ -354,9 +363,7 @@ size_t CookieJar::load_from(const std::filesystem::path& path, CookieTime now) {
         // Purge on load: a cookie that expired while the browser was closed must
         // not come back to life.
         if (cookie.is_expired(now)) continue;
-        // last_access is not persisted (see Cookie.h): seed it from creation
-        // time so eviction order is defined on the first request after a start.
-        cookie.last_access = cookie.created;
+        cookie.last_access = from_epoch_seconds(*last_access);
         cookies_.push_back(std::move(cookie));
         ++loaded;
     }

@@ -617,6 +617,52 @@ TEST(CookieJarPersistenceTest, PersistentCookiesSurviveARestartExactly) {
     EXPECT_EQ(restored.cookie_header_for("https://example.dev/app/page", now()), "session=abc");
 }
 
+// Eviction order is only correct if last-access survives a restart. Without the
+// persisted column this degraded to creation order, so the jar would sacrifice
+// the cookie you use constantly and keep one you have never touched.
+TEST(CookieJarPersistenceTest, LastAccessOrderSurvivesARestart) {
+    TempCookieFile file("lastaccess");
+    {
+        CookieJar jar;
+        ASSERT_TRUE(jar.store_from_header("https://example.dev/", "old_but_used=1; Max-Age=86400", now()));
+        ASSERT_TRUE(
+            jar.store_from_header("https://example.dev/", "new_but_idle=1; Path=/idle; Max-Age=86400", later(10)));
+        // A request for "/" touches only the first — the second's path does not
+        // match — so the OLDER cookie is the more recently used one.
+        ASSERT_EQ(jar.cookies_for("https://example.dev/", later(500)).size(), 1u);
+        ASSERT_EQ(jar.save_to(file.path(), later(500)), 2u);
+    }
+
+    CookieJar restored;
+    ASSERT_EQ(restored.load_from(file.path(), later(600)), 2u);
+    const Cookie* used = nullptr;
+    const Cookie* idle = nullptr;
+    for (const auto& cookie : restored.entries()) {
+        if (cookie.name == "old_but_used") used = &cookie;
+        if (cookie.name == "new_but_idle") idle = &cookie;
+    }
+    ASSERT_NE(used, nullptr);
+    ASSERT_NE(idle, nullptr);
+    EXPECT_EQ(used->last_access, later(500));  // the read, not the write
+    EXPECT_EQ(idle->last_access, later(10));   // never read
+    // The relation that matters: created order and last-access order disagree,
+    // and it is last-access that eviction will follow.
+    EXPECT_LT(used->created, idle->created);
+    EXPECT_GT(used->last_access, idle->last_access);
+}
+
+// The format version is a hard gate, not a merge: a v1 file (no last-access
+// column) is discarded rather than half-read. Pre-alpha, losing saved cookies
+// once beats carrying a format that cannot express eviction order.
+TEST(CookieJarPersistenceTest, AnOlderFormatFileIsDiscarded) {
+    TempCookieFile file("oldformat");
+    file.write("HBCOOKIES\t1\nsession\tabc\texample.dev\t/\t9999999999\t1000\t1\t0\t0\t1\n");
+
+    CookieJar jar;
+    EXPECT_EQ(jar.load_from(file.path(), now()), 0u);
+    EXPECT_TRUE(jar.empty());
+}
+
 TEST(CookieJarPersistenceTest, SessionCookiesAreNeverWritten) {
     // "Dies with the process" is their definition; persisting one would
     // silently promote it to a persistent cookie.

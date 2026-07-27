@@ -574,9 +574,12 @@ P0: Foundations (must precede fetch)
       file on disk is as untrusted as the network that filled it. LRU needed a
       last-access time, so `cookies_for`/`cookie_header_for`/`script_visible_cookies`
       are **no longer const** — per §5.3, retrieval is what makes a cookie recently
-      used. `Cookie::last_access` is runtime-only and seeded from `created` on
-      load: persisting it would bump the jar's file format and discard every
-      existing session for the sake of an eviction tiebreak. Tests:
+      used. `Cookie::last_access` **is persisted**: the jar file format went to
+      `HBCOOKIES 2` and a v1 file is discarded rather than migrated, logging the
+      user out once. That was first implemented the other way — runtime-only, to
+      avoid the breaking change — and revisited at the user's direction: pre-alpha,
+      the correct format wins over preserving a saved session, and the loss is
+      called out in the CHANGELOG. Tests:
       `CookieLimitsTest.*` — the LRU case deliberately evicts the **newest** cookie
       by creation time, the only one no request had touched, so it cannot pass
       under a FIFO implementation.)*
