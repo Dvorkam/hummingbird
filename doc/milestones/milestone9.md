@@ -563,8 +563,29 @@ P0: Foundations (must precede fetch)
       IS `co.uk`, and then only as host-only. Tests:
       `tests/core/PublicSuffix.test.cpp` (8 cases incl. wildcard/exception rules
       and case handling) + `CookieMatchTest.SameSiteUsesTheRegistrableDomain` +
-      `CookieParseTest.DomainAttributeCannotBeAPublicSuffix`. Follow-up for the
-      real list: `T-COOKIE-PUBLIC-SUFFIX-FULL-LIST-1`.)*
+      `CookieParseTest.DomainAttributeCannotBeAPublicSuffix`.
+      **Superseded the same day** — see below.)*
+- [x] 9.0.3.1b: Full public suffix list, CI-maintained *(the curated table was
+      replaced with the real publicsuffix.org list, 10,239 rules → 10,409 entries.
+      Reason: a missing multi-label registry fails **open** — `a.com.pe` and
+      `b.com.pe` would have been judged one site — and 9.2.1 CORS is about to lean
+      on `is_same_site`. Bundled at build time, never fetched at runtime (a
+      browser that must reach the network before it can evaluate cookie policy has
+      a bootstrap problem, and a security input fetched over the network has an
+      author you did not choose). Pinned to an upstream **commit**, recorded in the
+      generated header as the single source of truth; no timestamp, so
+      regeneration is byte-reproducible. `scripts/update_public_suffix_list.ps1`
+      generates data + vendors the list's own conformance vectors from the same
+      commit. Lookup is now O(labels): each candidate suffix is binary-searched in
+      a sorted table. **IDN gap found and closed by the upstream vectors:** the
+      engine has no IDNA layer, so a Unicode hostname reaches the cookie code as
+      written; each internationalized rule is therefore emitted twice, punycode
+      and Unicode, or those hosts would fall through to the permissive default.
+      CI: a daily job opens a refresh **PR** (never auto-merges — upstream is
+      community-submitted, so a human reviews a security boundary), a per-PR check
+      that the generated file matches its source, and a **release gate** that
+      fails a tag build while the bundle is behind upstream. Tests: all 78 upstream
+      vectors pass, plus `InternationalizedHostsMatchInEitherForm`.)*
 - [x] 9.0.3.2: Cookie Jar Limits *(`CookieJar::kMaxCookieBytes`/`kMaxPerDomain`/
       `kMaxTotal` = 4096/50/3000. An oversized cookie is refused rather than
       stored — including a replacement, so a cookie cannot grow past the cap by

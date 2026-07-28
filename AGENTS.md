@@ -17,6 +17,13 @@ rules; keep this file thin — detailed rules live in the linked docs.
 - `doc/tech_debt_game_plan.md` — tracked refactoring seams. When touching a file
   listed there, prefer the planned decomposition over ad-hoc changes.
 
+## Generated files
+
+`src/core/net/PublicSuffixData.h` and `tests/fixtures/public_suffix_tests.txt` are
+generated/vendored by `scripts/update_public_suffix_list.ps1`. **Never edit them
+by hand** — CI verifies they match their pinned upstream commit, and the daily
+refresh job would revert the edit anyway. Change the script instead.
+
 ## Workflow rules
 
 - If the current story conflicts with `doc/milestones/roadmap.md`, point it out and

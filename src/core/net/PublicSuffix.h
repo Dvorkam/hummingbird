@@ -9,16 +9,21 @@ namespace Hummingbird::Core {
 // set a cookie for `co.uk` and read it on `b.co.uk`, and M9's CORS credentials
 // decisions lean on the same notion of site.
 //
-// SCOPE: this is a *curated* multi-label suffix list, not the full ICANN public
-// suffix list (decision recorded in doc/milestones/milestone9.md, story
-// 9.0.3.1). Every single-label TLD is a public suffix implicitly, via the PSL's
-// default `*` rule, so the table only carries the multi-label registries and
-// hosting suffixes that real browsing hits. It follows the PSL matching
-// algorithm exactly — longest match wins, `*` matches one label, `!` is an
-// exception — so swapping in the full list later is a data change, not a code
-// change. Hosts under an unlisted multi-label registry fall back to "the last
-// label is the suffix", which is the pre-9.0.3.1 behavior for exactly those
-// hosts and no others. See T-COOKIE-PUBLIC-SUFFIX-FULL-LIST-1.
+// The rules are the full publicsuffix.org list (ICANN + PRIVATE), generated into
+// `PublicSuffixData.h` and BUNDLED at build time — never fetched at runtime. A
+// browser that must reach the network before it can evaluate cookie policy has
+// a bootstrap problem on its first offline start, and fetching a security input
+// over the network makes whoever can intercept it an author of your cookie
+// boundaries. Chrome and Firefox bundle it for the same reasons.
+//
+// The list is pinned to an upstream commit and refreshed by CI (a daily job
+// opens a PR; a release cannot be tagged while the bundle is behind upstream).
+// See `scripts/update_public_suffix_list.ps1`.
+//
+// Matching follows the published algorithm: an exception rule beats everything,
+// then longest match wins, then the implicit `*` default rule makes the last
+// label the suffix. Lookup is O(labels), not O(rules) — each candidate suffix is
+// binary-searched in a sorted table.
 
 // The public suffix of `host`, as a view into `host` — "co.uk" for
 // "www.example.co.uk", "com" for "example.com". Empty for an IP literal or an

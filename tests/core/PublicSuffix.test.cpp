@@ -1,6 +1,12 @@
 #include <gtest/gtest.h>
 
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+
 #include "core/net/PublicSuffix.h"
+#include "core/net/PublicSuffixData.h"
 
 namespace {
 using Hummingbird::Core::is_public_suffix;
@@ -85,4 +91,96 @@ TEST(PublicSuffixTest, MatchingIsCaseInsensitiveAndPreservesInputCase) {
     EXPECT_EQ(public_suffix("WWW.Example.CO.UK"), "CO.UK");
     EXPECT_EQ(registrable_domain("WWW.Example.CO.UK"), "Example.CO.UK");
     EXPECT_TRUE(is_public_suffix("CO.UK"));
+}
+
+// The engine has no IDNA layer, so a hostname typed in a non-Latin script
+// reaches this code as UTF-8, not punycode. Both forms of an internationalized
+// rule are bundled: matching only punycode would fall back to "the last label is
+// the suffix" for those hosts, which is the too-permissive direction.
+TEST(PublicSuffixTest, InternationalizedHostsMatchInEitherForm) {
+    // 公司.cn is a registry in both encodings.
+    EXPECT_TRUE(is_public_suffix("\xe5\x85\xac\xe5\x8f\xb8.cn"));
+    EXPECT_TRUE(is_public_suffix("xn--55qx5d.cn"));
+
+    // ...so two sites under it are not one site, whichever form they arrive in.
+    EXPECT_EQ(registrable_domain("shishi.\xe5\x85\xac\xe5\x8f\xb8.cn"), "shishi.\xe5\x85\xac\xe5\x8f\xb8.cn");
+    EXPECT_EQ(registrable_domain("www.shishi.xn--55qx5d.cn"), "shishi.xn--55qx5d.cn");
+    EXPECT_NE(registrable_domain("a.\xe5\x85\xac\xe5\x8f\xb8.cn"), registrable_domain("b.\xe5\x85\xac\xe5\x8f\xb8.cn"));
+
+    // A cookie may not be scoped to the registry itself.
+    EXPECT_EQ(registrable_domain("\xe5\x85\xac\xe5\x8f\xb8.cn"), "");
+}
+
+// --- the list's own conformance vectors --------------------------------------
+
+namespace {
+struct SuffixVector {
+    int line = 0;
+    std::string host;
+    std::string expected;  // empty means the vectors' "null"
+};
+
+// publicsuffix.org ships its own test file: one `host expected` pair per line,
+// `null` for "no registrable domain", `//` comments. Vendored verbatim at the
+// same upstream commit as the rule data, so the two cannot drift apart.
+std::vector<SuffixVector> load_vectors() {
+    std::ifstream file(std::string(HB_TEST_FIXTURE_DIR) + "/public_suffix_tests.txt", std::ios::binary);
+    std::vector<SuffixVector> vectors;
+    std::string line;
+    int number = 0;
+    while (std::getline(file, line)) {
+        ++number;
+        if (!line.empty() && line.back() == '\r') line.pop_back();
+        if (line.empty() || line.rfind("//", 0) == 0) continue;
+        std::istringstream fields(line);
+        std::string host;
+        std::string expected;
+        if (!(fields >> host >> expected)) continue;
+        // The vectors spell a null input as the literal word `null`.
+        if (host == "null") host.clear();
+        if (expected == "null") expected.clear();
+        vectors.push_back({number, host, expected});
+    }
+    return vectors;
+}
+}  // namespace
+
+TEST(PublicSuffixTest, MatchesTheUpstreamConformanceVectors) {
+    const auto vectors = load_vectors();
+    // A silently empty fixture would turn this into a test that always passes.
+    ASSERT_GT(vectors.size(), 70u) << "public_suffix_tests.txt missing or truncated";
+
+    // The vectors assume an API that canonicalizes its output to lowercase.
+    // Ours returns a view INTO the caller's host, which cannot be lowercased
+    // without allocating, and every caller compares case-insensitively anyway
+    // (see MatchingIsCaseInsensitiveAndPreservesInputCase). Folding case here
+    // compares the thing the vectors actually pin down: which labels form the
+    // registrable domain.
+    const auto fold = [](std::string text) {
+        for (char& c : text) {
+            if (c >= 'A' && c <= 'Z') c = static_cast<char>(c - 'A' + 'a');
+        }
+        return text;
+    };
+
+    size_t failures = 0;
+    for (const auto& vector : vectors) {
+        const std::string actual = fold(std::string(registrable_domain(vector.host)));
+        if (actual != fold(vector.expected)) {
+            ++failures;
+            ADD_FAILURE() << "line " << vector.line << ": registrable_domain(\"" << vector.host << "\") == \"" << actual
+                          << "\", expected \"" << vector.expected << "\"";
+        }
+    }
+    EXPECT_EQ(failures, 0u) << failures << " of " << vectors.size() << " upstream vectors failed";
+}
+
+// The rule tables and the vectors are vendored from one upstream commit. If a
+// refresh updates one and not the other, the pairing is broken even when both
+// files are individually valid.
+TEST(PublicSuffixTest, VendoredDataRecordsItsUpstreamCommit) {
+    EXPECT_EQ(Hummingbird::Core::PublicSuffixData::kUpstreamCommit.size(), 40u);
+    EXPECT_GT(Hummingbird::Core::PublicSuffixData::kExactRules.size(), 5000u);
+    EXPECT_FALSE(Hummingbird::Core::PublicSuffixData::kWildcardParents.empty());
+    EXPECT_FALSE(Hummingbird::Core::PublicSuffixData::kExceptionRules.empty());
 }

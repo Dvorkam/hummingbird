@@ -13,9 +13,40 @@ env:
   VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg/bincache,readwrite
 
 jobs:
+  # A release and the public suffix list must be aligned: these rules decide
+  # which hosts count as one site for cookie scoping, SameSite and CORS
+  # credentials, so shipping a stale bundle ships a stale security boundary.
+  # Runs first and blocks both platform builds, so a stale bundle fails in
+  # seconds instead of after a full build.
+  #
+  # If this fails: merge the pending "refresh the bundled public suffix list" PR
+  # (the daily job opens one), then re-tag. This does mean a release can be
+  # blocked by an upstream change landing shortly before you tag, and that
+  # releasing needs publicsuffix.org to be reachable -- both accepted, because
+  # "aligned" has to mean aligned to be worth checking.
+  public_suffix_gate:
+    runs-on: ubuntu-latest
+    name: Public suffix list is current
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bundled data really is generated from its recorded commit
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/update_public_suffix_list.ps1 -Check
+
+      - name: Recorded commit is upstream HEAD
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/update_public_suffix_list.ps1 -CheckUpstream
+
   windows_zip:
     runs-on: windows-latest
     name: Windows (portable zip)
+    needs: public_suffix_gate
 
     steps:
       - uses: actions/checkout@v4
@@ -130,6 +161,7 @@ jobs:
   linux_appimage:
     runs-on: ubuntu-latest
     name: Linux (AppImage)
+    needs: public_suffix_gate
 
     steps:
       - uses: actions/checkout@v4

@@ -23,8 +23,12 @@ All notable changes to this project will be documented in this file.
 - **Public suffix awareness**: cookie scoping and same-site decisions now use the
   registrable domain rather than a host's last two labels, so `a.co.uk` and
   `b.co.uk` are correctly treated as different sites and a page can no longer set
-  a cookie for a whole registry such as `co.uk`. Backed by a curated suffix list;
-  hosts under a multi-label registry not yet on that list keep the old behaviour.
+  a cookie for a whole registry such as `co.uk`. Backed by the full
+  [publicsuffix.org](https://publicsuffix.org) list, bundled at build time (never
+  fetched at runtime) and kept current by CI: a daily job proposes a refresh, and
+  a release cannot be published while the bundled list is behind upstream.
+  Internationalized hostnames are matched in both their Unicode and punycode
+  forms.
 - **Cookie charset validation** (RFC 6265 §4.1.1): cookie names must be tokens, and
   control characters are rejected in values and attributes, closing a
   header-injection shape.

@@ -2,132 +2,13 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 
-#include "core/utils/StringUtils.h"
+#include "core/net/PublicSuffixData.h"
 
 namespace Hummingbird::Core {
 
 namespace {
-
-// Curated public suffix rules, in publicsuffix.org syntax so the table can be
-// diffed against the real list. Single-label TLDs are NOT listed: the PSL's
-// implicit `*` default rule already makes every one of them a public suffix.
-//
-// Selection rule for what earns a line here: a multi-label registry a user of
-// this browser plausibly visits, or a hosting suffix under which two unrelated
-// sites get subdomains (where cookie scoping is the whole point). Everything
-// else waits for the full list.
-constexpr std::array kRules{
-    // -- ICANN: multi-label country registries -------------------------------
-    std::string_view{"co.uk"},
-    std::string_view{"org.uk"},
-    std::string_view{"me.uk"},
-    std::string_view{"ac.uk"},
-    std::string_view{"gov.uk"},
-    std::string_view{"net.uk"},
-    std::string_view{"nhs.uk"},
-    std::string_view{"*.sch.uk"},
-
-    std::string_view{"com.au"},
-    std::string_view{"net.au"},
-    std::string_view{"org.au"},
-    std::string_view{"edu.au"},
-    std::string_view{"gov.au"},
-    std::string_view{"id.au"},
-
-    std::string_view{"co.nz"},
-    std::string_view{"net.nz"},
-    std::string_view{"org.nz"},
-    std::string_view{"govt.nz"},
-    std::string_view{"ac.nz"},
-
-    std::string_view{"co.jp"},
-    std::string_view{"or.jp"},
-    std::string_view{"ne.jp"},
-    std::string_view{"ac.jp"},
-    std::string_view{"go.jp"},
-
-    std::string_view{"com.br"},
-    std::string_view{"net.br"},
-    std::string_view{"org.br"},
-    std::string_view{"gov.br"},
-    std::string_view{"edu.br"},
-
-    std::string_view{"co.in"},
-    std::string_view{"net.in"},
-    std::string_view{"org.in"},
-    std::string_view{"ac.in"},
-    std::string_view{"gov.in"},
-
-    std::string_view{"co.za"},
-    std::string_view{"org.za"},
-    std::string_view{"net.za"},
-    std::string_view{"ac.za"},
-    std::string_view{"gov.za"},
-
-    std::string_view{"com.cn"},
-    std::string_view{"net.cn"},
-    std::string_view{"org.cn"},
-    std::string_view{"gov.cn"},
-    std::string_view{"edu.cn"},
-
-    std::string_view{"co.kr"},
-    std::string_view{"or.kr"},
-    std::string_view{"ne.kr"},
-    std::string_view{"go.kr"},
-    std::string_view{"ac.kr"},
-
-    std::string_view{"co.il"},
-    std::string_view{"org.il"},
-    std::string_view{"ac.il"},
-    std::string_view{"gov.il"},
-
-    std::string_view{"com.tr"},
-    std::string_view{"net.tr"},
-    std::string_view{"org.tr"},
-    std::string_view{"gov.tr"},
-    std::string_view{"edu.tr"},
-
-    std::string_view{"com.mx"},
-    std::string_view{"org.mx"},
-    std::string_view{"gob.mx"},
-
-    std::string_view{"com.sg"},
-    std::string_view{"com.hk"},
-    std::string_view{"com.tw"},
-    std::string_view{"com.ar"},
-    std::string_view{"com.pl"},
-    std::string_view{"com.ua"},
-    std::string_view{"com.my"},
-    std::string_view{"com.co"},
-
-    // -- ICANN: wildcard registries and their exceptions ---------------------
-    // These exist to prove the format works end to end; the full list has more.
-    std::string_view{"*.ck"},
-    std::string_view{"!www.ck"},
-    std::string_view{"*.jm"},
-    std::string_view{"*.kw"},
-
-    // -- PRIVATE: hosting suffixes -------------------------------------------
-    // Unrelated sites get subdomains here, so treating the parent as registrable
-    // would let one project's cookies reach another's.
-    std::string_view{"github.io"},
-    std::string_view{"gitlab.io"},
-    std::string_view{"pages.dev"},
-    std::string_view{"workers.dev"},
-    std::string_view{"netlify.app"},
-    std::string_view{"vercel.app"},
-    std::string_view{"herokuapp.com"},
-    std::string_view{"appspot.com"},
-    std::string_view{"web.app"},
-    std::string_view{"firebaseapp.com"},
-    std::string_view{"blogspot.com"},
-    std::string_view{"azurewebsites.net"},
-    std::string_view{"cloudfront.net"},
-    std::string_view{"s3.amazonaws.com"},
-    std::string_view{"glitch.me"},
-    std::string_view{"wordpress.com"},
-};
 
 bool is_digit(char c) {
     return c >= '0' && c <= '9';
@@ -142,52 +23,67 @@ bool is_ip_literal(std::string_view host) {
            std::any_of(host.begin(), host.end(), is_digit);
 }
 
-// Offsets at which each label of `host` starts, left to right. `count` labels.
+char to_lower_ascii(char c) {
+    return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+}
+
+// Three-way, ASCII-case-insensitive. Every generated rule is already lowercase,
+// so folding both sides preserves the byte order the table is sorted in — which
+// is what makes the binary search below valid.
+int compare_ci(std::string_view a, std::string_view b) {
+    const size_t shared = std::min(a.size(), b.size());
+    for (size_t i = 0; i < shared; ++i) {
+        const auto ca = static_cast<unsigned char>(to_lower_ascii(a[i]));
+        const auto cb = static_cast<unsigned char>(to_lower_ascii(b[i]));
+        if (ca != cb) return ca < cb ? -1 : 1;
+    }
+    if (a.size() == b.size()) return 0;
+    return a.size() < b.size() ? -1 : 1;
+}
+
+template <size_t N>
+bool contains(const std::array<std::string_view, N>& sorted, std::string_view needle) {
+    if (needle.empty()) return false;
+    const auto it =
+        std::lower_bound(sorted.begin(), sorted.end(), needle,
+                         [](std::string_view stored, std::string_view key) { return compare_ci(stored, key) < 0; });
+    return it != sorted.end() && compare_ci(*it, needle) == 0;
+}
+
+// Offsets at which each label of `host` starts, left to right.
 struct Labels {
-    static constexpr size_t kMax = 16;
+    // DNS itself allows at most 127 labels, so a host past this is malformed
+    // rather than merely deep.
+    static constexpr size_t kMax = 128;
     std::array<size_t, kMax> start{};
     size_t count = 0;
 
-    std::string_view label(std::string_view host, size_t index) const {
-        const size_t from = start[index];
-        const size_t to = (index + 1 < count) ? start[index + 1] - 1 : host.size();
-        return host.substr(from, to - from);
-    }
     // The view covering the last `n` labels of `host`.
     std::string_view tail(std::string_view host, size_t n) const {
         if (n == 0 || n > count) return {};
         return host.substr(start[count - n]);
     }
+    // `tail(host, n)` with its first label removed.
+    std::string_view tail_parent(std::string_view host, size_t n) const {
+        return n >= 2 ? tail(host, n - 1) : std::string_view{};
+    }
 };
 
-// Splits on '.', stopping at kMax labels. A host deeper than that is not
-// something the suffix table can classify, and the caller treats a zero count as
-// "no suffix" rather than guessing.
+// Splits on '.'. A leading dot, a trailing dot, an empty label, or more labels
+// than DNS permits all yield a zero count, which every caller treats as "no
+// suffix" rather than guessing.
 Labels split_labels(std::string_view host) {
     Labels out;
     if (host.empty() || host.front() == '.' || host.back() == '.') return out;
     out.start[out.count++] = 0;
     for (size_t i = 0; i < host.size(); ++i) {
         if (host[i] != '.') continue;
+        if (i + 1 >= host.size()) return Labels{};
+        if (host[i + 1] == '.') return Labels{};  // empty label
         if (out.count >= Labels::kMax) return Labels{};
-        if (i + 1 >= host.size()) return Labels{};  // trailing dot
         out.start[out.count++] = i + 1;
     }
     return out;
-}
-
-// Number of labels in a rule body, and whether its trailing labels match those
-// of `host`. Returns 0 when it does not match.
-size_t rule_match_length(std::string_view rule_body, std::string_view host, const Labels& labels) {
-    const Labels rule_labels = split_labels(rule_body);
-    if (rule_labels.count == 0 || rule_labels.count > labels.count) return 0;
-    const size_t offset = labels.count - rule_labels.count;
-    for (size_t i = 0; i < rule_labels.count; ++i) {
-        const std::string_view expected = rule_labels.label(rule_body, i);
-        if (expected == "*") continue;  // a wildcard matches exactly one label
-        if (!Utils::equals_ignore_case(expected, labels.label(host, offset + i))) return 0;
-    }
-    return rule_labels.count;
 }
 
 }  // namespace
@@ -197,23 +93,32 @@ std::string_view public_suffix(std::string_view host) {
     const Labels labels = split_labels(host);
     if (labels.count == 0) return {};
 
-    size_t best = 0;
-    for (std::string_view rule : kRules) {
-        const bool exception = !rule.empty() && rule.front() == '!';
-        const std::string_view body = exception ? rule.substr(1) : rule;
-        const size_t matched = rule_match_length(body, host, labels);
-        if (matched == 0) continue;
-        if (exception) {
-            // An exception rule wins outright, and its suffix is the rule minus
-            // its own leftmost label: `!www.ck` makes `ck` the suffix of
-            // `www.ck`, so `www.ck` itself is registrable.
-            return labels.tail(host, matched - 1);
+    // publicsuffix.org's algorithm, in its stated order of precedence.
+    //
+    // Pass 1: an exception rule beats every other match regardless of length,
+    // so it has to be looked for across all candidate suffixes before the
+    // longest-match pass — not merely preferred at the level where it appears.
+    // Its public suffix is the rule minus its own leftmost label: `!www.ck`
+    // makes `ck` the suffix of `www.ck`, so `www.ck` itself is registrable.
+    for (size_t n = labels.count; n >= 1; --n) {
+        if (contains(PublicSuffixData::kExceptionRules, labels.tail(host, n))) {
+            return labels.tail_parent(host, n);
         }
-        best = std::max(best, matched);
     }
-    // No rule matched: the PSL's implicit `*` default rule makes the TLD the
-    // public suffix, which is right for every single-label registry.
-    return labels.tail(host, best > 0 ? best : 1);
+
+    // Pass 2: longest match wins, so walk from the whole host downwards and stop
+    // at the first hit. A wildcard rule is stored as its parent, so `*.ck`
+    // matches `example.ck` when everything after the first label — `ck` — is in
+    // the wildcard table.
+    for (size_t n = labels.count; n >= 1; --n) {
+        const std::string_view candidate = labels.tail(host, n);
+        if (contains(PublicSuffixData::kExactRules, candidate)) return candidate;
+        if (contains(PublicSuffixData::kWildcardParents, labels.tail_parent(host, n))) return candidate;
+    }
+
+    // No rule matched: the list's implicit `*` default rule makes the last label
+    // the public suffix. With the full list bundled this means an unknown TLD.
+    return labels.tail(host, 1);
 }
 
 bool is_public_suffix(std::string_view host) {
