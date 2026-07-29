@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -37,6 +38,8 @@ public:
     bool run_animation_frames(double now_ms) override;
     bool has_pending_animation_frames() const override { return !animation_frames_.empty(); }
     std::vector<std::string> missing_apis() const override { return missing_apis_; }
+    bool settle_fetch(const ScriptFetchResponse& response) override;
+    size_t pending_fetch_count() const override { return pending_fetches_.size(); }
 
 private:
     static QuickJSScriptEngine* engine_from_context(JSContext* ctx);
@@ -144,6 +147,18 @@ private:
 
     static JSValue js_native_insert_css(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    // fetch (9.1.1): starts the request through the host and returns a Promise
+    // that settle_fetch resolves later. The `fetch` a page sees is the prelude
+    // wrapper around this, which shapes the raw payload into a Response.
+    static JSValue js_native_fetch(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    // Builds the plain object the promise resolves with: status, url, headers,
+    // and the buffered body. Response/Headers ergonomics live in the prelude,
+    // so the binding stays a data hand-off.
+    JSValue make_fetch_payload(const ScriptFetchResponse& response);
+    // Rejects every in-flight fetch and forgets it. Called on teardown, so a
+    // request outstanding across a navigation cannot settle into a dead page.
+    void reject_pending_fetches();
+
     // Timers (7.3.1): window.setTimeout/setInterval/clearTimeout/clearInterval.
     // clearTimeout and clearInterval share one trampoline (both just cancel by id).
     static JSValue js_set_timeout(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
@@ -182,6 +197,8 @@ private:
     // (fetch, XMLHttpRequest, localStorage, ...) so a page that touches one logs
     // once via js_report_missing_api and no-ops instead of throwing (7.5.2).
     void install_failsoft_stubs();
+    // The JS half of fetch (9.1.1): Response/Headers over the native binding.
+    void install_fetch_prelude();
     // Records a deduped missing-API name (first-touch order) and logs it once.
     void record_missing_api(std::string name);
 
@@ -325,6 +342,16 @@ private:
     // in first-touch order. Cleared per document by reset_bindings.
     std::vector<std::string> missing_apis_;
     bool failsoft_ready_ = false;
+
+    // In-flight fetches (9.1.1), keyed by the id the host handed back. Each owns
+    // the promise's resolve/reject functions, so the entry IS the only thing
+    // keeping the continuation alive. Dropped by reset_bindings, which is what
+    // makes "no callbacks fire into a dead page" true rather than hoped for.
+    struct PendingFetch {
+        JSValue resolve = JS_UNDEFINED;
+        JSValue reject = JS_UNDEFINED;
+    };
+    std::unordered_map<std::uint64_t, PendingFetch> pending_fetches_;
 };
 
 }  // namespace Hummingbird::Platform

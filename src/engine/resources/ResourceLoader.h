@@ -19,6 +19,7 @@
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
+#include "core/platform_api/ScriptFetch.h"
 #include "engine/resources/ResourceSecurityPolicy.h"
 #include "engine/resources/ResourceStore.h"
 
@@ -107,6 +108,18 @@ public:
     void request_images(const std::vector<std::string>& links, std::string_view base_url);
     void request_fonts(const std::vector<std::string>& links, std::string_view base_url);
     void request_scripts(const std::vector<std::string>& links, std::string_view base_url);
+
+    // Issues a script-initiated request (story 9.1.1) through the same choke
+    // point as everything else, so it inherits cookies, per-origin identity,
+    // referrer policy, redirect handling and the 9.1.3 deadline. It deliberately
+    // does NOT go through the resource store: a fetch result belongs to the page's
+    // JavaScript, not to the document's resource set, and caching it as a
+    // subresource would let a later navigation serve it as one.
+    //
+    // `callback` runs on whatever thread the transport answers on, so the caller
+    // must marshal to the main thread before touching the script engine.
+    void fetch_for_script(const ScriptFetchRequest& request, std::string_view document_url,
+                          std::function<void(ScriptFetchResponse)> callback);
 
     BatchResult consume_pending_updates();
 

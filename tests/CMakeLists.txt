@@ -24,6 +24,7 @@ add_executable(HummingbirdTests
     engine/RedirectChain.test.cpp
     engine/DocumentCookie.test.cpp
     engine/RequestDeadline.test.cpp
+    engine/Fetch.test.cpp
     engine/LocalStorage.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp

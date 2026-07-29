@@ -88,6 +88,18 @@ public:
     // an API logs once and no-ops rather than throwing, so the rest of the script
     // still runs. Reset per document. Empty by default.
     virtual std::vector<std::string> missing_apis() const { return {}; }
+
+    // fetch (9.1.1). The binding hands JS a Promise and remembers how to settle
+    // it; `settle_fetch` is how the answer gets back in. It MUST be called on the
+    // engine's own thread — the driver queues transport results and drains them
+    // during its ordinary tick — and never after reset_bindings, which drops
+    // every pending request so nothing settles into a torn-down document.
+    // Returns false if the id is unknown (already settled, or cancelled by a
+    // navigation that raced the response). Default: no-op.
+    virtual bool settle_fetch(const ScriptFetchResponse& /*response*/) { return false; }
+    // How many requests are still waiting, so a driver can keep ticking while
+    // any are outstanding. Default: none.
+    virtual size_t pending_fetch_count() const { return 0; }
 };
 
 using ScriptEnginePtr = std::unique_ptr<IScriptEngine>;

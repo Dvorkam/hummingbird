@@ -1126,6 +1126,198 @@ JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /
     return JS_NewBool(ctx, ok ? 1 : 0);
 }
 
+// --- fetch (9.1.1) ---------------------------------------------------------
+
+JSValue QuickJSScriptEngine::js_native_fetch(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    // A promise capability is created up front in every path, so even a rejection
+    // is delivered asynchronously — fetch must never throw synchronously at its
+    // caller for a bad argument or a missing host.
+    JSValue functions[2];
+    JSValue promise = JS_NewPromiseCapability(ctx, functions);
+    if (JS_IsException(promise)) {
+        return promise;
+    }
+    const auto settle_now = [&](bool resolve, JSValue value) {
+        JSValue ret = JS_Call(ctx, functions[resolve ? 0 : 1], JS_UNDEFINED, 1, &value);
+        JS_FreeValue(ctx, ret);
+        JS_FreeValue(ctx, value);
+        JS_FreeValue(ctx, functions[0]);
+        JS_FreeValue(ctx, functions[1]);
+        return promise;
+    };
+    const auto reject_with = [&](const char* message) {
+        JSValue error = JS_NewError(ctx);
+        JS_SetPropertyStr(ctx, error, "message", JS_NewString(ctx, message));
+        return settle_now(/*resolve=*/false, error);
+    };
+
+    if (!engine || !engine->host_) {
+        return reject_with("fetch is unavailable: no network for this document");
+    }
+    if (argc < 1) {
+        return reject_with("fetch requires a URL");
+    }
+
+    ScriptFetchRequest request;
+    if (const char* url = JS_ToCString(ctx, argv[0]); url) {
+        // Relative URLs are resolved by the host: only the engine knows the
+        // document's base.
+        request.url = engine->host_->resolve_url(url);
+        JS_FreeCString(ctx, url);
+    }
+    if (request.url.empty()) {
+        return reject_with("fetch requires a URL");
+    }
+
+    if (argc >= 2 && JS_IsObject(argv[1])) {
+        JSValue method = JS_GetPropertyStr(ctx, argv[1], "method");
+        if (JS_IsString(method)) {
+            if (const char* text = JS_ToCString(ctx, method); text) {
+                request.method = Core::Utils::to_upper(text);
+                JS_FreeCString(ctx, text);
+            }
+        }
+        JS_FreeValue(ctx, method);
+
+        JSValue body = JS_GetPropertyStr(ctx, argv[1], "body");
+        if (!JS_IsUndefined(body) && !JS_IsNull(body)) {
+            if (const char* text = JS_ToCString(ctx, body); text) {
+                request.body = text;
+                request.has_body = true;
+                JS_FreeCString(ctx, text);
+            }
+        }
+        JS_FreeValue(ctx, body);
+
+        // Headers as a plain object; the prelude normalizes a Headers instance
+        // or an array of pairs into one before calling in.
+        JSValue headers = JS_GetPropertyStr(ctx, argv[1], "headers");
+        if (JS_IsObject(headers)) {
+            JSPropertyEnum* props = nullptr;
+            uint32_t count = 0;
+            if (JS_GetOwnPropertyNames(ctx, &props, &count, headers, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == 0) {
+                for (uint32_t i = 0; i < count; ++i) {
+                    JSValue value = JS_GetProperty(ctx, headers, props[i].atom);
+                    const char* name = JS_AtomToCString(ctx, props[i].atom);
+                    const char* text = JS_ToCString(ctx, value);
+                    if (name && text) {
+                        request.headers.set(name, text);
+                    }
+                    if (name) JS_FreeCString(ctx, name);
+                    if (text) JS_FreeCString(ctx, text);
+                    JS_FreeValue(ctx, value);
+                    JS_FreeAtom(ctx, props[i].atom);
+                }
+                js_free(ctx, props);
+            }
+        }
+        JS_FreeValue(ctx, headers);
+    }
+
+    const std::uint64_t id = engine->host_->start_fetch(request);
+    if (id == 0) {
+        return reject_with("fetch failed: the request could not be started");
+    }
+    // The entry owns both functions; settle_fetch (or teardown) frees them.
+    engine->pending_fetches_.emplace(id, PendingFetch{functions[0], functions[1]});
+    return promise;
+}
+
+JSValue QuickJSScriptEngine::make_fetch_payload(const ScriptFetchResponse& response) {
+    JSValue payload = JS_NewObject(context_);
+    JS_SetPropertyStr(context_, payload, "status", JS_NewInt32(context_, static_cast<int32_t>(response.status)));
+    JS_SetPropertyStr(context_, payload, "ok", JS_NewBool(context_, response.ok() ? 1 : 0));
+    JS_SetPropertyStr(context_, payload, "url", JS_NewString(context_, response.url.c_str()));
+    JS_SetPropertyStr(context_, payload, "body", JS_NewString(context_, response.body.c_str()));
+
+    // Headers as an array of [name, value] pairs, not an object: a response can
+    // repeat a field (Set-Cookie), and an object would silently drop all but one.
+    JSValue headers = JS_NewArray(context_);
+    uint32_t index = 0;
+    for (const auto& field : response.headers.fields()) {
+        JSValue pair = JS_NewArray(context_);
+        JS_SetPropertyUint32(context_, pair, 0, JS_NewString(context_, field.name.c_str()));
+        JS_SetPropertyUint32(context_, pair, 1, JS_NewString(context_, field.value.c_str()));
+        JS_SetPropertyUint32(context_, headers, index++, pair);
+    }
+    JS_SetPropertyStr(context_, payload, "headers", headers);
+    return payload;
+}
+
+bool QuickJSScriptEngine::settle_fetch(const ScriptFetchResponse& response) {
+    if (!context_) return false;
+    auto it = pending_fetches_.find(response.id);
+    if (it == pending_fetches_.end()) {
+        // Unknown id: already settled, or cancelled by a navigation that raced
+        // the transport. Dropping it is the point — see reject_pending_fetches.
+        return false;
+    }
+    PendingFetch pending = it->second;
+    pending_fetches_.erase(it);
+
+    JSValue argument;
+    bool resolve = true;
+    if (response.failure == ScriptFetchFailure::None) {
+        // Per the Fetch standard only a NETWORK error rejects: a 404 or a 500 is
+        // a perfectly good response with ok == false, and a page that treats it
+        // as a throw is a page that would break on a real server.
+        argument = make_fetch_payload(response);
+    } else {
+        resolve = false;
+        const char* message = response.failure == ScriptFetchFailure::Timeout ? "fetch timed out"
+                              : response.failure == ScriptFetchFailure::BadUrl
+                                  ? "fetch failed: unsupported or malformed URL"
+                                  : "fetch failed: the network request could not be completed";
+        argument = JS_NewError(context_);
+        JS_SetPropertyStr(context_, argument, "message", JS_NewString(context_, message));
+        // Distinguishable in JS, so a page can retry a timeout without retrying
+        // a bad URL (the surfaced half of story 9.1.3).
+        JS_SetPropertyStr(
+            context_, argument, "name",
+            JS_NewString(context_, response.failure == ScriptFetchFailure::Timeout ? "TimeoutError" : "TypeError"));
+    }
+
+    {
+        // Settling runs the promise's reaction machinery; treat it as a script
+        // entry so a nested dispatch cannot steal the microtask checkpoint
+        // (9.0.1), and so the drain below is the outermost one.
+        ScriptEntryScope entry(script_entry_depth_);
+        JSValue ret = JS_Call(context_, resolve ? pending.resolve : pending.reject, JS_UNDEFINED, 1, &argument);
+        if (JS_IsException(ret)) {
+            JSValue exc = JS_GetException(context_);
+            const char* message = JS_ToCString(context_, exc);
+            HB_LOG_WARN("[js] fetch settle threw: " << (message ? message : "unknown"));
+            if (message) JS_FreeCString(context_, message);
+            JS_FreeValue(context_, exc);
+        }
+        JS_FreeValue(context_, ret);
+    }
+    JS_FreeValue(context_, argument);
+    JS_FreeValue(context_, pending.resolve);
+    JS_FreeValue(context_, pending.reject);
+    // The continuations the page attached with .then run here.
+    drain_microtasks();
+    return true;
+}
+
+void QuickJSScriptEngine::reject_pending_fetches() {
+    if (!context_) {
+        pending_fetches_.clear();
+        return;
+    }
+    // Free the callbacks WITHOUT calling them. A navigation has already replaced
+    // the document; running a continuation now would execute page A's code
+    // against page B's global, which is exactly what 9.0.2 exists to prevent.
+    // The promise simply never settles, and its context is freed moments later.
+    for (auto& [id, pending] : pending_fetches_) {
+        (void)id;
+        JS_FreeValue(context_, pending.resolve);
+        JS_FreeValue(context_, pending.reject);
+    }
+    pending_fetches_.clear();
+}
+
 // --- Lifecycle -------------------------------------------------------------
 
 QuickJSScriptEngine::QuickJSScriptEngine() {
@@ -1329,7 +1521,11 @@ void QuickJSScriptEngine::release_document_state() {
         HB_LOG_WARN("[script] microtask queue not empty at document teardown");
         drain_microtasks();
     }
-    // Drop event callbacks and timers first: neither may outlive the document,
+    // In-flight fetches go first: their continuations are the one kind of
+    // callback that can arrive from OUTSIDE the document's own timeline, so a
+    // response racing a navigation must find nothing left to settle (9.1.1).
+    reject_pending_fetches();
+    // Drop event callbacks and timers next: neither may outlive the document,
     // and their callbacks could otherwise still reference a wrapper we are about
     // to free.
     free_listeners();
@@ -1564,9 +1760,122 @@ void QuickJSScriptEngine::install_window_bindings() {
                       JS_NewCFunction(context_, js_request_animation_frame, "requestAnimationFrame", 1));
     JS_SetPropertyStr(context_, global, "cancelAnimationFrame",
                       JS_NewCFunction(context_, js_cancel_animation_frame, "cancelAnimationFrame", 1));
+    JS_SetPropertyStr(context_, global, "__hb_nativeFetch",
+                      JS_NewCFunction(context_, js_native_fetch, "__hb_nativeFetch", 2));
     JS_FreeValue(context_, global);
 
     install_failsoft_stubs();  // fail-soft stubs for unimplemented APIs (7.5.2)
+    install_fetch_prelude();   // Response/Headers ergonomics over the binding (9.1.1)
+}
+
+// The JS half of fetch (9.1.1). The native binding is a data hand-off — a URL
+// and options in, a plain payload out — and this shapes that payload into the
+// Response/Headers surface a page expects. Keeping it here rather than in C++
+// keeps the binding small and the object ergonomics readable.
+//
+// Installed AFTER the fail-soft stubs so it wins: the stubs only define names
+// that are still undefined, and fetch is no longer among them.
+void QuickJSScriptEngine::install_fetch_prelude() {
+    if (!context_) {
+        return;
+    }
+    static constexpr char kPrelude[] = R"JS(
+(function (g) {
+  'use strict';
+  function Headers(pairs) {
+    // Field names are case-insensitive, so store lowercased and look up the
+    // same way. Repeated fields (Set-Cookie) join with ", " as the spec says.
+    var map = {};
+    var order = [];
+    (pairs || []).forEach(function (pair) {
+      var name = String(pair[0]).toLowerCase();
+      var value = String(pair[1]);
+      if (Object.prototype.hasOwnProperty.call(map, name)) {
+        map[name] = map[name] + ', ' + value;
+      } else {
+        map[name] = value;
+        order.push(name);
+      }
+    });
+    this.get = function (name) {
+      var key = String(name).toLowerCase();
+      return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
+    };
+    this.has = function (name) {
+      return Object.prototype.hasOwnProperty.call(map, String(name).toLowerCase());
+    };
+    this.forEach = function (fn, thisArg) {
+      order.forEach(function (name) { fn.call(thisArg, map[name], name, this); }, this);
+    };
+    this.keys = function () { return order.slice(); };
+  }
+
+  function Response(raw) {
+    this.status = raw.status;
+    this.ok = raw.ok;
+    this.url = raw.url;
+    this.headers = new Headers(raw.headers);
+    this.redirected = false;
+    var body = raw.body;
+    var used = false;
+    function takeBody() {
+      // The spec makes a body single-use; enforcing it here catches the common
+      // "read it twice and get an empty string" bug at the point of the mistake.
+      if (used) { throw new TypeError('body has already been read'); }
+      used = true;
+      return body;
+    }
+    Object.defineProperty(this, 'bodyUsed', { get: function () { return used; } });
+    this.text = function () {
+      try { return Promise.resolve(takeBody()); } catch (e) { return Promise.reject(e); }
+    };
+    this.json = function () {
+      try { return Promise.resolve(JSON.parse(takeBody())); } catch (e) { return Promise.reject(e); }
+    };
+  }
+
+  // Accepts a Headers instance, an array of pairs, or a plain object, and hands
+  // the binding the one shape it reads.
+  function normalizeHeaders(input) {
+    if (!input) return undefined;
+    var out = {};
+    if (typeof input.forEach === 'function' && typeof input.get === 'function') {
+      input.forEach(function (value, name) { out[name] = value; });
+      return out;
+    }
+    if (Array.isArray(input)) {
+      input.forEach(function (pair) { out[String(pair[0])] = String(pair[1]); });
+      return out;
+    }
+    Object.keys(input).forEach(function (name) { out[name] = String(input[name]); });
+    return out;
+  }
+
+  g.Headers = Headers;
+  g.Response = Response;
+  g.fetch = function (input, init) {
+    var options = init || {};
+    var request = {
+      method: options.method,
+      body: options.body,
+      headers: normalizeHeaders(options.headers)
+    };
+    return g.__hb_nativeFetch(String(input), request).then(function (raw) {
+      return new Response(raw);
+    });
+  };
+})(globalThis);
+)JS";
+    JSValue result =
+        JS_Eval(context_, kPrelude, std::char_traits<char>::length(kPrelude), "<fetch>", JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(result)) {
+        JSValue exc = JS_GetException(context_);
+        const char* message = JS_ToCString(context_, exc);
+        HB_LOG_WARN("[js] fetch prelude install failed: " << (message ? message : "unknown"));
+        if (message) JS_FreeCString(context_, message);
+        JS_FreeValue(context_, exc);
+    }
+    JS_FreeValue(context_, result);
 }
 
 void QuickJSScriptEngine::set_location(std::string_view url) {
@@ -1860,9 +2169,12 @@ void QuickJSScriptEngine::install_failsoft_stubs() {
       length: 0
     };
   }
-  if (typeof g.fetch === 'undefined') {
-    g.fetch = function () { report('fetch'); return new Promise(function () {}); };
-  }
+  // NOTE: no fetch stub here any more (story 9.1.1). It used to be
+  //   g.fetch = function () { return new Promise(function () {}); };
+  // which never settled, so a page using fetch did not fail — it froze its own
+  // logic forever, silently. Real fetch is installed by install_window_bindings;
+  // if that did not happen there is no host, and the binding rejects rather than
+  // leaving a promise hanging.
   if (typeof g.XMLHttpRequest === 'undefined') {
     g.XMLHttpRequest = function () { report('XMLHttpRequest'); };
     g.XMLHttpRequest.prototype.open = function () {};

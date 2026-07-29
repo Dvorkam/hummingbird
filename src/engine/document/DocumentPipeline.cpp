@@ -457,4 +457,17 @@ const std::vector<std::string>& DocumentPipeline::font_requests() const {
     return model_->font_requests();
 }
 
+void DocumentPipeline::set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink) {
+    scripting_->set_fetch_sink(std::move(sink));
+}
+
+void DocumentPipeline::set_url_resolver(std::function<std::string(std::string_view)> resolver) {
+    scripting_->set_url_resolver(std::move(resolver));
+}
+
+bool DocumentPipeline::settle_fetch(const ScriptFetchResponse& response) {
+    if (!model_ || !model_->dom_root()) return false;
+    return scripting_->settle_fetch(*model_, response);
+}
+
 }  // namespace Hummingbird::Engine

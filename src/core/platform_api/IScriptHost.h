@@ -1,10 +1,13 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "core/platform_api/ScriptFetch.h"
 
 namespace Hummingbird::DOM {
 class Element;
@@ -142,6 +145,19 @@ public:
     virtual NodeKind node_kind(const DOM::Node* node) = 0;
     // Uppercase tag name for elements ("DIV"), "#text" for text nodes, "" otherwise.
     virtual std::string node_name(const DOM::Node* node) = 0;
+
+    // --- fetch (9.1.1) ---
+    // Starts a request and returns its id, or 0 when the host cannot take it
+    // (no network wired up). The response arrives later via
+    // IScriptEngine::settle_fetch on the main thread — never from the callback's
+    // own thread, and never after the document has been torn down.
+    //
+    // Default: no network. Most unit tests bind a host that has none, and a page
+    // that calls fetch there should get a clean rejection rather than a hang.
+    virtual std::uint64_t start_fetch(const ScriptFetchRequest& /*request*/) { return 0; }
+    // Resolves `relative` against the document's base URL. Lives here because
+    // only the engine knows the document's URL; the adapter holds no such state.
+    virtual std::string resolve_url(std::string_view relative) { return std::string(relative); }
 };
 
 }  // namespace Hummingbird

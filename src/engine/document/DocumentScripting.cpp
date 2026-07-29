@@ -107,4 +107,16 @@ std::optional<std::string> DocumentScripting::consume_location_change() {
     return controller_->consume_location_change();
 }
 
+void DocumentScripting::set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink) {
+    controller_->set_fetch_sink(std::move(sink));
+}
+
+void DocumentScripting::set_url_resolver(std::function<std::string(std::string_view)> resolver) {
+    controller_->set_url_resolver(std::move(resolver));
+}
+
+bool DocumentScripting::settle_fetch(DocumentModel& model, const ScriptFetchResponse& response) {
+    return controller_->settle_fetch(model.dom_root(), model.dom_arena(), response);
+}
+
 }  // namespace Hummingbird::Engine

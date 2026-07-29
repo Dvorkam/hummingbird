@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "core/platform_api/ScriptFetch.h"
 #include "engine/document/ExternalScriptLookup.h"
 #include "engine/forms/FormSubmission.h"
 #include "layout/geometry/Geometry.h"
@@ -96,6 +97,13 @@ public:
     // document.cookie accessors (8.1.5), forwarded to the script host.
     void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
     void set_storage_accessor(std::function<Core::StorageArea*()> accessor);
+    // fetch (9.1.1): the Tab supplies both, because only it knows the resource
+    // loader and the URL of the document currently loaded.
+    void set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink);
+    void set_url_resolver(std::function<std::string(std::string_view)> resolver);
+    // Settles one fetch on the main thread; true when its continuation mutated
+    // the DOM, so the caller knows to rebuild.
+    bool settle_fetch(const ScriptFetchResponse& response);
     void set_session_storage_accessor(std::function<Core::StorageArea*()> accessor);
 
     void set_extension_style_blocks(const std::vector<std::string>& style_blocks);

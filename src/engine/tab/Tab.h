@@ -13,6 +13,7 @@
 #include "core/net/IdentityPolicyStore.h"
 #include "core/net/StorageArea.h"
 #include "core/net/StorageManager.h"
+#include "core/platform_api/ScriptFetch.h"
 #include "core/utils/Timing.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
@@ -143,6 +144,9 @@ private:
     std::string initiator_host_for(NavigationSource source) const;
     std::string initiator_url_for(NavigationSource source) const;
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    // Settles fetches whose responses arrived since the last tick (9.1.1). Runs
+    // on the main thread; the transport only ever enqueues.
+    void process_settled_fetches();
     void process_incremental_resource_updates(const ResourceLoader::BatchResult& batch, IGraphicsContext& graphics,
                                               const Layout::Rect& viewport);
     void sync_extension_styles_before_stylesheet_update();
@@ -188,6 +192,16 @@ private:
     // Per-tab sessionStorage (8.2.3): in-memory, keyed by Origin::key(), never
     // persisted, dropped when the tab is destroyed.
     std::unordered_map<std::string, Core::StorageArea> session_storage_;
+
+    // In-flight fetch bookkeeping (9.1.1). `settled_fetches_` is written from the
+    // transport's thread and drained on the main thread, hence the mutex.
+    // `fetch_generation_` is bumped on navigation: a response stamped with an
+    // older generation belongs to a document that no longer exists and is
+    // dropped rather than settled.
+    std::mutex fetch_mutex_;
+    std::vector<ScriptFetchResponse> settled_fetches_;
+    std::uint64_t next_fetch_id_ = 0;
+    std::uint64_t fetch_generation_ = 0;
     std::unique_ptr<DocumentPipeline> document_pipeline_;
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;

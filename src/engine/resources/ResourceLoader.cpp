@@ -93,6 +93,80 @@ ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, 
     }
 }
 
+void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::string_view document_url,
+                                      std::function<void(ScriptFetchResponse)> callback) {
+    ScriptFetchResponse failure;
+    if (!network_) {
+        failure.failure = ScriptFetchFailure::NetworkError;
+        if (callback) callback(std::move(failure));
+        return;
+    }
+    // Only http(s) is fetchable. Anything else — file:, data:, a relative URL the
+    // host could not resolve — is rejected here rather than handed to a transport
+    // that refuses schemes silently.
+    auto target = Core::parse_absolute_url(request.url);
+    if (!target || (target->scheme != "http" && target->scheme != "https")) {
+        failure.failure = ScriptFetchFailure::BadUrl;
+        failure.url = request.url;
+        if (callback) callback(std::move(failure));
+        return;
+    }
+
+    NetworkRequestOptions options;
+    options.headers = request.headers;
+    options.allow_insecure = is_insecure_allowed_for_url(request.url);
+    if (request.has_body) {
+        // The page picked its own Content-Type if it cared; otherwise fall back
+        // to the same default a form POST uses.
+        options.content_type = request.headers.get("Content-Type");
+    }
+
+    // The initiating document is this fetch's referrer source and its SameSite
+    // initiator: a fetch is a subresource request, never a top-level navigation,
+    // so a cross-site one must not carry Lax cookies.
+    Core::CookieRequestContext context;
+    context.top_level_navigation = false;
+    context.safe_method = request.method == "GET" || request.method == "HEAD";
+    if (auto initiator = Core::parse_absolute_url(document_url)) {
+        context.initiator_host = initiator->host;
+    }
+
+    RedirectChain chain;
+    chain.referrer_source = std::string(document_url);
+
+    std::optional<std::string> body;
+    if (request.has_body) {
+        body = request.body;
+    }
+
+    send_request(
+        *network_, request.url, options,
+        [callback = std::move(callback)](NetworkResponse response) {
+            ScriptFetchResponse out;
+            out.status = response.status;
+            out.url = response.effective_url.empty() ? response.url : response.effective_url;
+            out.headers = response.headers;
+            out.body = std::move(response.body);
+            switch (response.error) {
+                case NetworkError::None:
+                    break;
+                case NetworkError::Timeout:
+                    out.failure = ScriptFetchFailure::Timeout;
+                    break;
+                default:
+                    out.failure = ScriptFetchFailure::NetworkError;
+                    break;
+            }
+            // A transport that returned nothing at all is a failure even when it
+            // reported no error code, or the page would see a 0-status Response.
+            if (out.failure == ScriptFetchFailure::None && out.status == 0) {
+                out.failure = ScriptFetchFailure::NetworkError;
+            }
+            if (callback) callback(std::move(out));
+        },
+        context, std::move(body), std::move(chain));
+}
+
 std::chrono::steady_clock::time_point ResourceLoader::now() const {
     return clock_ ? clock_() : std::chrono::steady_clock::now();
 }

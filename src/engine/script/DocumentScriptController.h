@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "core/platform_api/IScriptEngine.h"
+#include "core/platform_api/ScriptFetch.h"
 #include "engine/script/DocumentScriptHost.h"
 #include "layout/geometry/Geometry.h"
 
@@ -48,6 +49,11 @@ public:
     void set_focus_sink(std::function<void(DOM::Element*, bool)> sink);
     void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
     void set_storage_accessor(std::function<Core::StorageArea*()> accessor);
+    // fetch (9.1.1): supplied by the Tab, which owns the loader and the URL.
+    void set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink);
+    void set_url_resolver(std::function<std::string(std::string_view)> resolver);
+    // Settles one fetch and reports whether its continuation mutated the DOM.
+    bool settle_fetch(DOM::Node* dom_root, Core::ArenaAllocator* arena, const ScriptFetchResponse& response);
     void set_session_storage_accessor(std::function<Core::StorageArea*()> accessor);
 
     bool run_scripts(const std::vector<ScriptSource>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);

@@ -7,6 +7,7 @@
 #include <string_view>
 
 #include "core/platform_api/IScriptEngine.h"
+#include "core/platform_api/ScriptFetch.h"
 #include "engine/document/ExternalScriptLookup.h"
 #include "layout/geometry/Geometry.h"
 
@@ -46,6 +47,10 @@ public:
     // layer that knows both the profile's jar and the current document URL.
     void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
     void set_storage_accessor(std::function<Core::StorageArea*()> accessor);
+    // fetch (9.1.1): pass-through to the controller's script host.
+    void set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink);
+    void set_url_resolver(std::function<std::string(std::string_view)> resolver);
+    bool settle_fetch(DocumentModel& model, const ScriptFetchResponse& response);
     void set_session_storage_accessor(std::function<Core::StorageArea*()> accessor);
     // Runs the document's <script>s in document order, inline and external
     // interleaved (classic-script semantics, 7.0.1 MVP).

@@ -102,6 +102,47 @@ Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_n
         if (!origin) return nullptr;  // opaque origin: no store, per spec
         return &session_storage_[origin->key()];
     });
+
+    // fetch (9.1.1). The transport answers on its own thread, so the result is
+    // QUEUED here and settled on the main thread in tick() — the script engine's
+    // context is single-threaded, and settling from the network thread would be
+    // a data race on the JS heap. This is the same shape as document and
+    // subresource loads, deliberately: one async pattern, not two.
+    document_pipeline_->set_url_resolver([this](std::string_view relative) {
+        return Core::resolve_url(navigation_lifecycle_.requested_url(), relative);
+    });
+    document_pipeline_->set_fetch_sink([this](const ScriptFetchRequest& request) -> std::uint64_t {
+        if (shutting_down_.load(std::memory_order_relaxed)) return 0;
+        const std::uint64_t id = ++next_fetch_id_;
+        // The generation stamps which document asked. A response that arrives
+        // after a navigation is dropped rather than settled: its promise belongs
+        // to a page that no longer exists (see 9.0.2).
+        const std::uint64_t generation = fetch_generation_;
+        resource_loader_->fetch_for_script(request, navigation_lifecycle_.requested_url(),
+                                           [this, id, generation](ScriptFetchResponse response) {
+                                               response.id = id;
+                                               std::lock_guard<std::mutex> lock(fetch_mutex_);
+                                               if (generation != fetch_generation_) return;
+                                               settled_fetches_.push_back(std::move(response));
+                                           });
+        return id;
+    });
+}
+
+void Tab::process_settled_fetches() {
+    std::vector<ScriptFetchResponse> ready;
+    {
+        std::lock_guard<std::mutex> lock(fetch_mutex_);
+        ready.swap(settled_fetches_);
+    }
+    if (ready.empty()) return;
+    for (auto& response : ready) {
+        // Settling runs page JS, which may mutate the DOM; the pipeline reports
+        // that the same way a timer callback's mutation is reported.
+        if (document_pipeline_->settle_fetch(response)) {
+            mark_dirty("fetch_settled");
+        }
+    }
 }
 
 Tab::~Tab() {
@@ -200,6 +241,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (shutting_down_.load(std::memory_order_relaxed)) return false;
 
     consume_pending_resources(graphics, viewport);
+    process_settled_fetches();
     apply_extension_css_if_needed(graphics, viewport);
     relayout_if_viewport_changed(graphics, viewport);
     process_animation_updates();
@@ -699,6 +741,16 @@ void Tab::begin_navigation_session(std::string_view url) {
 }
 
 void Tab::reset_document_state() {
+    {
+        // Retire every in-flight fetch (9.1.1). Bumping the generation makes any
+        // response still in transit unroutable, and clearing the queue drops any
+        // that already landed but were not settled before the navigation. The
+        // script engine drops its side in reset_bindings; both halves are needed,
+        // because a response can be sitting in either place.
+        std::lock_guard<std::mutex> lock(fetch_mutex_);
+        ++fetch_generation_;
+        settled_fetches_.clear();
+    }
     document_pipeline_->reset();
     resource_loader_->reset();
     layout_state_.reset();

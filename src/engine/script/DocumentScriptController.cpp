@@ -305,4 +305,24 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::eval_in
     return {true, script_host_.consume_mutations()};
 }
 
+void DocumentScriptController::set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink) {
+    script_host_.set_fetch_sink(std::move(sink));
+}
+
+void DocumentScriptController::set_url_resolver(std::function<std::string(std::string_view)> resolver) {
+    script_host_.set_url_resolver(std::move(resolver));
+}
+
+bool DocumentScriptController::settle_fetch(DOM::Node* dom_root, Core::ArenaAllocator* arena,
+                                            const ScriptFetchResponse& response) {
+    if (!script_engine_) return false;
+    // A fetch continuation is a script dispatch like any other: bind the host so
+    // its DOM mutations are captured, and bracket it so a nested dispatch shares
+    // this one's mutation epoch (7.7.1).
+    DispatchScope scope(script_host_);
+    if (!bind_host(dom_root, arena)) return false;
+    if (!script_engine_->settle_fetch(response)) return false;
+    return script_host_.consume_mutations();
+}
+
 }  // namespace Hummingbird::Engine
