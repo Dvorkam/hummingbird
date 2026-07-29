@@ -177,7 +177,12 @@ bool build_cache_demo(std::string_view path, const Hummingbird::Core::HttpHeader
         // Requested by the demo page's <link>, so the ENGINE fetches it rather
         // than script — which is the point: this is the subresource the two
         // reload levels treat differently.
-        response.headers.add("Cache-Control", "max-age=300");
+        // 15s, not the 300s this first shipped with. A five-minute lifetime made
+        // the subresource REVALIDATION case unreachable in a demo session: you
+        // would have to wait it out before F5 could produce a 304, so the only
+        // observable transition was the hard reload. Short enough that all three
+        // states — hit, revalidate, bypass — are reachable in under a minute.
+        response.headers.add("Cache-Control", "max-age=15");
         response.headers.add("ETag", std::string(kCacheStyleEtag));
         response.headers.add("Content-Type", "text/css");
         if (request_headers.get("If-None-Match") == kCacheStyleEtag) {

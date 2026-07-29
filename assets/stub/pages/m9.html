@@ -89,19 +89,28 @@
         the body you see was reused from memory. The <code>no-store</code> button is the control: its counter climbs
         every single time, because a response that says &ldquo;never store this&rdquo; is never stored. Added in M9
         (story 9.3.1).</p>
-        <p class="note">Reload still works, at the two levels a browser gives you &mdash; and this page now has a
-        cacheable stylesheet (<code>/api/cache-demo/style.css</code>, <code>max-age=300</code>, the orange bar beside
-        the counters) so you can watch the difference in the <strong>stylesheet</strong> numbers above.
-        <strong>F5</strong> revalidates the <em>document</em> and leaves a fresh subresource alone: both stylesheet
-        counters stay put. Browsers used to re-check every subresource on F5 and stopped, because fifty assets meant
-        fifty extra requests per keystroke. <strong>Ctrl+Shift+R</strong> ignores the cache for the page
-        <em>and</em> everything on it, so <code>stylesheet: full</code> goes up by one &mdash; the answer to
-        &ldquo;I changed the stylesheet and nothing happened.&rdquo;</p>
-        <p class="note">Note which counter moves, because it is the opposite of the intuitive guess: a hard reload
-        increments <strong>full</strong>, never <strong>revalidated</strong>. Revalidating means asking
-        &ldquo;is the copy I hold still good?&rdquo;, and refusing to ask that is the entire point of a hard reload.
-        The 304 belongs to the <em>normal</em> path &mdash; it is what the API button earns once its ten seconds are
-        up.</p>
+        <p class="note">Reload works at the two levels a browser gives you, and this page has a cacheable stylesheet
+        to show it with: <code>/api/cache-demo/style.css</code>, <code>max-age=15</code>, the orange bar beside the
+        counters. Watch the <strong>stylesheet</strong> numbers and try all three:</p>
+        <p class="note"><strong>F5 within 15s</strong> &mdash; neither stylesheet counter moves. A normal reload
+        re-checks the <em>document</em> and leaves a fresh subresource alone. (Browsers used to re-check every
+        subresource on F5 and stopped, because fifty assets meant fifty extra requests per keystroke.)<br>
+        <strong>Wait 15s, then F5</strong> &mdash; <code>stylesheet: revalidated</code> +1. The entry went stale, so it
+        was confirmed with <code>If-None-Match</code> and a 304 reused it.<br>
+        <strong>Ctrl+Shift+R</strong> &mdash; <code>stylesheet: full</code> +1, at any time. A hard reload ignores the
+        cache for the page and everything on it: the answer to &ldquo;I changed the stylesheet and nothing
+        happened.&rdquo;</p>
+        <p class="note">Note which counter the hard reload moves, because it is the opposite of the intuitive guess:
+        <strong>full</strong>, never <strong>revalidated</strong>. Revalidating means asking &ldquo;is the copy I hold
+        still good?&rdquo;, and refusing to ask that is the entire point of a hard reload &mdash; so it can never earn
+        a 304.</p>
+        <p class="note">The API buttons above are unaffected by either reload, which is also correct: they fetch on
+        <em>click</em>, long after the navigation ended. A reload sets the cache policy for the document and whatever
+        loads with it, not for a <code>fetch()</code> you fire a minute later &mdash; and it does not erase the cache.
+        (Chrome is the same; its devtools &ldquo;Empty cache and hard reload&rdquo; is the one that discards entries.)
+        Once the API entry exists, its ETag never changes, so every later fetch is either a hit or a 304 and
+        <code>API: full</code> stays at 1 forever &mdash; a body fetched once and reused indefinitely, which is the
+        cache paying for itself.</p>
         <p class="note">One thing this card does <em>not</em> claim: nothing here is keyed on <code>Vary</code> yet, so
         a response that varies is currently not cached at all rather than cached wrongly (story 9.3.2).</p>
       </div>
