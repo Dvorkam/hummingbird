@@ -18,6 +18,7 @@
 #include "core/dom/Element.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "core/platform_api/ScriptFetch.h"
+#include "engine/resources/ResourceLoader.h"
 #include "engine/script/DocumentScriptHost.h"
 
 namespace {
@@ -229,6 +230,107 @@ TEST(FetchTest, TeardownCancelsInFlightFetchesWithoutFiringCallbacks) {
     // the failure path either. Silence is the correct outcome, because the page
     // that would have observed either one no longer exists.
     EXPECT_EQ(fx.log(), "");
+}
+
+// Regression: a fetch to the built-in demo site must take the SAME route the
+// page around it took. example.dev is served by the stub network and has no DNS
+// behind it, so sending a fetch to the real transport made it fail to resolve
+// while the document that issued it had loaded fine. Every fetch test above
+// stubs the sink, so none of them could see this — it needs the real loader.
+TEST(FetchTest, ADemoSiteFetchUsesTheSameTransportAsTheDocument) {
+    // Distinguishable transports: the "real" one records and fails like DNS
+    // would, the "fallback" one answers.
+    class RecordingNetwork final : public Hummingbird::INetwork {
+    public:
+        explicit RecordingNetwork(std::string body) : body_(std::move(body)) {}
+        void get(const std::string& url, std::function<void(Hummingbird::NetworkResponse)> callback,
+                 const Hummingbird::NetworkRequestOptions& = {}) override {
+            urls.push_back(url);
+            Hummingbird::NetworkResponse response;
+            response.url = url;
+            response.effective_url = url;
+            if (body_.empty()) {
+                response.error = Hummingbird::NetworkError::CurlError;  // as an unresolvable host does
+            } else {
+                response.status = 200;
+                response.body = body_;
+            }
+            if (callback) callback(std::move(response));
+        }
+        void post(const std::string& url, std::string_view, std::function<void(Hummingbird::NetworkResponse)> callback,
+                  const Hummingbird::NetworkRequestOptions& options = {}) override {
+            get(url, std::move(callback), options);
+        }
+        void shutdown() override {}
+        std::vector<std::string> urls;
+
+    private:
+        std::string body_;
+    };
+
+    auto real = std::make_unique<RecordingNetwork>("");             // no DNS for example.dev
+    auto stub = std::make_unique<RecordingNetwork>("[{\"id\":1}]");  // the demo site
+    auto* real_raw = real.get();
+    auto* stub_raw = stub.get();
+
+    Hummingbird::Engine::ResourceLoader loader(std::move(real), std::move(stub), nullptr, nullptr, nullptr);
+
+    ScriptFetchRequest request;
+    request.url = "https://example.dev/api/news";
+    ScriptFetchResponse got;
+    bool answered = false;
+    loader.fetch_for_script(request, "https://example.dev/m9", [&](ScriptFetchResponse response) {
+        got = std::move(response);
+        answered = true;
+    });
+
+    ASSERT_TRUE(answered);
+    EXPECT_TRUE(real_raw->urls.empty()) << "a demo-site fetch must not go to the real network";
+    ASSERT_EQ(stub_raw->urls.size(), 1u);
+    EXPECT_EQ(stub_raw->urls[0], "https://example.dev/api/news");
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+    EXPECT_EQ(got.status, 200);
+    EXPECT_EQ(got.body, "[{\"id\":1}]");
+}
+
+// A fetch to a real host still goes to the real transport — the routing above
+// must not swallow everything.
+TEST(FetchTest, ANonDemoFetchStillUsesTheRealTransport) {
+    class CountingNetwork final : public Hummingbird::INetwork {
+    public:
+        void get(const std::string& url, std::function<void(Hummingbird::NetworkResponse)> callback,
+                 const Hummingbird::NetworkRequestOptions& = {}) override {
+            urls.push_back(url);
+            Hummingbird::NetworkResponse response;
+            response.url = url;
+            response.effective_url = url;
+            response.status = 200;
+            response.body = "live";
+            if (callback) callback(std::move(response));
+        }
+        void post(const std::string& url, std::string_view, std::function<void(Hummingbird::NetworkResponse)> callback,
+                  const Hummingbird::NetworkRequestOptions& options = {}) override {
+            get(url, std::move(callback), options);
+        }
+        void shutdown() override {}
+        std::vector<std::string> urls;
+    };
+
+    auto real = std::make_unique<CountingNetwork>();
+    auto stub = std::make_unique<CountingNetwork>();
+    auto* real_raw = real.get();
+    auto* stub_raw = stub.get();
+    Hummingbird::Engine::ResourceLoader loader(std::move(real), std::move(stub), nullptr, nullptr, nullptr);
+
+    ScriptFetchRequest request;
+    request.url = "https://api.hnpwa.com/v0/news/1.json";
+    ScriptFetchResponse got;
+    loader.fetch_for_script(request, "https://example.test/page",
+                            [&](ScriptFetchResponse response) { got = std::move(response); });
+
+    EXPECT_EQ(real_raw->urls.size(), 1u);
+    EXPECT_TRUE(stub_raw->urls.empty());
+    EXPECT_EQ(got.body, "live");
 }
 
 // With no fetch sink wired up (most unit tests, and any document without a

@@ -95,8 +95,18 @@ ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, 
 
 void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::string_view document_url,
                                       std::function<void(ScriptFetchResponse)> callback) {
+    // Pick the transport the same way a document navigation does: the built-in
+    // demo site is served by the stub, which has no DNS behind it. Without this a
+    // fetch to example.dev went to the real network and failed to resolve, while
+    // the page around it had loaded fine — the two took different routes to the
+    // same host.
+    INetwork* transport = network_.get();
+    if (is_builtin_demo_url(request.url) && fallback_network_) {
+        transport = fallback_network_.get();
+    }
+
     ScriptFetchResponse failure;
-    if (!network_) {
+    if (!transport) {
         failure.failure = ScriptFetchFailure::NetworkError;
         if (callback) callback(std::move(failure));
         return;
@@ -140,7 +150,7 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
     }
 
     send_request(
-        *network_, request.url, options,
+        *transport, request.url, options,
         [callback = std::move(callback)](NetworkResponse response) {
             ScriptFetchResponse out;
             out.status = response.status;
