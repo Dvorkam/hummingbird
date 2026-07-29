@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
+#include "core/net/PublicSuffix.h"
 #include "core/utils/ParseUtils.h"
 #include "core/utils/StringUtils.h"
 #include "core/utils/Url.h"
@@ -29,6 +30,60 @@ bool is_ip_literal(std::string_view host) {
     if (host.find(':') != std::string_view::npos) return true;
     return !host.empty() && std::all_of(host.begin(), host.end(), [](char c) { return is_digit(c) || c == '.'; }) &&
            std::any_of(host.begin(), host.end(), is_digit);
+}
+
+// RFC 2616 token: US-ASCII minus CTLs and separators. RFC 6265 §4.1.1 requires
+// a cookie-name to be one. A name outside this set is what would let a stored
+// cookie forge a second one when the jar re-serializes it into a Cookie header.
+bool is_token_char(char c) {
+    const auto u = static_cast<unsigned char>(c);
+    if (u < 0x20 || u >= 0x7F) return false;  // CTLs, DEL, and non-ASCII
+    switch (c) {
+        case '(':
+        case ')':
+        case '<':
+        case '>':
+        case '@':
+        case ',':
+        case ';':
+        case ':':
+        case '\\':
+        case '"':
+        case '/':
+        case '[':
+        case ']':
+        case '?':
+        case '=':
+        case '{':
+        case '}':
+        case ' ':
+            return false;
+        default:
+            return true;
+    }
+}
+
+bool is_valid_cookie_name(std::string_view name) {
+    return !name.empty() && std::all_of(name.begin(), name.end(), is_token_char);
+}
+
+// True for the bytes that must never survive into a stored cookie, because the
+// jar writes every field back out twice: into a `Cookie` request header, and
+// into its own tab-separated file. A CTL corrupts both; a ';' forges a second
+// cookie in the first.
+//
+// DEVIATION (deliberate, and what shipping browsers do): §4.1.1's cookie-octet
+// also excludes SP, ',' and '"', and non-ASCII entirely. Real sites send all of
+// those in values, and rejecting them would break pages for no security gain —
+// none of them can terminate a header field or a TSV field. Only the injection
+// set is enforced.
+bool is_injection_byte(char c) {
+    const auto u = static_cast<unsigned char>(c);
+    return u < 0x20 || u == 0x7F || c == ';';
+}
+
+bool has_injection_byte(std::string_view text) {
+    return std::any_of(text.begin(), text.end(), is_injection_byte);
 }
 
 int month_from_name(std::string_view token) {
@@ -193,11 +248,18 @@ std::optional<Cookie> parse_set_cookie(std::string_view header_value, std::strin
     if (name.empty() || pair.find('=') == std::string_view::npos) {
         return std::nullopt;
     }
+    // §4.1.1 charset (story 9.0.3.3): the name must be a token, and neither name
+    // nor value may carry a byte that could forge a second cookie or a second
+    // field when the jar writes them back out.
+    if (!is_valid_cookie_name(name) || has_injection_byte(value)) {
+        return std::nullopt;
+    }
 
     Cookie cookie;
     cookie.name = std::string(name);
     cookie.value = std::string(value);
     cookie.created = now;
+    cookie.last_access = now;
 
     // Max-Age wins over Expires (§5.3 step 3), so track them separately and
     // resolve after the whole attribute list is read.
@@ -257,6 +319,16 @@ std::optional<Cookie> parse_set_cookie(std::string_view header_value, std::strin
     if (domain_attr.empty()) {
         cookie.host_only = true;
         cookie.domain = request->host;
+    } else if (is_public_suffix(domain_attr)) {
+        // §5.3 step 5: a Domain that is a public suffix is only tolerated when it
+        // IS the request host (a site literally served from `co.uk`), and then
+        // only as a host-only cookie. Anything else would let a page on
+        // `a.co.uk` plant a cookie that `b.co.uk` reads back.
+        if (!Utils::equals_ignore_case(request->host, domain_attr)) {
+            return std::nullopt;
+        }
+        cookie.host_only = true;
+        cookie.domain = request->host;
     } else {
         if (!domain_matches(request->host, domain_attr)) {
             return std::nullopt;
@@ -267,6 +339,13 @@ std::optional<Cookie> parse_set_cookie(std::string_view header_value, std::strin
 
     cookie.path = (path_attr.empty() || path_attr.front() != '/') ? default_cookie_path(cookie_path_of_url(request_url))
                                                                   : path_attr;
+    // Domain and path are re-serialized into the jar file just as name and value
+    // are, so the same bytes are just as dangerous there (9.0.3.3). The host and
+    // the default path come from a parsed URL and cannot carry them; an
+    // attacker-supplied attribute can.
+    if (has_injection_byte(cookie.domain) || has_injection_byte(cookie.path)) {
+        return std::nullopt;
+    }
 
     // RFC 6265bis §5.4: SameSite=None is only meaningful on a Secure cookie, and
     // announcing cross-site availability without it is rejected rather than
@@ -283,16 +362,14 @@ bool is_same_site(std::string_view request_host, std::string_view initiator_host
     if (initiator_host.empty()) return true;
     if (Utils::equals_ignore_case(request_host, initiator_host)) return true;
 
-    // Approximate the registrable domain as the last two labels. See the header
-    // for why this is wrong under multi-label public suffixes.
-    const auto registrable = [](std::string_view host) -> std::string_view {
-        size_t last_dot = host.find_last_of('.');
-        if (last_dot == std::string_view::npos) return host;
-        size_t prev_dot = host.find_last_of('.', last_dot - 1);
-        if (prev_dot == std::string_view::npos) return host;
-        return host.substr(prev_dot + 1);
-    };
-    return Utils::equals_ignore_case(registrable(request_host), registrable(initiator_host));
+    // Same site means same registrable domain (9.0.3.1). An empty result means
+    // there is no registrable domain at all — an IP literal, or a host that is
+    // itself a public suffix — and two such hosts are same-site only when they
+    // are the same host, which the equality check above already ruled out.
+    const std::string_view request_site = registrable_domain(request_host);
+    const std::string_view initiator_site = registrable_domain(initiator_host);
+    if (request_site.empty() || initiator_site.empty()) return false;
+    return Utils::equals_ignore_case(request_site, initiator_site);
 }
 
 bool same_site_allows(const Cookie& cookie, std::string_view request_host, const CookieRequestContext& context) {

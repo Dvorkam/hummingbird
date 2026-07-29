@@ -8,6 +8,15 @@ This document lists third-party components used by Hummingbird and where their l
   License text: `assets/fonts/Roboto-LICENSE.txt`
 - Roboto Mono fonts (`assets/fonts/RobotoMono-*.ttf`) — SIL Open Font License 1.1  
   License text: `assets/fonts/Roboto_Mono/OFL.txt`
+- Public Suffix List (`src/core/net/PublicSuffixData.h`, generated) — Mozilla Public
+  License 2.0  
+  Source: <https://github.com/publicsuffix/list> (`public_suffix_list.dat`), pinned
+  to the upstream commit recorded in the generated header and refreshed by
+  `scripts/update_public_suffix_list.ps1`.  
+  License text: <https://mozilla.org/MPL/2.0/>
+- Public Suffix List conformance vectors (`tests/fixtures/public_suffix_tests.txt`,
+  tests only) — dedicated to the public domain under CC0 1.0, per the file's own
+  header. Vendored from the same upstream commit as the rule data.
 
 ## Dependencies (via vcpkg)
 

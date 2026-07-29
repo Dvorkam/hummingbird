@@ -352,6 +352,216 @@ TEST(CookieMatchTest, SameSiteTreatsAnEmptyInitiatorAsSameSite) {
     EXPECT_FALSE(Hummingbird::Core::is_same_site("example.dev", "attacker.test"));
 }
 
+// Same-site is decided by registrable domain, so a multi-label registry does not
+// merge unrelated sites the way "last two labels" did (9.0.3.1).
+TEST(CookieMatchTest, SameSiteUsesTheRegistrableDomain) {
+    // Single-label suffix: unchanged behavior.
+    EXPECT_TRUE(Hummingbird::Core::is_same_site("api.example.com", "www.example.com"));
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("example.com", "other.com"));
+
+    // Multi-label suffix: the case the old approximation got wrong.
+    EXPECT_TRUE(Hummingbird::Core::is_same_site("api.example.co.uk", "www.example.co.uk"));
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("a.co.uk", "b.co.uk"));
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("alice.github.io", "mallory.github.io"));
+
+    // Neither host has a registrable domain: same-site only with itself, which
+    // the equality check already covers.
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("co.uk", "example.co.uk"));
+    EXPECT_TRUE(Hummingbird::Core::is_same_site("127.0.0.1", "127.0.0.1"));
+    EXPECT_FALSE(Hummingbird::Core::is_same_site("127.0.0.1", "127.0.0.2"));
+}
+
+// RFC 6265 §5.3 step 5: a Domain that is a public suffix cannot be used to widen
+// a cookie's scope. Before 9.0.3.1 `Domain=co.uk` from example.co.uk was
+// accepted, which handed b.co.uk a cookie a.co.uk had planted.
+TEST(CookieParseTest, DomainAttributeCannotBeAPublicSuffix) {
+    // The registrable domain itself is fine, and is not host-only.
+    auto ok = Hummingbird::Core::parse_set_cookie("a=1; Domain=example.co.uk", "https://www.example.co.uk/", now());
+    ASSERT_TRUE(ok.has_value());
+    EXPECT_EQ(ok->domain, "example.co.uk");
+    EXPECT_FALSE(ok->host_only);
+
+    // The public suffix above it is not.
+    EXPECT_FALSE(
+        Hummingbird::Core::parse_set_cookie("a=1; Domain=co.uk", "https://www.example.co.uk/", now()).has_value());
+    EXPECT_FALSE(Hummingbird::Core::parse_set_cookie("a=1; Domain=com", "https://example.com/", now()).has_value());
+    EXPECT_FALSE(
+        Hummingbird::Core::parse_set_cookie("a=1; Domain=github.io", "https://alice.github.io/", now()).has_value());
+
+    // A site literally served from a public suffix may still set its own cookie,
+    // but only as host-only — it never reaches a subdomain.
+    auto at_suffix = Hummingbird::Core::parse_set_cookie("a=1; Domain=co.uk", "https://co.uk/", now());
+    ASSERT_TRUE(at_suffix.has_value());
+    EXPECT_EQ(at_suffix->domain, "co.uk");
+    EXPECT_TRUE(at_suffix->host_only);
+}
+
+// --- charset validation (RFC 6265 §4.1.1, story 9.0.3.3) ---------------------
+
+TEST(CookieCharsetTest, NameMustBeAToken) {
+    const auto parse = [](std::string_view header) {
+        return Hummingbird::Core::parse_set_cookie(header, "https://example.dev/", now());
+    };
+    EXPECT_TRUE(parse("session_id-2=ok").has_value());
+    EXPECT_TRUE(parse("__Host-x=ok").has_value());
+
+    // Separators and CTLs in the name are exactly what would forge a second
+    // cookie in the re-serialized Cookie header.
+    EXPECT_FALSE(parse("bad name=1").has_value());
+    EXPECT_FALSE(parse("bad,name=1").has_value());
+    EXPECT_FALSE(parse("bad\tname=1").has_value());
+    EXPECT_FALSE(parse("bad\"name=1").has_value());
+    EXPECT_FALSE(parse("bad(name=1").has_value());
+    EXPECT_FALSE(parse(std::string("bad\nname=1")).has_value());
+}
+
+TEST(CookieCharsetTest, ValueRejectsInjectionBytesButToleratesWhatSitesActuallySend) {
+    const auto parse = [](std::string_view header) {
+        return Hummingbird::Core::parse_set_cookie(header, "https://example.dev/", now());
+    };
+    // CTLs would corrupt both the Cookie header and the jar's TSV file.
+    EXPECT_FALSE(parse(std::string("a=one\ttwo")).has_value());
+    EXPECT_FALSE(parse(std::string("a=one\nHost: evil")).has_value());
+    EXPECT_FALSE(parse(std::string("a=one\rtwo")).has_value());
+    EXPECT_FALSE(parse(std::string("a=one\x7f")).has_value());
+
+    // Deliberate deviation from the strict cookie-octet grammar: real sites send
+    // spaces, commas, quotes and UTF-8 in values, and none of them can terminate
+    // a header field or a TSV field.
+    EXPECT_TRUE(parse("a=hello world").has_value());
+    EXPECT_TRUE(parse("a=1,2,3").has_value());
+    EXPECT_TRUE(parse("a=\"quoted\"").has_value());
+    EXPECT_TRUE(parse("a=p\xc5\x99\xc3\xadli\xc5\xa1").has_value());  // UTF-8
+}
+
+TEST(CookieCharsetTest, AttributesCarryingInjectionBytesAreRejected) {
+    // Domain and path are written to the jar file too, so the same bytes are
+    // just as dangerous there.
+    EXPECT_FALSE(
+        Hummingbird::Core::parse_set_cookie("a=1; Path=/x\ty", "https://example.dev/", now()).has_value());
+    EXPECT_FALSE(
+        Hummingbird::Core::parse_set_cookie("a=1; Path=/x\ny", "https://example.dev/", now()).has_value());
+    // ...while an ordinary Path still works.
+    EXPECT_TRUE(Hummingbird::Core::parse_set_cookie("a=1; Path=/x/y", "https://example.dev/", now()).has_value());
+}
+
+// The jar re-serializes every stored cookie into a `Cookie` header, so a name or
+// value that survived validation must not be able to add a pair to it.
+TEST(CookieCharsetTest, ARejectedCookieNeverReachesTheHeader) {
+    CookieJar jar;
+    EXPECT_FALSE(jar.store_from_header("https://example.dev/", std::string("evil=x\r\nSet-Cookie: admin=1"), now()));
+    EXPECT_TRUE(jar.empty());
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now()), "");
+
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "good=1", now()));
+    EXPECT_EQ(jar.cookie_header_for("https://example.dev/", now()), "good=1");
+}
+
+// --- storage limits (RFC 6265 §6.1, story 9.0.3.2) ---------------------------
+
+namespace {
+// Stores `count` distinct cookies for `host`, each at its own `now`, so
+// last-access order is unambiguous. Returns how many were accepted.
+size_t fill(CookieJar& jar, std::string_view host, size_t count, int first_second = 0) {
+    size_t accepted = 0;
+    const std::string url = std::string("https://") + std::string(host) + "/";
+    for (size_t i = 0; i < count; ++i) {
+        const std::string header = "c" + std::to_string(i) + "=v";
+        if (jar.store_from_header(url, header, later(first_second + static_cast<int>(i)))) ++accepted;
+    }
+    return accepted;
+}
+
+bool jar_has(const CookieJar& jar, std::string_view name) {
+    for (const auto& cookie : jar.entries()) {
+        if (cookie.name == name) return true;
+    }
+    return false;
+}
+}  // namespace
+
+TEST(CookieLimitsTest, OversizedCookieIsRefusedRatherThanStored) {
+    CookieJar jar;
+    const std::string big_value(CookieJar::kMaxCookieBytes, 'x');
+    EXPECT_FALSE(jar.store_from_header("https://example.dev/", "big=" + big_value, now()));
+    EXPECT_TRUE(jar.empty());
+
+    // Right at the cap (name + value) is still accepted.
+    const std::string exact(CookieJar::kMaxCookieBytes - 3, 'x');
+    EXPECT_TRUE(jar.store_from_header("https://example.dev/", "ok=" + exact, now()));
+    EXPECT_EQ(jar.size(), 1u);
+
+    // A replacement may not grow past the cap either: the stored one survives.
+    EXPECT_FALSE(jar.store_from_header("https://example.dev/", "ok=" + big_value, now()));
+    ASSERT_EQ(jar.size(), 1u);
+    EXPECT_EQ(jar.entries()[0].value, exact);
+}
+
+// Eviction is least-recently-USED, not oldest-created. The two are the same
+// until something is read, so the victim here is deliberately the *newest*
+// cookie by creation time — the only one a request never touched.
+TEST(CookieLimitsTest, PerDomainCapEvictsLeastRecentlyUsedNotOldest) {
+    CookieJar jar;
+    constexpr size_t kFill = CookieJar::kMaxPerDomain - 1;
+    ASSERT_EQ(fill(jar, "example.dev", kFill), kFill);  // c0..c48 on path "/"
+    // The newest cookie sits on a path no later request will match.
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "lonely=1; Path=/lonely", later(1000)));
+    ASSERT_EQ(jar.size(), CookieJar::kMaxPerDomain);
+
+    // A request for "/" touches c0..c48 but not `lonely`, whose path does not
+    // match — so `lonely` becomes the least recently used despite being newest.
+    ASSERT_EQ(jar.cookies_for("https://example.dev/", later(2000)).size(), kFill);
+
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "newcomer=1", later(2001)));
+    EXPECT_EQ(jar.size(), CookieJar::kMaxPerDomain);  // cap held
+    EXPECT_TRUE(jar_has(jar, "newcomer"));
+    EXPECT_FALSE(jar_has(jar, "lonely"));  // never used, so it went first
+    EXPECT_TRUE(jar_has(jar, "c0"));       // oldest, but recently used
+}
+
+TEST(CookieLimitsTest, PerDomainCapDoesNotEvictOtherDomains) {
+    CookieJar jar;
+    ASSERT_TRUE(jar.store_from_header("https://other.test/", "keep=1", now()));
+    ASSERT_EQ(fill(jar, "example.dev", CookieJar::kMaxPerDomain, 1), CookieJar::kMaxPerDomain);
+
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "newcomer=1", later(500)));
+    EXPECT_EQ(jar.size(), CookieJar::kMaxPerDomain + 1);  // other.test's is untouched
+    EXPECT_TRUE(jar_has(jar, "keep"));
+}
+
+TEST(CookieLimitsTest, ExpiredCookiesAreEvictedBeforeLiveOnes) {
+    CookieJar jar;
+    // One short-lived cookie plus a full domain's worth of session cookies.
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "doomed=1; Max-Age=5", now()));
+    ASSERT_EQ(fill(jar, "example.dev", CookieJar::kMaxPerDomain - 1, 1), CookieJar::kMaxPerDomain - 1);
+    ASSERT_EQ(jar.size(), CookieJar::kMaxPerDomain);
+
+    // After `doomed` expires, storing one more evicts the corpse, not a live
+    // cookie — §5.3 step 11's first pass.
+    ASSERT_TRUE(jar.store_from_header("https://example.dev/", "newcomer=1", later(100)));
+    EXPECT_FALSE(jar_has(jar, "doomed"));
+    EXPECT_TRUE(jar_has(jar, "c0"));
+    EXPECT_TRUE(jar_has(jar, "newcomer"));
+    EXPECT_EQ(jar.size(), CookieJar::kMaxPerDomain);
+}
+
+TEST(CookieLimitsTest, TotalCapHoldsAcrossManyDomains) {
+    CookieJar jar;
+    // 3000 cookies at 40 per domain needs 75 domains, all under the per-domain
+    // cap, so only the total cap can be doing the work here.
+    constexpr size_t kPerHost = 40;
+    const size_t hosts = CookieJar::kMaxTotal / kPerHost;
+    for (size_t h = 0; h < hosts; ++h) {
+        const std::string host = "h" + std::to_string(h) + ".test";
+        ASSERT_EQ(fill(jar, host, kPerHost, static_cast<int>(h * kPerHost)), kPerHost);
+    }
+    ASSERT_EQ(jar.size(), CookieJar::kMaxTotal);
+
+    ASSERT_TRUE(jar.store_from_header("https://fresh.test/", "newcomer=1", later(100000)));
+    EXPECT_EQ(jar.size(), CookieJar::kMaxTotal);
+    EXPECT_TRUE(jar_has(jar, "newcomer"));
+}
+
 // --- persistence (8.1.4) -----------------------------------------------------
 
 namespace {
@@ -405,6 +615,52 @@ TEST(CookieJarPersistenceTest, PersistentCookiesSurviveARestartExactly) {
     EXPECT_EQ(*cookie.expires, later(86400));
     // And it is still actually usable, not just structurally intact.
     EXPECT_EQ(restored.cookie_header_for("https://example.dev/app/page", now()), "session=abc");
+}
+
+// Eviction order is only correct if last-access survives a restart. Without the
+// persisted column this degraded to creation order, so the jar would sacrifice
+// the cookie you use constantly and keep one you have never touched.
+TEST(CookieJarPersistenceTest, LastAccessOrderSurvivesARestart) {
+    TempCookieFile file("lastaccess");
+    {
+        CookieJar jar;
+        ASSERT_TRUE(jar.store_from_header("https://example.dev/", "old_but_used=1; Max-Age=86400", now()));
+        ASSERT_TRUE(
+            jar.store_from_header("https://example.dev/", "new_but_idle=1; Path=/idle; Max-Age=86400", later(10)));
+        // A request for "/" touches only the first — the second's path does not
+        // match — so the OLDER cookie is the more recently used one.
+        ASSERT_EQ(jar.cookies_for("https://example.dev/", later(500)).size(), 1u);
+        ASSERT_EQ(jar.save_to(file.path(), later(500)), 2u);
+    }
+
+    CookieJar restored;
+    ASSERT_EQ(restored.load_from(file.path(), later(600)), 2u);
+    const Cookie* used = nullptr;
+    const Cookie* idle = nullptr;
+    for (const auto& cookie : restored.entries()) {
+        if (cookie.name == "old_but_used") used = &cookie;
+        if (cookie.name == "new_but_idle") idle = &cookie;
+    }
+    ASSERT_NE(used, nullptr);
+    ASSERT_NE(idle, nullptr);
+    EXPECT_EQ(used->last_access, later(500));  // the read, not the write
+    EXPECT_EQ(idle->last_access, later(10));   // never read
+    // The relation that matters: created order and last-access order disagree,
+    // and it is last-access that eviction will follow.
+    EXPECT_LT(used->created, idle->created);
+    EXPECT_GT(used->last_access, idle->last_access);
+}
+
+// The format version is a hard gate, not a merge: a v1 file (no last-access
+// column) is discarded rather than half-read. Pre-alpha, losing saved cookies
+// once beats carrying a format that cannot express eviction order.
+TEST(CookieJarPersistenceTest, AnOlderFormatFileIsDiscarded) {
+    TempCookieFile file("oldformat");
+    file.write("HBCOOKIES\t1\nsession\tabc\texample.dev\t/\t9999999999\t1000\t1\t0\t0\t1\n");
+
+    CookieJar jar;
+    EXPECT_EQ(jar.load_from(file.path(), now()), 0u);
+    EXPECT_TRUE(jar.empty());
 }
 
 TEST(CookieJarPersistenceTest, SessionCookiesAreNeverWritten) {

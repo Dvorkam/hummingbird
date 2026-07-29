@@ -32,7 +32,24 @@ jobs:
           check-path: "src"           # Only check your source folder
           fallback-style: "Google"    # Fallback if .clang-format is missing
 
-  # JOB 2: Build & Test
+  # JOB 2: Bundled public suffix list is really generated from its source
+  # A hand edit to src/core/net/PublicSuffixData.h would be silently reverted by
+  # the next automated refresh, so catch it here instead. Does NOT check whether
+  # the bundle is behind upstream -- that would fail every PR whenever upstream
+  # moves, which is the daily refresh job's business and the release gate's.
+  public_suffix_list:
+    name: Check Public Suffix Data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify generated data matches its pinned upstream commit
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./scripts/update_public_suffix_list.ps1 -Check
+
+  # JOB 3: Build & Test
   build:
     name: ${{ matrix.os }} Build
     needs: formatting

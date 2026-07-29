@@ -2,6 +2,42 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING — saved cookies are discarded once on upgrade.** The cookie jar's
+  file format is now `HBCOOKIES 2`, adding the per-cookie last-access time that
+  eviction needs. A `HBCOOKIES 1` file is not migrated: it is discarded and the
+  browser starts with an empty jar, so **you will be logged out of sites you were
+  logged in to**. Without the new column, LRU eviction silently degraded to
+  creation order after every restart — the jar would sacrifice a cookie you use
+  constantly in favour of one you have never touched. Hummingbird is pre-alpha and
+  the correct format wins over preserving one saved session.
+
+### Added
+
+- **Cookie storage limits** (RFC 6265 §6.1): 4096 bytes per cookie, 50 per domain,
+  3000 in total, with least-recently-used eviction. Previously the jar was
+  unbounded, which a page could exploit to grow a file the browser writes to disk.
+- **Public suffix awareness**: cookie scoping and same-site decisions now use the
+  registrable domain rather than a host's last two labels, so `a.co.uk` and
+  `b.co.uk` are correctly treated as different sites and a page can no longer set
+  a cookie for a whole registry such as `co.uk`. Backed by the full
+  [publicsuffix.org](https://publicsuffix.org) list, bundled at build time (never
+  fetched at runtime) and kept current by CI: a daily job proposes a refresh, and
+  a release cannot be published while the bundled list is behind upstream.
+  Internationalized hostnames are matched in both their Unicode and punycode
+  forms.
+- **Cookie charset validation** (RFC 6265 §4.1.1): cookie names must be tokens, and
+  control characters are rejected in values and attributes, closing a
+  header-injection shape.
+- **Per-document JavaScript isolation**: each navigated document now gets a fresh
+  JavaScript global, so one page's globals are no longer visible to the next page
+  in the same tab.
+- **Correct microtask ordering**: promise continuations now run when the JavaScript
+  stack empties rather than when a nested event dispatch returns.
+
 ## [0.8.0] - 2026-07-26
 
 Milestone 8 — "The Session Keeper": persistent browser state and the navigation

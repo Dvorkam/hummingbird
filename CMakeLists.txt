@@ -94,6 +94,7 @@ add_library(Core STATIC
     src/core/net/HttpHeaders.cpp
     src/core/net/IdentityPolicyStore.cpp
     src/core/net/Origin.cpp
+    src/core/net/PublicSuffix.cpp
     src/core/net/Referrer.cpp
     src/core/net/StorageArea.cpp
     src/core/net/StorageManager.cpp

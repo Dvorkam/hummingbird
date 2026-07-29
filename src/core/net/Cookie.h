@@ -27,6 +27,10 @@ struct Cookie {
     // date, and 8.1.4 must not persist it.
     std::optional<CookieTime> expires;
     CookieTime created{};
+    // RFC 6265 §5.3's last-access-time: which cookie eviction sacrifices when a
+    // storage cap is hit (story 9.0.3.2). Persisted alongside `created`, so LRU
+    // order survives a restart rather than silently degrading to creation order.
+    CookieTime last_access{};
     // Set when the Set-Cookie carried no Domain attribute: the cookie then goes
     // back only to the exact host that set it, never to a subdomain.
     bool host_only = false;
@@ -93,13 +97,10 @@ struct CookieRequestContext {
     bool script_access = false;
 };
 
-// True when `request_host` and `initiator_host` are same-site.
-//
-// DEVIATION: compares registrable domain approximated as the last two labels,
-// because there is no public suffix list yet (T-COOKIE-PUBLIC-SUFFIX-1). That is
-// correct for single-label suffixes (example.dev, news.ycombinator.com) and
-// wrong under multi-label ones, where it would call a.co.uk and b.co.uk
-// same-site. Both this and the Domain check need the same PSL.
+// True when `request_host` and `initiator_host` are same-site: same registrable
+// domain, per core/net/PublicSuffix.h (story 9.0.3.1). Hosts with no registrable
+// domain — an IP literal, or a host that IS a public suffix — are same-site only
+// with themselves.
 bool is_same_site(std::string_view request_host, std::string_view initiator_host);
 
 // RFC 6265bis §5.5: whether `cookie`'s SameSite lets it ride this request.

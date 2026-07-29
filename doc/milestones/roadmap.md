@@ -43,7 +43,7 @@ not when its subsystem "looks finished."
 | M6 Layouter | DDG HTML homepage (visual parity) | flexbox + CSS compat + CI harness |
 | M7 Programmable Document | TodoMVC (pinned snapshot) | DOM mutation + events + timers/microtasks |
 | M8 Session Keeper | Hacker News: log in, post a comment *(explicit compatibility mode required)* | cookies + storage + session persistence |
-| M9 Fetcher | HNPWA browsing live API data | fetch/XHR + CORS + HTTP cache |
+| M9 Fetcher | Live HN + Wikipedia REST APIs rendered from `fetch` | fetch/XHR + CORS + HTTP cache |
 | M10 Layouter II | Wikipedia desktop + old.reddit | fixed/sticky + scroll containers + z-index |
 | M11 Inputter | Real login + rich text forms | focus, selection, clipboard, forms v2 |
 | M12 Framework Gauntlet | m.youtube.com app shell (no video) | observers + History API + SPA navigation |
@@ -191,9 +191,9 @@ Detailed doc: [milestone7.md](milestone7.md)
 
 ---
 
-## Milestone 8: The Session Keeper (Cookies + Storage + Identity) — Complete (v0.8.0 release pending, Jul 2026)
+## Milestone 8: The Session Keeper (Cookies + Storage + Identity) — Complete (v0.8.0, 2026-07-26)
 
-Detailed doc: [milestone8.md](milestone8.md)
+Detailed doc: [milestone8.md](milestone8.md) · Archive: [milestone8_done.md](../todo_archive/milestone8_done.md)
 
 **Theme:** *The Browser Remembers You*
 **Goal:** Support the state layer every logged-in site assumes.
@@ -209,7 +209,7 @@ Detailed doc: [milestone8.md](milestone8.md)
 
 ## Milestone 9: The Fetcher (Fetch/XHR + CORS + Cache) — Next
 
-Detailed doc: [milestone9.md](milestone9.md) *(draft — revalidate at kickoff)*
+Detailed doc: [milestone9.md](milestone9.md) *(scope revalidated at kickoff 2026-07-26)*
 
 **Theme:** *Pages That Talk to APIs*
 **Goal:** JS-driven networking, done strictly.
@@ -217,12 +217,14 @@ Detailed doc: [milestone9.md](milestone9.md) *(draft — revalidate at kickoff)*
 * **Fetch/XHR v1:** request/response headers, redirects, buffering (streaming later); JSON round-trips.
 * **CORS v1:** strict first; expand behind feature flags.
 * **HTTP Cache v1:** ETag / If-None-Match, Cache-Control baseline, in-memory first.
-* **Extension follow-through:** request-filtering hook in `browser.*` + built-in **ad-block-lite** extension — the API's second real consumer, and it makes every later target page lighter.
-* **Proof target:** **HNPWA (Hacker News PWA)** browses live API data — lists, threads, pagination — rendered entirely from `fetch` responses.
+* **Extension follow-through:** **declarative** request-filtering rules in `browser.*` + a built-in **ad-block-lite** extension — the API's second real consumer. Reshaped at kickoff from a synchronous JS callback, which would have put script on the network hot path. Supporting story, *not* a North Star: an ad-blocker cannot be demonstrated visually by an engine that cannot yet render ad-heavy pages, so its acceptance is stated in requests/bytes/nodes avoided.
+* **Proof target:** **a page that renders from a live public API** — the Hacker News front page from `api.hnpwa.com`, plus a **cross-origin** Wikipedia REST summary (both endpoints verified live 2026-07-26). Retargeted at kickoff from "HNPWA browses live API data": hnpwa.com's implementations are 2017-2018 and mostly framework-based, and "lists, threads, pagination" is SPA routing, which this ladder assigns to M12. M9 ships a **History API MVP** (9.6.1) for the URL-changing half; the rest stays M12. M9's proof is deliberately **data-visible, not layout-visible** — modern sites still render wrong until M10.
 
 ---
 
 ## Milestone 10: The Layouter II (Fixed/Sticky + Scroll Containers + Stacking) — Planned
+
+Detailed doc: [milestone10.md](milestone10.md) *(created 2026-07-26 from the backlog; revalidate at kickoff)*
 
 **Theme:** *Layout Features Deferred From M6*
 **Goal:** The positioning/scrolling primitives that desktop-class pages assume.
@@ -236,6 +238,8 @@ Detailed doc: [milestone9.md](milestone9.md) *(draft — revalidate at kickoff)*
 ---
 
 ## Milestone 11: The Inputter (Forms v2, Focus, Selection, Clipboard) — Planned
+
+Detailed doc: [milestone11.md](milestone11.md) *(created 2026-07-26 from the backlog; revalidate at kickoff)*
 
 **Theme:** *Human Interaction*
 **Goal:** Make login and composing text practical (this is where "viable" often lives or dies).
@@ -252,10 +256,12 @@ Detailed doc: [milestone9.md](milestone9.md) *(draft — revalidate at kickoff)*
 
 ## Milestone 12: The Framework Gauntlet (Observers + History API + SPA Navigation) — Aspirational
 
+Detailed doc: [milestone12.md](milestone12.md) *(thin draft — M12 scope is meant to be derived from missing-API telemetry at kickoff, not guessed)*
+
 **Theme:** *Survive a Production Framework*
 **Goal:** The API surface that framework-generated apps (Polymer/React/Vue class) assume, driven directly by missing-API telemetry from the proof target.
 
-* **History API:** `pushState`/`replaceState`/`popstate`; SPA route changes without document teardown.
+* **History API:** completes M9's MVP (9.6.1 ships `pushState`/`replaceState`/`popstate` with URL-bar and history-entry updates). Left here: scroll restoration, navigation interception, same-document edge cases.
 * **Observer APIs:** `MutationObserver`; `IntersectionObserver` (feeds/lazy-loading depend on it); `ResizeObserver` (stub → real as telemetry demands).
 * **Custom Elements:** `customElements.define()` upgrade path with lifecycle callbacks (YouTube is Polymer — this is not optional for the endgame).
 * **Long-tail bindings:** whatever the telemetry log says the target shell touches (`getBoundingClientRect`, `matchMedia`, `navigator.*` basics, etc.).

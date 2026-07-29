@@ -158,9 +158,22 @@ private:
     // touched-but-unimplemented API name.
     static JSValue js_report_missing_api(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
+    // Registers the Node/DOMTokenList/DOMStringMap class IDs and defs. Class IDs
+    // are per-RUNTIME, so this runs once in the constructor and survives every
+    // context swap; only their prototypes are per-context (see create_context).
+    void register_runtime_classes();
+    // Builds a fresh JSContext — a fresh JS global — and reinstalls the whole
+    // binding surface on it. Called from the constructor and from reset_bindings
+    // on navigation (T-JS-GLOBAL-ISOLATION-1, story 9.0.2).
+    bool create_context();
+    // Drops every per-document JS reference (listeners, timers, animation
+    // frames, node wrappers, telemetry) held in the current context. Split out
+    // of reset_bindings so the destructor can tear down without rebuilding a
+    // context it is about to free.
+    void release_document_state();
+
     void install_node_prototype();
-    void install_token_list_class();
-    void install_string_map_class();
+    void install_token_list_prototype();
     void install_console_bindings();
     void install_document_bindings();
     void install_window_bindings();
@@ -186,6 +199,10 @@ private:
     // (eval, event dispatch, each timer callback) so queued microtasks run before
     // control returns to layout/paint or the next task. A throwing job is logged
     // and draining continues.
+    //
+    // Drains only at the OUTERMOST entry: while `script_entry_depth_` is non-zero
+    // the JS stack is not empty, and a real event loop does not reach a microtask
+    // checkpoint there (T-DISPATCH-MICROTASK-REENTRANT-1, story 9.0.1).
     void drain_microtasks();
 
     // window/location + hashchange (7.2.5).
@@ -251,6 +268,13 @@ private:
     // Set when a script assigns location.hash; consumed by the app to sync the
     // URL bar + tab history (7.7.3). Not set by app-initiated navigation.
     std::optional<std::string> script_location_change_;
+    // Nesting depth of JS entry points (eval, event dispatch, timer/rAF
+    // callback). A host callback can re-enter the engine while script is still
+    // on the stack — JS element.focus() routes through IScriptHost and comes
+    // back as a nested focus dispatch — so entry points bracket their JS
+    // execution and only the outermost one reaches the microtask checkpoint.
+    // Story 7.7.1 gave the mutation epoch the same guard on the engine side.
+    int script_entry_depth_ = 0;
     JSClassID node_class_id_ = 0;
     JSClassID token_list_class_id_ = 0;
     JSClassID string_map_class_id_ = 0;

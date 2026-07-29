@@ -29,6 +29,7 @@ add_executable(HummingbirdTests
     core/BookmarkStore.test.cpp
     core/HttpHeaders.test.cpp
     core/CookieJar.test.cpp
+    core/PublicSuffix.test.cpp
     core/BrowserIdentity.test.cpp
     core/IdentityPolicyStore.test.cpp
     core/Origin.test.cpp
