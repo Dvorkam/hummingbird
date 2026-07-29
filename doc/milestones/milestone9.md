@@ -277,14 +277,32 @@ three fixes.)*
 * **Story 9.1.3: Request Deadlines (gap found in the M8 pre-merge review)**
 * **Goal:** no request can hang forever, and a request that gives up produces a
   real, surfaced failure.
-* **Scope:** nothing in the engine currently bounds a request's lifetime — M8
-  shipped error *pages* for navigation, but a stalled connection has no deadline.
-  Today's `fetch` stub is literally `new Promise(function () {})`, so the *current*
-  behavior is an eternal hang; shipping real fetch without a deadline replaces one
-  silent hang with another. Add a connect/total deadline at the engine request seam
-  (so document, subresource, and fetch traffic all inherit it), map it to a
-  `NetworkError` variant, reject the fetch promise with a distinguishable error,
-  and thread it through to the M8 network-error page for navigations.
+* **Scope — CORRECTED 2026-07-29 after reading the code.** The draft said
+  "nothing in the engine currently bounds a request's lifetime." That is wrong,
+  and the truth is more interesting:
+  - `CurlNetwork` **does** set `CURLOPT_CONNECTTIMEOUT_MS 5000` and
+    `CURLOPT_TIMEOUT_MS 15000` — but hardcoded, inside the *adapter*, where no
+    policy layer can see or change them.
+  - Because M8 took the redirect loop into the engine, **each hop is its own
+    curl call**, so the 15s is per hop. With `RedirectPolicy::kMaxHops == 20`,
+    a worst-case chain is **20 × 15s = 300 seconds** before anything gives up.
+    That is a live bug today, on document navigation, not a future fetch bug.
+  - A timeout maps to `NetworkError::CurlError`, indistinguishable from DNS
+    failure or connection refused. So the M8 error page cannot say "timed out",
+    and fetch could not reject with a distinguishable reason.
+  - Nothing is configurable, so a test would have to wait 15 real seconds.
+
+  So the work is not "add a deadline" but **move the deadline to the engine
+  request seam and give it a name**: a whole-request budget spanning the entire
+  redirect chain (not per hop), a `NetworkError::Timeout` variant, injectable
+  limits so tests do not sleep, and the error threaded through to the M8
+  network-error page for navigations and to a distinguishable fetch rejection.
+* **Ordering — do this BEFORE 9.1.1.** It is pure engine/adapter work, testable
+  with no script engine at all, and it fixes a bug that already ships. Landing
+  fetch first would build promise rejection on top of a 300-second worst case
+  with an unnameable error, which is exactly the "replaces one silent hang with
+  another" trap this story exists to avoid. 9.1.1's own acceptance needs the
+  `NetworkError` variant this story adds.
 * **Acceptance:** a request to a black-holed endpoint rejects within the deadline
   with a timeout-shaped error rather than hanging; a navigation to the same
   endpoint renders the network-error page; the deadline is configurable for tests.
@@ -460,13 +478,26 @@ proof. See finding 5 above for why the synchronous-callback design was dropped.*
 * **Acceptance:** CI fails when the fetch/render loop, the CORS decision, or the
   cache path regresses.
 * **Tests:** the harness is the test.
-* **Kickoff check (5 minutes, needs network):** confirm both live endpoints' CORS
-  response headers with `curl -I` before committing to the cross-origin manual
-  gate. Both endpoints were confirmed to *serve* on 2026-07-26; their
-  `Access-Control-Allow-Origin` headers were **not** directly inspected, because the
-  dev sandbox has no network. If Wikipedia's REST API turns out not to be
-  CORS-open, the mock-server flow still proves 9.2.x and only the manual gate
-  changes.
+* **Kickoff check — DONE 2026-07-29.** Both endpoints probed live with a
+  cross-origin `Origin: https://example.dev`. **Both are CORS-open**, so the
+  cross-origin manual gate is viable and the kickoff's flagged risk is closed.
+  The responses also hand several later stories real-world shapes to build
+  against, which is worth more than the yes/no answer:
+
+  | Observed | Story it informs |
+  |---|---|
+  | Both: `Access-Control-Allow-Origin: *` | 9.2.1 — and note the consequence below |
+  | Wikipedia: `Access-Control-Expose-Headers: etag` | 9.2.4 — a live example of the safelist plus one named header |
+  | Wikipedia: `Access-Control-Allow-Methods: GET,HEAD` and a long `Allow-Headers` list, answered on `OPTIONS` | 9.2.1 preflight |
+  | Wikipedia: **no `Access-Control-Max-Age`** on the preflight | 9.2.2 — there is nothing to cache beyond the spec default, so preflight caching buys less than assumed; it stays P1 |
+  | HNPWA: `Cache-Control: max-age=3600`, strong `ETag`, `Last-Modified` | 9.3.1 — a real freshness + revalidation target |
+  | HNPWA: **`Vary: x-fh-requested-host, accept-encoding`** | 9.3.2 — a live `Vary` on a header the engine actually sends |
+  | Wikipedia: `Cache-Control: s-maxage=1209600, max-age=300`, **weak** `ETag` (`W/"…"`), `Age: 11914` | 9.3.1 — weak-vs-strong validator comparison, and `Age` participates in freshness |
+
+  **Consequence of `Allow-Origin: *` on both:** per spec a credentialed request to
+  an origin answering `*` is rejected. So 9.2.1's credentials-mode acceptance can
+  only be exercised against the mock server — the live gate proves the
+  non-credentialed path. That is a limit of the live gate, not of the tests.
 
 ### 9.6 - SPA Routing MVP (pulled forward from M12)
 
@@ -618,8 +649,12 @@ P0: Foundations (must precede fetch)
       `Set-Cookie` never reaches the `Cookie` header.)*
 
 P0: fetch + CORS (North Star)
+- [ ] 9.1.3: Request Deadlines *(moved ahead of 9.1.1 on 2026-07-29: the deadline
+      today lives hardcoded in the curl adapter and applies **per redirect hop**,
+      so a 20-hop chain can run 300s before failing — a live navigation bug, not a
+      future fetch one. It is also pure engine work, and 9.1.1's acceptance needs
+      the `NetworkError` variant it introduces.)*
 - [ ] 9.1.1: fetch() Core
-- [ ] 9.1.3: Request Deadlines
 - [ ] 9.2.1: Request Classification + Enforcement
 - [ ] 9.2.3: CORS Across Redirect Hops
 - [ ] 9.2.4: Response Header Exposure
