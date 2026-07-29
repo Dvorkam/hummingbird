@@ -38,6 +38,15 @@ All notable changes to this project will be documented in this file.
 - **Correct microtask ordering**: promise continuations now run when the JavaScript
   stack empties rather than when a nested event dispatch returns.
 
+### Fixed
+
+- **A slow site can no longer stall a tab for minutes.** A request's time budget
+  now covers the whole request including every redirect it follows, instead of
+  restarting on each hop — a page that redirected repeatedly could previously keep
+  a tab waiting for several minutes before giving up. A request that runs out of
+  time now says so, with its own "took too long" page, rather than reporting the
+  site as unreachable.
+
 ## [0.8.0] - 2026-07-26
 
 Milestone 8 — "The Session Keeper": persistent browser state and the navigation

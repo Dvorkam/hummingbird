@@ -649,11 +649,21 @@ P0: Foundations (must precede fetch)
       `Set-Cookie` never reaches the `Cookie` header.)*
 
 P0: fetch + CORS (North Star)
-- [ ] 9.1.3: Request Deadlines *(moved ahead of 9.1.1 on 2026-07-29: the deadline
-      today lives hardcoded in the curl adapter and applies **per redirect hop**,
-      so a 20-hop chain can run 300s before failing — a live navigation bug, not a
-      future fetch one. It is also pure engine work, and 9.1.1's acceptance needs
-      the `NetworkError` variant it introduces.)*
+- [x] 9.1.3: Request Deadlines *(ran ahead of 9.1.1. `NetworkRequestOptions` now
+      carries per-call connect/total deadlines; `CurlNetwork` uses them and keeps
+      its old hardcoded values only as a backstop for a direct `INetwork` user.
+      `ResourceLoader::RequestDeadlines` owns the policy, and `RedirectChain`
+      carries a deadline set on the first hop and unchanged after, so each hop
+      gets only what is left and a hop starting with nothing left is never issued.
+      Connect is clamped to the remaining total. `NetworkError::Timeout` is
+      distinct, with its own error-page wording — "took too long … trying again
+      often works" rather than "didn't respond", which reads as a wrong address.
+      The clock is injectable, so tests prove a chain gives up part-way without
+      sleeping. Tests: `RequestDeadlineTest.*`; the headline one was **verified to
+      fail under the old per-hop behaviour** (21 requests and `TooManyRedirects`,
+      instead of 4 and `Timeout`). **Still open for 9.1.1:** the fetch promise's
+      distinguishable rejection — the `NetworkError` variant exists, nothing
+      surfaces it to JS yet.)*
 - [ ] 9.1.1: fetch() Core
 - [ ] 9.2.1: Request Classification + Enforcement
 - [ ] 9.2.3: CORS Across Redirect Hops
