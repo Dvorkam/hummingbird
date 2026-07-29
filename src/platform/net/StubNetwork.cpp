@@ -139,6 +139,13 @@ constexpr std::string_view kCacheDemoPrefix = "/api/cache-demo";
 constexpr std::string_view kCacheDemoPath = "/api/cache-demo";
 constexpr std::string_view kCacheStatsPath = "/api/cache-demo/stats";
 constexpr std::string_view kCacheNoStorePath = "/api/cache-demo/nostore";
+// A cacheable SUBRESOURCE, which is the only way the reload levels become
+// visible: a normal reload leaves a fresh stylesheet alone and a hard reload
+// refetches it. Nothing else on the demo site is cacheable, so without this the
+// two reloads are indistinguishable and the demo card would be claiming a
+// difference it cannot show.
+constexpr std::string_view kCacheStylePath = "/api/cache-demo/style.css";
+constexpr std::string_view kCacheStyleEtag = "\"cache-demo-css-v1\"";
 // Deliberately constant, so a revalidation always earns a 304 — the case worth
 // demonstrating, because it is the one where the round trip happens and the
 // payload does not.
@@ -149,6 +156,8 @@ constexpr std::string_view kCacheDemoEtag = "\"cache-demo-v1\"";
 std::atomic<int> g_cache_full{0};
 std::atomic<int> g_cache_revalidated{0};
 std::atomic<int> g_cache_nostore{0};
+std::atomic<int> g_cache_css_full{0};
+std::atomic<int> g_cache_css_revalidated{0};
 
 bool build_cache_demo(std::string_view path, const Hummingbird::Core::HttpHeaders& request_headers,
                       NetworkResponse& response) {
@@ -159,7 +168,27 @@ bool build_cache_demo(std::string_view path, const Hummingbird::Core::HttpHeader
         response.headers.add("Content-Type", "application/json");
         response.body = "{\"full\":" + std::to_string(g_cache_full.load()) +
                         ",\"revalidated\":" + std::to_string(g_cache_revalidated.load()) +
-                        ",\"nostore\":" + std::to_string(g_cache_nostore.load()) + "}";
+                        ",\"nostore\":" + std::to_string(g_cache_nostore.load()) +
+                        ",\"cssFull\":" + std::to_string(g_cache_css_full.load()) +
+                        ",\"cssRevalidated\":" + std::to_string(g_cache_css_revalidated.load()) + "}";
+        return true;
+    }
+    if (path == kCacheStylePath) {
+        // Requested by the demo page's <link>, so the ENGINE fetches it rather
+        // than script — which is the point: this is the subresource the two
+        // reload levels treat differently.
+        response.headers.add("Cache-Control", "max-age=300");
+        response.headers.add("ETag", std::string(kCacheStyleEtag));
+        response.headers.add("Content-Type", "text/css");
+        if (request_headers.get("If-None-Match") == kCacheStyleEtag) {
+            ++g_cache_css_revalidated;
+            response.status = 304;
+            return true;
+        }
+        ++g_cache_css_full;
+        response.status = 200;
+        // Visible, so "did the stylesheet arrive at all" is answerable by looking.
+        response.body = ".cache-styled { border-left: 6px solid #b25e00; padding-left: 10px; }\n";
         return true;
     }
     if (path == kCacheNoStorePath) {

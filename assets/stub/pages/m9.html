@@ -25,6 +25,11 @@
       code { background-color: #e8ecf4; border-radius: 3px; padding: 1px 4px; }
       a { color: #1b5fbf; }
     </style>
+    <!-- A cacheable subresource fetched by the ENGINE, not by script. This is what
+         makes the two reload levels observable: F5 leaves it alone while it is
+         fresh, Ctrl+Shift+R refetches it. The counters in the cache card below
+         report which happened. -->
+    <link rel="stylesheet" href="/api/cache-demo/style.css">
   </head>
   <body>
     <div class="page">
@@ -72,10 +77,9 @@
         &ldquo;that felt fast&rdquo; is not evidence. So this endpoint counts how many times the <em>server</em> was
         actually reached, and the page shows you that number.</p>
         <p><button id="cache-get">Fetch the cached resource</button>
-        <button id="cache-nostore">Fetch a no-store resource</button>
-        <button id="cache-stats">Ask the server what it saw</button></p>
+        <button id="cache-nostore">Fetch a no-store resource</button></p>
         <p class="out" id="cache-out">Nothing fetched yet.</p>
-        <p class="out" id="cache-server">Server counters: not checked yet.</p>
+        <p class="out cache-styled" id="cache-server">Reading server counters&hellip;</p>
         <p class="note">The cached resource is sent with <code>Cache-Control: max-age=10</code> and an
         <code>ETag</code>. Click it several times quickly: the body keeps saying <strong>served #1</strong> and the
         server's <code>full</code> count stays at 1 &mdash; the later clicks never left the browser. The
@@ -85,12 +89,19 @@
         the body you see was reused from memory. The <code>no-store</code> button is the control: its counter climbs
         every single time, because a response that says &ldquo;never store this&rdquo; is never stored. Added in M9
         (story 9.3.1).</p>
-        <p class="note">Reload still works, at the two levels a browser gives you. <strong>F5</strong> revalidates
-        the <em>document</em> &mdash; it asks the server whether the page changed, and leaves fresh subresources alone.
-        (Browsers used to re-check every subresource on F5 and stopped, because fifty assets meant fifty extra
-        requests.) <strong>Ctrl+Shift+R</strong> is the hard reload: it ignores the cache for the page
-        <em>and</em> everything on it, which is the answer to &ldquo;I changed the stylesheet and nothing
-        happened.&rdquo;</p>
+        <p class="note">Reload still works, at the two levels a browser gives you &mdash; and this page now has a
+        cacheable stylesheet (<code>/api/cache-demo/style.css</code>, <code>max-age=300</code>, the orange bar beside
+        the counters) so you can watch the difference in the <strong>stylesheet</strong> numbers above.
+        <strong>F5</strong> revalidates the <em>document</em> and leaves a fresh subresource alone: both stylesheet
+        counters stay put. Browsers used to re-check every subresource on F5 and stopped, because fifty assets meant
+        fifty extra requests per keystroke. <strong>Ctrl+Shift+R</strong> ignores the cache for the page
+        <em>and</em> everything on it, so <code>stylesheet: full</code> goes up by one &mdash; the answer to
+        &ldquo;I changed the stylesheet and nothing happened.&rdquo;</p>
+        <p class="note">Note which counter moves, because it is the opposite of the intuitive guess: a hard reload
+        increments <strong>full</strong>, never <strong>revalidated</strong>. Revalidating means asking
+        &ldquo;is the copy I hold still good?&rdquo;, and refusing to ask that is the entire point of a hard reload.
+        The 304 belongs to the <em>normal</em> path &mdash; it is what the API button earns once its ten seconds are
+        up.</p>
         <p class="note">One thing this card does <em>not</em> claim: nothing here is keyed on <code>Vary</code> yet, so
         a response that varies is currently not cached at all rather than cached wrongly (story 9.3.2).</p>
       </div>
@@ -199,13 +210,17 @@
         fetch("/api/cache-demo/stats").then(function (response) {
           return response.json();
         }).then(function (stats) {
-          cacheServer.textContent = "Server counters: full responses sent = " + stats.full
-            + " | revalidations answered 304 = " + stats.revalidated
-            + " | no-store responses sent = " + stats.nostore;
+          cacheServer.textContent = "Server saw — API: " + stats.full + " full, "
+            + stats.revalidated + " revalidated (304), " + stats.nostore + " no-store"
+            + "   ||   stylesheet: " + stats.cssFull + " full, " + stats.cssRevalidated + " revalidated (304)";
         }).catch(function (error) {
           cacheServer.textContent = "Could not read the counters: " + error.message;
         });
       }
+
+      // Read on load, not only on click: after a reload this is what shows which
+      // kind of reload it was, before you touch anything.
+      showServerCounters();
 
       document.getElementById("cache-get").addEventListener("click", function () {
         cacheOut.textContent = "Fetching /api/cache-demo…";
@@ -234,8 +249,6 @@
           cacheOut.textContent = "Could not load: " + error.message;
         });
       });
-
-      document.getElementById("cache-stats").addEventListener("click", showServerCounters);
 
       var order = document.getElementById("order");
       function log(msg) { order.textContent = order.textContent + msg; }

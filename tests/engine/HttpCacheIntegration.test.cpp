@@ -13,6 +13,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -408,6 +409,38 @@ TEST(HttpCacheIntegrationTest, TheDemoEndpointDemonstratesWhatTheCardClaims) {
     // And the control: no-store climbs every time.
     EXPECT_NE(fetch("/api/cache-demo/nostore").body.find("\"served\":1"), std::string::npos);
     EXPECT_NE(fetch("/api/cache-demo/nostore").body.find("\"served\":2"), std::string::npos);
+}
+
+// A demo page's subresources must reach the stub, like its document and its
+// fetches do. This is the same split that once made a fetch to example.dev
+// unresolvable, in the one request path that had not been given the rule:
+// `allow_fallback_network` only applies when there is NO primary transport, and
+// in the app there always is one.
+TEST(HttpCacheIntegrationTest, DemoSubresourcesGoToTheStubNotTheRealNetwork) {
+    auto cache = std::make_shared<HttpCache>();
+    // Both transports present, exactly as the app configures them. The primary
+    // stands in for curl: if a demo subresource reaches it, that is the bug.
+    auto primary = std::make_unique<RecordingNetwork>();
+    RecordingNetwork* real_network = primary.get();
+    real_network->set_reply({0, "", {}});  // as curl answers an unresolvable host
+    auto loader = std::make_unique<ResourceLoader>(
+        std::move(primary), std::make_unique<Hummingbird::Platform::StubNetwork>(), nullptr, nullptr, nullptr, nullptr,
+        cache);
+
+    loader->request_stylesheets({"/api/cache-demo/style.css"}, "https://example.dev/m9");
+
+    // The stub answers on a thread pool, so wait for the response to land rather
+    // than reading a counter that has not been written yet. Waiting on either
+    // outcome keeps the failing case fast: a misrouted request reaches the
+    // primary synchronously.
+    for (int i = 0; i < 400 && cache->stats().stores == 0 && real_network->calls.empty(); ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+
+    EXPECT_TRUE(real_network->calls.empty())
+        << "a demo subresource must not be sent to the transport that cannot resolve example.dev";
+    // And it really was fetched and cached by the stub, rather than quietly dropped.
+    EXPECT_EQ(cache->stats().stores, 1u);
 }
 
 // Nothing that carries a session is cached in 9.3.1 — in either direction.

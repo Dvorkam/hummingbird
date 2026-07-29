@@ -279,16 +279,20 @@ TEST(ResourceLoaderTest, ScriptFetchMarksBatchScriptReady) {
 
     ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
 
-    const std::string base_url = "https://example.dev/index.html";
+    // NOT example.dev: that is the built-in demo host, which every request path
+    // routes to the fallback transport (the stub has no DNS behind it). This test
+    // is about a script being fetched and marked ready, so it uses a neutral host
+    // rather than silently depending on which transport serves the demo site.
+    const std::string base_url = "https://example.test/index.html";
     loader.request_scripts({"js/app.js"}, base_url);
 
     ASSERT_EQ(network_ptr->requests.size(), 1u);
-    EXPECT_EQ(network_ptr->requests[0].url, "https://example.dev/js/app.js");
+    EXPECT_EQ(network_ptr->requests[0].url, "https://example.test/js/app.js");
 
     auto batch = loader.consume_pending_updates();
     EXPECT_TRUE(batch.is_ready(ResourceType::Script));
 
-    auto view = loader.view("https://example.dev/js/app.js", ResourceType::Script);
+    auto view = loader.view("https://example.test/js/app.js", ResourceType::Script);
     ASSERT_TRUE(view.has_value());
     EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
     EXPECT_EQ(view->body, "var loaded = true;");

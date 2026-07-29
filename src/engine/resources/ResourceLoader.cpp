@@ -983,6 +983,17 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         }
 
         INetwork* fetcher = network_.get();
+        // Route the built-in demo site to the stub, the same way `navigate` and
+        // `fetch_for_script` do. Without this a demo page's absolute-path
+        // subresource went to the real network and failed DNS while the page
+        // around it loaded fine — the identical split that made a fetch to
+        // example.dev unresolvable, in the one request path that had not been
+        // given the rule. `allow_fallback_network` alone did not cover it: it only
+        // applies when there is no primary transport at all, which in the app
+        // there always is.
+        if (is_builtin_demo_url(url) && fallback_network_) {
+            fetcher = fallback_network_.get();
+        }
         if (!fetcher && options.allow_fallback_network) {
             fetcher = fallback_network_.get();
         }

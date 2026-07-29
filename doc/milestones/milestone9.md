@@ -819,7 +819,24 @@ P0: Cache (North Star)
       Demo: a new card on `example.dev/m9` with **server-side hit counters**, so the
       cache is shown rather than asserted — the body keeps saying "served #1" while
       the server's `full` count stays at 1, then `revalidated` climbs instead once
-      the entry goes stale, and a `no-store` control endpoint climbs every click.)*
+      the entry goes stale, and a `no-store` control endpoint climbs every click.
+      **Demo follow-up after the user checked it (2026-07-29):** the API/no-store
+      halves worked, but F5 and Ctrl+Shift+R were indistinguishable *and the card
+      claimed otherwise* — nothing on the demo site is cacheable (the stub sends no
+      `Cache-Control`, and `/m9` had no external subresources), so there was
+      genuinely nothing to see. Added a cacheable stub stylesheet
+      (`/api/cache-demo/style.css`, `max-age=300` + ETag) with its own counters,
+      reported on page load, which is the only way the reload levels become
+      visible. Building it surfaced a **latent routing bug**: subresources fell back
+      to the stub only when there was NO primary transport
+      (`allow_fallback_network`), so a demo page's absolute-path subresource went to
+      curl and failed DNS — the same split that made a fetch to example.dev
+      unresolvable, in the one request path that had never been given the rule.
+      Fixed with the shared `is_builtin_demo_url` check and pinned by a test
+      verified to fail without it. The card also now states which counter a hard
+      reload moves: **`full`, never `revalidated`** — refusing to ask "is my copy
+      still good?" is the point of it, so it can never earn a 304. The redundant
+      "ask the server" button is gone; both fetch buttons refresh the counters.)*
 - [ ] 9.3.2: Cache Key Correctness — `Vary`, `private`, Credentials
 
 P0: Guardrails
