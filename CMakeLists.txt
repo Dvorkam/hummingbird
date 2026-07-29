@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(Hummingbird VERSION 0.8.0)
+project(Hummingbird VERSION 0.9.0)
 
 # Single source of truth for the version: generate a header from PROJECT_VERSION
 # so the User-Agent (and anything else) tracks the real version automatically
