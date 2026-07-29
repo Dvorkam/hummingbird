@@ -187,6 +187,15 @@ function Build-Header([string]$commit) {
 
     $sb = [System.Text.StringBuilder]::new()
     [void]$sb.Append(@"
+// clang-format off
+//
+// Formatting is disabled for the whole file: it is generated, and a byte-escaped
+// internationalized rule is a single string literal longer than the column limit,
+// which clang-format cannot wrap and CI would reject. Keeping the directive in
+// the generated output rather than excluding the path in CI means the rule
+// travels with the file and does not depend on a clang-format version or a
+// workflow input.
+//
 // GENERATED FILE -- DO NOT EDIT BY HAND.
 //
 // Regenerate with scripts/update_public_suffix_list.ps1 (see that script for why
