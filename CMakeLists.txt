@@ -89,9 +89,11 @@ add_library(Core STATIC
     src/core/BookmarkStore.cpp
     src/core/dom/DomFactory.cpp
     src/core/net/BrowserIdentity.cpp
+    src/core/net/CacheControl.cpp
     src/core/net/Cookie.cpp
     src/core/net/Cors.cpp
     src/core/net/CookieJar.cpp
+    src/core/net/HttpCache.cpp
     src/core/net/HttpHeaders.cpp
     src/core/net/IdentityPolicyStore.cpp
     src/core/net/Origin.cpp

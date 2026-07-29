@@ -300,6 +300,20 @@ void BrowserApp::navigate_and_reflect_url(std::string_view url, Hummingbird::Eng
     render_coordinator_->set_chrome_dirty();
 }
 
+void BrowserApp::reload_and_reflect_url(bool hard) {
+    // The tab already knows which URL it is on, so unlike a navigation there is
+    // nothing to resolve — only the URL bar to put back in case the user had
+    // typed something they never submitted.
+    browser_chrome_.url_bar().set_text(active_tab().requested_url());
+    if (hard) {
+        active_tab().hard_reload();
+    } else {
+        active_tab().reload();
+    }
+    render_coordinator_->set_document_dirty();
+    render_coordinator_->set_chrome_dirty();
+}
+
 void BrowserApp::navigate_and_reflect_submission(const Hummingbird::Engine::FormSubmission& submission) {
     browser_chrome_.url_bar().set_text(submission.url);
     navigate_active_tab(submission);

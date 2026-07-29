@@ -31,7 +31,8 @@
       <p class="eyebrow">M9 &mdash; THE FETCHER</p>
       <h1>Asking the network for itself</h1>
       <p class="intro">Milestone 9 gives the page its own voice on the network: <code>fetch()</code>, a CORS model,
-      and an HTTP cache. It starts with the two event-loop guarantees everything promise-based rests on.</p>
+      and an HTTP cache &mdash; the three things that separate &ldquo;the browser fetched it&rdquo; from
+      &ldquo;something fetched it.&rdquo; It rests on two event-loop guarantees everything promise-based needs.</p>
 
       <div class="card">
         <h2>fetch()</h2>
@@ -63,6 +64,35 @@
         <code>age</code> not at all &mdash; the server sends it, but no page may see it (story 9.2.4). This is also
         Milestone&nbsp;9&rsquo;s North Star target: <em>a page that renders live data the browser fetched
         itself.</em></p>
+      </div>
+
+      <div class="card">
+        <h2>The HTTP cache</h2>
+        <p class="card-lead">A cache is invisible by nature, which is exactly what makes it hard to trust &mdash;
+        &ldquo;that felt fast&rdquo; is not evidence. So this endpoint counts how many times the <em>server</em> was
+        actually reached, and the page shows you that number.</p>
+        <p><button id="cache-get">Fetch the cached resource</button>
+        <button id="cache-nostore">Fetch a no-store resource</button>
+        <button id="cache-stats">Ask the server what it saw</button></p>
+        <p class="out" id="cache-out">Nothing fetched yet.</p>
+        <p class="out" id="cache-server">Server counters: not checked yet.</p>
+        <p class="note">The cached resource is sent with <code>Cache-Control: max-age=10</code> and an
+        <code>ETag</code>. Click it several times quickly: the body keeps saying <strong>served #1</strong> and the
+        server's <code>full</code> count stays at 1 &mdash; the later clicks never left the browser. The
+        <code>age</code> line climbs, which is the response telling you how old it is. Now wait ten seconds and click
+        again: <code>full</code> is <em>still</em> 1 but <code>revalidated</code> becomes 1. That is
+        <code>If-None-Match</code> earning a <code>304</code> &mdash; the round trip happened, the payload did not, and
+        the body you see was reused from memory. The <code>no-store</code> button is the control: its counter climbs
+        every single time, because a response that says &ldquo;never store this&rdquo; is never stored. Added in M9
+        (story 9.3.1).</p>
+        <p class="note">Reload still works, at the two levels a browser gives you. <strong>F5</strong> revalidates
+        the <em>document</em> &mdash; it asks the server whether the page changed, and leaves fresh subresources alone.
+        (Browsers used to re-check every subresource on F5 and stopped, because fifty assets meant fifty extra
+        requests.) <strong>Ctrl+Shift+R</strong> is the hard reload: it ignores the cache for the page
+        <em>and</em> everything on it, which is the answer to &ldquo;I changed the stylesheet and nothing
+        happened.&rdquo;</p>
+        <p class="note">One thing this card does <em>not</em> claim: nothing here is keyed on <code>Vary</code> yet, so
+        a response that varies is currently not cached at all rather than cached wrongly (story 9.3.2).</p>
       </div>
 
       <div class="card">
@@ -158,6 +188,54 @@
             live.textContent = result.page.title + " — " + result.page.extract + result.readable;
           }).catch(reportFailure);
       });
+
+      // --- the HTTP cache (story 9.3.1) --------------------------------------
+      var cacheOut = document.getElementById("cache-out");
+      var cacheServer = document.getElementById("cache-server");
+
+      function showServerCounters() {
+        // This endpoint is no-store, so what it reports is always current — a
+        // cached answer here would be worse than useless.
+        fetch("/api/cache-demo/stats").then(function (response) {
+          return response.json();
+        }).then(function (stats) {
+          cacheServer.textContent = "Server counters: full responses sent = " + stats.full
+            + " | revalidations answered 304 = " + stats.revalidated
+            + " | no-store responses sent = " + stats.nostore;
+        }).catch(function (error) {
+          cacheServer.textContent = "Could not read the counters: " + error.message;
+        });
+      }
+
+      document.getElementById("cache-get").addEventListener("click", function () {
+        cacheOut.textContent = "Fetching /api/cache-demo…";
+        fetch("/api/cache-demo").then(function (response) {
+          if (!response.ok) { throw new Error("server said " + response.status); }
+          // Same-origin, so Age is readable. Cross-origin it would be hidden —
+          // see the Wikipedia card above.
+          var age = response.headers.get("age");
+          return response.json().then(function (data) {
+            cacheOut.textContent = "Body says: served #" + data.served
+              + "   [age] " + (age === null ? "(fresh from the network)" : age + "s old, from cache");
+          });
+        }).then(showServerCounters).catch(function (error) {
+          cacheOut.textContent = "Could not load: " + error.message;
+        });
+      });
+
+      document.getElementById("cache-nostore").addEventListener("click", function () {
+        cacheOut.textContent = "Fetching /api/cache-demo/nostore…";
+        fetch("/api/cache-demo/nostore").then(function (response) {
+          return response.json();
+        }).then(function (data) {
+          cacheOut.textContent = "no-store body says: served #" + data.served
+            + "   (this number climbs every click — nothing was stored)";
+        }).then(showServerCounters).catch(function (error) {
+          cacheOut.textContent = "Could not load: " + error.message;
+        });
+      });
+
+      document.getElementById("cache-stats").addEventListener("click", showServerCounters);
 
       var order = document.getElementById("order");
       function log(msg) { order.textContent = order.textContent + msg; }

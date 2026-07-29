@@ -63,13 +63,15 @@ Core::CookieRequestContext subresource_cookie_context(std::string_view base_url)
 
 ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
                                ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar,
-                               std::shared_ptr<Core::IdentityPolicyStore> identity_store)
+                               std::shared_ptr<Core::IdentityPolicyStore> identity_store,
+                               std::shared_ptr<Core::HttpCache> http_cache)
     : network_(std::move(network)),
       fallback_network_(std::move(fallback_network)),
       resource_provider_(std::move(resource_provider)),
       image_decoder_(std::move(image_decoder)),
       cookie_jar_(std::move(cookie_jar)),
-      identity_store_(std::move(identity_store)) {
+      identity_store_(std::move(identity_store)),
+      http_cache_(std::move(http_cache)) {
     // Only "nothing can fetch at all" is an error. Having just one backend is a
     // deliberate configuration (tests, headless harnesses, stub-only demo runs),
     // and shouting about it on every construction trained the eye to ignore a
@@ -403,9 +405,48 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
                                        << " Cookie=" << (options.headers.get("Cookie").empty() ? "no" : "yes"));
     }
 
-    auto on_response = [this, &network, url, options, callback, context, post_body,
-                        chain](NetworkResponse response) mutable {
-        if (cookie_jar_ && context.credentials_allowed && !response.headers.empty()) {
+    // --- HTTP cache lookup (story 9.3.1) -------------------------------------
+    //
+    // Placed HERE, after the Cookie/Origin/Referer/identity headers have been
+    // computed and before the transport is called. Those are request headers a
+    // response may `Vary` on, so a lookup made before they exist would key the
+    // entry on a request that was never sent — which is precisely the bug 9.3.2
+    // is about, arrived at by accident.
+    //
+    // POSTs neither read nor write the cache: the key is method + URL, and a
+    // POST's meaning lives in a body the key does not carry.
+    std::optional<Core::HttpCache::Lookup> serve_from_cache;
+    bool revalidating = false;
+    if (http_cache_ && !post_body && chain.cache_policy != CachePolicy::Bypass) {
+        auto hit = http_cache_->lookup("GET", url, options.headers, Core::CacheClock::now());
+        // A reload must confirm even a fresh entry. Without this, F5 on a page
+        // with `max-age=3600` would show the same bytes for an hour and the user
+        // would have no way to refresh it — the cache would have broken the one
+        // control they have over it.
+        const bool must_ask = chain.cache_policy == CachePolicy::Revalidate;
+        if (hit.outcome == Core::HttpCache::Outcome::Fresh && !must_ask) {
+            serve_from_cache = std::move(hit);
+        } else if (hit.outcome != Core::HttpCache::Outcome::Miss || (must_ask && !hit.etag.empty())) {
+            // Stale, or fresh but the user asked. Either way the server is asked
+            // whether what we hold is still good, which a 304 answers in a few
+            // hundred bytes instead of resending the whole body. Against a CDN
+            // this is the common case, not the exception.
+            if (!hit.etag.empty()) {
+                options.headers.set("If-None-Match", hit.etag);
+                revalidating = true;
+            } else if (!hit.last_modified.empty()) {
+                options.headers.set("If-Modified-Since", hit.last_modified);
+                revalidating = true;
+            }
+        }
+    }
+
+    auto handle_response = [this, &network, url, options, callback, context, post_body, revalidating, chain](
+                               NetworkResponse response, bool from_cache) mutable {
+        // A cached response never re-plants cookies: replaying a `Set-Cookie`
+        // from memory would resurrect one the user had deleted. (The cache
+        // refuses to store such responses at all, so this is belt and braces.)
+        if (cookie_jar_ && context.credentials_allowed && !from_cache && !response.headers.empty()) {
             // Attribute Set-Cookie to this hop's URL. Cookies set mid-chain are
             // therefore stored before the next hop's header is computed, which is
             // what makes a login 302 land authenticated.
@@ -429,6 +470,68 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
                 blocked.error = NetworkError::CorsBlocked;
                 if (callback) callback(std::move(blocked));
                 return;
+            }
+        }
+
+        // A conditional request came back 304: what we already hold is current.
+        // The stored response is swapped in HERE — after the CORS verdict, which
+        // must judge the 304 the server actually sent, and before the redirect
+        // decision and the exposure filter, so everything below sees exactly what
+        // a full response would have looked like.
+        if (revalidating && response.status == 304 && response.error == NetworkError::None && http_cache_) {
+            auto stored = http_cache_->refresh_from_not_modified("GET", url, options.headers, response.headers,
+                                                                 Core::CacheClock::now());
+            if (stored) {
+                response.status = stored->status;
+                response.headers = std::move(stored->headers);
+                response.body = std::move(stored->body);
+                response.headers.set("Age", std::to_string(stored->age.count()));
+                from_cache = true;
+            } else if (!chain.revalidation_retried) {
+                // The entry was evicted between asking and being answered. A 304
+                // carries no body, so there is nothing to hand the page: ask
+                // again unconditionally rather than deliver an empty document.
+                HB_LOG_DEBUG("[cache] 304 for an entry that is gone; re-requesting " << url);
+                NetworkRequestOptions retry = options;
+                retry.headers.remove("If-None-Match");
+                retry.headers.remove("If-Modified-Since");
+                RedirectChain retry_chain = chain;
+                retry_chain.revalidation_retried = true;
+                // This hop is about to be recorded again; leaving it would make
+                // the loop detector call the retry a redirect cycle.
+                retry_chain.visited.pop_back();
+                send_request(network, url, std::move(retry), std::move(callback), context, std::move(post_body),
+                             std::move(retry_chain));
+                return;
+            } else {
+                // Twice in a row means something is wrong beyond eviction. There
+                // is no honest response to deliver, so this is a failed request —
+                // CurlError for want of a more specific variant, which is not
+                // worth adding for a case that needs a cache race to reach.
+                HB_LOG_WARN("[cache] repeated 304 with no stored entry: " << url);
+                NetworkResponse failed;
+                failed.url = chain.visited.front();
+                failed.effective_url = url;
+                failed.error = NetworkError::CurlError;
+                if (callback) callback(std::move(failed));
+                return;
+            }
+        }
+
+        // Store this hop's response — every hop, not only the last, because a
+        // cached 301 saves the whole chain next time (which is why the cache
+        // belongs inside the redirect loop rather than around it).
+        //
+        // Deliberately BEFORE the exposure filter further down, so what lands in
+        // the cache is what the server actually said and policy re-applies on
+        // every later use. Storing the filtered copy would drop
+        // Access-Control-Allow-Origin, and the re-check on a subsequent cache hit
+        // would then block a response the server had plainly allowed.
+        if (http_cache_ && !post_body && !from_cache && response.error == NetworkError::None) {
+            const auto verdict = http_cache_->store("GET", url, response.status, options.headers, response.headers,
+                                                    response.body, Core::CacheClock::now());
+            if (verdict != Core::Storability::Storable) {
+                HB_LOG_DEBUG("[cache] not stored (" << Core::describe(verdict) << "): " << url);
             }
         }
 
@@ -486,6 +589,11 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         // A rewritten-to-GET hop carries no body, so its content type is
         // meaningless; leaving it set would advertise a body we are not sending.
         NetworkRequestOptions next = options;
+        // The conditional belonged to THIS hop's cached entry. Carrying it to the
+        // next URL asks the wrong question, and could earn a 304 for a resource
+        // the cache holds nothing for.
+        next.headers.remove("If-None-Match");
+        next.headers.remove("If-Modified-Since");
         std::optional<std::string> next_body;
         if (decision->keep_post) {
             next_body = post_body;
@@ -522,6 +630,31 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
                      std::move(chain));
     };
 
+    // A fresh entry answers without the network being touched at all. It still
+    // goes through `handle_response`, which is the point: the CORS verdict, the
+    // exposure filter and redirect following all re-apply to a cached answer
+    // exactly as they would to a live one. A cache that bypassed them would be a
+    // way to launder a response past the checks that admitted it.
+    if (serve_from_cache) {
+        NetworkResponse cached;
+        cached.url = url;
+        cached.effective_url = url;
+        cached.status = serve_from_cache->status;
+        cached.headers = std::move(serve_from_cache->headers);
+        cached.body = std::move(serve_from_cache->body);
+        // `Age` is how a response says how old it is, and the one standard way a
+        // same-origin page can see this did not come from the network. It stays
+        // invisible cross-origin — Age is not CORS-safelisted, which the M9 demo
+        // page shows against Wikipedia.
+        cached.headers.set("Age", std::to_string(serve_from_cache->age.count()));
+        HB_LOG_DEBUG("[cache] hit (age " << serve_from_cache->age.count() << "s): " << url);
+        handle_response(std::move(cached), /*from_cache*/ true);
+        return;
+    }
+
+    auto on_response = [handle_response](NetworkResponse response) mutable {
+        handle_response(std::move(response), /*from_cache*/ false);
+    };
     if (post_body) {
         network.post(url, *post_body, std::move(on_response), options);
     } else {
@@ -554,6 +687,17 @@ void ResourceLoader::navigate(std::string_view url) {
 void ResourceLoader::navigate(std::string_view url, const DocumentRequest& request) {
     const uint64_t id = ++nav_counter_;
     active_nav_.store(id, std::memory_order_release);
+    // What the subresources of this navigation inherit — deliberately NOT always
+    // the document's own policy.
+    //
+    // A normal reload revalidates the document only. Browsers used to re-check
+    // every subresource on F5 and moved away from it (Chrome ~2017) because on a
+    // page with fifty assets it turned a reload into fifty conditional requests,
+    // which made the fastest way to reload a page "navigate to it again". A hard
+    // reload is where the user is asking for the expensive, thorough thing, so
+    // Bypass does propagate.
+    nav_cache_policy_.store(request.cache_policy == CachePolicy::Bypass ? CachePolicy::Bypass : CachePolicy::Default,
+                            std::memory_order_release);
     std::string url_copy(url);
 
     // False just means the URL is already tracked as Loading or Ready — i.e. a
@@ -595,6 +739,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         const bool is_post = request.method == DocumentRequest::Method::Post;
         RedirectChain chain;
         chain.referrer_source = request.initiator_url;
+        chain.cache_policy = request.cache_policy;
         send_request(*fallback_network_, url_copy, options, std::move(callback),
                      document_cookie_context(is_post, request.initiator_host),
                      is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
@@ -615,6 +760,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             const bool is_post = request.method == DocumentRequest::Method::Post;
             RedirectChain chain;
             chain.referrer_source = request.initiator_url;
+            chain.cache_policy = request.cache_policy;
             send_request(*fallback_network_, url_copy, options, std::move(callback),
                          document_cookie_context(is_post, request.initiator_host),
                          is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
@@ -630,7 +776,8 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
 
     auto callback = [this, id, url_copy, request_method = request.method, post_body = request.body,
                      post_content_type = request.content_type, initiator_host = request.initiator_host,
-                     initiator_url = request.initiator_url](NetworkResponse response) {
+                     initiator_url = request.initiator_url,
+                     cache_policy = request.cache_policy](NetworkResponse response) {
         if (id != active_nav_.load(std::memory_order_acquire)) return;
 
         if (response.body.empty()) {
@@ -668,6 +815,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                 fallback_options.content_type = post_content_type;
                 RedirectChain fallback_chain;
                 fallback_chain.referrer_source = initiator_url;
+                fallback_chain.cache_policy = cache_policy;
                 send_request(
                     *fallback_network_, url_copy, fallback_options,
                     [this, id, url_copy, original_error](NetworkResponse fallback) {
@@ -698,6 +846,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
     const bool is_post = request.method == DocumentRequest::Method::Post;
     RedirectChain chain;
     chain.referrer_source = request.initiator_url;
+    chain.cache_policy = request.cache_policy;
     send_request(*network_, url_copy, options, std::move(callback),
                  document_cookie_context(is_post, request.initiator_host),
                  is_post ? std::optional<std::string>(request.body) : std::nullopt, std::move(chain));
@@ -848,6 +997,10 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         request_options.allow_insecure = security_policy_.is_insecure_allowed_for_url(url);
         RedirectChain chain;
         chain.referrer_source = std::string(base_url);
+        // Subresources inherit the navigation's cache policy: a reload that
+        // revalidated the document but served its stylesheet from cache would
+        // refresh the words and not the layout.
+        chain.cache_policy = nav_cache_policy_.load(std::memory_order_acquire);
         send_request(
             *fetcher, url, request_options,
             [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {

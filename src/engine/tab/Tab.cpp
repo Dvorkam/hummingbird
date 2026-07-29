@@ -58,10 +58,10 @@ Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_n
          std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
          std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar,
          std::shared_ptr<Core::StorageManager> storage_manager,
-         std::shared_ptr<Core::IdentityPolicyStore> identity_store)
-    : resource_loader_(std::make_unique<ResourceLoader>(std::move(network), std::move(fallback_network),
-                                                        std::move(resource_provider), std::move(image_decoder),
-                                                        std::move(cookie_jar), std::move(identity_store))),
+         std::shared_ptr<Core::IdentityPolicyStore> identity_store, std::shared_ptr<Core::HttpCache> http_cache)
+    : resource_loader_(std::make_unique<ResourceLoader>(
+          std::move(network), std::move(fallback_network), std::move(resource_provider), std::move(image_decoder),
+          std::move(cookie_jar), std::move(identity_store), std::move(http_cache))),
       storage_manager_(std::move(storage_manager)),
       document_pipeline_(
           std::make_unique<DocumentPipeline>(&resource_loader_->store(), resource_loader_->resource_provider(),
@@ -184,11 +184,38 @@ std::string Tab::initiator_url_for(NavigationSource source) const {
 }
 
 void Tab::navigate(std::string_view url, NavigationSource source) {
+    navigate_with_cache_policy(url, source, ResourceLoader::CachePolicy::Default);
+}
+
+void Tab::reload() {
+    // Read before begin_navigation_session, which is about to overwrite it.
+    const std::string url(navigation_lifecycle_.requested_url());
+    if (url.empty()) return;
+    // What makes F5 keep meaning something once there is a cache (9.3.1): the
+    // document is confirmed with the server before being reused. Conditional, so
+    // an unchanged page costs a 304 rather than a full refetch. Subresources are
+    // NOT revalidated — see ResourceLoader::navigate for why browsers stopped
+    // doing that; `hard_reload` is the one that reaches them.
+    navigate_with_cache_policy(url, NavigationSource::User, ResourceLoader::CachePolicy::Revalidate);
+}
+
+void Tab::hard_reload() {
+    const std::string url(navigation_lifecycle_.requested_url());
+    if (url.empty()) return;
+    // Ctrl+Shift+R: ignore what is cached for the document and everything on it.
+    // This is the answer to "I edited the stylesheet and the page has not
+    // changed" — a normal reload would still serve that stylesheet from cache.
+    navigate_with_cache_policy(url, NavigationSource::User, ResourceLoader::CachePolicy::Bypass);
+}
+
+void Tab::navigate_with_cache_policy(std::string_view url, NavigationSource source,
+                                     ResourceLoader::CachePolicy cache_policy) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     ResourceLoader::DocumentRequest request{};
     request.initiator_host = initiator_host_for(source);
     request.initiator_url = initiator_url_for(source);
+    request.cache_policy = cache_policy;
 
     begin_navigation_session(url);
     if (!in_history_navigation_) {

@@ -65,7 +65,8 @@ public:
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
         std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr,
         std::shared_ptr<Core::StorageManager> storage_manager = nullptr,
-        std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr);
+        std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr,
+        std::shared_ptr<Core::HttpCache> http_cache = nullptr);
     ~Tab();
 
     Tab(const Tab&) = delete;
@@ -78,6 +79,13 @@ public:
     void navigate(std::string_view url, NavigationSource source = NavigationSource::User);
     // Form submits are always document-initiated.
     void navigate(const FormSubmission& submission);
+    // F5 / Ctrl+R. Distinct from re-navigating to the same URL because a reload
+    // forces the HTTP cache to revalidate the document rather than serve it
+    // (story 9.3.1) — without that, a page with `max-age` would be unrefreshable.
+    void reload();
+    // Ctrl+Shift+R. Ignores the cache for the document AND its subresources,
+    // which a normal reload deliberately does not.
+    void hard_reload();
 
     // Back/forward navigation over the per-tab history (7.6.1). Returns false when
     // there is nowhere to go. A same-document target navigates by fragment (no
@@ -170,6 +178,10 @@ private:
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view reason);
     void begin_navigation_session(std::string_view url);
+    // The one navigation path; `navigate` and `reload` differ only in the cache
+    // policy they hand it.
+    void navigate_with_cache_policy(std::string_view url, NavigationSource source,
+                                    ResourceLoader::CachePolicy cache_policy);
     // Navigates to a history entry without pushing a new one (back/forward).
     void navigate_history_entry(const std::string& url, IGraphicsContext& graphics, const Layout::Rect& viewport);
     bool prepare_document_from_response(std::string_view html);

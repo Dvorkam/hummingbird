@@ -377,6 +377,23 @@ three fixes.)*
 * **Acceptance:** a reload of a cached page issues conditional requests and reuses
   bodies on 304; `no-store` is never cached.
 * **Tests:** cache unit + integration tests.
+* **Scope correction made while building (2026-07-29).** The story's acceptance
+  criterion names a *reload*, but nothing in the engine distinguished one: F5 just
+  re-navigated to the current URL. Once a cache exists that is not a detail — a
+  page with `max-age=3600` becomes unrefreshable, so **the cache would have taken
+  away the only control the user has over it**. The reload path
+  (`CachePolicy`/`Tab::reload`/`Tab::hard_reload`) is therefore part of this story
+  rather than a follow-up, at **two** levels: a normal reload revalidates the
+  document only, a hard reload (Ctrl+Shift+R) bypasses the cache for its
+  subresources too. Making F5 revalidate everything is the tempting version and is
+  wrong — it is what browsers did until ~2017 and abandoned for being slow enough
+  that users stopped using reload.
+* **Two things the story understated.** `s-maxage` is not a nicety to skip — both
+  proof endpoints send it, and Wikipedia's is 14 days against a `max-age` of 5
+  minutes, so honoring the wrong one is a visible staleness bug. And `Age` is not
+  an edge case: Wikipedia's responses arrive with `Age: 11914` against
+  `max-age=300`, i.e. **stale before they are ever stored**, so revalidation is the
+  normal path against a CDN rather than the exception.
 
 * **Story 9.3.2: Cache Key Correctness — `Vary`, `private`, Credentials (gap found
   in the M8 pre-merge review)**
@@ -759,7 +776,50 @@ P0: fetch + CORS (North Star)
       `content-type` because it is safelisted, `age` not at all.)*
 
 P0: Cache (North Star)
-- [ ] 9.3.1: Cache Core + Revalidation
+- [x] 9.3.1: Cache Core + Revalidation *(new `core/net/CacheControl.{h,cpp}`
+      (pure policy, mirroring `Cookie.cpp`) + `core/net/HttpCache.{h,cpp}` (the
+      store, mirroring `CookieJar.cpp`), applied at the same per-hop seam in
+      `send_request` that 9.2.3 established. **The cache sits INSIDE the redirect
+      loop**, so individual hops are cached and a stored 301 saves the whole chain
+      next time. A fresh hit is fed through the very same response path a live
+      answer takes — CORS verdict, exposure filter, redirect following — because a
+      cache that bypassed those would be a way to launder a response past the
+      checks that admitted it.
+      **9.3.1 is deliberately conservative rather than fast:** it refuses to store
+      anything carrying `Vary`, anything carrying `Set-Cookie`, and any response to
+      a request that sent `Cookie`/`Authorization`. Each of those is a cache KEY in
+      9.3.2; storing them first and keying them later would mean shipping a
+      knowingly wrong cache for the length of one commit. `s-maxage` is parsed and
+      **deliberately ignored** — it addresses shared caches, and reading Wikipedia's
+      `s-maxage=1209600` instead of its `max-age=300` would cache an article for 14
+      days. No heuristic freshness either: a response with only validators is stale
+      immediately and revalidates, which still saves the body.
+      **Reload had to be built as part of this story.** Without it a page with
+      `max-age=3600` would be unrefreshable, so the cache would have removed the
+      one control the user has over it. New `ResourceLoader::CachePolicy` +
+      `Tab::reload()`/`hard_reload()` + `BrowserApp::reload_and_reflect_url(hard)`.
+      **Two levels, and they deliberately differ in reach:** F5/Ctrl+R revalidates
+      the *document* only; Ctrl+Shift+R (or Ctrl+F5) bypasses the cache for the
+      document *and* every subresource. The first draft of this had F5 revalidating
+      subresources too — that is pre-2017 browser behaviour, which Chrome and
+      Firefox both abandoned because a page with fifty assets turned one keystroke
+      into fifty conditional requests and made reload the slow way to reload.
+      Caught in review before commit.
+      Tests: 14 `CacheControlTest.*` + 12 `HttpCacheTest.*` + 13
+      `HttpCacheIntegrationTest.*` (934 total green). **Verified two guards are
+      load-bearing** by disabling each and watching the right test fail: storing
+      the CORS-*filtered* headers makes a cross-origin resource work once and then
+      break silently on reuse (the filter drops `Access-Control-Allow-Origin`, so
+      the re-check refuses a response the server allowed), and dropping the reload
+      policy makes F5 serve from cache.
+      **Note:** `Cache-Control: private` is refused, which is stricter than the RFC
+      — `private` addresses shared caches and a per-profile memory cache is the
+      boundary it protects. Kept strict for M9 because the credentialed-response
+      rule that would make storing it safe is 9.3.2's; filed as a follow-up.
+      Demo: a new card on `example.dev/m9` with **server-side hit counters**, so the
+      cache is shown rather than asserted — the body keeps saying "served #1" while
+      the server's `full` count stays at 1, then `revalidated` climbs instead once
+      the entry goes stale, and a `no-store` control endpoint climbs every click.)*
 - [ ] 9.3.2: Cache Key Correctness — `Vary`, `private`, Credentials
 
 P0: Guardrails

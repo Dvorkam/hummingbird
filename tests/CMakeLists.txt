@@ -25,6 +25,7 @@ add_executable(HummingbirdTests
     engine/DocumentCookie.test.cpp
     engine/RequestDeadline.test.cpp
     engine/Fetch.test.cpp
+    engine/HttpCacheIntegration.test.cpp
     engine/LocalStorage.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
@@ -33,6 +34,8 @@ add_executable(HummingbirdTests
     core/CookieJar.test.cpp
     core/PublicSuffix.test.cpp
     core/Cors.test.cpp
+    core/CacheControl.test.cpp
+    core/HttpCache.test.cpp
     core/BrowserIdentity.test.cpp
     core/IdentityPolicyStore.test.cpp
     core/Origin.test.cpp

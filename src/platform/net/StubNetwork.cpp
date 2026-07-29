@@ -1,7 +1,9 @@
 #include "platform/net/StubNetwork.h"
 
+#include <atomic>
 #include <functional>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "core/net/HttpHeaders.h"
@@ -127,6 +129,63 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
 // through the real jar rather than through a test fake.
 constexpr std::string_view kCookieDemoPath = "/cookies";
 constexpr std::string_view kCookieScopedPath = "/cookies/private";
+
+// The cache demo (story 9.3.1). A cache is invisible by nature, which is exactly
+// what makes it hard to trust: "it was fast" is not evidence. These endpoints
+// count how many times the SERVER was actually reached, so the demo page can
+// show the one number a cache exists to hold down — and show it climbing when
+// `no-store` says it must.
+constexpr std::string_view kCacheDemoPrefix = "/api/cache-demo";
+constexpr std::string_view kCacheDemoPath = "/api/cache-demo";
+constexpr std::string_view kCacheStatsPath = "/api/cache-demo/stats";
+constexpr std::string_view kCacheNoStorePath = "/api/cache-demo/nostore";
+// Deliberately constant, so a revalidation always earns a 304 — the case worth
+// demonstrating, because it is the one where the round trip happens and the
+// payload does not.
+constexpr std::string_view kCacheDemoEtag = "\"cache-demo-v1\"";
+
+// Atomic because the stub answers on a thread pool. Process-lifetime, like the
+// cache they are reporting on.
+std::atomic<int> g_cache_full{0};
+std::atomic<int> g_cache_revalidated{0};
+std::atomic<int> g_cache_nostore{0};
+
+bool build_cache_demo(std::string_view path, const Hummingbird::Core::HttpHeaders& request_headers,
+                      NetworkResponse& response) {
+    if (path == kCacheStatsPath) {
+        // Never cached, or it could not report on the cache.
+        response.status = 200;
+        response.headers.add("Cache-Control", "no-store");
+        response.headers.add("Content-Type", "application/json");
+        response.body = "{\"full\":" + std::to_string(g_cache_full.load()) +
+                        ",\"revalidated\":" + std::to_string(g_cache_revalidated.load()) +
+                        ",\"nostore\":" + std::to_string(g_cache_nostore.load()) + "}";
+        return true;
+    }
+    if (path == kCacheNoStorePath) {
+        response.status = 200;
+        response.headers.add("Cache-Control", "no-store");
+        response.headers.add("Content-Type", "application/json");
+        response.body = "{\"served\":" + std::to_string(++g_cache_nostore) + "}";
+        return true;
+    }
+    if (path != kCacheDemoPath) return false;
+
+    response.headers.add("Cache-Control", "max-age=10");
+    response.headers.add("ETag", std::string(kCacheDemoEtag));
+    if (request_headers.get("If-None-Match") == kCacheDemoEtag) {
+        ++g_cache_revalidated;
+        response.status = 304;
+        return true;
+    }
+    response.status = 200;
+    response.headers.add("Content-Type", "application/json");
+    // The body records WHICH server response this is. A page still showing
+    // "served #1" after five clicks is the proof: the server would have said
+    // "#5" if it had been asked.
+    response.body = "{\"served\":" + std::to_string(++g_cache_full) + "}";
+    return true;
+}
 
 std::string_view stub_url_path(std::string_view url) {
     for (std::string_view prefix : {"https://example.dev", "http://example.dev"}) {
@@ -325,6 +384,13 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
 void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb,
                       const Hummingbird::Core::HttpHeaders& request_headers, std::string_view post_body = {}) {
     const std::string_view path = stub_url_path(url);
+    if (path.rfind(kCacheDemoPrefix, 0) == 0) {
+        NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
+        if (build_cache_demo(path, request_headers, response)) {
+            if (cb) cb(std::move(response));
+            return;
+        }
+    }
     if (path == kCookieDemoPath || path == kCookieScopedPath) {
         NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
         response.status = 200;

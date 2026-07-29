@@ -120,15 +120,19 @@ bool ChromeEventRouter::handle_global_key_shortcut(const Hummingbird::InputEvent
         return true;
     }
 
-    // F5 / Ctrl+R: reload the current page. Re-navigating to requested_url()
-    // rather than the URL bar's text, so an edit the user typed but did not
-    // submit does not become the reload target. NavigationSource::User is
-    // correct — a reload is user-initiated, not caused by the document.
+    // F5 / Ctrl+R: reload. Ctrl+Shift+R / Ctrl+F5: hard reload. Reloading rather
+    // than re-navigating to requested_url() so an edit the user typed but did not
+    // submit does not become the target, AND so the HTTP cache revalidates
+    // instead of serving (9.3.1) — a plain re-navigation would hand back the same
+    // cached bytes and make F5 look broken.
+    //
+    // The two levels are the browser convention and they differ in reach: a normal
+    // reload re-checks the document, a hard reload ignores the cache for its
+    // subresources too. That distinction is the answer to "I changed the
+    // stylesheet and nothing happened".
     if ((event.key.key == Key::F5 || (event.key.key == Key::R && event.mods.ctrl)) && !event.key.repeat) {
-        const std::string current(app_.active_tab().requested_url());
-        if (!current.empty()) {
-            app_.navigate_and_reflect_url(current);
-        }
+        const bool hard = event.mods.shift || (event.key.key == Key::F5 && event.mods.ctrl);
+        app_.reload_and_reflect_url(hard);
         return true;
     }
 

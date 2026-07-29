@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "core/net/CookieJar.h"
+#include "core/net/HttpCache.h"
 #include "core/net/IdentityPolicyStore.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
@@ -47,6 +48,26 @@ public:
     using SteadyClock = std::function<std::chrono::steady_clock::time_point()>;
     void set_deadline_clock(SteadyClock clock) { clock_ = std::move(clock); }
 
+    // How a request may use the HTTP cache (story 9.3.1).
+    //
+    // This exists because the cache would otherwise break reload: a page with
+    // `max-age=3600` would serve from memory for an hour with no way to refresh
+    // it. The two levels mirror what browsers actually do, which is not the same
+    // thing at both levels — see `navigate` for how they propagate.
+    enum class CachePolicy {
+        // Ordinary navigation: a fresh entry is served without asking.
+        Default,
+        // Normal reload (F5 / Ctrl+R): the entry must be confirmed with the
+        // server before reuse. Still conditional, so an unchanged resource costs
+        // a round trip and no body. Chrome sends `Cache-Control: max-age=0` for
+        // exactly this.
+        Revalidate,
+        // Hard reload (Ctrl+Shift+R / Ctrl+F5): do not READ the cache at all, not
+        // even conditionally. The fresh response is still stored, so this
+        // refreshes the entry rather than disabling caching for the page.
+        Bypass,
+    };
+
     struct DocumentRequest {
         enum class Method {
             Get,
@@ -54,6 +75,9 @@ public:
         };
 
         Method method = Method::Get;
+        // Set by a reload. Applies to the document; what the subresources inherit
+        // depends on which kind of reload it is (see `navigate`).
+        CachePolicy cache_policy = CachePolicy::Default;
         std::string body;
         std::string content_type;
         // Host of the document that initiated this navigation (a link click or
@@ -84,13 +108,17 @@ public:
         bool is_ready(ResourceType type) const { return ready[static_cast<size_t>(type)]; }
     };
 
-    // `cookie_jar` and `identity_store` are shared across every tab of a profile
-    // (see TabManager): a per-loader jar would mean logging in on one tab left
-    // another logged out. Null disables that feature — which is what most unit
-    // tests want (a null identity store means Transparent identity everywhere).
+    // `cookie_jar`, `identity_store` and `http_cache` are shared across every tab
+    // of a profile (see TabManager): a per-loader jar would mean logging in on
+    // one tab left another logged out, and a per-loader cache would refetch what
+    // the tab next door already has. Null disables that feature — which is what
+    // most unit tests want (a null identity store means Transparent identity
+    // everywhere; a null cache means every request goes to the network, which is
+    // what a test asserting on request counts expects unless it says otherwise).
     ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
                    ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr,
-                   std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr);
+                   std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr,
+                   std::shared_ptr<Core::HttpCache> http_cache = nullptr);
 
     ResourceLoader(const ResourceLoader&) = delete;
     ResourceLoader& operator=(const ResourceLoader&) = delete;
@@ -131,6 +159,7 @@ public:
     IImageDecoder* image_decoder() const { return image_decoder_.get(); }
 
     Core::CookieJar* cookie_jar() const { return cookie_jar_.get(); }
+    Core::HttpCache* http_cache() const { return http_cache_.get(); }
 
 private:
     // State carried across the hops of one redirect chain (story 8.3.1).
@@ -180,6 +209,16 @@ private:
             std::string effective_origin() const { return tainted ? std::string("null") : origin; }
         };
         CorsState cors;
+
+        // How this chain may use the cache (story 9.3.1). Carried here rather
+        // than read off a member at response time because a chain outlives the
+        // call that started it — a redirect hop issued from a network callback
+        // must use the policy the navigation asked for, not whatever the next
+        // navigation has since set.
+        CachePolicy cache_policy = CachePolicy::Default;
+        // Set once a 304 arrived for an entry that was no longer there, so the
+        // unconditional retry cannot itself retry and loop.
+        bool revalidation_retried = false;
     };
 
     // The single choke point for network requests. `send_request`:
@@ -236,7 +275,15 @@ private:
     // touch is guarded by cookie_mutex_.
     std::shared_ptr<Core::CookieJar> cookie_jar_;
     std::shared_ptr<Core::IdentityPolicyStore> identity_store_;
+    // Self-synchronizing, so unlike the jar it needs no lock here.
+    std::shared_ptr<Core::HttpCache> http_cache_;
     mutable std::mutex cookie_mutex_;
+
+    // The cache policy the subresources of the navigation in flight inherit.
+    // NOT simply a copy of the document's: a normal reload revalidates the
+    // document only, which is what browsers settled on after finding that
+    // re-checking every subresource made reload slow enough to be avoided.
+    std::atomic<CachePolicy> nav_cache_policy_{CachePolicy::Default};
 
     RequestDeadlines deadlines_;
     // Null means the real steady clock; see set_deadline_clock.

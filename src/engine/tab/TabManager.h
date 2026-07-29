@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "core/net/CookieJar.h"
+#include "core/net/HttpCache.h"
 #include "core/net/IdentityPolicyStore.h"
 #include "core/net/StorageManager.h"
 #include "core/platform_api/IImageDecoder.h"
@@ -78,11 +79,16 @@ public:
     // Compatibility), shared so a mode chosen in one tab holds in every tab.
     const std::shared_ptr<Core::IdentityPolicyStore>& identity_store() const { return identity_store_; }
 
+    // The profile's HTTP cache (9.3.1), shared for the same reason as the jar:
+    // opening a page in a second tab should not refetch what the first one has.
+    const std::shared_ptr<Core::HttpCache>& http_cache() const { return http_cache_; }
+
 private:
     TabFactory factory_;
     std::shared_ptr<Core::CookieJar> cookie_jar_ = std::make_shared<Core::CookieJar>();
     std::shared_ptr<Core::StorageManager> storage_manager_ = std::make_shared<Core::StorageManager>();
     std::shared_ptr<Core::IdentityPolicyStore> identity_store_ = std::make_shared<Core::IdentityPolicyStore>();
+    std::shared_ptr<Core::HttpCache> http_cache_ = std::make_shared<Core::HttpCache>();
     std::vector<Entry> tabs_;
     std::optional<TabId> active_id_;
     TabId next_id_ = 1;

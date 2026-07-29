@@ -33,6 +33,24 @@ All notable changes to this project will be documented in this file.
   chain, so a permissive server cannot be used as a stepping stone into one that
   is not. A page can only read the response headers CORS permits, and never
   `Set-Cookie`.
+- **HTTP cache**: responses are now reused instead of refetched, so revisiting a
+  page or fetching the same data twice no longer goes to the network every time.
+  Honors `max-age`, `Expires`, `Age`, `no-store` and `no-cache`, and revalidates a
+  stale entry with `If-None-Match`/`If-Modified-Since` — a `304` reuses the stored
+  body, which saves the payload even when it cannot save the round trip. Memory
+  only and dropped at exit; bounded at 8 MB with least-recently-used eviction.
+  Deliberately conservative for now: a response that carries `Vary`, sets a cookie,
+  or answers a request that sent one is **not** cached at all, rather than cached
+  under a key that cannot tell the variants apart.
+- **Reload now forces revalidation, at two levels.** F5 / Ctrl+R re-checks the
+  *document* with the server rather than serving it from cache, leaving fresh
+  subresources alone (browsers used to re-check everything on a reload and moved
+  away from it, because a page with fifty assets turned one keystroke into fifty
+  requests). **Ctrl+Shift+R / Ctrl+F5** is a hard reload: it ignores the cache for
+  the page and every subresource, which is what you want after editing a
+  stylesheet the server told us to keep for an hour. Without these a page with a
+  long `max-age` would have been unrefreshable — a cache that made reload
+  meaningless would be a worse trade than no cache.
 - **Cookie storage limits** (RFC 6265 §6.1): 4096 bytes per cookie, 50 per domain,
   3000 in total, with least-recently-used eviction. Previously the jar was
   unbounded, which a page could exploit to grow a file the browser writes to disk.
