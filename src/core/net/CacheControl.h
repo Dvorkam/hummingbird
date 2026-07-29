@@ -49,9 +49,24 @@ struct CacheControl {
 // the part it does not.
 CacheControl parse_cache_control(std::string_view value);
 
+// Whether a request carried the user's ambient credentials. Part of the cache
+// key (story 9.3.2): a response fetched with a session must never be served to a
+// request that had none, nor the other way round.
+//
+// Note what this deliberately does NOT include: the cookie's VALUE. Keying on
+// that would invalidate the whole cache every time any cookie changed, and it is
+// not what browsers do — a server whose response genuinely depends on which user
+// is asking is expected to say `Vary: Cookie`, which this cache then honors. The
+// division of responsibility is the server's to declare and ours to respect.
+enum class CredentialsClass {
+    Anonymous,
+    Credentialed,
+};
+
+CredentialsClass credentials_class(const HttpHeaders& request_headers);
+
 // Why a response may not be stored. Specific rather than a bool because "not
-// cached" is otherwise impossible to debug from the outside, and three of these
-// are deliberate M9 conservatism that 9.3.2 revisits.
+// cached" is otherwise impossible to debug from the outside.
 enum class Storability {
     Storable,
     // Only GET is cached in M9. HEAD shares a URL with GET and would need care
@@ -60,24 +75,10 @@ enum class Storability {
     MethodNotCacheable,
     StatusNotCacheable,
     NoStore,
-    // `Cache-Control: private`. Over-strict for a browser — `private` is aimed
-    // at shared caches, and a per-profile memory cache IS the privacy boundary
-    // it protects — but M9 refuses it, because the credentialed-response rule
-    // that would make storing it safe is 9.3.2's job. See the story notes.
-    Private,
-    // --- deliberate M9 conservatism; 9.3.2 turns each into a cache KEY --------
-    // A response that carries `Set-Cookie` is per-request state by definition,
-    // and replaying it from cache would resurrect a cookie the user deleted.
-    HasSetCookie,
-    // The request carried `Cookie` or `Authorization`. Storing the answer would
-    // risk serving one user's session to an anonymous request. 9.3.2 decides
-    // and documents the credentialed rule; until then, refuse.
-    RequestHadCredentials,
-    // Any `Vary` at all. A Vary-blind cache serves the wrong variant, and it
-    // presents as an unreproducible rendering bug rather than as a cache bug —
-    // so until 9.3.2 keys on it, these are not stored. This is what makes the
-    // 9.3.1 cache conservative-but-correct rather than fast-and-wrong.
-    HasVary,
+    // `Vary: *` means "this varies on something I am not going to name", which is
+    // an admission that no cache key can be correct. The only safe reading is
+    // "do not store" (RFC 9111 §4.1).
+    VaryStar,
 
     // --- decided by the store rather than by policy --------------------------
     // Stale on arrival AND carrying no validator: it would fail every freshness
@@ -137,5 +138,42 @@ struct Validators {
 };
 
 Validators extract_validators(const HttpHeaders& response_headers);
+
+// --- the secondary cache key: `Vary` (story 9.3.2) ---------------------------
+//
+// A cache keyed only on method + URL is wrong the moment a response depends on a
+// request header, and it fails in the worst possible way: it serves the wrong
+// variant, which presents as an unreproducible RENDERING bug rather than as a
+// cache bug. M8 made this concrete by giving each origin its own `User-Agent`,
+// and HNPWA — one of M9's two proof endpoints — really does answer with
+// `Vary: x-fh-requested-host, accept-encoding`.
+
+// The field names a response's `Vary` names: lowercased, sorted and deduped so
+// the key does not depend on the order the server listed them in. Empty when
+// there is no `Vary`; `*` is reported separately by `vary_is_star`.
+std::vector<std::string> vary_field_names(const HttpHeaders& response_headers);
+
+bool vary_is_star(const HttpHeaders& response_headers);
+
+// The request's values for `names`, in the same order — the "selecting header
+// values" of RFC 9111 §4.1. Two requests match only if these agree, which is
+// what makes one URL able to hold several variants without confusing them.
+//
+// LIMITATION worth knowing: these come from the headers the ENGINE set, and the
+// transport owns a few of its own (notably `Accept-Encoding`, which libcurl
+// sets). A response varying on one of those is keyed on our empty value. That is
+// consistent rather than wrong — the transport's value is fixed for a given build
+// — but it would conflate variants the day it stops being fixed. Filed as
+// `T-NET-EFFECTIVE-REQUEST-HEADERS-1`.
+std::vector<std::string> selecting_header_values(const std::vector<std::string>& names,
+                                                 const HttpHeaders& request_headers);
+
+// Headers that must never be written into a cache entry, whatever the server
+// said. `Set-Cookie` is the reason this exists: a stored copy would keep a
+// session token alive in the cache for reuse, and serving it back would resurrect
+// a cookie the user had deleted. Stripping it lets the RESPONSE be cached
+// without its per-user state coming along — strictly better than refusing to
+// cache such responses at all, which is what 9.3.1 did.
+bool is_uncacheable_response_header(std::string_view name);
 
 }  // namespace Hummingbird::Core

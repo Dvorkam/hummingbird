@@ -837,7 +837,48 @@ P0: Cache (North Star)
       reload moves: **`full`, never `revalidated`** — refusing to ask "is my copy
       still good?" is the point of it, so it can never earn a 304. The redundant
       "ask the server" button is gone; both fetch buttons refresh the counters.)*
-- [ ] 9.3.2: Cache Key Correctness — `Vary`, `private`, Credentials
+- [x] 9.3.2: Cache Key Correctness — `Vary`, `private`, Credentials *(the three
+      refusals 9.3.1 shipped on purpose became actual cache KEYS. `HttpCache::Entry`
+      carries a **secondary key** (RFC 9111 §4.1): the `Vary` field names the
+      response declared, the values THIS request sent for them, and a
+      `CredentialsClass`. One URL now holds several variants, each answering only
+      its own request, capped at `kMaxVariantsPerUrl = 8` with eviction drawn from
+      that URL's own variants — otherwise `Vary` is an unbounded-entry hole through
+      a single address.
+      **Decisions the story asked for, and what they turned on:**
+      *Credentials* are keyed, not refused: a credentialed response never answers an
+      anonymous request or the reverse. The cookie **value** is deliberately NOT in
+      the key — that would invalidate everything on any cookie change, and it is not
+      what browsers do; a server whose answer really depends on who is asking says
+      `Vary: Cookie`, which the secondary key then honors.
+      *`Cache-Control: private` is now STORED*, reversing 9.3.1. The directive
+      addresses **shared** caches, and a per-profile in-memory cache is exactly the
+      private cache it permits; refusing it cost hits on the logged-in pages caching
+      helps most and bought nothing, because what makes storing it safe is the
+      credentials class. `Vary: *` is the one new blanket refusal — a server
+      admitting it varies on something it will not name means no key can be correct.
+      *`Set-Cookie` is stripped before the entry is written* rather than the response
+      being refused, so the body caches and the session token does not.
+      **Identity is handled twice, on purpose.** For servers that say
+      `Vary: User-Agent`, the secondary key separates the modes. For those that do
+      not, Ctrl+Shift+U now triggers a **hard** reload — a normal one would serve the
+      other mode's cached page and make the toggle look broken, which is the opposite
+      of why the user pressed it. Keying UA unconditionally was the alternative and
+      would halve the cache for every site to fix the few that declare it.
+      Tests: 20 `CacheControlTest.*` + 18 `HttpCacheTest.*` + 18
+      `HttpCacheIntegrationTest.*` (948 green). **Both halves of the key verified
+      load-bearing** by disabling each: ignoring `Vary` fails 4 tests, ignoring the
+      credentials class fails 2.
+      **Learned while testing:** a test cannot vary `User-Agent` by setting it on the
+      request — `send_request` overwrites it from the identity store, which is correct
+      (it is a forbidden header for fetch, and the engine owns identity). The only
+      honest way to exercise it is to toggle the store, which is also what the user
+      does. Filed two gaps rather than half-fixing them:
+      `T-NET-CACHE-PARTITION-1` (no top-level-site partitioning — a cross-site
+      timing oracle that applies to every entry) and
+      `T-NET-EFFECTIVE-REQUEST-HEADERS-1` (the transport owns `Accept-Encoding`, so a
+      response varying on it is keyed on our empty value — consistent today, wrong in
+      principle).)*
 
 P0: Guardrails
 - [ ] 9.5.1: API-Render Harness

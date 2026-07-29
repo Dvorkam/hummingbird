@@ -120,20 +120,66 @@ std::string_view describe(Storability storability) {
             return "status is not cacheable";
         case Storability::NoStore:
             return "Cache-Control: no-store";
-        case Storability::Private:
-            return "Cache-Control: private";
-        case Storability::HasSetCookie:
-            return "response carries Set-Cookie";
-        case Storability::RequestHadCredentials:
-            return "request carried credentials";
-        case Storability::HasVary:
-            return "response carries Vary (see story 9.3.2)";
+        case Storability::VaryStar:
+            return "Vary: * (no cache key can be correct)";
         case Storability::NothingToReuse:
             return "stale on arrival with no validator";
         case Storability::TooLarge:
             return "larger than the per-entry cap";
     }
     return "not storable";
+}
+
+CredentialsClass credentials_class(const HttpHeaders& request_headers) {
+    return (request_headers.contains("Cookie") || request_headers.contains("Authorization"))
+               ? CredentialsClass::Credentialed
+               : CredentialsClass::Anonymous;
+}
+
+bool vary_is_star(const HttpHeaders& response_headers) {
+    for (const auto& field : response_headers.fields()) {
+        if (!Utils::equals_ignore_case(field.name, "Vary")) continue;
+        for (const auto token : split_directives(field.value)) {
+            if (Utils::trim_ascii_whitespace(token) == "*") return true;
+        }
+    }
+    return false;
+}
+
+std::vector<std::string> vary_field_names(const HttpHeaders& response_headers) {
+    std::vector<std::string> names;
+    // Repeated `Vary` headers are equivalent to one comma-joined value, so every
+    // occurrence contributes.
+    for (const auto& field : response_headers.fields()) {
+        if (!Utils::equals_ignore_case(field.name, "Vary")) continue;
+        for (const auto token : split_directives(field.value)) {
+            const auto trimmed = Utils::trim_ascii_whitespace(token);
+            if (trimmed.empty() || trimmed == "*") continue;
+            names.push_back(Utils::to_lower(trimmed));
+        }
+    }
+    // Sorted and deduped so the key does not depend on the order the server
+    // happened to list them in, nor on a name being repeated.
+    std::sort(names.begin(), names.end());
+    names.erase(std::unique(names.begin(), names.end()), names.end());
+    return names;
+}
+
+std::vector<std::string> selecting_header_values(const std::vector<std::string>& names,
+                                                 const HttpHeaders& request_headers) {
+    std::vector<std::string> values;
+    values.reserve(names.size());
+    for (const auto& name : names) {
+        // Trimmed, but NOT case-folded: header values are case-sensitive in
+        // general, and folding them would merge variants a server distinguishes.
+        values.push_back(std::string(Utils::trim_ascii_whitespace(request_headers.get(name))));
+    }
+    return values;
+}
+
+bool is_uncacheable_response_header(std::string_view name) {
+    const std::string lower = Utils::to_lower(name);
+    return lower == "set-cookie" || lower == "set-cookie2";
 }
 
 Storability storability(std::string_view method, long status, const HttpHeaders& request_headers,
@@ -156,18 +202,27 @@ Storability storability(std::string_view method, long status, const HttpHeaders&
         Utils::to_lower(response_headers.get("Pragma")).find("no-cache") != std::string::npos) {
         return Storability::NoStore;
     }
-    if (control.is_private) {
-        return Storability::Private;
+    if (vary_is_star(response_headers)) {
+        return Storability::VaryStar;
     }
-    if (response_headers.contains("Set-Cookie") || response_headers.contains("Set-Cookie2")) {
-        return Storability::HasSetCookie;
-    }
-    if (request_headers.contains("Cookie") || request_headers.contains("Authorization")) {
-        return Storability::RequestHadCredentials;
-    }
-    if (response_headers.contains("Vary")) {
-        return Storability::HasVary;
-    }
+    // `Cache-Control: private` is STORABLE here, which is a deliberate reversal of
+    // what 9.3.1 shipped. `private` is addressed to SHARED caches — it means "do
+    // not keep this where another user could reach it" — and a per-profile,
+    // in-memory cache is exactly the private cache it permits. Refusing it cost
+    // hits on precisely the logged-in pages caching helps most, and bought
+    // nothing: what makes storing it safe is the credentials class in the cache
+    // key (see `credentials_class`), not a blanket refusal.
+    //
+    // `Set-Cookie` is likewise no longer a reason to refuse. The header is
+    // stripped before the entry is written instead (`is_uncacheable_response_header`),
+    // so the body gets cached and the session state does not.
+    //
+    // Not being handled here, and worth naming: this cache is not partitioned by
+    // top-level site, which is a real browser hardening (~2020) against cross-site
+    // cache probing. That gap applies to every entry, not just `private` ones, so
+    // it is filed as `T-NET-CACHE-PARTITION-1` rather than half-mitigated by
+    // declining one directive.
+    (void)request_headers;
     return Storability::Storable;
 }
 

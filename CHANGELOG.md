@@ -39,9 +39,14 @@ All notable changes to this project will be documented in this file.
   stale entry with `If-None-Match`/`If-Modified-Since` — a `304` reuses the stored
   body, which saves the payload even when it cannot save the round trip. Memory
   only and dropped at exit; bounded at 8 MB with least-recently-used eviction.
-  Deliberately conservative for now: a response that carries `Vary`, sets a cookie,
-  or answers a request that sent one is **not** cached at all, rather than cached
-  under a key that cannot tell the variants apart.
+- **The cache key honors `Vary` and credentials.** A server that says its response
+  depends on a request header gets one cache entry per variant, so the browser can
+  never serve you the wrong one — the failure that would otherwise show up as an
+  unreproducible rendering bug rather than as a cache bug. A response fetched while
+  you were logged in is never handed to a request that carried no session, and
+  `Vary: *` — a server admitting it varies on something it will not name — is never
+  cached at all. Flipping a site's identity mode (Ctrl+Shift+U) now forces a hard
+  reload, so the toggle cannot be answered from the other mode's cached page.
 - **Reload now forces revalidation, at two levels.** F5 / Ctrl+R re-checks the
   *document* with the server rather than serving it from cache, leaving fresh
   subresources alone (browsers used to re-check everything on a reload and moved

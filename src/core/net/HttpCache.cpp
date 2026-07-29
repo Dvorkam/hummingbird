@@ -42,23 +42,32 @@ bool HttpCache::Entry::is_fresh(CacheTime now) const {
     return current_age(now) < lifetime;
 }
 
-HttpCache::Entry* HttpCache::find(std::string_view method, std::string_view url) {
+bool HttpCache::Entry::matches(const HttpHeaders& request_headers, CredentialsClass request_credentials) const {
+    // A response fetched with a session is never handed to a request without one,
+    // nor the reverse. This is the rule story 9.3.2 was asked to decide: the cache
+    // is per-profile, so this is not about separating users — it is about not
+    // letting an anonymous request read a personalized answer that happens to be
+    // sitting in memory.
+    if (credentials != request_credentials) return false;
+
+    const auto values = selecting_header_values(vary_names, request_headers);
+    return values == vary_values;
+}
+
+HttpCache::Entry* HttpCache::find(std::string_view method, std::string_view url, const HttpHeaders& request_headers,
+                                  CredentialsClass request_credentials) {
     for (auto& entry : entries_) {
-        if (entry.url == url && Utils::equals_ignore_case(entry.method, method)) {
-            return &entry;
-        }
+        if (entry.url != url || !Utils::equals_ignore_case(entry.method, method)) continue;
+        if (!entry.matches(request_headers, request_credentials)) continue;
+        return &entry;
     }
     return nullptr;
 }
 
 HttpCache::Lookup HttpCache::lookup(std::string_view method, std::string_view url, const HttpHeaders& request_headers,
                                     CacheTime now) {
-    // Unused until 9.3.2 keys on it. Taken now so the signature does not have to
-    // change under every caller when it does.
-    (void)request_headers;
-
     std::lock_guard<std::mutex> lg(mutex_);
-    Entry* entry = find(method, url);
+    Entry* entry = find(method, url, request_headers, credentials_class(request_headers));
     if (!entry) {
         ++stats_.misses;
         return {};
@@ -106,10 +115,23 @@ Storability HttpCache::store(std::string_view method, std::string_view url, long
     candidate.method = Utils::to_upper(method);
     candidate.url = std::string(url);
     candidate.status = status;
-    candidate.headers = response_headers;
+    // Strip the headers that must never live in a cache entry (9.3.2). This is
+    // what lets a response that sets a cookie be cached at all: the body is
+    // reusable, the session state is not, and separating them beats refusing the
+    // whole response as 9.3.1 did.
+    for (const auto& field : response_headers.fields()) {
+        if (is_uncacheable_response_header(field.name)) continue;
+        candidate.headers.add(field.name, field.value);
+    }
     candidate.body = std::move(body);
     candidate.received_at = now;
     candidate.last_access = now;
+
+    // The secondary key, taken from the request that actually produced this
+    // response — not from the next one that comes looking.
+    candidate.vary_names = vary_field_names(response_headers);
+    candidate.vary_values = selecting_header_values(candidate.vary_names, request_headers);
+    candidate.credentials = credentials_class(request_headers);
 
     const Freshness freshness = compute_freshness(response_headers, now);
     candidate.lifetime = freshness.lifetime;
@@ -134,10 +156,13 @@ Storability HttpCache::store(std::string_view method, std::string_view url, long
     }
 
     std::lock_guard<std::mutex> lg(mutex_);
-    if (Entry* existing = find(method, url)) {
+    // Replace only the variant this response is for; the URL's other variants are
+    // still valid answers to their own requests.
+    if (Entry* existing = find(method, url, request_headers, candidate.credentials)) {
         bytes_ -= existing->footprint();
         entries_.erase(entries_.begin() + (existing - entries_.data()));
     }
+    evict_variants_of(method, url);
     evict_for(footprint);
     bytes_ += footprint;
     entries_.push_back(std::move(candidate));
@@ -151,10 +176,10 @@ std::optional<HttpCache::Lookup> HttpCache::refresh_from_not_modified(std::strin
                                                                       const HttpHeaders& request_headers,
                                                                       const HttpHeaders& not_modified_headers,
                                                                       CacheTime now) {
-    (void)request_headers;
-
     std::lock_guard<std::mutex> lg(mutex_);
-    Entry* entry = find(method, url);
+    // The same variant the conditional request was built from, not merely "the
+    // entry for this URL": a 304 confirms the copy we asked about.
+    Entry* entry = find(method, url, request_headers, credentials_class(request_headers));
     if (!entry) {
         return std::nullopt;
     }
@@ -191,6 +216,31 @@ std::optional<HttpCache::Lookup> HttpCache::refresh_from_not_modified(std::strin
     result.age = entry->current_age(now);
     ++stats_.not_modified;
     return result;
+}
+
+void HttpCache::evict_variants_of(std::string_view method, std::string_view url) {
+    const auto count_variants = [&] {
+        size_t count = 0;
+        for (const auto& entry : entries_) {
+            if (entry.url == url && Utils::equals_ignore_case(entry.method, method)) ++count;
+        }
+        return count;
+    };
+
+    // One URL must not be able to crowd out every other through `Vary`. The
+    // victim is drawn from THIS URL's variants, so a page churning one header
+    // pays for it itself instead of flushing the rest of the cache.
+    while (count_variants() + 1 > kMaxVariantsPerUrl) {
+        auto victim = entries_.end();
+        for (auto it = entries_.begin(); it != entries_.end(); ++it) {
+            if (it->url != url || !Utils::equals_ignore_case(it->method, method)) continue;
+            if (victim == entries_.end() || it->last_access < victim->last_access) victim = it;
+        }
+        if (victim == entries_.end()) break;
+        bytes_ -= victim->footprint();
+        entries_.erase(victim);
+        ++stats_.evictions;
+    }
 }
 
 void HttpCache::evict_for(size_t incoming) {

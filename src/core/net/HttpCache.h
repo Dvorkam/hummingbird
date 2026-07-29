@@ -33,6 +33,11 @@ public:
     static constexpr size_t kMaxBytes = 8u * 1024 * 1024;
     static constexpr size_t kMaxEntryBytes = 2u * 1024 * 1024;
     static constexpr size_t kMaxEntries = 300;
+    // How many variants one URL may hold (story 9.3.2). `Vary` lets a single URL
+    // occupy unbounded entries — a page that varies a header per request would
+    // otherwise evict everything else through one address. Beyond this the URL's
+    // own least-recently-used variant is dropped, so the pressure stays local.
+    static constexpr size_t kMaxVariantsPerUrl = 8;
 
     enum class Outcome {
         // Nothing stored for this request.
@@ -69,8 +74,9 @@ public:
     };
 
     // `request_headers` are the headers actually being sent, after cookies and
-    // identity were applied. 9.3.1 does not key on them; 9.3.2 will, and taking
-    // them from the start is what makes that a fill-in rather than a retrofit.
+    // identity were applied — which is what makes them usable as a cache key.
+    // A stored entry is only returned when its `Vary`-selected header values and
+    // its credentials class both match this request (story 9.3.2).
     Lookup lookup(std::string_view method, std::string_view url, const HttpHeaders& request_headers, CacheTime now);
 
     // Stores the response, or does nothing and reports why. Returns the reason
@@ -123,13 +129,27 @@ private:
         std::string etag;
         std::string last_modified;
 
+        // The secondary cache key (story 9.3.2). `vary_names` is what the response
+        // said it varies on; `vary_values` is what THIS request sent for those
+        // names. A later request matches only if its values agree — which is what
+        // lets one URL hold several variants without ever confusing them.
+        std::vector<std::string> vary_names;
+        std::vector<std::string> vary_values;
+        CredentialsClass credentials = CredentialsClass::Anonymous;
+
         size_t footprint() const;
         std::chrono::seconds current_age(CacheTime now) const;
         bool is_fresh(CacheTime now) const;
+        // Whether this entry may answer a request with these headers.
+        bool matches(const HttpHeaders& request_headers, CredentialsClass request_credentials) const;
     };
 
-    // Called with `mutex_` held.
-    Entry* find(std::string_view method, std::string_view url);
+    // Called with `mutex_` held. Returns the variant matching this request, which
+    // is not the same as "the entry for this URL" once `Vary` is in play.
+    Entry* find(std::string_view method, std::string_view url, const HttpHeaders& request_headers,
+                CredentialsClass request_credentials);
+    // Drops the URL's least-recently-used variants until one more will fit.
+    void evict_variants_of(std::string_view method, std::string_view url);
     // Drops least-recently-used entries until `incoming` would fit both caps.
     void evict_for(size_t incoming);
 

@@ -371,9 +371,15 @@ void BrowserApp::toggle_active_site_compatibility() {
     HB_LOG_INFO("[identity] " << origin->serialize() << " -> "
                               << (compat ? "Compatibility (Chrome-shaped UA)" : "Transparent (honest UA)")
                               << "; reloading");
-    // Reload so the new identity takes effect on the very next request. User
-    // initiated, so it is a safe GET — never a silent POST replay.
-    navigate_and_reflect_url(active_tab().requested_url());
+    // A HARD reload, so the new identity takes effect on the very next request
+    // (story 9.3.2). A normal reload would serve the page and its subresources
+    // from cache — the entries fetched under the OTHER identity — so the toggle
+    // would appear to do nothing, which is the exact opposite of why the user
+    // pressed it. Keying `User-Agent` into the cache instead would halve the cache
+    // for every site, and only servers that say `Vary: User-Agent` actually need
+    // it; those are already handled by the secondary key. User initiated, so it is
+    // a safe GET — never a silent POST replay.
+    reload_and_reflect_url(/*hard*/ true);
 }
 
 void BrowserApp::notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url) {

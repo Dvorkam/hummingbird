@@ -17,6 +17,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/net/CookieJar.h"
 #include "core/net/HttpCache.h"
 #include "core/platform_api/INetwork.h"
 #include "engine/resources/ResourceLoader.h"
@@ -444,14 +445,118 @@ TEST(HttpCacheIntegrationTest, DemoSubresourcesGoToTheStubNotTheRealNetwork) {
 }
 
 // Nothing that carries a session is cached in 9.3.1 — in either direction.
-TEST(HttpCacheIntegrationTest, ResponsesCarryingSetCookieAreNotStored) {
+// A response that sets a cookie IS cached now (9.3.2) — but the cookie is not.
+// The body is reusable; the session token must not be replayed from memory,
+// because that would resurrect a cookie the user had deleted.
+TEST(HttpCacheIntegrationTest, ASetCookieResponseIsCachedWithoutItsCookie) {
     CacheFixture fx;
     HttpHeaders reply = cacheable("max-age=3600");
     reply.add("Set-Cookie", "sid=abc; Path=/");
     fx.net->set_reply({200, "PAGE", reply});
 
-    fx.fetch("https://api.test/login");
-    fx.fetch("https://api.test/login");
-    EXPECT_EQ(fx.net->calls.size(), 2u) << "a Set-Cookie response must never be replayed from memory";
+    EXPECT_EQ(fx.fetch("https://api.test/login").body, "PAGE");
+    const auto second = fx.fetch("https://api.test/login");
+    EXPECT_EQ(second.body, "PAGE");
+    EXPECT_EQ(fx.net->calls.size(), 1u) << "the body was reusable, so the second request was a hit";
+    EXPECT_TRUE(second.headers.get("Set-Cookie").empty()) << "the cached copy must not carry the session token";
+}
+
+// The credentialed acceptance criterion through the real loader, with the cookie
+// jar supplying the credentials — so this exercises the header the engine really
+// sends rather than one the test invented.
+TEST(HttpCacheIntegrationTest, ACredentialedResponseIsNotServedToAnAnonymousRequest) {
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    jar->store_from_header("https://api.test/", "sid=abc; Path=/", Hummingbird::Core::CookieClock::now());
+
+    auto cache = std::make_shared<HttpCache>();
+    auto network = std::make_unique<RecordingNetwork>();
+    RecordingNetwork* net = network.get();
+    net->set_reply({200, "YOUR PROFILE", cacheable("private, max-age=3600")});
+    auto loader = std::make_unique<ResourceLoader>(std::move(network), nullptr, nullptr, nullptr, jar, nullptr, cache);
+
+    const auto fetch_as = [&](Hummingbird::Core::Cors::Credentials credentials) {
+        ScriptFetchRequest request;
+        request.url = "https://api.test/me";
+        request.credentials = credentials;
+        ScriptFetchResponse out;
+        loader->fetch_for_script(request, "https://api.test/app",
+                                 [&](ScriptFetchResponse response) { out = std::move(response); });
+        return out;
+    };
+
+    // Same-origin at the default credentials mode, so the jar's cookie rides along
+    // and the response is stored as credentialed.
+    EXPECT_EQ(fetch_as(Hummingbird::Core::Cors::Credentials::SameOrigin).body, "YOUR PROFILE");
+    ASSERT_EQ(net->calls.size(), 1u);
+    ASSERT_FALSE(net->calls[0].headers.get("Cookie").empty()) << "the premise: this request was credentialed";
+    EXPECT_EQ(cache->stats().entries, 1u) << "private is storable in a per-profile cache";
+
+    // An explicitly anonymous fetch of the same URL must NOT be handed the
+    // personalized copy sitting in memory.
+    fetch_as(Hummingbird::Core::Cors::Credentials::Omit);
+    ASSERT_EQ(net->calls.size(), 2u) << "the anonymous request must go to the network, not to the credentialed entry";
+    EXPECT_TRUE(net->calls[1].headers.get("Cookie").empty());
+}
+
+// The acceptance criterion about identity, exercised through the real mechanism:
+// flipping a site's identity mode must not serve it the other mode's cached
+// response. This is why `Vary` matters *here* rather than in the abstract — M8
+// made User-Agent differ per origin, so M9's cache inherited a header that
+// genuinely changes under the engine's own feet.
+//
+// Note the test does NOT set User-Agent on the request: it cannot. `send_request`
+// overwrites it from the identity store, which is correct (it is a forbidden
+// header name for fetch, and the engine owns browser identity). So the only
+// honest way to vary it is to toggle the store, which is what the user does.
+TEST(HttpCacheIntegrationTest, FlippingIdentityModeDoesNotServeTheOtherModesEntry) {
+    auto identity = std::make_shared<Hummingbird::Core::IdentityPolicyStore>();
+    auto cache = std::make_shared<HttpCache>();
+    auto network = std::make_unique<RecordingNetwork>();
+    RecordingNetwork* net = network.get();
+    HttpHeaders reply = cacheable("max-age=3600");
+    reply.add("Vary", "User-Agent");
+    net->set_reply({200, "PAGE", reply});
+    auto loader =
+        std::make_unique<ResourceLoader>(std::move(network), nullptr, nullptr, nullptr, nullptr, identity, cache);
+
+    const auto fetch_page = [&] {
+        ScriptFetchRequest request;
+        request.url = "https://api.test/page";
+        ScriptFetchResponse out;
+        loader->fetch_for_script(request, "https://api.test/app",
+                                 [&](ScriptFetchResponse response) { out = std::move(response); });
+        return out;
+    };
+
+    EXPECT_EQ(fetch_page().body, "PAGE");
+    ASSERT_EQ(net->calls.size(), 1u);
+    const std::string honest_ua(net->calls[0].headers.get("User-Agent"));
+    EXPECT_FALSE(honest_ua.empty());
+
+    // The user presses Ctrl+Shift+U: this origin now presents a Chrome-shaped UA.
+    const auto origin = Hummingbird::Core::Origin::parse("https://api.test/page");
+    ASSERT_TRUE(origin.has_value());
+    identity->toggle(*origin);
+
+    EXPECT_EQ(fetch_page().body, "PAGE");
+    ASSERT_EQ(net->calls.size(), 2u) << "the new identity must not be served the old identity's cached response";
+    EXPECT_NE(std::string(net->calls[1].headers.get("User-Agent")), honest_ua) << "the premise: the UA really changed";
+
+    // Toggling back returns to the first variant, which is still cached.
+    identity->toggle(*origin);
+    EXPECT_EQ(fetch_page().body, "PAGE");
+    EXPECT_EQ(net->calls.size(), 2u) << "the original identity still hits its own entry";
+}
+
+// `Vary: *` admits no correct key, so nothing is stored and every request is real.
+TEST(HttpCacheIntegrationTest, VaryStarIsNeverCached) {
+    CacheFixture fx;
+    HttpHeaders reply = cacheable("max-age=3600");
+    reply.add("Vary", "*");
+    fx.net->set_reply({200, "PAGE", reply});
+
+    fx.fetch("https://api.test/page");
+    fx.fetch("https://api.test/page");
+    EXPECT_EQ(fx.net->calls.size(), 2u);
     EXPECT_EQ(fx.cache->stats().entries, 0u);
 }

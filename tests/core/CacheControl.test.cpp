@@ -12,12 +12,15 @@
 #include <initializer_list>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "core/net/Cookie.h"
 
 namespace {
 using Hummingbird::Core::CacheTime;
 using Hummingbird::Core::compute_freshness;
+using Hummingbird::Core::credentials_class;
+using Hummingbird::Core::CredentialsClass;
 using Hummingbird::Core::extract_validators;
 using Hummingbird::Core::HttpHeaders;
 using Hummingbird::Core::parse_cache_control;
@@ -143,10 +146,35 @@ TEST(CacheControlTest, StoresAnOrdinaryCacheableResponse) {
               Storability::Storable);
 }
 
-TEST(CacheControlTest, RefusesNoStoreAndPrivate) {
+TEST(CacheControlTest, RefusesNoStore) {
     EXPECT_EQ(storability("GET", 200, {}, headers_of({{"Cache-Control", "no-store"}})), Storability::NoStore);
+}
+
+// `private` IS storable here, reversing what 9.3.1 shipped. The directive is
+// addressed to SHARED caches — "do not keep this where another user could reach
+// it" — and a per-profile in-memory cache is exactly the private cache it
+// permits. What makes it safe is the credentials class in the key, not a refusal;
+// refusing cost hits on the logged-in pages caching helps most and bought nothing.
+TEST(CacheControlTest, PrivateIsStorableInAPerProfileCache) {
     EXPECT_EQ(storability("GET", 200, {}, headers_of({{"Cache-Control", "private, max-age=60"}})),
-              Storability::Private);
+              Storability::Storable);
+    // `no-store` still wins when a server sends both.
+    EXPECT_EQ(storability("GET", 200, {}, headers_of({{"Cache-Control", "private, no-store"}})),
+              Storability::NoStore);
+}
+
+// `Vary: *` is a server admitting it varies on something it will not name, so no
+// cache key can be correct. The only safe reading is "do not store".
+TEST(CacheControlTest, VaryStarIsNeverStored) {
+    EXPECT_EQ(storability("GET", 200, {}, headers_of({{"Cache-Control", "max-age=600"}, {"Vary", "*"}})),
+              Storability::VaryStar);
+    // Even buried in a list, and even spelled across two headers.
+    EXPECT_EQ(
+        storability("GET", 200, {}, headers_of({{"Cache-Control", "max-age=600"}, {"Vary", "accept-encoding, *"}})),
+        Storability::VaryStar);
+    EXPECT_EQ(storability("GET", 200, {},
+                          headers_of({{"Cache-Control", "max-age=600"}, {"Vary", "accept"}, {"Vary", "*"}})),
+              Storability::VaryStar);
 }
 
 // HTTP/1.0's `Pragma: no-cache`, honored only when there is no Cache-Control to
@@ -158,30 +186,55 @@ TEST(CacheControlTest, PragmaNoCacheOnlyAppliesWithoutCacheControl) {
               Storability::Storable);
 }
 
-// Nothing about a session is ever cached in 9.3.1. Both halves matter: a
-// response that SETS a cookie is per-request state, and a request that SENT one
-// got an answer meant for that user. 9.3.2 turns the second into a cache key;
-// until then the honest answer is "do not store".
-TEST(CacheControlTest, RefusesAnythingTouchingCredentials) {
-    EXPECT_EQ(storability("GET", 200, {},
-                          headers_of({{"Cache-Control", "max-age=600"}, {"Set-Cookie", "sid=abc"}})),
-              Storability::HasSetCookie);
+// Credentials are now a cache KEY rather than a refusal (9.3.2). A response to a
+// credentialed request is storable; what it must never do is answer an anonymous
+// one.
+TEST(CacheControlTest, CredentialsAreClassifiedRatherThanRefused) {
+    EXPECT_EQ(credentials_class({}), CredentialsClass::Anonymous);
+    EXPECT_EQ(credentials_class(headers_of({{"Cookie", "sid=abc"}})), CredentialsClass::Credentialed);
+    EXPECT_EQ(credentials_class(headers_of({{"Authorization", "Bearer x"}})), CredentialsClass::Credentialed);
+
     EXPECT_EQ(storability("GET", 200, headers_of({{"Cookie", "sid=abc"}}),
                           headers_of({{"Cache-Control", "max-age=600"}})),
-              Storability::RequestHadCredentials);
-    EXPECT_EQ(storability("GET", 200, headers_of({{"Authorization", "Bearer x"}}),
-                          headers_of({{"Cache-Control", "max-age=600"}})),
-              Storability::RequestHadCredentials);
+              Storability::Storable);
 }
 
-// HNPWA's real `Vary`. Until 9.3.2 keys on it, storing would mean serving one
-// variant for another — a bug that shows up as an unreproducible rendering
-// fault, not as a cache fault. Refusing is the correct interim behaviour.
-TEST(CacheControlTest, RefusesAnythingThatVaries) {
-    EXPECT_EQ(storability("GET", 200, {},
-                          headers_of({{"Cache-Control", "max-age=3600"},
-                                      {"Vary", "x-fh-requested-host, accept-encoding"}})),
-              Storability::HasVary);
+// A response that SETS a cookie is storable too, because the cookie is stripped
+// before the entry is written rather than the whole response being thrown away.
+// Caching the body while dropping the session state beats caching neither.
+TEST(CacheControlTest, SetCookieIsStrippedNotAReasonToRefuse) {
+    EXPECT_EQ(storability("GET", 200, {}, headers_of({{"Cache-Control", "max-age=600"}, {"Set-Cookie", "sid=abc"}})),
+              Storability::Storable);
+    EXPECT_TRUE(Hummingbird::Core::is_uncacheable_response_header("Set-Cookie"));
+    EXPECT_TRUE(Hummingbird::Core::is_uncacheable_response_header("set-cookie2"));
+    EXPECT_FALSE(Hummingbird::Core::is_uncacheable_response_header("Content-Type"));
+}
+
+// HNPWA's real `Vary`, which is why this is not a hypothetical. The names are
+// lowercased, sorted and deduped so the key cannot depend on the order a server
+// happened to list them in.
+TEST(CacheControlTest, VaryNamesAreNormalizedForTheKey) {
+    using Hummingbird::Core::vary_field_names;
+    const std::vector<std::string> expected{"accept-encoding", "x-fh-requested-host"};
+    EXPECT_EQ(vary_field_names(headers_of({{"Vary", "x-fh-requested-host, accept-encoding"}})), expected);
+    // Different order, different case, a duplicate, and split across two headers:
+    // all the same key.
+    EXPECT_EQ(vary_field_names(headers_of({{"Vary", "Accept-Encoding"},
+                                           {"Vary", "X-FH-Requested-Host, accept-encoding"}})),
+              expected);
+    EXPECT_TRUE(vary_field_names({}).empty());
+}
+
+// The selecting values are the request's, trimmed but never case-folded: header
+// values are case-sensitive in general, and folding would merge variants a server
+// distinguishes. An absent header selects the empty string, consistently.
+TEST(CacheControlTest, SelectingValuesComeFromTheRequestAndKeepTheirCase) {
+    using Hummingbird::Core::selecting_header_values;
+    const std::vector<std::string> names{"accept-encoding", "x-flavour"};
+    const auto values =
+        selecting_header_values(names, headers_of({{"Accept-Encoding", "  gzip  "}, {"X-Flavour", "Vanilla"}}));
+    EXPECT_EQ(values, (std::vector<std::string>{"gzip", "Vanilla"}));
+    EXPECT_EQ(selecting_header_values(names, {}), (std::vector<std::string>{"", ""}));
 }
 
 TEST(CacheControlTest, RefusesNonGetAndUncacheableStatuses) {

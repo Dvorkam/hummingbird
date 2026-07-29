@@ -195,6 +195,120 @@ TEST(HttpCacheTest, RefusesAnEntryLargerThanThePerEntryCap) {
     EXPECT_EQ(cache.stats().entries, 0u);
 }
 
+// --- the secondary key: Vary and credentials (story 9.3.2) -------------------
+
+// The acceptance criterion, stated exactly: two requests differing only in a
+// Vary-named header do not share an entry. A cache that got this wrong would
+// serve the wrong variant, and it would look like a rendering bug.
+TEST(HttpCacheTest, TwoRequestsDifferingInAVaryNamedHeaderDoNotShareAnEntry) {
+    HttpCache cache;
+    const auto response = headers_of({{"Cache-Control", "max-age=60"}, {"Vary", "X-Flavour"}});
+
+    const auto vanilla = headers_of({{"X-Flavour", "vanilla"}});
+    const auto chocolate = headers_of({{"X-Flavour", "chocolate"}});
+    cache.store("GET", "https://a.test/x", 200, vanilla, response, "VANILLA", epoch());
+
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/x", vanilla, epoch()).body, "VANILLA");
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/x", chocolate, epoch()).outcome, Outcome::Miss)
+        << "the other variant was never stored, so this must not be a hit";
+
+    // Both variants coexist under one URL, each answering only its own request.
+    cache.store("GET", "https://a.test/x", 200, chocolate, response, "CHOCOLATE", epoch());
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/x", vanilla, epoch()).body, "VANILLA");
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/x", chocolate, epoch()).body, "CHOCOLATE");
+    EXPECT_EQ(cache.stats().entries, 2u);
+}
+
+// A header the response does NOT vary on is not part of the key, so changing it
+// must still hit. Getting this backwards would make the cache useless — every
+// request differs in something.
+TEST(HttpCacheTest, HeadersTheResponseDoesNotVaryOnAreNotPartOfTheKey) {
+    HttpCache cache;
+    cache.store("GET", "https://a.test/x", 200, headers_of({{"X-Flavour", "vanilla"}}),
+                headers_of({{"Cache-Control", "max-age=60"}, {"Vary", "Accept-Language"}}), "BODY", epoch());
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/x", headers_of({{"X-Flavour", "chocolate"}}), epoch()).outcome,
+              Outcome::Fresh);
+}
+
+// The credentialed rule story 9.3.2 was asked to decide. The cache is per
+// profile, so this is not about separating users — it is about not letting an
+// anonymous request read a personalized answer that happens to be in memory.
+TEST(HttpCacheTest, ACredentialedResponseIsNeverServedToAnAnonymousRequest) {
+    HttpCache cache;
+    const auto response = headers_of({{"Cache-Control", "private, max-age=60"}});
+    const auto with_cookie = headers_of({{"Cookie", "sid=abc"}});
+
+    ASSERT_EQ(cache.store("GET", "https://a.test/me", 200, with_cookie, response, "YOUR PROFILE", epoch()),
+              Storability::Storable)
+        << "private IS storable in a per-profile cache; the credentials class is what protects it";
+
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/me", with_cookie, epoch()).body, "YOUR PROFILE");
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/me", {}, epoch()).outcome, Outcome::Miss)
+        << "an anonymous request must not receive the credentialed response";
+    // And the reverse: an anonymous response must not answer a credentialed one.
+    cache.store("GET", "https://a.test/pub", 200, {}, headers_of({{"Cache-Control", "max-age=60"}}), "GENERIC",
+                epoch());
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/pub", with_cookie, epoch()).outcome, Outcome::Miss);
+}
+
+// A cached copy must never carry the session token that came with it. Stripping
+// Set-Cookie is what makes such a response cacheable at all.
+TEST(HttpCacheTest, SetCookieIsNeverWrittenIntoAnEntry) {
+    HttpCache cache;
+    ASSERT_EQ(cache.store("GET", "https://a.test/login", 200, {},
+                          headers_of({{"Cache-Control", "max-age=60"}, {"Set-Cookie", "sid=secret"}}), "PAGE",
+                          epoch()),
+              Storability::Storable);
+    const auto hit = cache.lookup("GET", "https://a.test/login", {}, epoch());
+    ASSERT_EQ(hit.outcome, Outcome::Fresh);
+    EXPECT_EQ(hit.body, "PAGE");
+    EXPECT_TRUE(hit.headers.get("Set-Cookie").empty()) << "a session token must not survive in the cache";
+}
+
+// `Vary` lets one URL occupy unbounded entries. A page churning a header must
+// pay for that itself rather than flushing everything else out.
+TEST(HttpCacheTest, VariantsOfOneUrlAreCappedAndEvictLocally) {
+    HttpCache cache;
+    const auto response = headers_of({{"Cache-Control", "max-age=100000"}, {"Vary", "X-N"}});
+    cache.store("GET", "https://a.test/other", 200, {}, headers_of({{"Cache-Control", "max-age=100000"}}), "KEEP",
+                epoch());
+
+    for (size_t i = 0; i < HttpCache::kMaxVariantsPerUrl + 4; ++i) {
+        cache.store("GET", "https://a.test/x", 200, headers_of({{"X-N", std::to_string(i).c_str()}}), response, "BODY",
+                    plus(static_cast<long>(i)));
+    }
+
+    EXPECT_LE(cache.stats().entries, HttpCache::kMaxVariantsPerUrl + 1);
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/other", {}, plus(1000)).outcome, Outcome::Fresh)
+        << "an unrelated URL must survive one URL's variant churn";
+    // The newest variant is present; the oldest was the victim.
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/x",
+                           headers_of({{"X-N", std::to_string(HttpCache::kMaxVariantsPerUrl + 3).c_str()}}),
+                           plus(1000))
+                  .outcome,
+              Outcome::Fresh);
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/x", headers_of({{"X-N", "0"}}), plus(1000)).outcome, Outcome::Miss);
+}
+
+// A 304 confirms the variant the conditional request was built from, not merely
+// "the entry for this URL".
+TEST(HttpCacheTest, RevalidationRefreshesOnlyTheMatchingVariant) {
+    HttpCache cache;
+    const auto response = headers_of({{"Cache-Control", "max-age=60"}, {"Vary", "X-Flavour"}, {"ETag", "\"v1\""}});
+    const auto vanilla = headers_of({{"X-Flavour", "vanilla"}});
+    const auto chocolate = headers_of({{"X-Flavour", "chocolate"}});
+    cache.store("GET", "https://a.test/x", 200, vanilla, response, "VANILLA", epoch());
+    cache.store("GET", "https://a.test/x", 200, chocolate, response, "CHOCOLATE", epoch());
+
+    const auto revived = cache.refresh_from_not_modified("GET", "https://a.test/x", chocolate,
+                                                         headers_of({{"Cache-Control", "max-age=60"}}), plus(120));
+    ASSERT_TRUE(revived.has_value());
+    EXPECT_EQ(revived->body, "CHOCOLATE") << "the 304 revived the variant that was asked about";
+    // The vanilla variant was left stale, because nothing confirmed it.
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/x", vanilla, plus(150)).outcome, Outcome::MustRevalidate);
+    EXPECT_EQ(cache.lookup("GET", "https://a.test/x", chocolate, plus(150)).outcome, Outcome::Fresh);
+}
+
 TEST(HttpCacheTest, KeysOnMethodAndUrlTogether) {
     HttpCache cache;
     const auto response = headers_of({{"Cache-Control", "max-age=60"}});
