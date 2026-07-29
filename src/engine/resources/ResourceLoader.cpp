@@ -137,9 +137,6 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
     const bool cross_origin = !Core::Cors::is_same_origin(request.url, document_url);
     auto document_origin = Core::Origin::parse(document_url);
     const std::string origin_header = document_origin ? document_origin->serialize() : std::string("null");
-    if (cross_origin) {
-        options.headers.set("Origin", origin_header);
-    }
 
     // The initiating document is this fetch's referrer source and its SameSite
     // initiator: a fetch is a subresource request, never a top-level navigation,
@@ -159,22 +156,31 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
 
     RedirectChain chain;
     chain.referrer_source = std::string(document_url);
+    // Enabling CORS for the chain, not just this request: send_request applies
+    // it per hop, so a same-origin URL that redirects off-origin is caught too
+    // (story 9.2.3).
+    chain.cors.document_url = std::string(document_url);
+    chain.cors.origin = origin_header;
+    chain.cors.credentials = request.credentials;
 
     std::optional<std::string> body;
     if (request.has_body) {
         body = request.body;
     }
 
-    // Translates a transport answer into the page's view of it, applying the
-    // CORS verdict. Shared by the direct and post-preflight paths.
-    auto deliver = [callback, cross_origin, origin_header,
-                    credentials = request.credentials](NetworkResponse response) mutable {
+    // Translates a transport answer into the page's view of it. The CORS verdict
+    // is NOT taken here — send_request applies it per hop, because a check that
+    // only sees the final response cannot see the chain that produced it.
+    auto deliver = [callback](NetworkResponse response) mutable {
         ScriptFetchResponse out;
         switch (response.error) {
             case NetworkError::None:
                 break;
             case NetworkError::Timeout:
                 out.failure = ScriptFetchFailure::Timeout;
+                break;
+            case NetworkError::CorsBlocked:
+                out.failure = ScriptFetchFailure::CorsBlocked;
                 break;
             default:
                 out.failure = ScriptFetchFailure::NetworkError;
@@ -184,21 +190,9 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
             // Nothing came back at all; a 0-status Response would be a lie.
             out.failure = ScriptFetchFailure::NetworkError;
         }
-        if (out.failure == ScriptFetchFailure::None && cross_origin) {
-            const auto decision = Core::Cors::check_response(response.headers, origin_header, credentials);
-            if (decision != Core::Cors::Decision::Allowed) {
-                // Discard EVERYTHING. Not the body, not the headers, not even the
-                // status: a page that learns "that origin answered 401" has read
-                // cross-origin state it was refused. The reason is logged for the
-                // developer and never handed to script.
-                HB_LOG_WARN("[cors] blocked " << response.url << " for " << origin_header << ": "
-                                              << Core::Cors::describe(decision));
-                ScriptFetchResponse blocked;
-                blocked.failure = ScriptFetchFailure::CorsBlocked;
-                if (callback) callback(std::move(blocked));
-                return;
-            }
-        }
+        // On ANY failure — including a CORS block — nothing is copied across:
+        // not the body, not the headers, not even the status. A page that learns
+        // "that origin answered 401" has read cross-origin state it was refused.
         if (out.failure == ScriptFetchFailure::None) {
             out.status = response.status;
             out.url = response.effective_url.empty() ? response.url : response.effective_url;
@@ -225,6 +219,10 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
                                if (callback) callback(std::move(blocked));
                                return;
                            }
+                           // The approval covers THIS request. If the server now
+                           // redirects, the chain stops rather than following
+                           // somewhere the preflight never asked about.
+                           chain.cors.preflighted = true;
                            send_request(*transport, url, options, deliver, context, std::move(body), std::move(chain));
                        });
         return;
@@ -258,6 +256,11 @@ void ResourceLoader::send_preflight(INetwork& network, const ScriptFetchRequest&
 
     RedirectChain preflight_chain;
     preflight_chain.referrer_source = chain.referrer_source;
+    // Marked as a preflight so the redirect loop refuses to follow one, but the
+    // per-hop CORS path stays OFF: a preflight's own response is judged by
+    // check_preflight (which asks about the method and headers too), and running
+    // both would check it twice against different rules.
+    preflight_chain.cors.is_preflight = true;
     // Carry the deadline, so a slow preflight spends the request's budget rather
     // than doubling it (story 9.1.3).
     preflight_chain.deadline = chain.deadline;
@@ -341,6 +344,22 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         options.headers.remove("Cookie");
     }
 
+    // CORS, recomputed per hop for the same reason the Cookie header is (story
+    // 9.2.3). A check applied only to the first request is not a check: a
+    // same-origin URL that 302s to another origin would sail through, which is
+    // the classic way a strict CORS implementation turns out not to be strict.
+    if (chain.cors.enabled()) {
+        if (!Core::Cors::is_same_origin(url, chain.cors.document_url)) {
+            // Once cross-origin, always: `active` is never cleared, so a chain
+            // that wanders off-origin and returns cannot launder its way back
+            // into same-origin treatment.
+            chain.cors.active = true;
+        }
+        if (chain.cors.active) {
+            options.headers.set("Origin", chain.cors.effective_origin());
+        }
+    }
+
     // Recomputed per hop like the Cookie header: the referrer policy depends on
     // this hop's target, so a chain crossing origins re-derives (or drops) the
     // Referer each hop rather than forwarding the first hop's value.
@@ -394,8 +413,41 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
             cookie_jar_->store_from_response(url, response.headers, Core::CookieClock::now());
         }
 
+        // The CORS verdict for THIS hop, before anything else looks at the
+        // response — including the redirect machinery. A hop the page may not
+        // read is a hop the chain must not continue from either.
+        if (chain.cors.active) {
+            const auto verdict =
+                Core::Cors::check_response(response.headers, chain.cors.effective_origin(), chain.cors.credentials);
+            if (verdict != Core::Cors::Decision::Allowed) {
+                HB_LOG_WARN("[cors] blocked hop " << chain.hops << " " << url << " for "
+                                                  << chain.cors.effective_origin() << ": "
+                                                  << Core::Cors::describe(verdict));
+                NetworkResponse blocked;
+                blocked.url = chain.visited.front();
+                blocked.effective_url = url;
+                blocked.error = NetworkError::CorsBlocked;
+                if (callback) callback(std::move(blocked));
+                return;
+            }
+        }
+
         auto decision =
             RedirectPolicy::decide(response.status, response.headers.get("Location"), url, post_body.has_value());
+        if (decision && (chain.cors.preflighted || chain.cors.is_preflight)) {
+            // A preflight asked about the request it was given, not about
+            // wherever the server would like to send it next; and a preflight
+            // itself may not be redirected. Following either would let a server
+            // move the goalposts after the permission was granted.
+            HB_LOG_WARN("[cors] refusing to follow a redirect on a "
+                        << (chain.cors.is_preflight ? "preflight" : "preflighted request") << ": " << url);
+            NetworkResponse blocked;
+            blocked.url = chain.visited.front();
+            blocked.effective_url = url;
+            blocked.error = NetworkError::CorsBlocked;
+            if (callback) callback(std::move(blocked));
+            return;
+        }
         if (!decision) {
             // Not a redirect (or not a followable one): this is the answer.
             if (response.effective_url.empty()) {
@@ -446,6 +498,15 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         // Safe-method status follows the rewrite: a 302 that turns POST into GET
         // makes the next hop safe; a 307 that preserves POST does not.
         next_context.safe_method = !decision->keep_post;
+
+        // Crossing an origin boundary mid-chain taints the request: from here on
+        // it presents `Origin: null`, so the next server must opt in to an
+        // opaque origin rather than to the page that started this. Without it, a
+        // server could read the initiator's origin off a hop it was never
+        // authorized by.
+        if (chain.cors.enabled() && !Core::Cors::is_same_origin(decision->url, url)) {
+            chain.cors.tainted = true;
+        }
 
         ++chain.hops;
         HB_LOG_DEBUG("[network] redirect " << response.status << " " << url << " -> " << decision->url

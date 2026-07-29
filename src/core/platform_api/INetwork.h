@@ -22,6 +22,11 @@ enum class NetworkError {
     // reached", and so a fetch promise can reject with a timeout-shaped reason
     // instead of a generic network failure.
     Timeout,
+    // The ENGINE refused this request or its response, rather than the transport
+    // failing (story 9.2.3): a CORS check that a redirect hop did not pass. It is
+    // a NetworkError variant because the redirect loop must be able to abandon a
+    // chain mid-flight, and that loop only speaks this vocabulary.
+    CorsBlocked,
 };
 
 struct NetworkRequestOptions {

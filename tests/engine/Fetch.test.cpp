@@ -6,6 +6,7 @@
 // LATER: nothing in this file settles a promise from the call that started it.
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <functional>
 #include <memory>
 #include <string>
@@ -14,17 +15,15 @@
 #include <utility>
 #include <vector>
 
-#include <algorithm>
-
 #include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
 #include "core/platform_api/ResourceProviderFactory.h"
-#include "test_utils/HeadlessTabHarness.h"
-#include "test_utils/TestFakes.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "core/platform_api/ScriptFetch.h"
 #include "engine/resources/ResourceLoader.h"
 #include "engine/script/DocumentScriptHost.h"
+#include "test_utils/HeadlessTabHarness.h"
+#include "test_utils/TestFakes.h"
 
 namespace {
 using Hummingbird::ScriptFetchFailure;
@@ -139,9 +138,8 @@ TEST(FetchTest, HttpErrorStatusResolvesRatherThanRejecting) {
 TEST(FetchTest, NetworkFailureRejectsAndATimeoutIsNamed) {
     FetchFixture fx;
     ASSERT_TRUE(fx.engine
-                    ->eval(FetchFixture::logger() +
-                               "fetch('/slow').then(function () { log('resolved'); },"
-                               "                    function (e) { log('rejected:' + e.name); });",
+                    ->eval(FetchFixture::logger() + "fetch('/slow').then(function () { log('resolved'); },"
+                                                    "                    function (e) { log('rejected:' + e.name); });",
                            "inline")
                     .ok);
 
@@ -184,11 +182,10 @@ TEST(FetchTest, SendsMethodBodyAndHeaders) {
 TEST(FetchTest, JsonParsesAndHeadersAreCaseInsensitive) {
     FetchFixture fx;
     ASSERT_TRUE(fx.engine
-                    ->eval(FetchFixture::logger() +
-                               "fetch('/api').then(function (r) {"
-                               "  log('ct:' + r.headers.get('content-TYPE') + ' ');"
-                               "  return r.json();"
-                               "}).then(function (data) { log('title:' + data[0].title); });",
+                    ->eval(FetchFixture::logger() + "fetch('/api').then(function (r) {"
+                                                    "  log('ct:' + r.headers.get('content-TYPE') + ' ');"
+                                                    "  return r.json();"
+                                                    "}).then(function (data) { log('title:' + data[0].title); });",
                            "inline")
                     .ok);
 
@@ -201,11 +198,10 @@ TEST(FetchTest, JsonParsesAndHeadersAreCaseInsensitive) {
 TEST(FetchTest, ABodyMayOnlyBeReadOnce) {
     FetchFixture fx;
     ASSERT_TRUE(fx.engine
-                    ->eval(FetchFixture::logger() +
-                               "fetch('/api').then(function (r) {"
-                               "  return r.text().then(function () { return r.text(); });"
-                               "}).then(function () { log('read-twice'); },"
-                               "        function (e) { log('refused:' + e.name); });",
+                    ->eval(FetchFixture::logger() + "fetch('/api').then(function (r) {"
+                                                    "  return r.text().then(function () { return r.text(); });"
+                                                    "}).then(function () { log('read-twice'); },"
+                                                    "        function (e) { log('refused:' + e.name); });",
                            "inline")
                     .ok);
 
@@ -218,9 +214,8 @@ TEST(FetchTest, ABodyMayOnlyBeReadOnce) {
 TEST(FetchTest, TeardownCancelsInFlightFetchesWithoutFiringCallbacks) {
     FetchFixture fx;
     ASSERT_TRUE(fx.engine
-                    ->eval(FetchFixture::logger() +
-                               "fetch('/slow').then(function () { log('resolved'); },"
-                               "                    function () { log('rejected'); });",
+                    ->eval(FetchFixture::logger() + "fetch('/slow').then(function () { log('resolved'); },"
+                                                    "                    function () { log('rejected'); });",
                            "inline")
                     .ok);
     EXPECT_EQ(fx.engine->pending_fetch_count(), 1u);
@@ -273,7 +268,7 @@ TEST(FetchTest, ADemoSiteFetchUsesTheSameTransportAsTheDocument) {
         std::string body_;
     };
 
-    auto real = std::make_unique<RecordingNetwork>("");             // no DNS for example.dev
+    auto real = std::make_unique<RecordingNetwork>("");              // no DNS for example.dev
     auto stub = std::make_unique<RecordingNetwork>("[{\"id\":1}]");  // the demo site
     auto* real_raw = real.get();
     auto* stub_raw = stub.get();
@@ -370,8 +365,7 @@ TEST(FetchTest, ASettledFetchRebuildsWhatIsPainted) {
 )HTML");
     net->set_response("https://example.test/data.json", "{\"headline\":\"fetched-and-painted\"}");
 
-    Hummingbird::Test::HeadlessTabHarness harness(std::move(network), nullptr,
-                                                  Hummingbird::create_resource_provider());
+    Hummingbird::Test::HeadlessTabHarness harness(std::move(network), nullptr, Hummingbird::create_resource_provider());
     harness.navigate("https://example.test/page");
     harness.tick();  // document ready: scripts run, the fetch goes out
 
@@ -528,8 +522,7 @@ TEST(FetchTest, CrossOriginFetchIsAnonymousUnlessCredentialsAreRequested) {
     // cross-site subresource request. credentials: 'include' is necessary but
     // NOT sufficient — SameSite is a separate gate that runs first, and a
     // default (Lax) cookie stays home no matter what the fetch asks for.
-    ASSERT_TRUE(jar->store_from_header("https://api.other.test/",
-                                       "session=secret; Max-Age=3600; SameSite=None; Secure",
+    ASSERT_TRUE(jar->store_from_header("https://api.other.test/", "session=secret; Max-Age=3600; SameSite=None; Secure",
                                        Hummingbird::Core::CookieClock::now()));
 
     Hummingbird::Core::HttpHeaders allow;
@@ -620,6 +613,166 @@ TEST(FetchTest, ASimpleCrossOriginRequestIsNotPreflighted) {
     EXPECT_EQ(fx.net->calls[0].method, "GET");
 }
 
+// --- CORS across redirect hops (story 9.2.3) ---------------------------------
+//
+// This is the half of CORS that is invisible in a same-origin test suite, and
+// the classic way a strict implementation turns out not to be strict: the check
+// is applied to the first request and the chain is then followed blind.
+
+namespace {
+// A server that redirects per-URL and answers per-URL, with independently
+// settable headers for each hop — so a chain can be allowed at one hop and
+// refused at the next.
+class RedirectingCorsNetwork final : public Hummingbird::INetwork {
+public:
+    void redirect(const std::string& from, const std::string& to, Hummingbird::Core::HttpHeaders headers = {}) {
+        hops_[from] = Hop{to, std::move(headers)};
+    }
+    void answer(const std::string& url, Hummingbird::Core::HttpHeaders headers) { answers_[url] = std::move(headers); }
+
+    void get(const std::string& url, std::function<void(Hummingbird::NetworkResponse)> callback,
+             const Hummingbird::NetworkRequestOptions& options = {}) override {
+        sent_origins.push_back(std::string(options.headers.get("Origin")));
+        visited.push_back(url);
+        Hummingbird::NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        if (auto hop = hops_.find(url); hop != hops_.end()) {
+            response.status = 302;
+            response.headers = hop->second.headers;
+            response.headers.set("Location", hop->second.to);
+        } else {
+            response.status = 200;
+            response.body = "SECRET";
+            if (auto found = answers_.find(url); found != answers_.end()) {
+                response.headers = found->second;
+            }
+        }
+        if (callback) callback(std::move(response));
+    }
+    void post(const std::string& url, std::string_view, std::function<void(Hummingbird::NetworkResponse)> callback,
+              const Hummingbird::NetworkRequestOptions& options = {}) override {
+        get(url, std::move(callback), options);
+    }
+    void shutdown() override {}
+
+    std::vector<std::string> visited;
+    std::vector<std::string> sent_origins;
+
+private:
+    struct Hop {
+        std::string to;
+        Hummingbird::Core::HttpHeaders headers;
+    };
+    std::unordered_map<std::string, Hop> hops_;
+    std::unordered_map<std::string, Hummingbird::Core::HttpHeaders> answers_;
+};
+
+struct RedirectCorsFixture {
+    RedirectingCorsNetwork* net = nullptr;
+    std::unique_ptr<Hummingbird::Engine::ResourceLoader> loader;
+
+    RedirectCorsFixture() {
+        auto network = std::make_unique<RedirectingCorsNetwork>();
+        net = network.get();
+        loader = std::make_unique<Hummingbird::Engine::ResourceLoader>(std::move(network), nullptr, nullptr, nullptr,
+                                                                       nullptr);
+    }
+    ScriptFetchResponse run(const std::string& url) {
+        ScriptFetchRequest request;
+        request.url = url;
+        ScriptFetchResponse out;
+        loader->fetch_for_script(request, "https://page.test/app",
+                                 [&](ScriptFetchResponse response) { out = std::move(response); });
+        return out;
+    }
+};
+
+Hummingbird::Core::HttpHeaders allow(const char* origin) {
+    Hummingbird::Core::HttpHeaders headers;
+    headers.set("Access-Control-Allow-Origin", origin);
+    return headers;
+}
+}  // namespace
+
+// The headline case: a cross-origin fetch that 302s to a THIRD origin must be
+// evaluated against that third origin. Checking only the first hop would let
+// any permissive server act as an open redirect into one that is not.
+TEST(FetchTest, EveryRedirectHopIsCorsChecked) {
+    RedirectCorsFixture fx;
+    // Hop 1 allows us. Hop 2 says nothing — and is where the data lives.
+    fx.net->redirect("https://a.test/start", "https://b.test/data", allow("*"));
+    fx.net->answer("https://b.test/data", {});
+
+    const auto got = fx.run("https://a.test/start");
+
+    EXPECT_EQ(got.failure, ScriptFetchFailure::CorsBlocked);
+    EXPECT_TRUE(got.body.empty());
+    EXPECT_EQ(got.status, 0);
+    // Both hops were visited — the block is on reading hop 2, not on making it.
+    ASSERT_EQ(fx.net->visited.size(), 2u);
+    EXPECT_EQ(fx.net->visited[1], "https://b.test/data");
+}
+
+// A chain crossing an origin taints the request: from there on it presents
+// `Origin: null`, so the next server must opt in to an opaque origin rather
+// than to the page that started it. Otherwise a server could read the
+// initiator's origin off a hop that never authorized it.
+TEST(FetchTest, ACrossOriginRedirectTaintsTheOriginHeader) {
+    RedirectCorsFixture fx;
+    fx.net->redirect("https://a.test/start", "https://b.test/data", allow("*"));
+    fx.net->answer("https://b.test/data", allow("*"));
+
+    const auto got = fx.run("https://a.test/start");
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+
+    ASSERT_EQ(fx.net->sent_origins.size(), 2u);
+    EXPECT_EQ(fx.net->sent_origins[0], "https://page.test");
+    EXPECT_EQ(fx.net->sent_origins[1], "null") << "a tainted hop must not present the initiator's origin";
+}
+
+// The acceptance criterion the story names: a chain that returns to the
+// initiator's origin is STILL cross-origin. Otherwise a server could launder
+// access by bouncing back through the page's own host.
+TEST(FetchTest, AChainReturningToTheInitiatorOriginStaysCrossOrigin) {
+    RedirectCorsFixture fx;
+    fx.net->redirect("https://other.test/start", "https://page.test/data", allow("*"));
+    fx.net->answer("https://page.test/data", {});  // same origin as the document, but no opt-in
+
+    const auto got = fx.run("https://other.test/start");
+
+    EXPECT_EQ(got.failure, ScriptFetchFailure::CorsBlocked) << "coming home must not restore same-origin privileges";
+    ASSERT_EQ(fx.net->sent_origins.size(), 2u);
+    EXPECT_EQ(fx.net->sent_origins[1], "null");
+}
+
+// A request that STARTS same-origin and redirects away becomes a CORS request.
+// Enforcement keyed off the initial URL alone would miss this entirely.
+TEST(FetchTest, ASameOriginRequestThatRedirectsOffOriginBecomesCorsChecked) {
+    RedirectCorsFixture fx;
+    fx.net->redirect("https://page.test/go", "https://elsewhere.test/data");
+    fx.net->answer("https://elsewhere.test/data", {});
+
+    const auto got = fx.run("https://page.test/go");
+    EXPECT_EQ(got.failure, ScriptFetchFailure::CorsBlocked);
+    ASSERT_EQ(fx.net->visited.size(), 2u);
+    // The first hop was same-origin, so it carried no Origin header at all.
+    EXPECT_TRUE(fx.net->sent_origins[0].empty());
+    EXPECT_FALSE(fx.net->sent_origins[1].empty());
+}
+
+// ...and the same shape succeeds when the destination does opt in, so the rule
+// above is enforcement rather than a blanket refusal.
+TEST(FetchTest, ASameOriginRequestMayRedirectToAConsentingOrigin) {
+    RedirectCorsFixture fx;
+    fx.net->redirect("https://page.test/go", "https://elsewhere.test/data");
+    fx.net->answer("https://elsewhere.test/data", allow("null"));
+
+    const auto got = fx.run("https://page.test/go");
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+    EXPECT_EQ(got.body, "SECRET");
+}
+
 // With no fetch sink wired up (most unit tests, and any document without a
 // network) the binding must REJECT. The pre-9.1.1 stub returned
 // `new Promise(function(){})`, so such a page froze its own logic forever.
@@ -639,15 +792,11 @@ TEST(FetchTest, WithoutANetworkFetchRejectsInsteadOfHanging) {
     engine->bind_host(&host);
 
     ASSERT_TRUE(engine
-                    ->eval(FetchFixture::logger() +
-                               "fetch('/anything').then(function () { log('resolved'); },"
-                               "                        function () { log('rejected'); });",
+                    ->eval(FetchFixture::logger() + "fetch('/anything').then(function () { log('resolved'); },"
+                                                    "                        function () { log('rejected'); });",
                            "inline")
                     .ok);
     // Settled by the checkpoint at the end of eval — no tick, no transport.
     EXPECT_EQ(host.get_attribute(out_ptr, "data-log"), "rejected");
     EXPECT_EQ(engine->pending_fetch_count(), 0u);
 }
-
-
-

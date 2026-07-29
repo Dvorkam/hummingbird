@@ -150,6 +150,36 @@ private:
         // so a chain that crosses origins re-applies the referrer policy at every
         // hop instead of forwarding a stale header (parallels the Cookie recompute).
         std::string referrer_source;
+
+        // CORS state for the chain (story 9.2.3). Carried per hop for the same
+        // reason the Cookie header is: a chain can cross origins, and a check
+        // applied only to the first request is not a check at all — the classic
+        // way a strict CORS implementation turns out not to be strict.
+        struct CorsState {
+            // Empty unless this is a script-initiated fetch; navigations and
+            // subresource loads are not subject to CORS in M9.
+            std::string document_url;
+            std::string origin;
+            Core::Cors::Credentials credentials = Core::Cors::Credentials::SameOrigin;
+            // Set once any hop is cross-origin, and never cleared: a chain that
+            // wanders off-origin and comes back is still cross-origin, or a
+            // server could launder access by bouncing through the initiator.
+            bool active = false;
+            // Set once a cross-origin redirect has been followed. A tainted
+            // request presents `Origin: null`, so the server must opt in to an
+            // opaque origin rather than to the page that started it.
+            bool tainted = false;
+            // A preflighted request may not follow redirects: the server agreed
+            // to the request it was asked about, not to wherever it points next.
+            bool preflighted = false;
+            // True for the preflight itself, which may not redirect either.
+            bool is_preflight = false;
+
+            bool enabled() const { return !document_url.empty(); }
+            // What the server must name in Access-Control-Allow-Origin.
+            std::string effective_origin() const { return tainted ? std::string("null") : origin; }
+        };
+        CorsState cors;
     };
 
     // The single choke point for network requests. `send_request`:

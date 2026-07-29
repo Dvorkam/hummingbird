@@ -721,7 +721,24 @@ P0: fetch + CORS (North Star)
       sufficient — SameSite is a separate gate that runs first, so a default
       (Lax) cookie stays home on a cross-site fetch regardless. Pinned in the
       credentials test.)*
-- [ ] 9.2.3: CORS Across Redirect Hops
+- [x] 9.2.3: CORS Across Redirect Hops *(the check moved INTO
+      `send_request`'s per-hop path, joining the Cookie header, SameSite context,
+      Referer and per-origin identity that M8 already recomputes there — so the
+      seam this story needed was already built. `RedirectChain::CorsState` carries
+      origin, credentials and two sticky flags. **`active` is never cleared**, so a
+      chain that wanders off-origin and returns cannot launder its way back into
+      same-origin treatment; **`tainted`** makes every hop after a cross-origin
+      redirect present `Origin: null`, so the next server must opt in to an opaque
+      origin rather than to the page that started it. A **preflighted** request
+      refuses to follow a redirect at all (the server agreed to the request it was
+      asked about, not to wherever it points next), and a preflight itself may not
+      be redirected. A same-origin URL that 302s off-origin **becomes** a CORS
+      request — enforcement keyed off the initial URL alone would miss it
+      entirely. New `NetworkError::CorsBlocked` lets the redirect loop abandon a
+      chain mid-flight. The duplicate check in `deliver` is gone: one place,
+      per hop. Tests: 5 new `FetchTest.*` redirect cases; **verified that 3 of
+      them fail with a first-hop-only check**, which is the bug this story
+      exists to prevent.)*
 - [ ] 9.2.4: Response Header Exposure
 
 P0: Cache (North Star)
