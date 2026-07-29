@@ -17,6 +17,14 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **`fetch()`**: a page's JavaScript can now request data on its own and render
+  it, rather than only receiving what the engine decided to load. Returns a real
+  Promise with `Response`/`Headers`, `text()` and `json()`; supports methods,
+  request headers and bodies; and rides the same cookie, redirect and timeout
+  handling as every other request. Previously `fetch` was a stub returning a
+  promise that never settled, so a page that used it silently froze its own
+  logic. **Cross-origin requests are not yet restricted** — CORS enforcement is
+  still to come, so treat this as usable for same-origin work only.
 - **Cookie storage limits** (RFC 6265 §6.1): 4096 bytes per cookie, 50 per domain,
   3000 in total, with least-recently-used eviction. Previously the jar was
   unbounded, which a page could exploit to grow a file the browser writes to disk.

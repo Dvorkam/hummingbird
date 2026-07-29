@@ -664,7 +664,28 @@ P0: fetch + CORS (North Star)
       instead of 4 and `Timeout`). **Still open for 9.1.1:** the fetch promise's
       distinguishable rejection — the `NetworkError` variant exists, nothing
       surfaces it to JS yet.)*
-- [ ] 9.1.1: fetch() Core
+- [x] 9.1.1: fetch() Core *(the full vertical: new
+      `core/platform_api/ScriptFetch.h` types, `IScriptHost::start_fetch` +
+      `resolve_url`, `IScriptEngine::settle_fetch`, a QuickJS binding that creates
+      the promise capability and stashes resolve/reject under the host's id, a JS
+      prelude wrapping the raw payload into `Response`/`Headers`, and
+      `ResourceLoader::fetch_for_script` riding `send_request` so a fetch inherits
+      cookies, identity, referrer, redirects and the 9.1.3 deadline. **The async
+      shape:** the transport answers on a pool thread, so the Tab QUEUES the
+      result and settles it on the main thread in `tick()` — the same pattern
+      document/subresource loads use, not a second one. Spec-shaped where it
+      counts: only a network error rejects (404 resolves with `ok === false`), a
+      timeout rejects as `TimeoutError` (the JS-visible half of 9.1.3), a body is
+      single-use. **Teardown:** `reset_bindings` frees the pending resolve/reject
+      *without calling either*, and the Tab drops queued responses via a
+      generation counter — both halves are needed. The never-settling stub is
+      gone, so `fetch` also left the missing-API telemetry list. Tests:
+      `FetchTest.*` (8). Demo: example.dev/m9 fetches `/api/news` from a new stub
+      JSON endpoint shaped like `api.hnpwa.com`.
+      **NOT yet done, and deliberately:** no `Request` class, no `AbortController`,
+      no streaming, no `FormData`; cross-origin requests are currently
+      **unrestricted** — CORS is 9.2.1 and until it lands a page can read any
+      origin it can reach.)*
 - [ ] 9.2.1: Request Classification + Enforcement
 - [ ] 9.2.3: CORS Across Redirect Hops
 - [ ] 9.2.4: Response Header Exposure

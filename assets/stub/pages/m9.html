@@ -34,6 +34,19 @@
       and an HTTP cache. It starts with the two event-loop guarantees everything promise-based rests on.</p>
 
       <div class="card">
+        <h2>fetch()</h2>
+        <p class="card-lead">The page asks for data the HTML never mentioned, and renders it. Until now every request
+        this browser made was the engine&rsquo;s idea &mdash; a stylesheet, an image, a script it found while parsing.
+        This one is JavaScript&rsquo;s.</p>
+        <p><button id="load">Load stories from the API</button></p>
+        <p class="out" id="stories">Nothing fetched yet.</p>
+        <p class="note">Calls <code>fetch('/api/news')</code>, reads <code>response.json()</code>, and builds the list
+        from the result. The request really goes through the network layer &mdash; same cookies, redirects and time
+        budget as any other. A failure is reported rather than hanging, which is what the old stub did: it returned a
+        promise that never settled, so a page using fetch froze its own logic in silence. Added in M9 (story 9.1.1).</p>
+      </div>
+
+      <div class="card">
         <h2>Event-loop ordering</h2>
         <p class="card-lead">A promise continuation runs when the JavaScript stack empties &mdash; not when some
         inner handler happens to return. Clicking below runs a handler that queues a <code>.then</code>, then calls
@@ -61,6 +74,25 @@
     </div>
 
     <script>
+      var stories = document.getElementById("stories");
+      document.getElementById("load").addEventListener("click", function () {
+        stories.textContent = "Fetching…";
+        fetch("/api/news").then(function (response) {
+          if (!response.ok) { throw new Error("server said " + response.status); }
+          return response.json();
+        }).then(function (items) {
+          var text = "";
+          items.forEach(function (item, index) {
+            text += (index + 1) + ". " + item.title + " — " + item.points + " points, "
+                 + item.comments_count + " comments   ";
+          });
+          stories.textContent = text;
+        }).catch(function (error) {
+          // A failure is reported, never swallowed and never left hanging.
+          stories.textContent = "Could not load: " + error.message;
+        });
+      });
+
       var order = document.getElementById("order");
       function log(msg) { order.textContent = order.textContent + msg; }
 

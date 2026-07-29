@@ -37,6 +37,23 @@ std::optional<std::string> try_load_example_asset(const std::string& url) {
     return Hummingbird::Core::Utils::load_asset_bytes(rest, false);
 }
 
+// A JSON endpoint for the fetch demo (story 9.1.1). The stub otherwise only
+// serves HTML pages, and fetch needs something shaped like a real API to be
+// demonstrable offline. Deliberately mirrors api.hnpwa.com's story-list shape,
+// which is M9's proof target, so the demo page's rendering code is the same code
+// the live gate exercises.
+std::optional<std::string> try_stub_api(const std::string& url) {
+    if (url != "http://example.dev/api/news" && url != "https://example.dev/api/news") {
+        return std::nullopt;
+    }
+    return std::string(R"JSON([
+  {"id":1,"title":"Hummingbird can fetch its own data now","points":128,"user":"engine","comments_count":12},
+  {"id":2,"title":"A promise that settles is better than one that does not","points":95,"user":"quickjs","comments_count":7},
+  {"id":3,"title":"One time budget for the whole redirect chain","points":74,"user":"loader","comments_count":3},
+  {"id":4,"title":"Every document gets a fresh global","points":61,"user":"teardown","comments_count":5}
+])JSON");
+}
+
 std::string build_stub_body(const std::string& url, std::string_view post_body = {}) {
     if (url.rfind("http://example.dev/search", 0) == 0 || url.rfind("https://example.dev/search", 0) == 0) {
         std::string query;
@@ -61,6 +78,10 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
   </body>
 </html>
 )HTML";
+    }
+
+    if (auto api = try_stub_api(url)) {
+        return *api;
     }
 
     if (url == "http://example.dev" || url == "https://example.dev") {
