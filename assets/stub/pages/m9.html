@@ -47,6 +47,22 @@
       </div>
 
       <div class="card">
+        <h2>Live data from the real internet</h2>
+        <p class="card-lead">The same <code>fetch()</code>, pointed at public APIs that are not part of this demo and
+        know nothing about Hummingbird. This needs a working connection &mdash; the rest of this page does not.</p>
+        <p><button id="hn">Hacker News front page</button>
+        <button id="wiki">Wikipedia summary of</button>
+        <input id="topic" type="text" value="Hummingbird"></p>
+        <p class="out" id="live">Nothing fetched yet.</p>
+        <p class="note">Both requests are <strong>cross-origin</strong>: this page is
+        <code>example.dev</code>, the data is not. Today the browser does not check whether those servers permit that
+        &mdash; CORS enforcement is the next story (9.2.1). Both endpoints answer
+        <code>Access-Control-Allow-Origin: *</code>, so they will keep working once it lands, which turns this card
+        into the proof that CORS allows what it should. It is also Milestone&nbsp;9&rsquo;s North Star target:
+        <em>a page that renders live data the browser fetched itself.</em></p>
+      </div>
+
+      <div class="card">
         <h2>Event-loop ordering</h2>
         <p class="card-lead">A promise continuation runs when the JavaScript stack empties &mdash; not when some
         inner handler happens to return. Clicking below runs a handler that queues a <code>.then</code>, then calls
@@ -91,6 +107,45 @@
           // A failure is reported, never swallowed and never left hanging.
           stories.textContent = "Could not load: " + error.message;
         });
+      });
+
+      // --- live, cross-origin data -------------------------------------------
+      var live = document.getElementById("live");
+
+      function reportFailure(error) {
+        // A timeout is named separately from other failures (story 9.1.3), so
+        // say which one happened rather than "something went wrong".
+        var kind = error.name === "TimeoutError" ? "timed out" : "failed";
+        live.textContent = "Request " + kind + ": " + error.message
+          + "   (a connection is needed for this card; the rest of the page works offline)";
+      }
+
+      document.getElementById("hn").addEventListener("click", function () {
+        live.textContent = "Fetching news.ycombinator.com via api.hnpwa.com…";
+        fetch("https://api.hnpwa.com/v0/news/1.json").then(function (response) {
+          if (!response.ok) { throw new Error("server said " + response.status); }
+          return response.json();
+        }).then(function (items) {
+          var text = "Hacker News, fetched live — " + items.length + " stories:   ";
+          items.slice(0, 10).forEach(function (item, index) {
+            text += (index + 1) + ". " + item.title
+                 + " (" + item.points + " points, " + item.comments_count + " comments)   ";
+          });
+          live.textContent = text;
+        }).catch(reportFailure);
+      });
+
+      document.getElementById("wiki").addEventListener("click", function () {
+        var topic = document.getElementById("topic").value || "Hummingbird";
+        live.textContent = "Fetching the Wikipedia summary of " + topic + "…";
+        fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(topic))
+          .then(function (response) {
+            if (response.status === 404) { throw new Error("no article called " + topic); }
+            if (!response.ok) { throw new Error("server said " + response.status); }
+            return response.json();
+          }).then(function (page) {
+            live.textContent = page.title + " — " + page.extract;
+          }).catch(reportFailure);
       });
 
       var order = document.getElementById("order");

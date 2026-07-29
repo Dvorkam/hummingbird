@@ -478,6 +478,19 @@ proof. See finding 5 above for why the synchronous-callback design was dropped.*
 * **Acceptance:** CI fails when the fetch/render loop, the CORS decision, or the
   cache path regresses.
 * **Tests:** the harness is the test.
+* **The live manual gate already exists (2026-07-29).** `example.dev/m9` fetches
+  `api.hnpwa.com/v0/news/1.json` and the Wikipedia REST summary and renders both,
+  **user-confirmed working**. So the North Star claim — *"the browser shows live
+  data it fetched itself"* — is demonstrable now, well ahead of schedule. What is
+  still missing is this story's actual deliverable: the **CI-runnable** version
+  against a mock server. A manual gate proves it works today; only the harness
+  stops it silently breaking. Do not let the working demo make this story feel
+  done.
+* **Note for 9.2.1:** those two live fetches are cross-origin and currently
+  unchecked. Both endpoints answer `Access-Control-Allow-Origin: *` (re-verified
+  2026-07-29), so they must keep working after CORS lands — which makes that same
+  card a ready-made "CORS allows what it should" check, alongside the mock
+  server's "CORS blocks what it should".
 * **Kickoff check — DONE 2026-07-29.** Both endpoints probed live with a
   cross-origin `Origin: https://example.dev`. **Both are CORS-open**, so the
   cross-origin manual gate is viable and the kickoff's flagged risk is closed.
