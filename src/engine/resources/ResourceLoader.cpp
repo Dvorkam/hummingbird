@@ -1,6 +1,7 @@
 #include "engine/resources/ResourceLoader.h"
 
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <optional>
 #include <ostream>
@@ -92,10 +93,45 @@ ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, 
     }
 }
 
+std::chrono::steady_clock::time_point ResourceLoader::now() const {
+    return clock_ ? clock_() : std::chrono::steady_clock::now();
+}
+
+bool ResourceLoader::apply_deadline(RedirectChain& chain, NetworkRequestOptions& options) const {
+    const auto current = now();
+    if (chain.deadline == std::chrono::steady_clock::time_point{}) {
+        // First hop: the budget starts here and belongs to the whole chain.
+        chain.deadline = current + std::chrono::milliseconds(deadlines_.total_ms);
+    }
+    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(chain.deadline - current).count();
+    if (remaining <= 0) {
+        return false;
+    }
+    options.total_timeout_ms = static_cast<long>(remaining);
+    // Connecting may not outlast what is left of the whole request: a 5s connect
+    // budget is meaningless with 300ms left on the chain.
+    options.connect_timeout_ms = std::min<long>(deadlines_.connect_ms, static_cast<long>(remaining));
+    return true;
+}
+
 void ResourceLoader::send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
                                   std::function<void(NetworkResponse)> callback,
                                   const Core::CookieRequestContext& context, std::optional<std::string> post_body,
                                   RedirectChain chain) {
+    // Spend the chain's remaining time budget on this hop (story 9.1.3). A hop
+    // that starts with nothing left fails as a timeout instead of being issued:
+    // the transport only ever sees one hop, so nothing below can enforce a limit
+    // that spans the chain.
+    if (!apply_deadline(chain, options)) {
+        HB_LOG_WARN("[network] request deadline exceeded after " << chain.hops << " hops: " << url);
+        NetworkResponse timed_out;
+        timed_out.url = chain.visited.empty() ? url : chain.visited.front();
+        timed_out.effective_url = url;
+        timed_out.error = NetworkError::Timeout;
+        if (callback) callback(std::move(timed_out));
+        return;
+    }
+
     // Recomputed per hop: a chain can cross hosts and paths, so the previous
     // hop's Cookie header must never ride along.
     if (cookie_jar_) {

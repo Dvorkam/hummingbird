@@ -4,6 +4,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -28,6 +29,23 @@ struct ResourceRequestOptions;
 
 class ResourceLoader {
 public:
+    // How long a request may take, in milliseconds (story 9.1.3). `total_ms`
+    // bounds the WHOLE request including every redirect hop, which is the point:
+    // the transport can only see one hop at a time, so a per-call limit alone
+    // lets a chain multiply it by the hop budget.
+    struct RequestDeadlines {
+        long connect_ms = 5000;
+        long total_ms = 15000;
+    };
+    void set_request_deadlines(RequestDeadlines deadlines) { deadlines_ = deadlines; }
+    RequestDeadlines request_deadlines() const { return deadlines_; }
+
+    // The clock the deadline is measured against. Injectable so a test can prove
+    // a chain gives up part-way without sleeping through a real budget — the
+    // same reason the cookie code takes `now` as a parameter everywhere.
+    using SteadyClock = std::function<std::chrono::steady_clock::time_point()>;
+    void set_deadline_clock(SteadyClock clock) { clock_ = std::move(clock); }
+
     struct DocumentRequest {
         enum class Method {
             Get,
@@ -105,6 +123,12 @@ private:
     // State carried across the hops of one redirect chain (story 8.3.1).
     struct RedirectChain {
         int hops = 0;
+        // When the whole chain must be done, set on the first hop and carried
+        // unchanged through every later one (story 9.1.3). This is what makes
+        // the budget belong to the REQUEST rather than to each hop: without it,
+        // a 20-hop chain could spend the per-call limit twenty times over.
+        // Default-constructed (epoch) means "not started yet".
+        std::chrono::steady_clock::time_point deadline{};
         // Every URL visited so far, so an A->B->A cycle is reported as a loop
         // rather than silently burning the hop budget.
         std::vector<std::string> visited;
@@ -136,6 +160,13 @@ private:
                       std::function<void(NetworkResponse)> callback, const Core::CookieRequestContext& context,
                       std::optional<std::string> post_body, RedirectChain chain);
 
+    // Starts `chain`'s deadline if this is its first hop, then writes what is
+    // left of the budget into `options`. Returns false when the budget is
+    // already spent, in which case the caller must fail the request rather than
+    // issue a hop that could not finish in time.
+    bool apply_deadline(RedirectChain& chain, NetworkRequestOptions& options) const;
+    std::chrono::steady_clock::time_point now() const;
+
     void request_resources(const std::vector<std::string>& links, std::string_view base_url,
                            const ResourceRequestPlanning::ResourceRequestOptions& options);
     void enqueue_resource_update(ResourceType type, std::string url, std::string body, bool success,
@@ -155,6 +186,10 @@ private:
     std::shared_ptr<Core::CookieJar> cookie_jar_;
     std::shared_ptr<Core::IdentityPolicyStore> identity_store_;
     mutable std::mutex cookie_mutex_;
+
+    RequestDeadlines deadlines_;
+    // Null means the real steady clock; see set_deadline_clock.
+    SteadyClock clock_;
     ResourceProviderPtr resource_provider_;
     ImageDecoderPtr image_decoder_;
     ResourceStore resource_store_;

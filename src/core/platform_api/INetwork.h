@@ -17,6 +17,11 @@ enum class NetworkError {
     // and method policy per hop; these are its two termination conditions.
     TooManyRedirects,
     RedirectLoop,
+    // The request ran out of its time budget (story 9.1.3). Distinct from
+    // CurlError so the error page can say "timed out" rather than "could not be
+    // reached", and so a fetch promise can reject with a timeout-shaped reason
+    // instead of a generic network failure.
+    Timeout,
 };
 
 struct NetworkRequestOptions {
@@ -25,6 +30,17 @@ struct NetworkRequestOptions {
     // Extra request headers (Cookie, ...). The backend owns transport headers
     // such as Content-Type and Accept-Encoding; these are added alongside.
     Core::HttpHeaders headers;
+
+    // Deadlines for THIS call, in milliseconds; 0 means "use the backend's own
+    // default" (story 9.1.3).
+    //
+    // The whole-request budget belongs to the ENGINE, not here: because the
+    // engine drives the redirect loop, each hop is a separate call, so a
+    // per-call limit alone would let a 20-hop chain run 20x its length. The
+    // engine sets a deadline for the chain and passes what remains of it on
+    // every hop, which is why these shrink as a chain progresses.
+    long connect_timeout_ms = 0;
+    long total_timeout_ms = 0;
 };
 
 struct NetworkResponse {
