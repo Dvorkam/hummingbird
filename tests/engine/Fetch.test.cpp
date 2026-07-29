@@ -311,6 +311,11 @@ TEST(FetchTest, ANonDemoFetchStillUsesTheRealTransport) {
             response.effective_url = url;
             response.status = 200;
             response.body = "live";
+            // This test is about which transport ran, not about CORS — but the
+            // target IS cross-origin from the document, so without the server's
+            // opt-in 9.2.1 would (correctly) discard the body and the routing
+            // assertion would fail for an unrelated reason.
+            response.headers.set("Access-Control-Allow-Origin", "*");
             if (callback) callback(std::move(response));
         }
         void post(const std::string& url, std::string_view, std::function<void(Hummingbird::NetworkResponse)> callback,
@@ -386,6 +391,235 @@ TEST(FetchTest, ASettledFetchRebuildsWhatIsPainted) {
     EXPECT_FALSE(shows("before"));
 }
 
+// --- CORS enforcement through the real loader (story 9.2.1) ------------------
+
+namespace {
+// A server the test writes response headers for, recording exactly what was
+// asked of it — including whether a preflight went out first, and whether the
+// real request was sent at all.
+class CorsNetwork final : public Hummingbird::INetwork {
+public:
+    struct Call {
+        std::string url;
+        std::string method;
+        Hummingbird::Core::HttpHeaders headers;
+    };
+
+    void set_headers(Hummingbird::Core::HttpHeaders headers) { response_headers_ = std::move(headers); }
+    void set_preflight_headers(Hummingbird::Core::HttpHeaders headers) { preflight_headers_ = std::move(headers); }
+
+    void get(const std::string& url, std::function<void(Hummingbird::NetworkResponse)> callback,
+             const Hummingbird::NetworkRequestOptions& options = {}) override {
+        // A preflight is the only request the engine makes with
+        // Access-Control-Request-Method set.
+        const bool preflight = !options.headers.get("Access-Control-Request-Method").empty();
+        calls.push_back(Call{url, preflight ? "OPTIONS" : "GET", options.headers});
+        Hummingbird::NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        response.status = 200;
+        response.headers = preflight ? preflight_headers_ : response_headers_;
+        response.body = preflight ? "" : "SECRET";
+        if (callback) callback(std::move(response));
+    }
+    void post(const std::string& url, std::string_view, std::function<void(Hummingbird::NetworkResponse)> callback,
+              const Hummingbird::NetworkRequestOptions& options = {}) override {
+        calls.push_back(Call{url, "POST", options.headers});
+        Hummingbird::NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        response.status = 200;
+        response.headers = response_headers_;
+        response.body = "SECRET";
+        if (callback) callback(std::move(response));
+    }
+    void shutdown() override {}
+
+    std::vector<Call> calls;
+
+private:
+    Hummingbird::Core::HttpHeaders response_headers_;
+    Hummingbird::Core::HttpHeaders preflight_headers_;
+};
+
+// Owns the loader for the whole test: the loader owns the network, so a helper
+// that let it go out of scope would leave `net` dangling and every assertion on
+// `calls` reading freed memory.
+struct CorsFixture {
+    CorsNetwork* net = nullptr;
+    std::unique_ptr<Hummingbird::Engine::ResourceLoader> loader;
+
+    explicit CorsFixture(Hummingbird::Core::HttpHeaders response_headers,
+                         Hummingbird::Core::HttpHeaders preflight_headers = {},
+                         std::shared_ptr<Hummingbird::Core::CookieJar> jar = nullptr) {
+        auto network = std::make_unique<CorsNetwork>();
+        net = network.get();
+        net->set_headers(std::move(response_headers));
+        net->set_preflight_headers(std::move(preflight_headers));
+        loader = std::make_unique<Hummingbird::Engine::ResourceLoader>(std::move(network), nullptr, nullptr, nullptr,
+                                                                       std::move(jar));
+    }
+
+    // The document is always https://page.test/app, so any other host is
+    // cross-origin.
+    ScriptFetchResponse run(const ScriptFetchRequest& request) {
+        ScriptFetchResponse out;
+        loader->fetch_for_script(request, "https://page.test/app",
+                                 [&](ScriptFetchResponse response) { out = std::move(response); });
+        return out;
+    }
+};
+
+Hummingbird::Core::HttpHeaders allow_any() {
+    Hummingbird::Core::HttpHeaders headers;
+    headers.set("Access-Control-Allow-Origin", "*");
+    return headers;
+}
+}  // namespace
+
+// The acceptance criterion, stated exactly: a disallowed cross-origin fetch
+// rejects WITHOUT exposing the response — not the body, not the headers, not
+// even the status. A page that learns "that origin answered 401" has read
+// cross-origin state it was refused.
+TEST(FetchTest, ABlockedCrossOriginFetchExposesNothing) {
+    CorsFixture fx{{}};  // server says nothing about CORS -- the common case
+    ScriptFetchRequest request;
+    request.url = "https://api.other.test/secret";
+    const auto got = fx.run(request);
+
+    EXPECT_EQ(got.failure, ScriptFetchFailure::CorsBlocked);
+    EXPECT_EQ(got.status, 0) << "a blocked response must not leak its status";
+    EXPECT_TRUE(got.body.empty()) << "a blocked response must not leak its body";
+    EXPECT_TRUE(got.headers.fields().empty()) << "a blocked response must not leak its headers";
+    // The request still went out -- CORS gates reading the answer, not sending.
+    ASSERT_EQ(fx.net->calls.size(), 1u);
+    EXPECT_EQ(fx.net->calls[0].headers.get("Origin"), "https://page.test");
+}
+
+TEST(FetchTest, AnAllowedCrossOriginFetchResolvesNormally) {
+    CorsFixture fx{allow_any()};
+    ScriptFetchRequest request;
+    request.url = "https://api.other.test/data";
+    const auto got = fx.run(request);
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+    EXPECT_EQ(got.status, 200);
+    EXPECT_EQ(got.body, "SECRET");
+}
+
+// A same-origin fetch is not subject to CORS at all, and must not sprout an
+// Origin header or need permission.
+TEST(FetchTest, SameOriginFetchIsNotSubjectToCors) {
+    CorsFixture fx{{}};  // no Allow-Origin at all
+    ScriptFetchRequest request;
+    request.url = "https://page.test/data";  // same origin as the document
+    const auto got = fx.run(request);
+
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+    EXPECT_EQ(got.body, "SECRET");
+    ASSERT_EQ(fx.net->calls.size(), 1u);
+    EXPECT_TRUE(fx.net->calls[0].headers.get("Origin").empty());
+}
+// Credentials mode drives the cookie jar. The default is same-origin, so a
+// cross-origin fetch is anonymous — the page must opt in to send cookies, and
+// opting in raises the bar the server has to clear.
+TEST(FetchTest, CrossOriginFetchIsAnonymousUnlessCredentialsAreRequested) {
+    auto jar = std::make_shared<Hummingbird::Core::CookieJar>();
+    // SameSite=None is required for the cookie to be eligible AT ALL on a
+    // cross-site subresource request. credentials: 'include' is necessary but
+    // NOT sufficient — SameSite is a separate gate that runs first, and a
+    // default (Lax) cookie stays home no matter what the fetch asks for.
+    ASSERT_TRUE(jar->store_from_header("https://api.other.test/",
+                                       "session=secret; Max-Age=3600; SameSite=None; Secure",
+                                       Hummingbird::Core::CookieClock::now()));
+
+    Hummingbird::Core::HttpHeaders allow;
+    allow.set("Access-Control-Allow-Origin", "*");
+
+    // Default (same-origin) credentials: no Cookie header, even though the jar
+    // holds one for that host.
+    CorsFixture anon_fx{allow, {}, jar};
+    ScriptFetchRequest anonymous;
+    anonymous.url = "https://api.other.test/data";
+    const auto got = anon_fx.run(anonymous);
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+    ASSERT_EQ(anon_fx.net->calls.size(), 1u);
+    EXPECT_TRUE(anon_fx.net->calls[0].headers.get("Cookie").empty())
+        << "default credentials mode must not send cookies";
+
+    // credentials: 'include' against `*` is refused per spec, and the page
+    // learns nothing.
+    CorsFixture cred_fx{allow, {}, jar};
+    ScriptFetchRequest credentialed = anonymous;
+    credentialed.credentials = Hummingbird::Core::Cors::Credentials::Include;
+    const auto blocked = cred_fx.run(credentialed);
+    EXPECT_EQ(blocked.failure, ScriptFetchFailure::CorsBlocked);
+    EXPECT_TRUE(blocked.body.empty());
+    // ...and this time the cookie WAS sent, which is exactly why the response
+    // must not be readable.
+    ASSERT_EQ(cred_fx.net->calls.size(), 1u);
+    EXPECT_EQ(cred_fx.net->calls[0].headers.get("Cookie"), "session=secret");
+
+    // Naming the origin and allowing credentials is the combination that works.
+    Hummingbird::Core::HttpHeaders named;
+    named.set("Access-Control-Allow-Origin", "https://page.test");
+    named.set("Access-Control-Allow-Credentials", "true");
+    CorsFixture ok_fx{named, {}, jar};
+    const auto allowed = ok_fx.run(credentialed);
+    EXPECT_EQ(allowed.failure, ScriptFetchFailure::None);
+    EXPECT_EQ(allowed.body, "SECRET");
+}
+
+// The point of a preflight is that the server never SEES the real request until
+// it has agreed to it — which matters when that request would delete something.
+TEST(FetchTest, ARefusedPreflightNeverSendsTheRealRequest) {
+    Hummingbird::Core::HttpHeaders preflight;
+    preflight.set("Access-Control-Allow-Origin", "https://page.test");  // but no Allow-Methods
+    CorsFixture fx{{}, preflight};
+    ScriptFetchRequest request;
+    request.url = "https://api.other.test/thing";
+    request.method = "DELETE";
+    const auto got = fx.run(request);
+
+    EXPECT_EQ(got.failure, ScriptFetchFailure::CorsBlocked);
+    ASSERT_EQ(fx.net->calls.size(), 1u) << "the DELETE must not have been sent";
+    EXPECT_EQ(fx.net->calls[0].method, "OPTIONS");
+    EXPECT_EQ(fx.net->calls[0].headers.get("Access-Control-Request-Method"), "DELETE");
+}
+
+TEST(FetchTest, AnApprovedPreflightIsFollowedByTheRealRequest) {
+    Hummingbird::Core::HttpHeaders preflight;
+    preflight.set("Access-Control-Allow-Origin", "https://page.test");
+    preflight.set("Access-Control-Allow-Methods", "DELETE");
+    Hummingbird::Core::HttpHeaders allow;
+    allow.set("Access-Control-Allow-Origin", "https://page.test");
+
+    CorsFixture fx{allow, preflight};
+    ScriptFetchRequest request;
+    request.url = "https://api.other.test/thing";
+    request.method = "DELETE";
+    const auto got = fx.run(request);
+
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+    ASSERT_EQ(fx.net->calls.size(), 2u);
+    EXPECT_EQ(fx.net->calls[0].method, "OPTIONS");
+    // The preflight itself is never credentialed: "may I" must not depend on
+    // who is logged in.
+    EXPECT_TRUE(fx.net->calls[0].headers.get("Cookie").empty());
+}
+
+// A simple request goes straight out: preflighting a plain GET would double
+// every cross-origin request in the browser for no security gain.
+TEST(FetchTest, ASimpleCrossOriginRequestIsNotPreflighted) {
+    CorsFixture fx{allow_any()};
+    ScriptFetchRequest request;
+    request.url = "https://api.other.test/data";
+    const auto got = fx.run(request);
+
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+    ASSERT_EQ(fx.net->calls.size(), 1u);
+    EXPECT_EQ(fx.net->calls[0].method, "GET");
+}
+
 // With no fetch sink wired up (most unit tests, and any document without a
 // network) the binding must REJECT. The pre-9.1.1 stub returned
 // `new Promise(function(){})`, so such a page froze its own logic forever.
@@ -414,3 +648,6 @@ TEST(FetchTest, WithoutANetworkFetchRejectsInsteadOfHanging) {
     EXPECT_EQ(host.get_attribute(out_ptr, "data-log"), "rejected");
     EXPECT_EQ(engine->pending_fetch_count(), 0u);
 }
+
+
+

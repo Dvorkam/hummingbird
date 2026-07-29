@@ -177,6 +177,14 @@ private:
     // left of the budget into `options`. Returns false when the budget is
     // already spent, in which case the caller must fail the request rather than
     // issue a hop that could not finish in time.
+    // CORS preflight (story 9.2.1): an OPTIONS request asking whether the real
+    // request may be made at all. Calls `done(true)` only when the server
+    // approved the method and every non-safelisted header. Never credentialed —
+    // "may I" must not depend on who is logged in.
+    void send_preflight(INetwork& network, const ScriptFetchRequest& request, const NetworkRequestOptions& options,
+                        const std::string& origin, const Core::CookieRequestContext& context,
+                        const RedirectChain& chain, std::function<void(bool)> done);
+
     bool apply_deadline(RedirectChain& chain, NetworkRequestOptions& options) const;
     std::chrono::steady_clock::time_point now() const;
 

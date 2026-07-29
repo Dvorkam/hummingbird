@@ -1192,6 +1192,21 @@ JSValue QuickJSScriptEngine::js_native_fetch(JSContext* ctx, JSValueConst /*this
 
         // Headers as a plain object; the prelude normalizes a Headers instance
         // or an array of pairs into one before calling in.
+        // credentials: 'omit' | 'same-origin' (default) | 'include' (9.2.1).
+        JSValue credentials = JS_GetPropertyStr(ctx, argv[1], "credentials");
+        if (JS_IsString(credentials)) {
+            if (const char* text = JS_ToCString(ctx, credentials); text) {
+                const std::string mode = Core::Utils::to_lower(text);
+                if (mode == "omit") {
+                    request.credentials = Core::Cors::Credentials::Omit;
+                } else if (mode == "include") {
+                    request.credentials = Core::Cors::Credentials::Include;
+                }
+                JS_FreeCString(ctx, text);
+            }
+        }
+        JS_FreeValue(ctx, credentials);
+
         JSValue headers = JS_GetPropertyStr(ctx, argv[1], "headers");
         if (JS_IsObject(headers)) {
             JSPropertyEnum* props = nullptr;
@@ -1265,6 +1280,10 @@ bool QuickJSScriptEngine::settle_fetch(const ScriptFetchResponse& response) {
         argument = make_fetch_payload(response);
     } else {
         resolve = false;
+        // A CORS block deliberately reads like any other failure. Telling the
+        // page WHY would hand it the cross-origin information CORS withheld —
+        // "blocked by CORS" already reveals that something answered. The engine
+        // logs the real reason for the developer; the page learns nothing.
         const char* message = response.failure == ScriptFetchFailure::Timeout ? "fetch timed out"
                               : response.failure == ScriptFetchFailure::BadUrl
                                   ? "fetch failed: unsupported or malformed URL"

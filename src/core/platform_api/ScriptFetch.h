@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <string>
 
+#include "core/net/Cors.h"
 #include "core/net/HttpHeaders.h"
 
 namespace Hummingbird {
@@ -29,6 +30,10 @@ struct ScriptFetchRequest {
     // already chosen the Content-Type header if it wanted one.
     std::string body;
     bool has_body = false;
+    // Whether the request carries the user's cookies (story 9.2.1). The Fetch
+    // standard's default is SameOrigin, which is why a cross-origin fetch does
+    // NOT send cookies unless the page opts in with credentials: 'include'.
+    Core::Cors::Credentials credentials = Core::Cors::Credentials::SameOrigin;
 };
 
 // Why a fetch could not produce a response at all. A *server* answering 404 is
@@ -42,6 +47,12 @@ enum class ScriptFetchFailure {
     Timeout,
     // Everything else the transport could not complete: DNS, refused, TLS.
     NetworkError,
+    // Refused by CORS (story 9.2.1). The response, if any, is DISCARDED before
+    // it reaches this struct: status, headers and body are all absent, because
+    // exposing any of them is exactly what CORS prevents. A page cannot tell
+    // this apart from a network failure, which is deliberate — the difference is
+    // itself cross-origin information.
+    CorsBlocked,
 };
 
 struct ScriptFetchResponse {

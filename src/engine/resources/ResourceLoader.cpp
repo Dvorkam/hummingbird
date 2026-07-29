@@ -131,6 +131,16 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
         options.content_type = request.headers.get("Content-Type");
     }
 
+    // CORS classification (story 9.2.1). Same-origin requests are not subject to
+    // it at all; cross-origin ones must announce who is asking and then have the
+    // response vetted before the page may see any part of it.
+    const bool cross_origin = !Core::Cors::is_same_origin(request.url, document_url);
+    auto document_origin = Core::Origin::parse(document_url);
+    const std::string origin_header = document_origin ? document_origin->serialize() : std::string("null");
+    if (cross_origin) {
+        options.headers.set("Origin", origin_header);
+    }
+
     // The initiating document is this fetch's referrer source and its SameSite
     // initiator: a fetch is a subresource request, never a top-level navigation,
     // so a cross-site one must not carry Lax cookies.
@@ -140,6 +150,12 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
     if (auto initiator = Core::parse_absolute_url(document_url)) {
         context.initiator_host = initiator->host;
     }
+    // Credentials mode decides whether cookies ride along at all. The default is
+    // SameOrigin, so a cross-origin fetch is anonymous unless the page opts in —
+    // which is why enabling `credentials: 'include'` also raises the bar the
+    // server must clear (no `*`, and Allow-Credentials required).
+    context.credentials_allowed = request.credentials == Core::Cors::Credentials::Include ||
+                                  (request.credentials == Core::Cors::Credentials::SameOrigin && !cross_origin);
 
     RedirectChain chain;
     chain.referrer_source = std::string(document_url);
@@ -149,32 +165,126 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
         body = request.body;
     }
 
-    send_request(
-        *transport, request.url, options,
-        [callback = std::move(callback)](NetworkResponse response) {
-            ScriptFetchResponse out;
+    // Translates a transport answer into the page's view of it, applying the
+    // CORS verdict. Shared by the direct and post-preflight paths.
+    auto deliver = [callback, cross_origin, origin_header,
+                    credentials = request.credentials](NetworkResponse response) mutable {
+        ScriptFetchResponse out;
+        switch (response.error) {
+            case NetworkError::None:
+                break;
+            case NetworkError::Timeout:
+                out.failure = ScriptFetchFailure::Timeout;
+                break;
+            default:
+                out.failure = ScriptFetchFailure::NetworkError;
+                break;
+        }
+        if (out.failure == ScriptFetchFailure::None && response.status == 0) {
+            // Nothing came back at all; a 0-status Response would be a lie.
+            out.failure = ScriptFetchFailure::NetworkError;
+        }
+        if (out.failure == ScriptFetchFailure::None && cross_origin) {
+            const auto decision = Core::Cors::check_response(response.headers, origin_header, credentials);
+            if (decision != Core::Cors::Decision::Allowed) {
+                // Discard EVERYTHING. Not the body, not the headers, not even the
+                // status: a page that learns "that origin answered 401" has read
+                // cross-origin state it was refused. The reason is logged for the
+                // developer and never handed to script.
+                HB_LOG_WARN("[cors] blocked " << response.url << " for " << origin_header << ": "
+                                              << Core::Cors::describe(decision));
+                ScriptFetchResponse blocked;
+                blocked.failure = ScriptFetchFailure::CorsBlocked;
+                if (callback) callback(std::move(blocked));
+                return;
+            }
+        }
+        if (out.failure == ScriptFetchFailure::None) {
             out.status = response.status;
             out.url = response.effective_url.empty() ? response.url : response.effective_url;
             out.headers = response.headers;
             out.body = std::move(response.body);
-            switch (response.error) {
-                case NetworkError::None:
-                    break;
-                case NetworkError::Timeout:
-                    out.failure = ScriptFetchFailure::Timeout;
-                    break;
-                default:
-                    out.failure = ScriptFetchFailure::NetworkError;
-                    break;
+        }
+        if (callback) callback(std::move(out));
+    };
+
+    // A "simple" request is one a plain <form> could already have made, so it
+    // goes straight out. Anything else asks permission first: the point of a
+    // preflight is that the server never SEES the real request until it has
+    // agreed to it, which matters when that request would delete something.
+    if (cross_origin && !Core::Cors::is_simple_request(request.method, options.headers)) {
+        send_preflight(*transport, request, options, origin_header, context, chain,
+                       [this, transport, url = request.url, options, context, chain, body, deliver,
+                        callback](bool approved) mutable {
+                           if (!approved) {
+                               // The real request is never sent. That is the point
+                               // of a preflight: a server that has not agreed does
+                               // not get to see a DELETE it would have acted on.
+                               ScriptFetchResponse blocked;
+                               blocked.failure = ScriptFetchFailure::CorsBlocked;
+                               if (callback) callback(std::move(blocked));
+                               return;
+                           }
+                           send_request(*transport, url, options, deliver, context, std::move(body), std::move(chain));
+                       });
+        return;
+    }
+
+    send_request(*transport, request.url, options, deliver, context, std::move(body), std::move(chain));
+}
+
+void ResourceLoader::send_preflight(INetwork& network, const ScriptFetchRequest& request,
+                                    const NetworkRequestOptions& options, const std::string& origin,
+                                    const Core::CookieRequestContext& context, const RedirectChain& chain,
+                                    std::function<void(bool)> done) {
+    NetworkRequestOptions preflight;
+    preflight.allow_insecure = options.allow_insecure;
+    preflight.headers.set("Origin", origin);
+    preflight.headers.set("Access-Control-Request-Method", request.method);
+    const auto names = Core::Cors::headers_needing_preflight(options.headers);
+    if (!names.empty()) {
+        std::string joined;
+        for (const auto& name : names) {
+            if (!joined.empty()) joined += ",";
+            joined += name;
+        }
+        preflight.headers.set("Access-Control-Request-Headers", joined);
+    }
+
+    // A preflight is never credentialed, whatever the real request is: it asks
+    // "may I", and the answer must not depend on who is logged in.
+    Core::CookieRequestContext preflight_context = context;
+    preflight_context.credentials_allowed = false;
+
+    RedirectChain preflight_chain;
+    preflight_chain.referrer_source = chain.referrer_source;
+    // Carry the deadline, so a slow preflight spends the request's budget rather
+    // than doubling it (story 9.1.3).
+    preflight_chain.deadline = chain.deadline;
+
+    const std::string url = request.url;
+    const std::string method = request.method;
+    Core::HttpHeaders real_headers = options.headers;
+    auto credentials = request.credentials;
+    send_request(
+        network, url, preflight,
+        [done = std::move(done), origin, credentials, method, real_headers, url](NetworkResponse response) {
+            if (response.error != NetworkError::None || response.status == 0) {
+                HB_LOG_WARN("[cors] preflight for " << url << " did not complete");
+                done(false);
+                return;
             }
-            // A transport that returned nothing at all is a failure even when it
-            // reported no error code, or the page would see a 0-status Response.
-            if (out.failure == ScriptFetchFailure::None && out.status == 0) {
-                out.failure = ScriptFetchFailure::NetworkError;
+            const auto decision =
+                Core::Cors::check_preflight(response.headers, origin, credentials, method, real_headers);
+            if (decision != Core::Cors::Decision::Allowed) {
+                HB_LOG_WARN("[cors] preflight refused " << url << " for " << origin << ": "
+                                                        << Core::Cors::describe(decision));
+                done(false);
+                return;
             }
-            if (callback) callback(std::move(out));
+            done(true);
         },
-        context, std::move(body), std::move(chain));
+        preflight_context, std::nullopt, std::move(preflight_chain));
 }
 
 std::chrono::steady_clock::time_point ResourceLoader::now() const {
@@ -218,7 +328,7 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
 
     // Recomputed per hop: a chain can cross hosts and paths, so the previous
     // hop's Cookie header must never ride along.
-    if (cookie_jar_) {
+    if (cookie_jar_ && context.credentials_allowed) {
         std::lock_guard<std::mutex> lg(cookie_mutex_);
         const std::string cookies = cookie_jar_->cookie_header_for(url, Core::CookieClock::now(), context);
         if (cookies.empty()) {
@@ -226,6 +336,9 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         } else {
             options.headers.set("Cookie", cookies);
         }
+    } else if (!context.credentials_allowed) {
+        // A no-credentials request carries none, on any hop of the chain (9.2.1).
+        options.headers.remove("Cookie");
     }
 
     // Recomputed per hop like the Cookie header: the referrer policy depends on
@@ -273,7 +386,7 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
 
     auto on_response = [this, &network, url, options, callback, context, post_body,
                         chain](NetworkResponse response) mutable {
-        if (cookie_jar_ && !response.headers.empty()) {
+        if (cookie_jar_ && context.credentials_allowed && !response.headers.empty()) {
             // Attribute Set-Cookie to this hop's URL. Cookies set mid-chain are
             // therefore stored before the next hop's header is computed, which is
             // what makes a login 302 land authenticated.

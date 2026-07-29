@@ -699,7 +699,28 @@ P0: fetch + CORS (North Star)
       no streaming, no `FormData`; cross-origin requests are currently
       **unrestricted** — CORS is 9.2.1 and until it lands a page can read any
       origin it can reach.)*
-- [ ] 9.2.1: Request Classification + Enforcement
+- [x] 9.2.1: Request Classification + Enforcement *(new `core/net/Cors.{h,cpp}`,
+      pure functions over a request and a set of response headers, so the whole
+      matrix is testable without a server. Same-origin fetches bypass CORS
+      entirely and get no `Origin` header. Cross-origin ones send `Origin`, and
+      the response is vetted before any part of it reaches the page — a block
+      discards **status, headers and body together**, because "that origin
+      answered 401" is itself cross-origin information. The page cannot tell a
+      block from a network failure; the reason is logged for the developer only.
+      Preflight (OPTIONS) for non-simple requests, checked for method and every
+      non-safelisted header, and **the real request is never sent when it is
+      refused** — which is the point when that request would have deleted
+      something. Engine-added headers (User-Agent, Referer, Sec-CH-*) never
+      trigger a preflight. Credentials mode drives the cookie jar via a new
+      `CookieRequestContext::credentials_allowed`: a cross-origin fetch is
+      anonymous by default and **neither sends nor stores cookies**, since
+      storing would let a request the page cannot even read still plant one.
+      Preflights are never credentialed. Tests: `CorsTest.*` (10, the matrix) +
+      8 `FetchTest.*` integration cases through the real loader.
+      **Learned while testing:** `credentials: 'include'` is necessary but not
+      sufficient — SameSite is a separate gate that runs first, so a default
+      (Lax) cookie stays home on a cross-site fetch regardless. Pinned in the
+      credentials test.)*
 - [ ] 9.2.3: CORS Across Redirect Hops
 - [ ] 9.2.4: Response Header Exposure
 
