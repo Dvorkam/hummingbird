@@ -170,6 +170,45 @@ Decision check_preflight(const HttpHeaders& response_headers, std::string_view o
     return Decision::Allowed;
 }
 
+bool is_safelisted_response_header(std::string_view name) {
+    const std::string lower = Utils::to_lower(name);
+    // The Fetch standard's CORS-safelisted response-header names. (The milestone
+    // draft listed six and omitted Content-Length; the spec has seven.)
+    return lower == "cache-control" || lower == "content-language" || lower == "content-length" ||
+           lower == "content-type" || lower == "expires" || lower == "last-modified" || lower == "pragma";
+}
+
+bool is_forbidden_response_header(std::string_view name) {
+    const std::string lower = Utils::to_lower(name);
+    // Never readable by script under any circumstances. A server that names
+    // Set-Cookie in Access-Control-Expose-Headers has misunderstood, and
+    // honouring it would hand the page another origin's session token.
+    return lower == "set-cookie" || lower == "set-cookie2";
+}
+
+HttpHeaders filter_exposed_headers(const HttpHeaders& response_headers, Credentials credentials) {
+    const std::string exposed = Utils::to_lower(response_headers.get("Access-Control-Expose-Headers"));
+    const auto named = split_tokens(exposed);
+    // `*` means "everything not forbidden" — but only for an anonymous request.
+    // For a credentialed one the spec reads it as the literal header name "*",
+    // because a server exposing everything to a logged-in caller has almost
+    // certainly not thought about what "everything" contains.
+    const bool wildcard =
+        credentials != Credentials::Include && std::find(named.begin(), named.end(), "*") != named.end();
+
+    HttpHeaders out;
+    for (const auto& field : response_headers.fields()) {
+        if (is_forbidden_response_header(field.name)) continue;
+        const std::string lower = Utils::to_lower(field.name);
+        const bool allowed = wildcard || is_safelisted_response_header(field.name) ||
+                             std::find(named.begin(), named.end(), lower) != named.end();
+        if (allowed) {
+            out.add(field.name, field.value);
+        }
+    }
+    return out;
+}
+
 std::string_view describe(Decision decision) {
     switch (decision) {
         case Decision::Allowed:

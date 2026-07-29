@@ -453,6 +453,13 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
             if (response.effective_url.empty()) {
                 response.effective_url = url;
             }
+            if (chain.cors.active) {
+                // Story 9.2.4: a permitted response still does not expose
+                // everything it carries. Filtering happens HERE, after the jar
+                // has already taken any Set-Cookie above — the browser stores
+                // that cookie, the page just never gets to read it.
+                response.headers = Core::Cors::filter_exposed_headers(response.headers, chain.cors.credentials);
+            }
             if (callback) callback(std::move(response));
             return;
         }

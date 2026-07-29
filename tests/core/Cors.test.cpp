@@ -5,11 +5,11 @@
 // server either way. That is why the interesting cases are all about what the
 // response said, and why a wrong "allowed" here is a data leak rather than a
 // broken page.
+#include "core/net/Cors.h"
+
 #include <gtest/gtest.h>
 
 #include <string>
-
-#include "core/net/Cors.h"
 
 namespace {
 using Hummingbird::Core::HttpHeaders;
@@ -35,7 +35,7 @@ TEST(CorsTest, SameOriginNeedsSchemeHostAndPortToMatch) {
     EXPECT_TRUE(is_same_origin("https://a.test:443/data", "https://a.test/page"));
 
     EXPECT_FALSE(is_same_origin("https://b.test/data", "https://a.test/page"));
-    EXPECT_FALSE(is_same_origin("http://a.test/data", "https://a.test/page"));  // scheme
+    EXPECT_FALSE(is_same_origin("http://a.test/data", "https://a.test/page"));        // scheme
     EXPECT_FALSE(is_same_origin("https://a.test:8443/data", "https://a.test/page"));  // port
     // A subdomain is a DIFFERENT origin, even though it is the same *site* for
     // cookies. Conflating the two is how an origin check becomes useless.
@@ -130,10 +130,10 @@ TEST(CorsTest, WildcardCannotAuthorizeACredentialedRequest) {
     // would hand the page another site's logged-in data.
     EXPECT_EQ(check_response(wildcard, kOrigin, Credentials::Include), Decision::WildcardWithCredentials);
     // Even `*` plus an explicit Allow-Credentials does not rescue it.
-    EXPECT_EQ(check_response(headers_of({{"Access-Control-Allow-Origin", "*"},
-                                         {"Access-Control-Allow-Credentials", "true"}}),
-                             kOrigin, Credentials::Include),
-              Decision::WildcardWithCredentials);
+    EXPECT_EQ(
+        check_response(headers_of({{"Access-Control-Allow-Origin", "*"}, {"Access-Control-Allow-Credentials", "true"}}),
+                       kOrigin, Credentials::Include),
+        Decision::WildcardWithCredentials);
 }
 
 TEST(CorsTest, CredentialedRequestsNeedAllowCredentials) {
@@ -172,13 +172,11 @@ TEST(CorsTest, PreflightMustAllowEveryNonSafelistedHeader) {
     const auto wanted = headers_of({{"X-Custom", "1"}, {"Content-Type", "application/json"}});
 
     auto response = headers_of({{"Access-Control-Allow-Origin", kOrigin}});
-    EXPECT_EQ(check_preflight(response, kOrigin, Credentials::SameOrigin, "POST", wanted),
-              Decision::HeaderNotAllowed);
+    EXPECT_EQ(check_preflight(response, kOrigin, Credentials::SameOrigin, "POST", wanted), Decision::HeaderNotAllowed);
 
     // Allowing only one of the two is still a refusal.
     response.set("Access-Control-Allow-Headers", "x-custom");
-    EXPECT_EQ(check_preflight(response, kOrigin, Credentials::SameOrigin, "POST", wanted),
-              Decision::HeaderNotAllowed);
+    EXPECT_EQ(check_preflight(response, kOrigin, Credentials::SameOrigin, "POST", wanted), Decision::HeaderNotAllowed);
 
     response.set("Access-Control-Allow-Headers", "X-Custom, Content-Type");
     EXPECT_EQ(check_preflight(response, kOrigin, Credentials::SameOrigin, "POST", wanted), Decision::Allowed);
@@ -186,6 +184,80 @@ TEST(CorsTest, PreflightMustAllowEveryNonSafelistedHeader) {
     // A wildcard covers them all (for an anonymous request).
     response.set("Access-Control-Allow-Headers", "*");
     EXPECT_EQ(check_preflight(response, kOrigin, Credentials::SameOrigin, "POST", wanted), Decision::Allowed);
+}
+
+// --- response header exposure (story 9.2.4) ----------------------------------
+//
+// The other direction: check_response asks what the SERVER allows for the
+// request; this asks which response headers the PAGE may observe.
+
+TEST(CorsTest, TheSafelistIsExposedWithoutBeingAsked) {
+    using Hummingbird::Core::Cors::filter_exposed_headers;
+    const auto response = headers_of({{"Content-Type", "application/json"},
+                                      {"Cache-Control", "max-age=60"},
+                                      {"Content-Length", "12"},
+                                      {"Last-Modified", "now"},
+                                      {"ETag", "\"abc\""},
+                                      {"X-Total-Count", "42"}});
+
+    const auto exposed = filter_exposed_headers(response, Credentials::SameOrigin);
+    EXPECT_EQ(exposed.get("Content-Type"), "application/json");
+    EXPECT_EQ(exposed.get("Cache-Control"), "max-age=60");
+    EXPECT_EQ(exposed.get("Content-Length"), "12");
+    EXPECT_EQ(exposed.get("Last-Modified"), "now");
+    // Not safelisted and not named: invisible, even though the server sent it.
+    EXPECT_TRUE(exposed.get("ETag").empty());
+    EXPECT_TRUE(exposed.get("X-Total-Count").empty());
+}
+
+TEST(CorsTest, ExposeHeadersMakesExactlyTheNamedHeadersReadable) {
+    using Hummingbird::Core::Cors::filter_exposed_headers;
+    auto response = headers_of(
+        {{"ETag", "\"abc\""}, {"X-Total-Count", "42"}, {"X-Secret", "no"}, {"Content-Type", "application/json"}});
+    response.set("Access-Control-Expose-Headers", "X-Total-Count, etag");
+
+    const auto exposed = filter_exposed_headers(response, Credentials::SameOrigin);
+    // Named (matching is case-insensitive)...
+    EXPECT_EQ(exposed.get("X-Total-Count"), "42");
+    EXPECT_EQ(exposed.get("ETag"), "\"abc\"");
+    // ...safelisted anyway...
+    EXPECT_EQ(exposed.get("Content-Type"), "application/json");
+    // ...and everything else still withheld. Naming two headers is not naming
+    // three.
+    EXPECT_TRUE(exposed.get("X-Secret").empty());
+}
+
+// The acceptance criterion, and the reason a "forbidden" category exists at all.
+TEST(CorsTest, SetCookieIsNeverReadableHoweverTheServerAsks) {
+    using Hummingbird::Core::Cors::filter_exposed_headers;
+    auto response = headers_of({{"Content-Type", "text/plain"}});
+    response.add("Set-Cookie", "session=secret");
+    // A server that names Set-Cookie has misunderstood; honouring it would hand
+    // the page another origin's session token.
+    response.set("Access-Control-Expose-Headers", "set-cookie, *");
+
+    for (auto credentials : {Credentials::Omit, Credentials::SameOrigin, Credentials::Include}) {
+        const auto exposed = filter_exposed_headers(response, credentials);
+        EXPECT_TRUE(exposed.get("Set-Cookie").empty()) << "Set-Cookie leaked to script";
+    }
+}
+
+TEST(CorsTest, ExposeHeadersWildcardWorksOnlyForAnonymousRequests) {
+    using Hummingbird::Core::Cors::filter_exposed_headers;
+    auto response = headers_of({{"ETag", "\"abc\""}, {"X-Total-Count", "42"}});
+    response.set("Access-Control-Expose-Headers", "*");
+
+    // Anonymous: `*` means everything not forbidden.
+    const auto anonymous = filter_exposed_headers(response, Credentials::SameOrigin);
+    EXPECT_EQ(anonymous.get("ETag"), "\"abc\"");
+    EXPECT_EQ(anonymous.get("X-Total-Count"), "42");
+
+    // Credentialed: `*` is read as the literal header name "*", because a
+    // server exposing "everything" to a logged-in caller has almost certainly
+    // not thought about what everything contains.
+    const auto credentialed = filter_exposed_headers(response, Credentials::Include);
+    EXPECT_TRUE(credentialed.get("ETag").empty());
+    EXPECT_TRUE(credentialed.get("X-Total-Count").empty());
 }
 
 // A preflight that fails the ordinary origin check fails before method/header

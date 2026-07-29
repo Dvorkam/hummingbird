@@ -84,6 +84,28 @@ Decision check_preflight(const HttpHeaders& response_headers, std::string_view o
 // deterministic (which matters for the preflight cache key in 9.2.2).
 std::vector<std::string> headers_needing_preflight(const HttpHeaders& headers);
 
+// --- response header exposure (story 9.2.4) ----------------------------------
+//
+// The other direction from check_response: that asks what the SERVER allows for
+// the request, this asks which response headers the PAGE may observe. They are
+// separate questions, and the second is the one that is easy to forget — a
+// permitted response still must not hand over everything it carries.
+
+// The seven headers any cross-origin response exposes without being asked.
+// Chosen because a page could learn them by other means anyway.
+bool is_safelisted_response_header(std::string_view name);
+
+// Headers script may NEVER read, whatever the server says — not via
+// Access-Control-Expose-Headers, not via `*`. `Set-Cookie` is the whole reason
+// this category exists: reading it would hand a page another origin's session.
+bool is_forbidden_response_header(std::string_view name);
+
+// The subset of `response_headers` a cross-origin page may read: the safelist,
+// plus anything Access-Control-Expose-Headers names, minus the forbidden set.
+// Only call this for cross-origin responses — a same-origin page reads
+// everything.
+HttpHeaders filter_exposed_headers(const HttpHeaders& response_headers, Credentials credentials);
+
 // A short, log-friendly reason. NEVER shown to the page: per spec a blocked
 // fetch rejects with an opaque failure, and saying why would leak exactly the
 // cross-origin information CORS exists to withhold.

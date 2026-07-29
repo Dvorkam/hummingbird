@@ -55,11 +55,14 @@
         <input id="topic" type="text" value="Hummingbird"></p>
         <p class="out" id="live">Nothing fetched yet.</p>
         <p class="note">Both requests are <strong>cross-origin</strong>: this page is
-        <code>example.dev</code>, the data is not. Today the browser does not check whether those servers permit that
-        &mdash; CORS enforcement is the next story (9.2.1). Both endpoints answer
-        <code>Access-Control-Allow-Origin: *</code>, so they will keep working once it lands, which turns this card
-        into the proof that CORS allows what it should. It is also Milestone&nbsp;9&rsquo;s North Star target:
-        <em>a page that renders live data the browser fetched itself.</em></p>
+        <code>example.dev</code>, the data is not. Since M9 the browser checks that those servers permit it &mdash;
+        both answer <code>Access-Control-Allow-Origin: *</code>, so this card is the proof that CORS
+        <em>allows what it should</em> (story 9.2.1). The Wikipedia result also prints which response headers the page
+        is allowed to read: <code>etag</code> only because the server names it in
+        <code>Access-Control-Expose-Headers</code>, <code>content-type</code> because it is on the CORS safelist, and
+        <code>age</code> not at all &mdash; the server sends it, but no page may see it (story 9.2.4). This is also
+        Milestone&nbsp;9&rsquo;s North Star target: <em>a page that renders live data the browser fetched
+        itself.</em></p>
       </div>
 
       <div class="card">
@@ -142,9 +145,17 @@
           .then(function (response) {
             if (response.status === 404) { throw new Error("no article called " + topic); }
             if (!response.ok) { throw new Error("server said " + response.status); }
-            return response.json();
-          }).then(function (page) {
-            live.textContent = page.title + " — " + page.extract;
+            // Which headers this page may read is decided by CORS (9.2.4).
+            // Wikipedia sends `Access-Control-Expose-Headers: etag`, so ETag is
+            // readable; Content-Type is readable without being named because it
+            // is on the safelist; anything else the server sent is invisible.
+            var readable = "   [readable headers] content-type: "
+                         + (response.headers.get("content-type") || "(hidden)")
+                         + " | etag: " + (response.headers.get("etag") || "(hidden)")
+                         + " | age: " + (response.headers.get("age") || "(hidden)");
+            return response.json().then(function (page) { return { page: page, readable: readable }; });
+          }).then(function (result) {
+            live.textContent = result.page.title + " — " + result.page.extract + result.readable;
           }).catch(reportFailure);
       });
 

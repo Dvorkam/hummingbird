@@ -773,6 +773,46 @@ TEST(FetchTest, ASameOriginRequestMayRedirectToAConsentingOrigin) {
     EXPECT_EQ(got.body, "SECRET");
 }
 
+// Story 9.2.4 through the real loader: a permitted cross-origin response still
+// does not hand over every header it carries.
+TEST(FetchTest, ACrossOriginResponseExposesOnlyPermittedHeaders) {
+    Hummingbird::Core::HttpHeaders server;
+    server.set("Access-Control-Allow-Origin", "*");
+    server.set("Access-Control-Expose-Headers", "X-Total-Count");
+    server.set("Content-Type", "application/json");  // safelisted
+    server.set("ETag", "\"v1\"");                    // neither safelisted nor named
+    server.set("X-Total-Count", "42");               // named
+    server.add("Set-Cookie", "session=secret");      // never readable
+
+    CorsFixture fx{server};
+    ScriptFetchRequest request;
+    request.url = "https://api.other.test/data";
+    const auto got = fx.run(request);
+
+    ASSERT_EQ(got.failure, ScriptFetchFailure::None);
+    EXPECT_EQ(got.headers.get("Content-Type"), "application/json");
+    EXPECT_EQ(got.headers.get("X-Total-Count"), "42");
+    EXPECT_TRUE(got.headers.get("ETag").empty()) << "an unlisted header must stay invisible";
+    EXPECT_TRUE(got.headers.get("Set-Cookie").empty()) << "Set-Cookie reached script";
+}
+
+// ...while a same-origin response is not filtered at all: there is nothing to
+// protect the page from itself.
+TEST(FetchTest, ASameOriginResponseExposesEveryHeader) {
+    Hummingbird::Core::HttpHeaders server;
+    server.set("ETag", "\"v1\"");
+    server.set("X-Anything", "yes");
+
+    CorsFixture fx{server};
+    ScriptFetchRequest request;
+    request.url = "https://page.test/data";  // same origin as the document
+    const auto got = fx.run(request);
+
+    ASSERT_EQ(got.failure, ScriptFetchFailure::None);
+    EXPECT_EQ(got.headers.get("ETag"), "\"v1\"");
+    EXPECT_EQ(got.headers.get("X-Anything"), "yes");
+}
+
 // With no fetch sink wired up (most unit tests, and any document without a
 // network) the binding must REJECT. The pre-9.1.1 stub returned
 // `new Promise(function(){})`, so such a page froze its own logic forever.

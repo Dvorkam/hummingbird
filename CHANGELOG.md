@@ -29,7 +29,10 @@ All notable changes to this project will be documented in this file.
   and body — so nothing about it leaks. Requests that a plain form could not have
   made ask permission first with a preflight, and are never sent if it is
   refused. Cookies do not ride along on a cross-origin request unless the page
-  asks and the server agrees.
+  asks and the server agrees. The check is applied to **every hop** of a redirect
+  chain, so a permissive server cannot be used as a stepping stone into one that
+  is not. A page can only read the response headers CORS permits, and never
+  `Set-Cookie`.
 - **Cookie storage limits** (RFC 6265 §6.1): 4096 bytes per cookie, 50 per domain,
   3000 in total, with least-recently-used eviction. Previously the jar was
   unbounded, which a page could exploit to grow a file the browser writes to disk.

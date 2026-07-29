@@ -739,7 +739,24 @@ P0: fetch + CORS (North Star)
       per hop. Tests: 5 new `FetchTest.*` redirect cases; **verified that 3 of
       them fail with a first-hop-only check**, which is the bug this story
       exists to prevent.)*
-- [ ] 9.2.4: Response Header Exposure
+- [x] 9.2.4: Response Header Exposure *(the other direction from 9.2.1: that asks
+      what the SERVER allows for the request, this asks which response headers the
+      PAGE may observe. `Cors::filter_exposed_headers` keeps the safelist plus
+      whatever `Access-Control-Expose-Headers` names, minus a **forbidden** set
+      (`Set-Cookie`/`Set-Cookie2`) that is unreadable however the server asks —
+      that category exists precisely because a server naming `Set-Cookie` has
+      misunderstood, and honouring it would hand the page another origin's
+      session. `*` in Expose-Headers means "everything not forbidden" only for an
+      anonymous request; for a credentialed one the spec reads it as the literal
+      header name. Applied at the same per-hop seam as 9.2.3, **after** the jar
+      has taken any `Set-Cookie` — the browser stores that cookie, the page just
+      never reads it. Same-origin responses are not filtered. **Note:** the story
+      listed six safelisted headers; the spec has seven (it omitted
+      `Content-Length`), and seven is implemented. Tests: 4 `CorsTest.*` +
+      2 `FetchTest.*`; verified the `Set-Cookie` guard is load-bearing by
+      disabling it and watching the test fail. Demo: the live Wikipedia card now
+      prints which headers it may read — `etag` only because Wikipedia names it,
+      `content-type` because it is safelisted, `age` not at all.)*
 
 P0: Cache (North Star)
 - [ ] 9.3.1: Cache Core + Revalidation
