@@ -129,19 +129,26 @@ Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_n
     });
 }
 
-void Tab::process_settled_fetches() {
+void Tab::process_settled_fetches(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     std::vector<ScriptFetchResponse> ready;
     {
         std::lock_guard<std::mutex> lock(fetch_mutex_);
         ready.swap(settled_fetches_);
     }
     if (ready.empty()) return;
+
+    bool mutated = false;
     for (auto& response : ready) {
-        // Settling runs page JS, which may mutate the DOM; the pipeline reports
-        // that the same way a timer callback's mutation is reported.
-        if (document_pipeline_->settle_fetch(response)) {
-            mark_dirty("fetch_settled");
-        }
+        // Settling runs page JS, which may mutate the DOM.
+        mutated |= document_pipeline_->settle_fetch(response);
+    }
+    if (mutated) {
+        // Rebuild before marking dirty, exactly as the timer path does. Marking
+        // the tab dirty only schedules a REPAINT; without this the repaint draws
+        // the render tree built before the continuation ran, so the DOM changes
+        // and the screen does not.
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:fetch_settled");
+        mark_dirty("fetch_settled");
     }
 }
 
@@ -241,7 +248,7 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (shutting_down_.load(std::memory_order_relaxed)) return false;
 
     consume_pending_resources(graphics, viewport);
-    process_settled_fetches();
+    process_settled_fetches(graphics, viewport);
     apply_extension_css_if_needed(graphics, viewport);
     relayout_if_viewport_changed(graphics, viewport);
     process_animation_updates();

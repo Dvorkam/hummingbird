@@ -50,6 +50,9 @@ public:
 
     Engine::Tab& tab() { return tab_; }
     const Engine::Tab& tab() const { return tab_; }
+    // What was actually drawn, so a test can assert on painted output rather
+    // than on DOM state — the two can disagree when a rebuild is missed.
+    Hummingbird::Test::TestGraphicsContext& context() { return context_; }
 
 private:
     Hummingbird::Test::TestGraphicsContext context_;

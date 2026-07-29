@@ -14,8 +14,13 @@
 #include <utility>
 #include <vector>
 
+#include <algorithm>
+
 #include "core/ArenaAllocator.h"
 #include "core/dom/Element.h"
+#include "core/platform_api/ResourceProviderFactory.h"
+#include "test_utils/HeadlessTabHarness.h"
+#include "test_utils/TestFakes.h"
 #include "core/platform_api/ScriptEngineFactory.h"
 #include "core/platform_api/ScriptFetch.h"
 #include "engine/resources/ResourceLoader.h"
@@ -331,6 +336,54 @@ TEST(FetchTest, ANonDemoFetchStillUsesTheRealTransport) {
     EXPECT_EQ(real_raw->urls.size(), 1u);
     EXPECT_TRUE(stub_raw->urls.empty());
     EXPECT_EQ(got.body, "live");
+}
+
+// The whole loop through a real Tab: click -> fetch -> settle on tick -> the
+// PAINTED output changes.
+//
+// Every other test here stops at "the DOM was mutated". That is not the same
+// claim: settling only marks the tab dirty, and a repaint draws the render tree
+// built BEFORE the continuation ran. The page's data changed and the screen did
+// not — which is exactly what a fetch demo looks like when it is broken, and
+// what no test above could see.
+TEST(FetchTest, ASettledFetchRebuildsWhatIsPainted) {
+    auto network = std::make_unique<Hummingbird::Test::RoutingNetwork>();
+    auto* net = network.get();
+    net->set_response("https://example.test/page", R"HTML(
+<!doctype html>
+<html>
+  <head><style> body { margin: 0; padding: 0; } p { display: block; } </style></head>
+  <body>
+    <p id="out">before</p>
+    <script>
+      fetch('/data.json').then(function (r) { return r.json(); }).then(function (data) {
+        document.getElementById('out').textContent = data.headline;
+      });
+    </script>
+  </body>
+</html>
+)HTML");
+    net->set_response("https://example.test/data.json", "{\"headline\":\"fetched-and-painted\"}");
+
+    Hummingbird::Test::HeadlessTabHarness harness(std::move(network), nullptr,
+                                                  Hummingbird::create_resource_provider());
+    harness.navigate("https://example.test/page");
+    harness.tick();  // document ready: scripts run, the fetch goes out
+
+    const auto painted = [&]() {
+        harness.context().drawn_texts.clear();
+        harness.paint();
+        return harness.context().drawn_texts;
+    };
+    const auto shows = [&](const char* text) {
+        const auto texts = painted();
+        return std::find(texts.begin(), texts.end(), text) != texts.end();
+    };
+
+    // A second tick drains the settled response and must rebuild before painting.
+    harness.tick();
+    EXPECT_TRUE(shows("fetched-and-painted")) << "the fetch settled but the painted tree was not rebuilt";
+    EXPECT_FALSE(shows("before"));
 }
 
 // With no fetch sink wired up (most unit tests, and any document without a

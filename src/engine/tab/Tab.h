@@ -145,8 +145,10 @@ private:
     std::string initiator_url_for(NavigationSource source) const;
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
     // Settles fetches whose responses arrived since the last tick (9.1.1). Runs
-    // on the main thread; the transport only ever enqueues.
-    void process_settled_fetches();
+    // on the main thread; the transport only ever enqueues. Takes the graphics
+    // context because a continuation that mutates the DOM must rebuild here —
+    // marking the tab dirty alone would repaint the pre-continuation tree.
+    void process_settled_fetches(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_incremental_resource_updates(const ResourceLoader::BatchResult& batch, IGraphicsContext& graphics,
                                               const Layout::Rect& viewport);
     void sync_extension_styles_before_stylesheet_update();

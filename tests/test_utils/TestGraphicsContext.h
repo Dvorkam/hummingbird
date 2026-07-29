@@ -43,7 +43,15 @@ public:
         return metrics;
     }
 
-    void draw_text(const std::string& /*text*/, float /*x*/, float /*y*/, const TextStyle& /*style*/) override {}
+    // Painted text is recorded so a test can assert what actually reached the
+    // screen, rather than what the DOM says. The two disagree exactly when a
+    // rebuild is missed, which is a whole class of bug that DOM-level
+    // assertions cannot see.
+    void draw_text(const std::string& text, float /*x*/, float /*y*/, const TextStyle& /*style*/) override {
+        drawn_texts.push_back(text);
+    }
+
+    std::vector<std::string> drawn_texts;
 };
 
 }  // namespace Hummingbird::Test
