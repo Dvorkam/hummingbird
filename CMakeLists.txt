@@ -99,6 +99,7 @@ add_library(Core STATIC
     src/core/net/Origin.cpp
     src/core/net/PublicSuffix.cpp
     src/core/net/Referrer.cpp
+    src/core/net/RequestFilter.cpp
     src/core/net/StorageArea.cpp
     src/core/net/StorageManager.cpp
     src/core/utils/AssetLoader.cpp

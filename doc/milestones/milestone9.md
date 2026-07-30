@@ -443,6 +443,49 @@ proof. See finding 5 above for why the synchronous-callback design was dropped.*
 * **Acceptance:** a background script registers block patterns and matching
   requests never reach the network; the resource state reads `Blocked`; an extension
   without the required permission cannot register rules; rules survive a restart.
+
+**Reshaped again at implementation (2026-07-31).** Three changes to the scope above,
+each recorded with its reason so the divergence from the kickoff text is deliberate
+rather than drift:
+
+1. **Static rulesets replace persistence.** The scope says rule sets "need to survive
+   a restart, which the host has no persistence for today", and treats that as a
+   subsystem to build. It isn't one. Background scripts run at *every* startup, so
+   anything registered from JS is re-registered anyway; the only thing persistence
+   would buy is survival of *dynamic* rules added mid-session. MV3 does not solve the
+   main case that way either — it uses `declarative_net_request.rule_resources`, a
+   static JSON ruleset named in the manifest and loaded by the **host**, with no
+   script involved. Taking that path gets "rules survive a restart" correctly and for
+   free, produces the list format 9.4.2 needs regardless, and removes an ordering
+   coupling between background-script startup and the first page's subresources. The
+   JS API stays, as a thin **session-scoped** dynamic layer documented as not
+   persisted.
+2. **`main_frame` is declared but never matched.** Blocking a top-level navigation
+   needs a "blocked by extension" interstitial, or it renders as a network error or a
+   blank tab — a UX story, not this one. An ad-blocker does not need it. The
+   destination enumerator exists so the vocabulary is complete; M9 refuses to match
+   it.
+3. **The permission gap is a plumbing gap, not an oversight.** `permissions` is
+   unenforced because `IExtensionApiHost` has no caller identity —
+   `insert_css(tab_id, css_text)` cannot know who is asking, and
+   `bind_extension_host(this)` binds one host to every context. There is nowhere to
+   put the check. So this story plumbs the extension id through
+   `bind_extension_host` first (sound and cheap, because there is already one QuickJS
+   context per extension), and gates `insert_css` with it too — closing the existing
+   hole rather than shipping a gated API next to an ungated one.
+
+**Where the matcher lives.** `core/net/RequestFilter.h`, not the extension host.
+`ResourceLoader` already holds three profile-wide policy objects of exactly this
+shape (`CookieJar`, `HttpCache`, `IdentityPolicyStore`); this is the fourth. That
+placement is what makes the matcher unit-testable with no script engine, keeps the
+network path ignorant of extensions, and leaves the door open for a user-level block
+list that is not an extension at all.
+
+**Where the gate goes.** The top of `send_request`, before `apply_deadline` — so a
+blocked request costs no cookie header, no cache lookup and no transport. Critically
+it therefore matches **per redirect hop**, for the reason already written into that
+function for CORS: *"a check applied only to the first request is not a check"*. Ad
+networks redirect constantly, so the argument transfers verbatim.
 * **Tests:** rule-matcher unit tests (no script engine) + extension API integration
   tests + a permission-denial test.
 
@@ -459,6 +502,14 @@ proof. See finding 5 above for why the synchronous-callback design was dropped.*
   1. **Requests and bytes avoided** — a fixture page with tracker-shaped requests
      loads with them blocked, and the run reports how many requests and how many
      bytes were not fetched.
+     *Care needed (2026-07-31): the request count is real, but **we never fetched the
+     blocked resource, so we do not know its size** — a "bytes avoided" counter
+     computed inside the filter would be fabricated data. Two honest routes, and the
+     implementation must use them: the fixture test reports the bytes the **mock
+     server** knows it did not serve, and the real-page claim comes from an actual
+     before/after run with the extension toggled, which is what "avoided" means
+     anyway. `RequestFilter` therefore counts requests and deliberately exposes no
+     byte counter.*
   2. **Node count and layout time** — blocking third-party markup reduces DOM node
      count, which reduces layout time. The HN item page already measures
      `layout ms ≈ 1900` at ~32k nodes (`T-PERF-LAYOUT-INCREMENTAL-1`), so this is

@@ -40,6 +40,7 @@ add_executable(HummingbirdTests
     core/IdentityPolicyStore.test.cpp
     core/Origin.test.cpp
     core/Referrer.test.cpp
+    core/RequestFilter.test.cpp
     core/StorageArea.test.cpp
     core/StorageManager.test.cpp
     core/AssetPath.test.cpp
