@@ -195,6 +195,12 @@ public:
 private:
     // Logs the unimplemented APIs this document's scripts touched (9.5.2).
     // Called at document end, before scripting teardown clears the list.
+    // Points the graphics context at the resource store before anything sizes
+    // or paints through it (T-RESOURCE-REF-1). Lives here rather than in the
+    // Tab so every driver of a document — including tests that drive the
+    // pipeline directly — resolves image handles the same way.
+    void bind_resource_resolver(IGraphicsContext& graphics) const;
+
     void flush_missing_api_telemetry();
 
     struct KeyDispatchResult {
@@ -212,6 +218,7 @@ private:
 
     std::string focus_snapshot_value_;  // focused input's value when it gained focus
 
+    ResourceStore* resource_store_ = nullptr;
     std::unique_ptr<DocumentResources> resources_;
     std::unique_ptr<DocumentModel> model_;
     std::unique_ptr<DocumentInteraction> interaction_;

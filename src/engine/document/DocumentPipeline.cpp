@@ -19,6 +19,7 @@
 #include "engine/document/DocumentResources.h"
 #include "engine/document/DocumentScripting.h"
 #include "engine/document/DocumentStyleCoordinator.h"
+#include "engine/resources/ResourceStore.h"
 
 namespace Hummingbird::Engine {
 
@@ -105,7 +106,8 @@ KeyFields key_fields(const InputEvent& event) {
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
                                    IImageDecoder* image_decoder, std::unique_ptr<IScriptEngine> script_engine)
-    : resources_(std::make_unique<DocumentResources>(resource_store, resource_provider, image_decoder)),
+    : resource_store_(resource_store),
+      resources_(std::make_unique<DocumentResources>(resource_store, resource_provider, image_decoder)),
       model_(std::make_unique<DocumentModel>()),
       interaction_(std::make_unique<DocumentInteraction>(*model_)),
       renderer_(std::make_unique<DocumentRenderer>(*model_, *interaction_)),
@@ -139,6 +141,10 @@ DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvi
 // exists to collapse repeats.
 std::vector<std::string> DocumentPipeline::missing_apis() const {
     return scripting_->missing_apis();
+}
+
+void DocumentPipeline::bind_resource_resolver(IGraphicsContext& graphics) const {
+    graphics.set_resource_resolver(resource_store_);
 }
 
 void DocumentPipeline::flush_missing_api_telemetry() {
@@ -233,6 +239,7 @@ void DocumentPipeline::mark_url_visited(std::string_view url) {
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
+    bind_resource_resolver(graphics);
     current_document_url_ = base_url;
     const Css::MediaContext media{viewport.width, viewport.height};
     // Flag anchors whose target has been visited before styling, so `:visited`
@@ -251,6 +258,7 @@ void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const
 
 bool DocumentPipeline::rebuild_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view base_url) {
+    bind_resource_resolver(graphics);
     apply_styles_and_layout(graphics, viewport, base_url);
     return model_->has_render_tree();
 }
@@ -264,6 +272,7 @@ bool DocumentPipeline::needs_restyle_for_viewport(const Layout::Rect& viewport) 
 }
 
 void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    bind_resource_resolver(graphics);
     renderer_->relayout(graphics, viewport);
     if (relayout_debug_enabled()) {
         HB_LOG_WARN("[layout-debug] relayout content_h=" << renderer_->content_height());
@@ -271,11 +280,13 @@ void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& 
 }
 
 void DocumentPipeline::paint(IGraphicsContext& graphics, const PaintContext& context) {
+    bind_resource_resolver(graphics);
     renderer_->paint(graphics, {context.viewport, context.debug_outlines, context.scroll_y});
 }
 
 void DocumentPipeline::paint_controls(IGraphicsContext& graphics, const PaintContext& context,
                                       bool repaint_background) {
+    bind_resource_resolver(graphics);
     renderer_->paint_controls(graphics, {context.viewport, context.debug_outlines, context.scroll_y},
                               repaint_background);
 }

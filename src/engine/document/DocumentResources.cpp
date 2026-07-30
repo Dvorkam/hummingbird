@@ -216,6 +216,11 @@ std::string DocumentResources::build_css_source(std::string_view base_url, const
     return Css::merge_css_sources(ua_css, link_sources, style_blocks, extension_style_blocks);
 }
 
+// Binds each image-bearing render object to a resource HANDLE. Named
+// bind_image_resources rather than update_*: since a handle is stable and
+// resolves per paint, this is a one-shot binding after a render-tree rebuild,
+// not the periodic re-pointing it used to be (T-RESOURCE-REF-1). The animation
+// tick no longer calls it at all.
 bool DocumentResources::update_image_resources(Layout::RenderObject* render_tree, std::string_view base_url) const {
     if (!render_tree || !resource_store_) {
         return false;
@@ -227,31 +232,27 @@ bool DocumentResources::update_image_resources(Layout::RenderObject* render_tree
         *render_tree, offset,
         [&](Layout::RenderObject& current, const Layout::Rect& /*absolute*/, const Layout::Point& /*local_offset*/) {
             const auto* style = current.get_computed_style();
-            const ImageBitmap* background_bitmap = nullptr;
+            ResourceRef background_ref{};
             if (style && style->background_image && !style->background_image->empty()) {
                 auto resolved = resolve_resource_url(base_url, *style->background_image);
-                const std::string& key = resolved.key;
-                auto view = resource_store_->view(key, ResourceType::Image);
-                if (view && view->state == ResourceState::Ready) {
-                    background_bitmap = view->image;
-                }
+                // Bound by NAME, so this no longer waits for the bytes: a handle
+                // minted before the resource is decoded simply resolves to null
+                // until it arrives, and keeps working after the store replaces
+                // or drops the payload.
+                background_ref = resource_store_->ref_for(resolved.key, ResourceType::Image);
             }
-            if (current.set_background_image(background_bitmap)) {
+            if (current.set_background_image(background_ref)) {
                 changed = true;
             }
             if (auto* image = dynamic_cast<Layout::RenderImage*>(&current)) {
                 const auto* element = static_cast<const DOM::Element*>(image->get_dom_node());
-                const ImageBitmap* bitmap = nullptr;
+                ResourceRef image_ref{};
                 if (const auto* src = element->find_attribute(Hummingbird::Html::AttributeNames::Src);
                     src && !src->empty()) {
                     auto resolved = resolve_resource_url(base_url, *src);
-                    const std::string& key = resolved.key;
-                    auto view = resource_store_->view(key, ResourceType::Image);
-                    if (view && view->state == ResourceState::Ready) {
-                        bitmap = view->image;
-                    }
+                    image_ref = resource_store_->ref_for(resolved.key, ResourceType::Image);
                 }
-                if (image->set_image(bitmap)) {
+                if (image->set_image(image_ref)) {
                     changed = true;
                 }
             }

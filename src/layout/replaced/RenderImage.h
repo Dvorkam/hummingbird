@@ -4,6 +4,7 @@
 
 #include <memory>
 
+#include "core/ResourceRef.h"
 #include "core/dom/Element.h"
 #include "core/platform_api/IGraphicsContext.h"
 #include "layout/RenderObject.h"
@@ -25,8 +26,13 @@ public:
     void layout(IGraphicsContext& context, const Rect& bounds) override;
     void paint_self(IGraphicsContext& context, const Point& offset) const override;
 
-    bool set_image(const ImageBitmap* image);
-    const ImageBitmap* image() const { return m_image; }
+    // The image is named, not held (T-RESOURCE-REF-1). A render object outlives
+    // the store's decisions about a resource — decode, replacement, failure,
+    // navigation — so holding the pixels was a use-after-free waiting for an
+    // animation to widen the window. Sizing and painting both resolve through
+    // the graphics context, and the resulting pointer dies with the call.
+    bool set_image(ResourceRef image);
+    ResourceRef image() const { return m_image_ref; }
 
     IInlineParticipant* as_inline_participant() override;
     const IInlineParticipant* as_inline_participant() const override;
@@ -46,9 +52,11 @@ private:
     explicit RenderImage(const DOM::Element* dom_node) : RenderObject(dom_node) {}
 
     bool should_inline() const;
+    // Resolves the handle through the context, for the duration of one call.
+    const ImageBitmap* resolve_image(IGraphicsContext& context) const;
     float m_inline_measured_width = 0.0f;
     float m_inline_measured_height = 0.0f;
-    const ImageBitmap* m_image = nullptr;
+    ResourceRef m_image_ref{};
     mutable TextStyle alt_text_style_;
 };
 

@@ -344,8 +344,8 @@ inline Rect compute_background_image_rect(const Rect& area, const ImageBitmap& i
     return {area.x + offset_x, area.y + offset_y, dest_width, dest_height};
 }
 
-inline void draw_background_image(IGraphicsContext& context, const Rect& area, const ImageBitmap& image,
-                                  const Css::ComputedStyle& style) {
+inline void draw_background_image(IGraphicsContext& context, const Rect& area, ResourceRef image_ref,
+                                  const ImageBitmap& image, const Css::ComputedStyle& style) {
     Rect dest = compute_background_image_rect(area, image, style);
     if (dest.width <= 0.0f || dest.height <= 0.0f) {
         return;
@@ -357,7 +357,7 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
     context.push_clip(area);
 
     if (style.background_repeat == Css::ComputedStyle::BackgroundRepeat::NoRepeat) {
-        context.draw_image(image, dest);
+        context.draw_image(image_ref, dest);
         context.pop_clip();
         return;
     }
@@ -386,7 +386,7 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
         float x = start_x;
         do {
             Rect tile{x, y, dest.width, dest.height};
-            context.draw_image(image, tile);
+            context.draw_image(image_ref, tile);
             if (!repeat_x) break;
             x += dest.width;
         } while (x < area.x + area.width);
@@ -398,7 +398,7 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
 }
 
 inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, const Css::ComputedStyle* style,
-                                const ImageBitmap* background_image) {
+                                ResourceRef background_image) {
     if (!style) {
         return;
     }
@@ -433,8 +433,14 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
             context.fill_rect(rect, *style->background);
         }
     }
-    if (background_image && style->background_image.has_value()) {
-        draw_background_image(context, rect, *background_image, *style);
+    if (background_image.valid() && style->background_image.has_value()) {
+        // Resolved only to learn the intrinsic size for tiling and positioning;
+        // the draw itself passes the handle, so nothing downstream retains a
+        // pointer into the store.
+        const IResourceResolver* resolver = context.resource_resolver();
+        if (const ImageBitmap* resolved = resolver ? resolver->resolve_image(background_image) : nullptr) {
+            draw_background_image(context, rect, background_image, *resolved, *style);
+        }
     }
     if (style->border_style != Css::ComputedStyle::BorderStyle::None) {
         const auto& bw = style->border_width;

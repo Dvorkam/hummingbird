@@ -6,6 +6,21 @@
 
 namespace Hummingbird::Test {
 
+// Resolves a single handle to a single bitmap, so a layout test can give a
+// replaced element an intrinsic size without standing up a resource store.
+// Mirrors how the engine supplies the real resolver: through the graphics
+// context, read for the duration of a call and never stored.
+class StubImageResolver : public IResourceResolver {
+public:
+    StubImageResolver(ResourceRef ref, const ImageBitmap* image) : ref_(ref), image_(image) {}
+    const ImageBitmap* resolve_image(ResourceRef ref) const override { return ref == ref_ ? image_ : nullptr; }
+
+private:
+    ResourceRef ref_;
+    const ImageBitmap* image_ = nullptr;
+};
+
+
 // A lightweight graphics context used in tests. All operations are no-ops
 // except text measurement, which uses a simple heuristic to return stable values.
 class TestGraphicsContext : public IGraphicsContext {
@@ -52,6 +67,10 @@ public:
         drawn_texts.push_back(text);
     }
 
+    void set_resource_resolver(const IResourceResolver* resolver) override { resolver_ = resolver; }
+    const IResourceResolver* resource_resolver() const override { return resolver_; }
+
+    const IResourceResolver* resolver_ = nullptr;
     std::vector<std::string> drawn_texts;
 };
 

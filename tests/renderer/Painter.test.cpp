@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include "test_utils/TestGraphicsContext.h"
+
 #include <cmath>
 #include <functional>
 
@@ -28,6 +30,10 @@ using namespace Hummingbird::Css;
 // Graphics context that records draw_text calls and provides deterministic metrics.
 class RecordingGraphicsContext : public IGraphicsContext {
 public:
+    void set_resource_resolver(const Hummingbird::IResourceResolver* resolver) override { resolver_ = resolver; }
+    const Hummingbird::IResourceResolver* resource_resolver() const override { return resolver_; }
+    const Hummingbird::IResourceResolver* resolver_ = nullptr;
+
     void set_viewport(const Hummingbird::Layout::Rect& viewport) override { viewport_ = viewport; }
     void clear(const Color&) override {}
     void present() override {}
@@ -341,9 +347,12 @@ TEST(PainterTest, PaintsBackgroundImage) {
     ImageBitmap bitmap;
     bitmap.width = 8;
     bitmap.height = 8;
-    div->set_background_image(&bitmap);
+    const Hummingbird::ResourceRef background_ref{1, 1};
+    div->set_background_image(background_ref);
 
     RecordingGraphicsContext context;
+    Hummingbird::Test::StubImageResolver background_resolver(background_ref, &bitmap);
+    context.set_resource_resolver(&background_resolver);
     Hummingbird::Layout::Rect viewport{0, 0, 200, 200};
     render_tree->layout(context, viewport);
 
@@ -909,6 +918,10 @@ namespace {
 // Records clip push/pop and image draws to verify background-clip behavior.
 class ClipRecordingContext : public IGraphicsContext {
 public:
+    void set_resource_resolver(const Hummingbird::IResourceResolver* resolver) override { resolver_ = resolver; }
+    const Hummingbird::IResourceResolver* resource_resolver() const override { return resolver_; }
+    const Hummingbird::IResourceResolver* resolver_ = nullptr;
+
     void set_viewport(const Hummingbird::Layout::Rect&) override {}
     void clear(const Color&) override {}
     void present() override {}
@@ -949,7 +962,7 @@ TEST(BackgroundClipTest, BackgroundImageIsClippedToItsBox) {
     style.background_repeat = ComputedStyle::BackgroundRepeat::NoRepeat;
 
     const Hummingbird::Layout::Rect area{0, 0, 200, 80};  // wide/short box
-    Hummingbird::Layout::PaintUtils::draw_background_image(ctx, area, image, style);
+    Hummingbird::Layout::PaintUtils::draw_background_image(ctx, area, Hummingbird::ResourceRef{1, 1}, image, style);
 
     // A clip matching the box was pushed, the image drawn under it, clip balanced.
     ASSERT_EQ(ctx.pushed.size(), 1u);

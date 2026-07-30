@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "core/ResourceRef.h"
 #include "core/dom/Node.h"
 #include "layout/flow/inline/IInlineParticipant.h"
 #include "layout/flow/inline/InlineRef.h"
@@ -56,14 +57,15 @@ public:
         return InlineRef(as_inline_participant());
     }
 
-    bool set_background_image(const ImageBitmap* image) {
+    // Named, not held — see RenderImage for why (T-RESOURCE-REF-1).
+    bool set_background_image(ResourceRef image) {
         if (m_background_image == image) {
             return false;
         }
         m_background_image = image;
         return true;
     }
-    const ImageBitmap* background_image() const { return m_background_image; }
+    ResourceRef background_image() const { return m_background_image; }
     void set_has_absolute_descendant(bool value) { m_has_absolute_descendant = value; }
     bool has_absolute_descendant() const { return m_has_absolute_descendant; }
 
@@ -80,7 +82,7 @@ protected:
     RenderObject* m_parent = nullptr;
     std::vector<std::unique_ptr<RenderObject>> m_children;
     Rect m_rect;
-    const ImageBitmap* m_background_image = nullptr;
+    ResourceRef m_background_image{};
     bool m_has_absolute_descendant = false;
 };
 }  // namespace Hummingbird::Layout

@@ -36,16 +36,17 @@ const std::string& resolve_default_font_path() {
 }
 }  // namespace
 
-void RenderImage::layout(IGraphicsContext& /*context*/, const Rect& bounds) {
+void RenderImage::layout(IGraphicsContext& context, const Rect& bounds) {
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
     ReplacedSizing::IntrinsicSize intrinsic;
-    if (m_image && m_image->width > 0) {
-        intrinsic.width = static_cast<float>(m_image->width);
+    const ImageBitmap* resolved = resolve_image(context);
+    if (resolved && resolved->width > 0) {
+        intrinsic.width = static_cast<float>(resolved->width);
         intrinsic.has_width = true;
     }
-    if (m_image && m_image->height > 0) {
-        intrinsic.height = static_cast<float>(m_image->height);
+    if (resolved && resolved->height > 0) {
+        intrinsic.height = static_cast<float>(resolved->height);
         intrinsic.has_height = true;
     }
     // Resolve percentage dimensions against the containing block (story 8.5.1).
@@ -76,19 +77,13 @@ void RenderImage::paint_self(IGraphicsContext& context, const Point& offset) con
         return;
     }
 
-    if (m_image) {
+    if (const ImageBitmap* resolved = resolve_image(context)) {
         // object-fit (story 8.5.2): fit the intrinsic pixels inside the content
-        // box; a cover/none image that exceeds the box is clipped to it.
+        // box; a cover/none image that exceeds the box is clipped to it. The
+        // resolved pixels supply the intrinsic size; the DRAW passes the handle,
+        // so a retained display list records a reference rather than a pointer.
         const auto fit = style ? style->object_fit : Css::ComputedStyle::ObjectFit::Fill;
-        const auto placement = ObjectFitUtils::compute_fit(fit, content, static_cast<float>(m_image->width),
-                                                           static_cast<float>(m_image->height));
-        if (placement.needs_clip) {
-            context.push_clip(content);
-            context.draw_image(*m_image, placement.dest);
-            context.pop_clip();
-        } else {
-            context.draw_image(*m_image, placement.dest);
-        }
+        PaintUtils::paint_replaced_bitmap(context, content, m_image_ref, fit, *resolved);
         return;
     }
 
@@ -131,16 +126,17 @@ void RenderImage::reset_inline_layout() {
     m_inline_measured_height = 0.0f;
 }
 
-void RenderImage::measure_inline(IGraphicsContext& /*context*/) {
+void RenderImage::measure_inline(IGraphicsContext& context) {
     auto* element = static_cast<const DOM::Element*>(get_dom_node());
     const auto* style = get_computed_style();
     ReplacedSizing::IntrinsicSize intrinsic;
-    if (m_image && m_image->width > 0) {
-        intrinsic.width = static_cast<float>(m_image->width);
+    const ImageBitmap* resolved = resolve_image(context);
+    if (resolved && resolved->width > 0) {
+        intrinsic.width = static_cast<float>(resolved->width);
         intrinsic.has_width = true;
     }
-    if (m_image && m_image->height > 0) {
-        intrinsic.height = static_cast<float>(m_image->height);
+    if (resolved && resolved->height > 0) {
+        intrinsic.height = static_cast<float>(resolved->height);
         intrinsic.has_height = true;
     }
     ReplacedElementUtils::LayoutSize size =
@@ -173,12 +169,17 @@ void RenderImage::apply_inline_fragment(size_t index, const InlineFragment& frag
 
 void RenderImage::finalize_inline_layout() {}
 
-bool RenderImage::set_image(const ImageBitmap* image) {
-    if (image == m_image) {
+bool RenderImage::set_image(ResourceRef image) {
+    if (image == m_image_ref) {
         return false;
     }
-    m_image = image;
+    m_image_ref = image;
     return true;
+}
+
+const ImageBitmap* RenderImage::resolve_image(IGraphicsContext& context) const {
+    const IResourceResolver* resolver = context.resource_resolver();
+    return resolver ? resolver->resolve_image(m_image_ref) : nullptr;
 }
 
 bool RenderImage::should_inline() const {

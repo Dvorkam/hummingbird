@@ -38,6 +38,10 @@ public:
     // store and injects it; contexts that never draw resource images (tests,
     // recorders that only forward the ref) can ignore it.
     virtual void set_resource_resolver(const IResourceResolver* /*resolver*/) {}
+    // Layout needs it too: a replaced element's intrinsic size comes from the
+    // pixels, so sizing resolves the same handle painting does. The pointer is
+    // read and dropped within the call, never stored.
+    virtual const IResourceResolver* resource_resolver() const { return nullptr; }
     virtual TextMetrics measure_text(const std::string& text, const TextStyle& style) = 0;
     virtual void draw_text(const std::string& text, float x, float y, const TextStyle& style) = 0;
     virtual void draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,

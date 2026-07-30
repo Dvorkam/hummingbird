@@ -362,9 +362,14 @@ TEST(InlineLayoutTest, InlineImageUsesIntrinsicSizeWhenAvailable) {
     bitmap.format = PixelFormat::PRGB32;
     bitmap.pixels.resize(static_cast<size_t>(bitmap.stride) * bitmap.height);
 
-    image->set_image(&bitmap);
+    // The element names its image; the context is what turns that name back into
+    // pixels, exactly as the engine does at paint time.
+    const Hummingbird::ResourceRef ref{1, 1};
+    image->set_image(ref);
 
     Hummingbird::Test::TestGraphicsContext context;
+    Hummingbird::Test::StubImageResolver resolver(ref, &bitmap);
+    context.set_resource_resolver(&resolver);
     Rect viewport{0, 0, 400, 200};
     render_root->layout(context, viewport);
 

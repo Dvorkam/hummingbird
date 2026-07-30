@@ -29,6 +29,7 @@ public:
     void draw_image(ResourceRef image, const Hummingbird::Layout::Rect& dest) override;
     void draw_image(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest) override;
     void set_resource_resolver(const IResourceResolver* resolver) override { resource_resolver_ = resolver; }
+    const IResourceResolver* resource_resolver() const override { return resource_resolver_; }
 
 private:
     // Shared by both entry points; `ref` is the cache identity (null for a

@@ -85,6 +85,11 @@ public:
         return metrics_source_.measure_text(text, style);
     }
 
+    // Forwarded, not stored: recording still has to resolve a handle to learn a
+    // replaced element's intrinsic size, even though the DRAW is recorded as a
+    // reference and resolved again at replay.
+    const IResourceResolver* resource_resolver() const override { return metrics_source_.resource_resolver(); }
+
     void draw_text(const std::string& text, float x, float y, const TextStyle& style) override {
         list_.add_draw_text(text, x, y, style);
     }

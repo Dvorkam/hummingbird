@@ -350,11 +350,12 @@ bool Tab::advance_animation_tick() {
         return false;
     }
 
-    bool updated = false;
-    if (resource_loader_->store().tick_animations(*ready_delta_ms) && document_pipeline_->has_render_tree()) {
-        updated = document_pipeline_->update_image_resources(navigation_lifecycle_.requested_url());
-    }
-    return updated;
+    // An animation advancing needs a REPAINT, nothing more: the render tree holds
+    // a handle, and resolving it at paint time already yields the current frame.
+    // This used to re-point every image in the tree on every tick, which is both
+    // the work this refactor deletes and the window the use-after-free lived in
+    // (T-RESOURCE-REF-1).
+    return resource_loader_->store().tick_animations(*ready_delta_ms) && document_pipeline_->has_render_tree();
 }
 
 void Tab::process_scheduled_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -748,15 +749,17 @@ void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect
 
 void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto image_update_start = Core::Clock::now();
-    bool updated = document_pipeline_->update_image_resources(navigation_lifecycle_.requested_url());
-    if (updated) {
-        document_pipeline_->relayout(graphics, viewport);
-        update_layout_state(viewport, "handle_image_ready:relayout");
-    }
+    // Newly decoded pixels give a replaced element its intrinsic size, so the
+    // arrival itself is the relayout trigger. It no longer depends on a pointer
+    // having changed — the handle was bound when the tree was built and did not
+    // move, which is the point of it.
+    const bool updated = document_pipeline_->update_image_resources(navigation_lifecycle_.requested_url());
+    document_pipeline_->relayout(graphics, viewport);
+    update_layout_state(viewport, "handle_image_ready:relayout");
     const auto image_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] image update ms=" << Core::duration_ms(image_update_start, image_update_end)
                                           << " updated=" << updated);
-    mark_dirty(updated ? "image_ready_updated" : "image_ready_noop");
+    mark_dirty("image_ready");
 }
 
 bool Tab::prepare_document_from_response(std::string_view html) {
