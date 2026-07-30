@@ -529,6 +529,30 @@ proof. See finding 5 above for why the synchronous-callback design was dropped.*
   only be exercised against the mock server — the live gate proves the
   non-credentialed path. That is a limit of the live gate, not of the tests.
 
+* **Story 9.5.2: Missing-API Telemetry Triage** *(new, filed 2026-07-30)*
+* **Goal:** turn the missing-API counters into a triaged backlog, which is what
+  they were built for.
+* **Why it exists:** "Missing-API telemetry from the proof-target runs is triaged
+  into the M12 backlog" has been a **Milestone 9 Done-When bullet since kickoff
+  with no story behind it**, so nothing was going to make it happen. It also
+  **gates 9.1.2**, whose entire pull-in trigger is "only if telemetry reports it" —
+  that question cannot be answered until someone runs the triage, so 9.1.2 is not
+  really a scheduling decision yet, it is a blocked one.
+* **Scope:** run the proof targets (the `example.dev/m9` live cards plus a handful
+  of real pages) and collect what `record_missing_api` reports; file each
+  recurring hit as an M12 story or fold it into an existing one; and decide 9.1.2
+  on the `XMLHttpRequest` count specifically.
+* **Known blind spot this story must state, not just work around:** the fail-soft
+  prelude reports **globals that get called** — `XMLHttpRequest`, `matchMedia`,
+  `localStorage`. It cannot see a missing **property**, because reading
+  `document.body` yields `undefined` and throws at the *use* site with no report.
+  `T-DOM-DOCUMENT-BODY-1` was found by a fixture author, not by the counters that
+  exist to find exactly that. So the triage output is a **lower bound**, and the
+  story should say so rather than let M12 read the number as complete.
+* **Acceptance:** a written triage in `doc/TODOs.md` or `milestone12.md`, and a
+  yes/no on 9.1.2 with the count behind it.
+* **Tests:** none — this is an analysis story.
+
 ### 9.6 - SPA Routing MVP (pulled forward from M12)
 
 * **Story 9.6.1: History API MVP**
@@ -567,21 +591,37 @@ proof. See finding 5 above for why the synchronous-callback design was dropped.*
 Ordinary M9 work items that are not part of the North Star path. They live in
 `doc/TODOs.md` with full rationale; this is the index.
 
+**Re-triaged 2026-07-30**, once every P0 had landed ahead of schedule. The question
+this table now answers is not "what is parked in M9" but "what does M9 still owe."
+
 | Ticket | P | Note |
 |---|---|---|
-| `T-NET-IDENTITY-UI-1` | P1 | **Promoted from P2.** Since `c18dc9a` removed the `Ctrl+Shift+U` instructions from the README, the only route to a *shipped* feature is an undocumented keyboard shortcut. A shipped feature reachable only by a secret is a hole, not a nicety. |
-| `T-COOKIE-CONFORMANCE-VECTORS-1` | P2 | Its stated precondition ("do this after 8.3.1/8.1.3 so redirect behavior is settled") is now met. Cheap, and it gives 9.0.3 a tracked number. |
-| `T-FORM-PASSWORD-MASK-1` | P1 | Carried from M8's HN login. Privacy gap on a control people type secrets into. |
-| `T-FORM-INPUT-PASTE-1` | P1 | Carried from M8's HN login. Precursor to M11's clipboard work. |
-| `T-STORAGE-DOT-ACCESS-1` | P2 | `localStorage.foo` dot/bracket access, deferred from 8.2.2. |
-| `T-NET-IDENTITY-AUTOOFFER-1` | P2 | Phase 2 of the identity work; depends on `T-NET-IDENTITY-UI-1` for its surface. |
-| `T-HTML-PRESENTATIONAL-TAGS-1` | P2 | `<center>`/`<u>`; small and contained. |
-| `T-FONT-WOFF2-1` | P2 | WOFF2 decoding. Independent of everything else here. |
-| `T-NET-CLIENT-HINTS-1` | P3 | `Accept-CH`. **Note the coupling:** it adds request headers that responses may `Vary` on, so land it *after* 9.3.2 or the cache key will be wrong for exactly the headers this adds. |
+| `T-DOM-DOCUMENT-BODY-1` | P1 | **Kept.** `document.body`/`head`/`documentElement` are unbound. A binding gap in the exact layer M9 spent the milestone building on: fetch continuations mutate the DOM, and the most common way a page does that throws. Found by 9.5.1. |
+| `T-NET-IDENTITY-UI-1` | P1 | **Kept.** Since `c18dc9a` removed the `Ctrl+Shift+U` instructions from the README, the only route to a *shipped* feature is an undocumented keyboard shortcut. A shipped feature reachable only by a secret is a hole, not a nicety. **9.3.2 raised the stakes**: the toggle now also forces a hard reload, so an invisible control grew a second invisible effect. |
+| `T-COOKIE-CONFORMANCE-VECTORS-1` | P2 | **Kept.** Its stated precondition ("do this after 8.3.1/8.1.3 so redirect behavior is settled") is now met. Cheap, and it gives 9.0.3 a tracked number. |
+| `T-NET-IDENTITY-AUTOOFFER-1` | P2 | **Kept, gated.** Phase 2 of the identity work; depends on `T-NET-IDENTITY-UI-1` for its surface, so it lands with that story or slips with it. |
+
+**Deferred at the 2026-07-30 re-triage** (re-tagged in `doc/TODOs.md`; each is
+ordinary work that M9 was merely the parking lot for):
+
+| Ticket | Now | Why there |
+|---|---|---|
+| `T-HTML-PRESENTATIONAL-TAGS-1` | M10 | `<center>`/`<u>` are UA style defaults plus an inline-flow bug (`<u>` laid out as a block breaks the line it sits in). M10 owns the inline box model and the UA defaults; fixing it here would be a drive-by in someone else's layer. |
+| `T-FONT-WOFF2-1` | M11 | M11 §11.4 is the text-rendering/font milestone. It also vendors a new dependency (`woff2` + `brotli`), which belongs with the rest of the font stack rather than alone. |
+| `T-NET-CLIENT-HINTS-1` | M10 | Pairs with `T-NET-EFFECTIVE-REQUEST-HEADERS-1`, already M10 P3. Both are the same question — does the cache key match the headers actually sent — and splitting them across milestones is how one gets fixed and the other forgotten. |
+| `T-STORAGE-DOT-ACCESS-1` | M12 | `localStorage.foo` is a convenience idiom, not a correctness hole, and it needs exotic-object handlers done carefully. M12 owns the JS surface pages assume. |
 
 **Re-homed at kickoff** (were tagged `[M8]`, do not belong here):
 `T-FOCUS-MUTATION-SYNC-1` → M11 (focus system), `T-EVENT-SPEC-GAPS-1` → M12 (event
 constructors and listener options are framework-surface items).
+
+**Correction (2026-07-30):** this table listed `T-FORM-PASSWORD-MASK-1` and
+`T-FORM-INPUT-PASTE-1` as M9 P1 until today. Both were re-homed to M11 at the
+kickoff triage and have been full stories there — **11.1.2 and 11.1.1** — the whole
+time; `doc/TODOs.md` recorded the move and this table did not. That is the same
+failure the kickoff found at M8→M9 scale ("nine stories were still tagged `[M8]`"),
+in miniature: **an index that is not regenerated from its source drifts from it.**
+Both rows are removed rather than restated.
 
 ---
 
@@ -908,9 +948,29 @@ P0: Guardrails
       **Deliberately still manual:** the live run against `api.hnpwa.com` and
       `en.wikipedia.org`, which stays the `example.dev/m9` demo card.)*
 
-P1: If Schedule Allows
-- [ ] 9.6.1: History API MVP *(needed for "browse a thread and come back")*
-- [ ] 9.4.1: Declarative Request-Filtering Rules
-- [ ] 9.4.2: Built-In Ad-Block-Lite Extension
-- [ ] 9.1.2: XHR Compatibility Wrapper *(only if telemetry reports it)*
-- [ ] 9.2.2: Preflight Cache
+P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
+- [ ] T-DOM-DOCUMENT-BODY-1: `document.body`/`head`/`documentElement` *(small,
+      P1, and a correctness hole in the layer M9 just built on — do it first)*
+- [ ] 9.5.2: Missing-API Telemetry Triage *(unblocks the 9.1.2 decision and is an
+      unticked Done-When; cheap, so it should not be the thing left over)*
+- [ ] 9.6.1: History API MVP *(needed for "browse a thread and come back" —
+      the one P1 that is part of M9's own thesis rather than parked in it)*
+- [ ] 9.4.1: Declarative Request-Filtering Rules *(the big one. Named in the North
+      Star, and it closes two extension-HOST holes as a side effect: `permissions`
+      is parsed but not enforced, and rule sets need persistence the host lacks.
+      A manifest field that is parsed and not enforced is worse than one that is
+      absent — it reads as a boundary and is not one.)*
+- [ ] 9.4.2: Built-In Ad-Block-Lite Extension *(rides on 9.4.1)*
+- [ ] T-COOKIE-CONFORMANCE-VECTORS-1: cookie conformance number *(cheap filler,
+      precondition now met)*
+- [ ] T-NET-IDENTITY-UI-1 (+ T-NET-IDENTITY-AUTOOFFER-1 behind it) *(if appetite
+      remains: a shipped feature whose only route is a secret shortcut)*
+- [ ] 9.1.2: XHR Compatibility Wrapper *(**blocked, not scheduled** — its trigger
+      is 9.5.2's count)*
+
+Deferred out of M9 at the same re-triage — see the Carried Backlog table for the
+reasoning: `T-HTML-PRESENTATIONAL-TAGS-1` → M10, `T-NET-CLIENT-HINTS-1` → M10,
+`T-FONT-WOFF2-1` → M11, `T-STORAGE-DOT-ACCESS-1` → M12, and **9.2.2 Preflight
+Cache → M12** (the kickoff probe already found Wikipedia sends no
+`Access-Control-Max-Age`, so there is nothing to cache beyond the spec default;
+it pays off against framework traffic, which is M12's subject).
