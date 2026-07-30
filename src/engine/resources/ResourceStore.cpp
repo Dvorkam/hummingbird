@@ -121,6 +121,11 @@ bool ResourceStore::tick_animations(int delta_ms) {
         if (animation.image.frames.size() <= 1) {
             continue;
         }
+        // Indexing `delays_ms` with a `frames`-bounded index is safe because
+        // `set_animation` is the only way an animation enters the store and it
+        // refuses one whose two vectors disagree in length. Noted here because
+        // they are separate vectors on a port type, so the guarantee is not
+        // local to this loop and reads like a gap until you go and check.
         animation.elapsed_ms += delta_ms;
         int delay = animation.image.delays_ms[animation.frame_index];
         if (delay <= 0) {

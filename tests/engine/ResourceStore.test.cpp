@@ -80,3 +80,44 @@ TEST(ResourceStoreTest, AdvancesAnimatedImageFrames) {
     EXPECT_NE(after->image, first_ptr);
     EXPECT_EQ(after->image->pixels[0], 255);
 }
+
+// The guard that makes `tick_animations` safe to index `delays_ms` with a
+// `frames`-bounded index: an animation whose two vectors disagree never enters
+// the store at all. They are separate vectors on a port type, so this is the
+// only thing holding the invariant.
+TEST(ResourceStoreTest, RefusesAnAnimationWhoseFramesAndDelaysDisagree) {
+    ResourceStore store;
+    const std::string url = "https://example.dev/broken.gif";
+    ASSERT_TRUE(store.begin_request(url, ResourceType::Image));
+    ASSERT_TRUE(store.mark_ready(url, ResourceType::Image, "GIFDATA"));
+
+    const auto make_frames = [](int count) {
+        std::vector<Hummingbird::ImageBitmap> frames;
+        for (int i = 0; i < count; ++i) {
+            Hummingbird::ImageBitmap frame;
+            frame.width = 1;
+            frame.height = 1;
+            frame.stride = 4;
+            frame.pixels = {0, 0, 0, 255};
+            frames.push_back(std::move(frame));
+        }
+        return frames;
+    };
+
+    Hummingbird::AnimatedImage fewer_delays;
+    fewer_delays.frames = make_frames(4);
+    fewer_delays.delays_ms = {50};
+    EXPECT_FALSE(store.set_animation(url, ResourceType::Image, std::move(fewer_delays)));
+
+    Hummingbird::AnimatedImage no_delays;
+    no_delays.frames = make_frames(3);
+    EXPECT_FALSE(store.set_animation(url, ResourceType::Image, std::move(no_delays)));
+
+    // A well-formed one is accepted, so the guard is rejecting the mismatch
+    // rather than everything.
+    Hummingbird::AnimatedImage good;
+    good.frames = make_frames(3);
+    good.delays_ms = {40, 40, 40};
+    EXPECT_TRUE(store.set_animation(url, ResourceType::Image, std::move(good)));
+    EXPECT_TRUE(store.tick_animations(500));
+}

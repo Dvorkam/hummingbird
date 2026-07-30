@@ -413,11 +413,32 @@ void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird:
     }
 
     if (!texture) {
+        // SDL reads exactly stride*height bytes out of the buffer we hand it and
+        // takes our word for the dimensions, so a bitmap whose declared size
+        // exceeds its pixel data is a silent heap OVERREAD — an access violation
+        // with no message, which is the hardest possible failure to trace back
+        // here. Nothing structurally guarantees the two agree: ImageBitmap is a
+        // port type any decoder can fill in. Check it at the boundary where the
+        // pointer is about to escape into C.
+        const size_t required = static_cast<size_t>(image.stride) * static_cast<size_t>(image.height);
+        if (image.width <= 0 || image.height <= 0 || image.stride <= 0 || image.pixels.size() < required) {
+            HB_LOG_ERROR("[platform] refusing an inconsistent image bitmap: "
+                         << image.width << "x" << image.height << " stride=" << image.stride << " needs=" << required
+                         << " has=" << image.pixels.size());
+            return;
+        }
+
         SDL_Surface* surface =
             SDL_CreateRGBSurfaceWithFormatFrom(const_cast<std::uint8_t*>(image.pixels.data()), image.width,
                                                image.height, 32, image.stride, SDL_PIXELFORMAT_BGRA32);
         if (!surface) {
-            HB_LOG_ERROR("[platform] Failed to create SDL_Surface from image");
+            // With a fixed valid format and validated dimensions, SDL failing
+            // here means the allocation failed — i.e. the process is out of
+            // memory. Say so, because "failed to create surface" reads like a
+            // format problem and sends the reader in the wrong direction.
+            HB_LOG_ERROR("[platform] SDL_CreateRGBSurfaceWithFormatFrom failed for a valid "
+                         << image.width << "x" << image.height
+                         << " bitmap — almost certainly out of memory (SDL: " << SDL_GetError() << ")");
             return;
         }
 
