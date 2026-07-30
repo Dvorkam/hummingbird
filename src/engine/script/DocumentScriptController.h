@@ -80,6 +80,12 @@ public:
     // chrome + tab history (7.7.3).
     std::optional<std::string> consume_location_change();
 
+    // Unimplemented APIs this document's scripts touched (7.5.2 telemetry).
+    // Read at document end, before reset() clears it.
+    std::vector<std::string> missing_apis() const {
+        return script_engine_ ? script_engine_->missing_apis() : std::vector<std::string>{};
+    }
+
 private:
     bool bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena);
     ScriptDispatchResult eval_inline_script(DOM::Node* dom_root, Core::ArenaAllocator* arena, std::string_view script,

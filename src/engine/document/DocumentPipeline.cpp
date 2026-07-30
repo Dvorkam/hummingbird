@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <memory>
 #include <ostream>
+#include <string>
+#include <string_view>
 #include <utility>
 
 #include "core/dom/Element.h"
@@ -125,11 +127,43 @@ DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvi
     });
 }
 
+// Story 9.5.2. The per-document missing-API list was recorded and then read by
+// nobody: `IScriptEngine::missing_apis()` had no caller in src/, and the list is
+// cleared on every navigation, so the telemetry M12's scope is meant to be
+// derived from was write-only. Emitting it here, next to the compatibility
+// summary and at the same document-end moment, makes a triage run a matter of
+// grepping one prefix.
+//
+// Unlike the compat summary this reports even a single occurrence: a page
+// touching an unimplemented API ONCE is the whole signal, whereas that summary
+// exists to collapse repeats.
+std::vector<std::string> DocumentPipeline::missing_apis() const {
+    return scripting_->missing_apis();
+}
+
+void DocumentPipeline::flush_missing_api_telemetry() {
+    const auto missing = missing_apis();
+    if (missing.empty()) {
+        return;
+    }
+    const std::string_view label = current_document_url_.empty() ? std::string_view{"<unknown document>"}
+                                                                 : std::string_view{current_document_url_};
+    std::string names;
+    for (const auto& name : missing) {
+        if (!names.empty()) names += ", ";
+        names += name;
+    }
+    HB_LOG_WARN("[missing-api] " << label << ": " << missing.size() << " unimplemented API(s) touched: " << names);
+}
+
 DocumentPipeline::~DocumentPipeline() {
+    flush_missing_api_telemetry();
     model_->flush_compatibility_warnings(current_document_url_);
 }
 
 void DocumentPipeline::reset() {
+    // Before scripting_->reset(), which clears the engine's per-document list.
+    flush_missing_api_telemetry();
     model_->flush_compatibility_warnings(current_document_url_);
     current_document_url_.clear();
     // Scripting teardown must run while the DOM arena is still alive: it

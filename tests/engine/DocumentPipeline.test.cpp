@@ -1568,3 +1568,72 @@ TEST(DocumentPipelineTest, DocumentBodyAppendChildRendersTheNewElement) {
     // rest of the DOM API hands out, not a fresh wrapper each read.
     EXPECT_NE(joined.find("root:HTML head:HEAD same:true"), std::string::npos) << "painted: " << joined;
 }
+
+// Story 9.5.2: the missing-API telemetry must reach a consumer. Before this,
+// `IScriptEngine::missing_apis()` had no caller in src/ and the list was
+// cleared on every navigation, so the data M12's scope is meant to come from
+// was recorded and thrown away. The assertion is on the pipeline-level
+// accessor, which is what the document-end log reads.
+TEST(DocumentPipelineTest, MissingApiTelemetryIsReadableAtDocumentEnd) {
+    const std::string html = R"HTML(
+<html><body>
+  <script>
+    var x = new XMLHttpRequest();
+    matchMedia('(min-width: 100px)');
+    matchMedia('(min-width: 200px)');
+  </script>
+</body></html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.set_location("https://telemetry.test/page");
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://telemetry.test/page");
+    pipeline.run_scripts();
+
+    auto touched = pipeline.missing_apis();
+    // Deduped per document: matchMedia was called twice and is reported once.
+    EXPECT_EQ(touched, (std::vector<std::string>{"XMLHttpRequest", "matchMedia"}));
+}
+
+// The counters' blind spot, pinned so it cannot be forgotten when M12 reads
+// them: the fail-soft prelude stubs GLOBALS THAT GET CALLED. A missing
+// *property* is invisible — it reads as undefined and throws at the use site
+// with nothing reported. `document.body` was exactly this shape, and a fixture
+// author found it while the telemetry did not. Any count these produce is a
+// lower bound (T-DOM-DOCUMENT-BODY-1, story 9.5.2).
+TEST(DocumentPipelineTest, MissingApiTelemetryCannotSeeAbsentProperties) {
+    const std::string html = R"HTML(
+<html><body>
+  <script>
+    // A property this engine does not implement. Nothing is reported, and the
+    // page silently takes the wrong branch instead.
+    if (typeof document.hbNotARealProperty === 'undefined') { var noted = true; }
+  </script>
+</body></html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    auto engine = Hummingbird::create_script_engine();
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://telemetry.test/props");
+    pipeline.run_scripts();
+
+    EXPECT_TRUE(pipeline.missing_apis().empty())
+        << "if this ever reports something, property-level telemetry has been added "
+           "and 9.5.2's 'lower bound' caveat can be relaxed";
+}

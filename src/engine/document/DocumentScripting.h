@@ -5,6 +5,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "core/platform_api/IScriptEngine.h"
 #include "core/platform_api/ScriptFetch.h"
@@ -71,6 +72,10 @@ public:
     bool has_pending_animation_frames() const;
     // Script-initiated location.hash change to reflect in chrome/history (7.7.3).
     std::optional<std::string> consume_location_change();
+
+    // Unimplemented APIs this document's scripts touched (7.5.2). Read at
+    // document end, before reset() clears the engine's per-document list.
+    std::vector<std::string> missing_apis() const;
 
 private:
     std::unique_ptr<DocumentScriptController> controller_;

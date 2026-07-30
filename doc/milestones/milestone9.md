@@ -553,6 +553,50 @@ proof. See finding 5 above for why the synchronous-callback design was dropped.*
   yes/no on 9.1.2 with the count behind it.
 * **Tests:** none — this is an analysis story.
 
+#### Findings (2026-07-30)
+
+The analysis ran and produced two results that matter more than any count:
+
+**1. The instrument was write-only, and is now readable.**
+`IScriptEngine::missing_apis()` had **no caller anywhere in `src/`** — only a
+unit test read it — and the list is cleared on every navigation. So the data was
+recorded per document and discarded. `DocumentPipeline` now emits it at document
+end, next to the compatibility summary, as a greppable
+`[missing-api] <url>: N unimplemented API(s) touched: …` line. Unlike the compat
+summary it reports a **single** occurrence, because one page touching an
+unimplemented API once is the whole signal, whereas that summary exists to
+collapse repeats.
+
+**2. The instrument can see exactly two things, which invalidates how M12 was
+meant to be scoped.** The fail-soft prelude reports four names —
+`XMLHttpRequest`, `matchMedia`, `localStorage`, `sessionStorage` — and the latter
+two have been **implemented since 8.2.2/8.2.3**, so their stubs never fire in the
+app. The real observable surface is therefore `XMLHttpRequest` and `matchMedia`.
+Nothing else reports anything: not `IntersectionObserver`, `MutationObserver`,
+`customElements`, `WebSocket`, `requestIdleCallback`, `getComputedStyle`, and not
+any missing **property** (the `document.body` class of gap — see the blind spot
+above).
+
+  **Consequence for 9.1.2, and it is not the obvious one.** XHR's pull-in trigger
+  is "only if telemetry reports it" — but XHR is one of only two things the
+  telemetry *can* report. That trigger therefore selects for **visibility, not
+  demand**: it would fire for XHR and could never fire for the twenty APIs a real
+  framework page is likelier to want. Treating a hit as evidence of relative
+  importance would be reading a selection artefact. **9.1.2 stays unscheduled**,
+  and its trigger is restated: implement XHR when a *specific proof target* needs
+  it, which is a question about the target, not about the counters.
+
+  **Consequence for M12.** "M12's scope is derived from missing-API telemetry at
+  kickoff" cannot hold while the instrument sees two names. Filed
+  `T-JS-MISSING-API-COVERAGE-1` to broaden the stub list before that kickoff;
+  until it lands, any triage output is a **lower bound** and must be labelled one.
+
+**Still outstanding, and it needs the app:** the live sweep over real pages. The
+dev sandbox blocks SDL executables, so the run itself is a manual step — browse
+the proof targets and a handful of real sites, then
+`grep "\[missing-api\]"` the log. The instrument is now in place for that to
+mean something; the numbers are not collected yet.
+
 ### 9.6 - SPA Routing MVP (pulled forward from M12)
 
 * **Story 9.6.1: History API MVP**
@@ -976,8 +1020,18 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       Demo: a new card on `example.dev/m9` that appends a real element to
       `document.body` — it lands below the back-link, outside the card, because
       that is genuinely where it goes.)*
-- [ ] 9.5.2: Missing-API Telemetry Triage *(unblocks the 9.1.2 decision and is an
-      unticked Done-When; cheap, so it should not be the thing left over)*
+- [x] 9.5.2: Missing-API Telemetry Triage *(the analysis ran; see the Findings
+      under the story. Two results: the instrument was **write-only** —
+      `missing_apis()` had no caller in `src/` and the list is cleared every
+      navigation — and is now emitted at document end as a greppable
+      `[missing-api]` line; and it can observe **exactly two** APIs
+      (`XMLHttpRequest`, `matchMedia`), because the other two stubs cover
+      features implemented back in 8.2.2/8.2.3. That invalidates "M12's scope
+      comes from the telemetry" until `T-JS-MISSING-API-COVERAGE-1` widens it,
+      and it re-frames 9.1.2: XHR's trigger selects for **visibility, not
+      demand**, since XHR is one of the only two things that can ever fire it.
+      **Outstanding and needs the app** (the sandbox blocks SDL exes): the live
+      sweep over real pages that turns the instrument into numbers.)*
 - [ ] 9.6.1: History API MVP *(needed for "browse a thread and come back" —
       the one P1 that is part of M9's own thesis rather than parked in it)*
 - [ ] 9.4.1: Declarative Request-Filtering Rules *(the big one. Named in the North

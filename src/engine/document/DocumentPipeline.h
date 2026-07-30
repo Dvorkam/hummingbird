@@ -86,6 +86,10 @@ public:
 
     void reset();
 
+    // Unimplemented APIs this document's scripts touched (7.5.2 telemetry,
+    // surfaced by 9.5.2). Valid until the next reset() clears it.
+    std::vector<std::string> missing_apis() const;
+
     // --- document build + layout ---
     bool parse_html(std::string_view html);
     // Runs all <script>s in document order; external bodies come from the
@@ -182,6 +186,10 @@ public:
     bool has_pending_animation_frames() const;
 
 private:
+    // Logs the unimplemented APIs this document's scripts touched (9.5.2).
+    // Called at document end, before scripting teardown clears the list.
+    void flush_missing_api_telemetry();
+
     struct KeyDispatchResult {
         bool mutated = false;
         bool default_prevented = false;

@@ -107,6 +107,10 @@ std::optional<std::string> DocumentScripting::consume_location_change() {
     return controller_->consume_location_change();
 }
 
+std::vector<std::string> DocumentScripting::missing_apis() const {
+    return controller_->missing_apis();
+}
+
 void DocumentScripting::set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink) {
     controller_->set_fetch_sink(std::move(sink));
 }
