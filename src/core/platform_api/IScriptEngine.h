@@ -36,7 +36,10 @@ public:
     virtual ~IScriptEngine() = default;
 
     virtual void bind_host(IScriptHost* host) = 0;
-    virtual void bind_extension_host(IExtensionApiHost* host) = 0;
+    // `extension_id` names the extension this context belongs to, so the host
+    // can tell who is calling and enforce `permissions` (story 9.4.1). One
+    // context per extension makes this identity unforgeable from script.
+    virtual void bind_extension_host(IExtensionApiHost* host, std::string_view extension_id) = 0;
     virtual ScriptEvalResult eval(std::string_view source, std::string_view filename = "inline") = 0;
 
     // Drops any per-document state the engine caches across evals (e.g. DOM node

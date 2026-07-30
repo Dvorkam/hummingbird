@@ -136,7 +136,7 @@ bool ExtensionHost::start_background_script(Runtime& runtime) {
         return false;
     }
 
-    runtime.engine->bind_extension_host(this);
+    runtime.engine->bind_extension_host(this, extension_id(runtime.extension));
 
     auto bootstrap = runtime.engine->eval(kExtensionBootstrap, "hb-extension-bootstrap");
     if (!bootstrap.ok) {
@@ -241,7 +241,43 @@ void ExtensionHost::notify_tab_navigated(TabId id, std::string_view url) {
     eval_all_started(ss.str(), "hb-tab-navigated");
 }
 
-bool ExtensionHost::insert_css(std::uint32_t tab_id, std::string_view css_text) {
+const ExtensionHost::Runtime* ExtensionHost::find_runtime(std::string_view id) const {
+    for (const auto& runtime : runtimes_) {
+        if (extension_id(runtime.extension) == id) return &runtime;
+    }
+    return nullptr;
+}
+
+bool ExtensionHost::has_permission(std::string_view extension_id_value, std::string_view permission) const {
+    const Runtime* runtime = find_runtime(extension_id_value);
+    if (!runtime) {
+        // An unknown caller. Refuse rather than default-allow: an id that names
+        // no loaded extension means the identity plumbing has broken, and the
+        // safe reading of "I don't know who this is" is not "let them".
+        HB_LOG_WARN("[ext] api call from unknown extension id: " << extension_id_value);
+        return false;
+    }
+    // A disabled extension keeps its runtime around but must not act (M5).
+    if (!is_extension_enabled(settings_, runtime->extension)) {
+        return false;
+    }
+    if (!manifest_has_permission(runtime->extension.manifest, permission)) {
+        HB_LOG_WARN("[ext] " << extension_id_value << " called an API needing the \"" << permission
+                             << "\" permission, which its manifest does not declare");
+        return false;
+    }
+    return true;
+}
+
+bool ExtensionHost::insert_css(std::string_view extension_id_value, std::uint32_t tab_id, std::string_view css_text) {
+    // Gated as of 9.4.1. This API shipped ungated in M5 — not by choice, but
+    // because the host could not tell who was calling. Now that it can, the
+    // check belongs here as much as on the new rules API: shipping a
+    // permission-gated API alongside an ungated one would leave the manifest
+    // field meaning something in one place and nothing in the other.
+    if (!has_permission(extension_id_value, "scripting")) {
+        return false;
+    }
     if (!insert_css_handler_) {
         return false;
     }

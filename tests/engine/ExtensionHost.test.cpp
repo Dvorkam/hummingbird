@@ -58,7 +58,15 @@ public:
     explicit RecordingScriptEngine(EvalSink* sink) : sink_(sink) {}
 
     void bind_host(Hummingbird::IScriptHost* /*host*/) override {}
-    void bind_extension_host(Hummingbird::IExtensionApiHost* /*host*/) override {}
+    // Captured so a test can call back into the host exactly as the extension's
+    // own script would, with the identity the host itself assigned (9.4.1).
+    void bind_extension_host(Hummingbird::IExtensionApiHost* host, std::string_view extension_id) override {
+        bound_host = host;
+        bound_extension_id = std::string(extension_id);
+    }
+
+    Hummingbird::IExtensionApiHost* bound_host = nullptr;
+    std::string bound_extension_id;
 
     Hummingbird::ScriptEvalResult eval(std::string_view source, std::string_view filename) override {
         const size_t call_index = sink_ ? sink_->evals.size() : 0u;
@@ -75,14 +83,20 @@ private:
     EvalSink* sink_ = nullptr;
 };
 
+// Permissions default to what the real bundled `dark-mode` manifest declares,
+// so a fixture behaves like a correctly-declared extension. Tests that care
+// about the 9.4.1 permission gate pass their own list — including an empty one.
 Hummingbird::Engine::LoadedExtension make_loaded_extension(const std::filesystem::path& root, std::string name,
-                                                           const std::string& script_name) {
+                                                           const std::string& script_name,
+                                                           std::vector<std::string> permissions = {"tabs",
+                                                                                                   "scripting"}) {
     Hummingbird::Engine::LoadedExtension ext;
     ext.root_dir = root;
     ext.manifest_path = root / "manifest.json";
     ext.manifest.name = std::move(name);
     ext.manifest.version = "0.0.1";
     ext.manifest.background_entry = script_name;
+    ext.manifest.permissions = std::move(permissions);
     ext.background_entry_path = root / script_name;
     return ext;
 }
@@ -233,6 +247,107 @@ TEST(ExtensionHostTest, InsertCssApiRoutesToHostHandler) {
     EXPECT_EQ(last_id, 17u);
     EXPECT_EQ(last_css, "body { color: red; }");
     EXPECT_TRUE(host.errors().empty());
+}
+
+// --- 9.4.1 permission enforcement -------------------------------------------
+// `permissions` was parsed and never enforced until this story, because the host
+// had no way to tell who was calling. These pin the enforcement, and the DENIAL
+// case is the one that matters: a gate only tested on the allow path is
+// indistinguishable from no gate.
+
+TEST(ExtensionHostTest, AnExtensionWithoutTheScriptingPermissionCannotInjectCss) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-css-denied");
+    auto ext_root = root.path() / "nosy";
+    write_text(ext_root / "bg.js",
+               "globalThis.__result = browser.scripting.insertCSS({tabId: 5, cssText: 'body{}'});");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    // Declares "tabs" but NOT "scripting".
+    extensions.push_back(make_loaded_extension(ext_root, "Nosy", "bg.js", {"tabs"}));
+
+    int called = 0;
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_insert_css_handler([&](Hummingbird::Engine::TabId, std::string_view) {
+        ++called;
+        return true;
+    });
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    EXPECT_EQ(called, 0) << "the handler must never run for an undeclared permission";
+    // Refused, not crashed: an extension asking for something it may not have is
+    // an ordinary answer, not an error the user should see.
+    EXPECT_TRUE(host.errors().empty());
+}
+
+TEST(ExtensionHostTest, PermissionsAreCheckedPerExtensionNotGlobally) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-css-mixed");
+    auto allowed_root = root.path() / "allowed";
+    auto denied_root = root.path() / "denied";
+    write_text(allowed_root / "bg.js", "browser.scripting.insertCSS({tabId: 1, cssText: 'a{}'});");
+    write_text(denied_root / "bg.js", "browser.scripting.insertCSS({tabId: 2, cssText: 'b{}'});");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(allowed_root, "Allowed", "bg.js", {"scripting"}));
+    extensions.push_back(make_loaded_extension(denied_root, "Denied", "bg.js", {}));
+
+    std::vector<Hummingbird::Engine::TabId> injected;
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_insert_css_handler([&](Hummingbird::Engine::TabId tab_id, std::string_view) {
+        injected.push_back(tab_id);
+        return true;
+    });
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    // One host serves both contexts, so this is the test that the identity
+    // actually travels: if it did not, both would be allowed or both refused.
+    ASSERT_EQ(injected.size(), 1u);
+    EXPECT_EQ(injected.front(), 1u) << "only the extension that declared the permission got through";
+}
+
+TEST(ExtensionHostTest, TheHostRefusesApiCallsFromAnUnknownExtensionId) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-unknown-id");
+    auto ext_root = root.path() / "real";
+    write_text(ext_root / "bg.js", "");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Real", "bg.js"));
+
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_insert_css_handler([](Hummingbird::Engine::TabId, std::string_view) { return true; });
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    EXPECT_TRUE(host.has_permission("real", "scripting"));
+    // "I do not know who this is" must not resolve to "let them".
+    EXPECT_FALSE(host.has_permission("ghost", "scripting"));
+    EXPECT_FALSE(host.insert_css("ghost", 1, "body{}"));
+}
+
+// M5 lifecycle: a disabled extension must not still be acting.
+TEST(ExtensionHostTest, ADisabledExtensionHasNoPermissions) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-disabled-perm");
+    auto ext_root = root.path() / "dark-mode";
+    write_text(ext_root / "bg.js", "");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Dark", "bg.js"));
+
+    Hummingbird::Engine::ExtensionSettings settings;
+    settings.disabled_ids.insert("dark-mode");
+
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    // A handler that always succeeds, so the ONLY thing that can make the call
+    // below return false is the permission gate. Without this the assertion
+    // passes on the "no handler installed" path and proves nothing.
+    host.set_insert_css_handler([](Hummingbird::Engine::TabId, std::string_view) { return true; });
+    host.set_settings(settings);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    EXPECT_FALSE(host.has_permission("dark-mode", "scripting"));
+    EXPECT_FALSE(host.insert_css("dark-mode", 1, "body{}"));
 }
 
 TEST(ExtensionHostTest, NavigatedListenerCanInjectCssForEventTab) {

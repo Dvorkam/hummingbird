@@ -329,4 +329,11 @@ std::optional<ExtensionManifest> parse_extension_manifest(std::string_view json,
     return out;
 }
 
+bool manifest_has_permission(const ExtensionManifest& manifest, std::string_view permission) {
+    for (const auto& granted : manifest.permissions) {
+        if (granted == permission) return true;
+    }
+    return false;
+}
+
 }  // namespace Hummingbird::Engine

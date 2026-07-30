@@ -44,7 +44,12 @@ public:
     void notify_tab_activated(TabId id);
     void notify_tab_navigated(TabId id, std::string_view url);
 
-    bool insert_css(std::uint32_t tab_id, std::string_view css_text) override;
+    bool insert_css(std::string_view extension_id, std::uint32_t tab_id, std::string_view css_text) override;
+
+    // Whether `extension_id` is loaded, enabled, and declares `permission`
+    // (story 9.4.1). Every gated API goes through this, so there is one place
+    // that decides and one place to test.
+    bool has_permission(std::string_view extension_id, std::string_view permission) const;
 
     // Tears down all extension runtimes.
     void shutdown();
@@ -60,6 +65,7 @@ private:
 
     void eval_all_started(std::string_view source, std::string_view filename);
     bool start_background_script(Runtime& runtime);
+    const Runtime* find_runtime(std::string_view id) const;
 
     ScriptEngineFactory create_engine_;
     std::vector<Runtime> runtimes_;

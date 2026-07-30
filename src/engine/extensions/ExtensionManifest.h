@@ -29,4 +29,9 @@ struct ExtensionManifest {
 // - permissions: string[]
 std::optional<ExtensionManifest> parse_extension_manifest(std::string_view json, ManifestParseError* error);
 
+// Whether `manifest` declares `permission` (story 9.4.1). Comparison is exact:
+// permission names are an allow-list, and being lenient about how they are
+// spelled is how an allow-list quietly stops being one.
+bool manifest_has_permission(const ExtensionManifest& manifest, std::string_view permission);
+
 }  // namespace Hummingbird::Engine

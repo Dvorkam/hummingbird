@@ -1214,7 +1214,10 @@ JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /
         return JS_NewBool(ctx, 0);
     }
 
-    const bool ok = engine->extension_host_->insert_css(static_cast<std::uint32_t>(tab_id), css_text);
+    // The identity comes from the ENGINE, not from an argument: script inside
+    // the context cannot name a different extension than the one it belongs to.
+    const bool ok =
+        engine->extension_host_->insert_css(engine->extension_id_, static_cast<std::uint32_t>(tab_id), css_text);
     JS_FreeCString(ctx, css_text);
     return JS_NewBool(ctx, ok ? 1 : 0);
 }
@@ -1526,8 +1529,8 @@ void QuickJSScriptEngine::bind_host(IScriptHost* host) {
     }
 }
 
-void QuickJSScriptEngine::bind_extension_host(IExtensionApiHost* host) {
-    ScriptEngineBase::bind_extension_host(host);
+void QuickJSScriptEngine::bind_extension_host(IExtensionApiHost* host, std::string_view extension_id) {
+    ScriptEngineBase::bind_extension_host(host, extension_id);
     if (!context_) {
         return;
     }

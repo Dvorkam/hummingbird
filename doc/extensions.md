@@ -27,8 +27,29 @@ navigated. Open `https://example.dev/m5` for its demonstration page.
 
 - No content scripts or direct per-tab DOM access.
 - No `removeCSS` API.
-- No permission enforcement, sandbox, or extension security model.
+- No sandbox or extension security model. Permissions are now *enforced* (see
+  below), but that is an API gate, not a security boundary: an extension still
+  runs with the browser's own privileges.
 - No persistence for extension-owned state across restarts.
+
+## Permissions
+
+As of story 9.4.1 the `permissions` array is enforced, not merely parsed. An API
+call from an extension that has not declared the permission it needs is refused
+and returns `false`; nothing is thrown, because being refused is an ordinary
+answer rather than an error.
+
+| API | Required permission |
+| --- | --- |
+| `browser.scripting.insertCSS` | `scripting` |
+
+Enforcement works because each extension gets its own QuickJS context and the
+host binds that context to the extension's id. Script inside the context cannot
+name a different extension, so the identity a native call arrives with is not
+forgeable from JS.
+
+A disabled extension has no permissions at all, and an API call carrying an id
+that names no loaded extension is refused rather than allowed.
 
 ## Directory layout
 

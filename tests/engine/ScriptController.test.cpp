@@ -27,7 +27,7 @@ using Hummingbird::Engine::DocumentScriptController;
 class FakeScriptEngine final : public IScriptEngine {
 public:
     void bind_host(IScriptHost* host) override { host_ = host; }
-    void bind_extension_host(IExtensionApiHost*) override {}
+    void bind_extension_host(IExtensionApiHost*, std::string_view) override {}
     ScriptEvalResult eval(std::string_view, std::string_view) override {
         if (on_eval) on_eval(host_);
         return {true, ""};

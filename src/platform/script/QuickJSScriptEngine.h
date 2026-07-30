@@ -26,7 +26,7 @@ public:
     ~QuickJSScriptEngine() override;
 
     void bind_host(IScriptHost* host) override;
-    void bind_extension_host(IExtensionApiHost* host) override;
+    void bind_extension_host(IExtensionApiHost* host, std::string_view extension_id) override;
     ScriptEvalResult eval(std::string_view source, std::string_view filename) override;
     void reset_bindings() override;
     bool dispatch_dom_event(DOM::Node* target, const ScriptDomEvent& event) override;
