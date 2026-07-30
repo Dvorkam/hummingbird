@@ -204,6 +204,10 @@ private:
     void install_fetch_prelude();
     // Records a deduped missing-API name (first-touch order) and logs it once.
     void record_missing_api(std::string name);
+    // Harvests `ReferenceError: X is not defined` out of a failed eval and
+    // records X as a missing API (9.5.2 follow-up). The stub list only finds
+    // gaps somebody predicted; this finds the ones that killed a script.
+    void record_missing_api_from_error(std::string_view error);
 
     // Registers a timer (repeating for setInterval) and returns its numeric id;
     // reads the callback, delay (ms, clamped to >= 0), and any trailing args from

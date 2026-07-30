@@ -1484,6 +1484,7 @@ ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_
     // too: promise jobs the script queued before throwing still run.
     drain_microtasks();
     if (threw) {
+        record_missing_api_from_error(error);
         return error_result(std::move(error));
     }
     return ok_result();
@@ -2188,6 +2189,33 @@ JSValue QuickJSScriptEngine::js_report_missing_api(JSContext* ctx, JSValueConst,
     return JS_UNDEFINED;
 }
 
+// Story 9.5.2 follow-up. The fail-soft stub list can only report gaps somebody
+// predicted; a live sweep showed the loudest real signal is the opposite —
+// scripts dying on `ReferenceError: X is not defined`, naming a global nobody
+// had thought to stub. Wikipedia's bundle died on `Element`, which was not on
+// the 14-name list and would never have appeared in the telemetry.
+//
+// Recorded with a `(ReferenceError)` suffix rather than as a plain name,
+// because the two are not the same finding and a triage must not merge them: a
+// stub hit means the page carried on without the feature, while this means the
+// script DIED at that point and everything after it never ran.
+void QuickJSScriptEngine::record_missing_api_from_error(std::string_view error) {
+    constexpr std::string_view kPrefix = "ReferenceError: ";
+    constexpr std::string_view kSuffix = " is not defined";
+    if (!error.starts_with(kPrefix) || !error.ends_with(kSuffix)) {
+        return;
+    }
+    std::string_view name = error.substr(kPrefix.size(), error.size() - kPrefix.size() - kSuffix.size());
+    // Minified bundles throw on their own mangled locals (`aa is not defined`),
+    // which say nothing about this engine. A real global is not one or two
+    // characters long, so that cheap filter removes the bulk of the noise
+    // without needing to know which names are real.
+    if (name.size() < 3 || name.find(' ') != std::string_view::npos) {
+        return;
+    }
+    record_missing_api(std::string(name) + " (ReferenceError)");
+}
+
 void QuickJSScriptEngine::record_missing_api(std::string name) {
     if (name.empty()) return;
     if (std::find(missing_apis_.begin(), missing_apis_.end(), name) != missing_apis_.end()) {
@@ -2352,7 +2380,17 @@ void QuickJSScriptEngine::install_failsoft_stubs() {
       languages: ['en-US'],
       onLine: true,
       cookieEnabled: true,
-      platform: ''
+      platform: '',
+      // Strings, not undefined. A live sweep caught Google Tag Manager doing
+      // `.indexOf` on one of these and dying on `undefined` — the stub existing
+      // is not enough if the shape is wrong.
+      appVersion: '',
+      appName: 'Netscape',
+      product: 'Gecko',
+      vendor: '',
+      doNotTrack: null,
+      hardwareConcurrency: 1,
+      maxTouchPoints: 0
     };
   }
 

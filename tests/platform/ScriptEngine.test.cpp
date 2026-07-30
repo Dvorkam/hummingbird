@@ -1143,3 +1143,75 @@ TEST(ScriptEngineTest, FailSoftStubsNeverOverwriteARealImplementation) {
     EXPECT_TRUE(engine->eval("if (globalThis.kind !== 'function') throw new Error('fetch missing');", "inline").ok);
     EXPECT_TRUE(engine->missing_apis().empty()) << "a real API must not be reported as missing";
 }
+
+// Story 9.5.2 follow-up, driven by a real log rather than a guess. A live sweep
+// over wikipedia.org / hn.algolia.com produced only TWO `[missing-api]` lines
+// from the 14-name stub list, while the same run showed scripts dying on
+// `ReferenceError: Element is not defined`. The stub list can only report gaps
+// somebody predicted; the ReferenceErrors name the ones nobody did.
+TEST(ScriptEngineTest, ReferenceErrorsAreHarvestedAsMissingApis) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    // The exact failure wikipedia.org's bundle hit. `Element` is a DOM interface
+    // object this engine does not expose, and it was NOT on the stub list.
+    EXPECT_FALSE(engine->eval("Element.prototype.matches = function () {};", "index.js").ok);
+
+    const auto reported = engine->missing_apis();
+    ASSERT_EQ(reported.size(), 1u);
+    // The suffix matters: a stub hit means the page carried on without the
+    // feature, this means the script DIED and nothing after it ran. A triage
+    // that merged the two would rank a fatal gap alongside a handled one.
+    EXPECT_EQ(reported[0], "Element (ReferenceError)");
+}
+
+// Minified bundles throw on their own mangled locals. `aa is not defined` was
+// in the same live log and says nothing about this engine, so it must not
+// pollute the count the next milestone's scope is chosen from.
+TEST(ScriptEngineTest, MinifiedLocalsAreNotMistakenForMissingApis) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    EXPECT_FALSE(engine->eval("aa.b = 1;", "inline").ok);
+    EXPECT_FALSE(engine->eval("x();", "inline").ok);
+    EXPECT_TRUE(engine->missing_apis().empty()) << "short mangled locals are noise, not findings";
+
+    // A non-ReferenceError failure is not a missing API either — the same log
+    // had `Error: Invariant failed` from a framework's own assertion.
+    EXPECT_FALSE(engine->eval("throw new Error('Invariant failed');", "main.js").ok);
+    EXPECT_TRUE(engine->missing_apis().empty());
+}
+
+// `navigator` existing is not enough if its shape is wrong: the live sweep
+// caught Google Tag Manager doing `.indexOf` on a navigator field and dying on
+// `undefined`. The string-typed fields must be strings.
+TEST(ScriptEngineTest, NavigatorStubFieldsAreStringsNotUndefined) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "globalThis.probed = 0;"
+        "var n = navigator;"
+        "n.userAgent.indexOf('x'); n.appVersion.indexOf('x'); n.platform.indexOf('x');"
+        "n.vendor.indexOf('x'); n.product.indexOf('x'); n.appName.indexOf('x');"
+        "n.language.indexOf('x');"
+        "globalThis.probed = 1;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+    EXPECT_TRUE(engine->eval("if (globalThis.probed !== 1) throw new Error('died');", "inline").ok);
+}

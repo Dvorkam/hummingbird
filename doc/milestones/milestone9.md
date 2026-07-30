@@ -591,11 +591,45 @@ above).
   `T-JS-MISSING-API-COVERAGE-1` to broaden the stub list before that kickoff;
   until it lands, any triage output is a **lower bound** and must be labelled one.
 
-**Still outstanding, and it needs the app:** the live sweep over real pages. The
-dev sandbox blocks SDL executables, so the run itself is a manual step — browse
-the proof targets and a handful of real sites, then
-`grep "\[missing-api\]"` the log. The instrument is now in place for that to
-mean something; the numbers are not collected yet.
+#### The live sweep ran (2026-07-30, user-supplied log over wikipedia.org + hn.algolia.com)
+
+**It found almost nothing, and that is the finding.** 522 log lines produced
+exactly **two** `[missing-api]` reports, both `navigator.userAgent`. Meanwhile
+the same run shows scripts dying:
+
+| Observed | What it means |
+|---|---|
+| `ReferenceError: Element is not defined` (wikipedia's bundle) | A DOM interface object we do not expose. **Not on the 14-name stub list** and never would have been. |
+| `TypeError: cannot read property 'indexOf' of undefined` (Google Tag Manager) | `navigator` existed but its shape was wrong — the string fields were missing, not empty. |
+| `ReferenceError: aa is not defined` | A minified bundle's own local. Noise. |
+| `Error: Invariant failed` | A framework's own assertion, downstream of an earlier failure. Noise. |
+
+**So the stub-list approach has a ceiling: it can only report gaps somebody
+predicted.** The loudest real signal was in a channel that was being logged and
+thrown away — `[script] eval failed … ReferenceError: X is not defined` names
+the missing global exactly. That is now harvested in
+`QuickJSScriptEngine::eval` and recorded as `X (ReferenceError)`, deliberately
+suffixed: a stub hit means the page carried on without the feature, a
+ReferenceError means the script **died** there and nothing after it ran. A
+triage that merged them would rank a fatal gap alongside a handled one. Mangled
+minified locals are filtered by length, and non-ReferenceError failures are
+ignored.
+
+`navigator` also gained `appVersion`/`appName`/`product`/`vendor`/`doNotTrack`/
+`hardwareConcurrency`/`maxTouchPoints`, all string- or number-typed, because the
+sweep proved that **a stub existing is not enough if its shape is wrong**.
+
+**Two real bugs fell out of a sweep that was looking for something else** — both
+filed P1, neither related to telemetry:
+`T-HTML-ATTR-ENTITY-DECODE-1` (character references are decoded in text but
+**not in attribute values**, so `href="/wiki/Sam_&amp;_Max"` really requests
+`Sam_&amp;_Max` and 404s on a real article) and `T-NET-DATA-URL-1` (`data:`
+URLs are handed to curl instead of decoded, so every inline SVG icon costs a
+failed network request and renders nothing).
+
+**Still outstanding:** a re-run now that ReferenceErrors are harvested. The first
+sweep measured the instrument more than the pages; the second one should
+actually enumerate what real sites want.
 
 ### 9.6 - SPA Routing MVP (pulled forward from M12)
 
