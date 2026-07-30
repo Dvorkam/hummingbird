@@ -221,7 +221,7 @@
         <p><button id="route-list">List view</button>
         <button id="route-detail">Detail view (pushState)</button>
         <button id="route-back">history.back()</button></p>
-        <p class="out" id="route-view">List view. The URL above still says /m9.</p>
+        <p class="out" id="route-view">Waiting for script&hellip;</p>
         <p class="out" id="route-log">No route changes yet.</p>
         <p class="note">Watch the <strong>URL bar</strong> as you click: it moves to <code>/m9/detail/…</code> and back,
         while this page is never rebuilt &mdash; the counter below only ever counts <em>route</em> changes, because a
@@ -230,6 +230,14 @@
         <code>history.back()</code> button, which routes through exactly the path the chrome buttons use so the two
         cannot diverge. Added in M9 (story 9.6.1). Full SPA navigation &mdash; scroll restoration, navigation
         interception, structured-clone state &mdash; stays M12.</p>
+        <p class="note">Now walk <em>off</em> this page and come back: go Back until you reach example.dev, then Forward
+        again to <code>/m9/detail/42</code>. The counter restarts at 1, because that is a genuine
+        <strong>document load</strong> &mdash; and this is the part people are surprised by. A pushState URL is a
+        <em>real</em> URL: once you leave the document that invented it, the address has to be served by the server like
+        any other. Every SPA needs its host to answer sub-paths with the app&rsquo;s own document (the &ldquo;SPA
+        fallback&rdquo;), and the page has to read its route back out of <code>location</code> rather than trusting
+        <code>history.state</code>, which is null on a fresh load. Both are done here, which is why the deep link shows
+        the detail view instead of the list.</p>
       </div>
 
       <p><a href="https://example.dev">&laquo; back to example.dev</a></p>
@@ -454,10 +462,21 @@
       // is exactly why it is the honest way to show that no reload happened.
       var routeChanges = 0;
 
+      // The route comes from the URL when there is no state — which is the case
+      // on a fresh load of a pushed address. A pushState URL is a real URL, so it
+      // can be reloaded, shared, or walked forward onto from another document;
+      // if the page only ever trusted history.state it would render the wrong
+      // view every one of those times.
+      function routeFromLocation() {
+        var match = location.pathname.split("/detail/")[1];
+        return match ? { view: "detail", id: match } : { view: "list" };
+      }
+
       function renderRoute(state) {
         routeChanges++;
-        var where = (state && state.view === "detail")
-          ? "Detail view for story #" + state.id + "."
+        var route = state || routeFromLocation();
+        var where = (route.view === "detail")
+          ? "Detail view for story #" + route.id + "."
           : "List view.";
         routeView.textContent = where + "   URL is now " + location.href;
         routeLog.textContent = routeChanges + " route change(s) in THIS document, never reloaded."
@@ -478,6 +497,9 @@
       });
       // Back/Forward — chrome buttons or history.back() — arrive here.
       addEventListener("popstate", function (e) { renderRoute(e.state); });
+      // And render whatever address this document was actually loaded at, so a
+      // deep link to /m9/detail/42 shows the detail view rather than the list.
+      renderRoute(null);
     </script>
   </body>
 </html>

@@ -105,8 +105,17 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
     if (auto query_pos = page.find('?'); query_pos != std::string_view::npos) {
         page = page.substr(0, query_pos);
     }
-    if (!page.empty() && page.find('/') == std::string_view::npos && page.find("..") == std::string_view::npos) {
-        std::string page_path = "assets/stub/pages/" + std::string(page) + ".html";
+    if (!page.empty() && page.find("..") == std::string_view::npos) {
+        // The first path segment names the page; anything after it is a
+        // client-side route. Serving the same document for `m9/detail/42` as for
+        // `m9` is the "SPA fallback" every real server hosting a pushState app
+        // has to implement — a pushState URL is a REAL url, so the moment the
+        // user reloads it, shares it, or walks forward onto it from another
+        // document, the server is asked for it directly. Without this the demo
+        // would show "failed to load" for an address the browser handled
+        // perfectly (story 9.6.1).
+        std::string_view first_segment = page.substr(0, page.find('/'));
+        std::string page_path = "assets/stub/pages/" + std::string(first_segment) + ".html";
         if (auto html = Hummingbird::Core::Utils::load_asset_text(page_path, false)) {
             return *html;
         }

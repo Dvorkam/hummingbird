@@ -161,3 +161,41 @@ TEST(StubNetworkTest, CookieDemoShowsTheHttpOnlySideBySide) {
     EXPECT_NE(response.body.find("js-cookies"), std::string::npos);
     EXPECT_NE(response.body.find("document.cookie"), std::string::npos);
 }
+
+// Story 9.6.1. A pushState URL is a REAL url: the moment the user reloads it,
+// shares it, or walks forward onto it from another document, the server is asked
+// for it directly. Every host of a pushState app therefore has to answer
+// sub-paths with the app's own document — the "SPA fallback" — or a route the
+// browser handled perfectly shows "failed to load".
+TEST(StubNetworkTest, ServesTheAppDocumentForClientSideSubRoutes) {
+    const auto direct = fetch_body("https://example.dev/m9");
+    ASSERT_NE(direct.find("THE FETCHER"), std::string::npos);
+
+    // A deep link into a client-side route gets the same document back.
+    const auto routed = fetch_body("https://example.dev/m9/detail/42");
+    EXPECT_EQ(routed, direct) << "a sub-route must serve the app document, not a 404 page";
+
+    const auto deeper = fetch_body("https://example.dev/m9/detail/42/comments");
+    EXPECT_EQ(deeper, direct);
+
+    // A query string on a sub-route is still the same document.
+    const auto with_query = fetch_body("https://example.dev/m9/detail/42?sort=new");
+    EXPECT_EQ(with_query, direct);
+}
+
+// The fallback keys off the FIRST segment only, so it cannot resurrect a page
+// that does not exist, and it must not shadow the stub's API endpoints.
+TEST(StubNetworkTest, SubRouteFallbackDoesNotInventPagesOrShadowApis) {
+    const auto unknown = fetch_body("https://example.dev/no-such-page/detail/1");
+    EXPECT_NE(unknown.find("Failed to load"), std::string::npos)
+        << "an unknown first segment is still unknown, however many segments follow";
+
+    // /api/... is served by the API routes above this fallback; there is no
+    // api.html, so the fallback could not claim it even if ordering changed.
+    const auto api = fetch_body("https://example.dev/api/news");
+    EXPECT_NE(api.find("\"points\""), std::string::npos) << "the JSON API must still answer JSON";
+
+    // Directory traversal stays refused.
+    const auto traversal = fetch_body("https://example.dev/../secrets/x");
+    EXPECT_NE(traversal.find("Failed to load"), std::string::npos);
+}
