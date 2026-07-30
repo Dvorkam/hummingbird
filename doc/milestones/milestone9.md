@@ -1172,7 +1172,7 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       assignment/`assign`/`replace`/`reload` deliberately left out as
       `T-JS-LOCATION-NAVIGATE-1`, because a setter that moves the reported URL
       without navigating is worse than an absent one.)*
-- [ ] 9.4.1: Declarative Request-Filtering Rules *(the big one. Named in the North
+- [x] 9.4.1: Declarative Request-Filtering Rules *(the big one. Named in the North
       Star, and it closes two extension-HOST holes as a side effect: `permissions`
       is parsed but not enforced, and rule sets need persistence the host lacks.
       A manifest field that is parsed and not enforced is worse than one that is
