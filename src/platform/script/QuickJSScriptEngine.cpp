@@ -2248,6 +2248,131 @@ void QuickJSScriptEngine::install_failsoft_stubs() {
                addEventListener: function () {}, removeEventListener: function () {} };
     };
   }
+  // --- Story T-JS-MISSING-API-COVERAGE-1 -----------------------------------
+  // Before this the reporting surface was four names, two of which cover
+  // features implemented back in 8.2.2/8.2.3 and so never fire. Two observable
+  // APIs cannot carry the roadmap's plan of deriving M12's scope from this
+  // telemetry, and they quietly biased 9.1.2: XHR's "only if telemetry reports
+  // it" trigger could only ever fire for one of the two things visible.
+  //
+  // Each stub below is `typeof`-guarded (a real implementation later wins), is
+  // a no-op that CANNOT throw, and reports exactly once per document. None of
+  // them fakes a plausible value a page could branch on incorrectly — an empty
+  // answer is honest, a wrong answer is a bug the page then blames on itself.
+
+  // Constructor-shaped observers. The page does `new X(cb)` and then calls
+  // methods on the instance, so the prototype must exist or the report is
+  // immediately followed by a TypeError, which is the failure this avoids.
+  function observerStub(name, extras) {
+    var Ctor = function () { report(name); };
+    Ctor.prototype.observe = function () {};
+    Ctor.prototype.unobserve = function () {};
+    Ctor.prototype.disconnect = function () {};
+    if (extras) { Ctor.prototype.takeRecords = function () { return []; }; }
+    return Ctor;
+  }
+  if (typeof g.IntersectionObserver === 'undefined') {
+    g.IntersectionObserver = observerStub('IntersectionObserver', true);
+  }
+  if (typeof g.MutationObserver === 'undefined') {
+    g.MutationObserver = observerStub('MutationObserver', true);
+  }
+  if (typeof g.ResizeObserver === 'undefined') {
+    g.ResizeObserver = observerStub('ResizeObserver', false);
+  }
+  if (typeof g.PerformanceObserver === 'undefined') {
+    g.PerformanceObserver = observerStub('PerformanceObserver', true);
+  }
+
+  if (typeof g.customElements === 'undefined') {
+    g.customElements = {
+      // A defined element simply never upgrades. The page's markup still
+      // renders as unknown elements, which is what it does before upgrade
+      // anyway, so this degrades rather than breaks.
+      define: function () { report('customElements'); },
+      get: function () { report('customElements'); return undefined; },
+      upgrade: function () { report('customElements'); },
+      // Never resolves: whenDefined promises an upgrade that is not coming, and
+      // resolving it would run the page's post-upgrade code against an element
+      // that was never upgraded. A pending promise stalls that one continuation;
+      // a false resolve corrupts everything after it.
+      whenDefined: function () { report('customElements'); return new Promise(function () {}); }
+    };
+  }
+
+  if (typeof g.WebSocket === 'undefined') {
+    g.WebSocket = function () {
+      report('WebSocket');
+      this.readyState = 3;  // CLOSED — never pretend a connection is open
+      this.bufferedAmount = 0;
+    };
+    g.WebSocket.prototype.send = function () {};
+    g.WebSocket.prototype.close = function () {};
+    g.WebSocket.prototype.addEventListener = function () {};
+    g.WebSocket.prototype.removeEventListener = function () {};
+    g.WebSocket.CONNECTING = 0; g.WebSocket.OPEN = 1; g.WebSocket.CLOSING = 2; g.WebSocket.CLOSED = 3;
+  }
+
+  if (typeof g.requestIdleCallback === 'undefined') {
+    // Deliberately runs the callback (on a timer) rather than dropping it:
+    // pages defer real initialization into idle callbacks, and never calling
+    // them leaves the page half-built with no error to explain why.
+    g.requestIdleCallback = function (cb) {
+      report('requestIdleCallback');
+      return g.setTimeout(function () {
+        cb({ didTimeout: false, timeRemaining: function () { return 0; } });
+      }, 1);
+    };
+    g.cancelIdleCallback = function (id) { g.clearTimeout(id); };
+  }
+
+  if (typeof g.getComputedStyle === 'undefined') {
+    // Reports empty for every property. The engine HAS computed styles, but
+    // exposing them is a real feature (T-JS-GET-COMPUTED-STYLE-1), not a stub —
+    // and a stub returning made-up lengths would be worse than an empty one,
+    // because layout-reading code would act on the numbers.
+    g.getComputedStyle = function () {
+      report('getComputedStyle');
+      return { getPropertyValue: function () { return ''; }, getPropertyPriority: function () { return ''; },
+               length: 0, item: function () { return ''; } };
+    };
+  }
+
+  if (typeof g.navigator === 'undefined') {
+    // `navigator` did not exist at all, so `navigator.userAgent` — which a very
+    // large share of real pages read — was a ReferenceError that killed the
+    // whole script. userAgent is deliberately EMPTY rather than a plausible
+    // string: this engine has a considered per-origin identity policy (M8), and
+    // a JS surface that answers with something different from what the network
+    // layer sends would be lying in two directions at once. Filling it in from
+    // the identity store is T-JS-NAVIGATOR-IDENTITY-1.
+    g.navigator = {
+      get userAgent() { report('navigator.userAgent'); return ''; },
+      language: 'en-US',
+      languages: ['en-US'],
+      onLine: true,
+      cookieEnabled: true,
+      platform: ''
+    };
+  }
+
+  if (typeof g.alert === 'undefined') {
+    // No dialog surface exists. Reporting beats a ReferenceError mid-script.
+    g.alert = function () { report('alert'); };
+    g.confirm = function () { report('confirm'); return false; };
+    g.prompt = function () { report('prompt'); return null; };
+  }
+
+  if (typeof g.structuredClone === 'undefined') {
+    g.structuredClone = function (value) {
+      report('structuredClone');
+      // A JSON round-trip is a correct deep copy for JSON-shaped data, which is
+      // what pages clone in practice, and returns the input unchanged when it
+      // is not — never throws, never aliases silently for the common case.
+      try { return JSON.parse(JSON.stringify(value)); } catch (e) { return value; }
+    };
+  }
+
   // Minimal, real (not fail-soft) URL + URLSearchParams. Enough for pages that
   // parse link hrefs — e.g. Hacker News' hn.js does `new URL(el.href, location)`
   // in its delegated click handler before deciding vote/hide/collapse. Never

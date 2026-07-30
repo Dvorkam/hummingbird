@@ -1040,6 +1040,35 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       A manifest field that is parsed and not enforced is worse than one that is
       absent — it reads as a boundary and is not one.)*
 - [ ] 9.4.2: Built-In Ad-Block-Lite Extension *(rides on 9.4.1)*
+- [x] T-JS-MISSING-API-COVERAGE-1: widen the missing-API stub list *(the
+      observable surface went from **2 names to 14**. Stubs for the observers
+      (Intersection/Mutation/Resize/Performance), `customElements`, `WebSocket`,
+      `requestIdleCallback`, `getComputedStyle`, `navigator`, `alert`/`confirm`/
+      `prompt`, `structuredClone`. **`navigator` did not exist at all**, so
+      `navigator.userAgent` — which a very large share of real pages read — was
+      a `ReferenceError` that killed the entire script: the worst instance of
+      the class this story exists to fix.
+      **The rule the stubs follow is "never fabricate a value a page can branch
+      on":** the socket reports `CLOSED` rather than pretending to be connected,
+      `confirm()` returns false because no user agreed to anything,
+      `getComputedStyle` returns `''` rather than a made-up length, and
+      `navigator.userAgent` is empty rather than a plausible lie — M8 owns
+      identity, and a second answer here would contradict it
+      (`T-JS-NAVIGATOR-IDENTITY-1`).
+      Two deliberate exceptions to "no-op": `requestIdleCallback` **does** run
+      its callback on a timer, because pages defer real initialization into it
+      and dropping it leaves the page half-built with no error to explain why;
+      and `customElements.whenDefined` **never** resolves, because resolving
+      would run post-upgrade code against an element that was never upgraded —
+      a pending promise stalls one continuation, a false resolve corrupts
+      everything after it.
+      Tests assert each stub survives *realistic use* (construct, then call the
+      methods a page calls), not merely that it exists — a stub that reports and
+      dies on the next line is worse than none, since the page fails anyway and
+      the telemetry claims it was handled. Verified load-bearing by making the
+      socket claim `OPEN` and watching the honesty assertion fail. 964 green.
+      Demo: a card on `example.dev/m9` that uses eight unimplemented APIs and
+      reports how many calls completed.)*
 - [ ] T-COOKIE-CONFORMANCE-VECTORS-1: cookie conformance number *(cheap filler,
       precondition now met)*
 - [ ] T-NET-IDENTITY-UI-1 (+ T-NET-IDENTITY-AUTOOFFER-1 behind it) *(if appetite

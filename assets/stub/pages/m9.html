@@ -105,14 +105,18 @@
         still good?&rdquo;, and refusing to ask that is the entire point of a hard reload &mdash; so it can never earn
         a 304.</p>
         <p class="note">The API buttons above are unaffected by either reload, which is also correct: they fetch on
-        <em>click</em>, long after the navigation ended. A reload sets the cache policy for the document and whatever
-        loads with it, not for a <code>fetch()</code> you fire a minute later &mdash; and it does not erase the cache.
-        (Chrome is the same; its devtools &ldquo;Empty cache and hard reload&rdquo; is the one that discards entries.)
-        Once the API entry exists, its ETag never changes, so every later fetch is either a hit or a 304 and
-        <code>API: full</code> stays at 1 forever &mdash; a body fetched once and reused indefinitely, which is the
-        cache paying for itself.</p>
-        <p class="note">One thing this card does <em>not</em> claim: nothing here is keyed on <code>Vary</code> yet, so
-        a response that varies is currently not cached at all rather than cached wrongly (story 9.3.2).</p>
+        <em>click</em>, long after the navigation ended. A reload sets the cache policy for the document and the
+        subresources that load with it, not for a <code>fetch()</code> you fire a minute later &mdash; and it does not
+        erase the cache. (Chrome is the same; its devtools &ldquo;Empty cache and hard reload&rdquo; is the one that
+        discards entries.) Once the API entry exists, its ETag never changes, so every later fetch is either a hit or a
+        304 and <code>API: full</code> stays at 1 forever &mdash; a body fetched once and reused indefinitely, which is
+        the cache paying for itself.</p>
+        <p class="note">Being precise about one edge this card cannot show: a hard reload reaches the document and its
+        subresources, but <em>not</em> a <code>fetch()</code> the page fires while it is still loading &mdash; that one
+        is still answered from cache. Browsers do reach it, so this is a real if narrow gap
+        (<code>T-NET-RELOAD-FETCH-POLICY-1</code>), not a design choice.</p>
+        <p class="note">Responses are keyed on <code>Vary</code> and on whether the request carried credentials, so one
+        URL can hold several variants and none is ever served to a request it was not negotiated for (story 9.3.2).</p>
       </div>
 
       <div class="card">
@@ -152,6 +156,24 @@
         reading <code>document.body</code> twice yields the same object, which is what makes
         <code>el.parentNode === document.body</code> work. Found while writing M9's CI harness, whose fixture page hit
         exactly this. Added in M9 (T-DOM-DOCUMENT-BODY-1).</p>
+      </div>
+
+      <div class="card">
+        <h2>Fail-soft stubs for APIs that do not exist yet</h2>
+        <p class="card-lead">A browser this young is missing a lot. The question is what happens when a page reaches
+        for something absent: a <code>ReferenceError</code> kills the rest of that script, so one unimplemented API
+        takes down every feature below it. Instead each known gap gets a stub that does nothing, reports itself, and
+        above all <em>returns</em>.</p>
+        <p><button id="stubs">Use eight APIs this engine does not implement</button></p>
+        <p class="out" id="stubs-out">Not run yet.</p>
+        <p class="note">Every line below runs, and the counter proves the script reached the end rather than dying
+        part-way. Note what the stubs refuse to invent: the socket reports <code>CLOSED</code> rather than pretending
+        to be connected, <code>confirm()</code> returns false because no user agreed to anything, and
+        <code>navigator.userAgent</code> is empty rather than a plausible-looking lie &mdash; this engine has a real
+        per-site identity policy (Ctrl+Shift+U), and a second answer here would contradict it.</p>
+        <p class="note">The reporting is the point: each name is recorded once per document and written to the log as
+        <code>[missing-api]</code>, which is how the next milestone's scope gets chosen from what pages actually ask
+        for instead of from guesswork. Added in M9 (T-JS-MISSING-API-COVERAGE-1, story 9.5.2).</p>
       </div>
 
       <p><a href="https://example.dev">&laquo; back to example.dev</a></p>
@@ -316,6 +338,29 @@
           // object, so the element we just appended reports it as its parent.
           + "   |   appended element's parentNode === document.body? "
           + (line.parentNode === document.body);
+      });
+
+      // --- fail-soft stubs (T-JS-MISSING-API-COVERAGE-1) ----------------------
+      document.getElementById("stubs").addEventListener("click", function () {
+        var out = document.getElementById("stubs-out");
+        var steps = 0;
+        // Each of these would have been a ReferenceError before this story, and
+        // the first one would have stopped this handler dead.
+        var io = new IntersectionObserver(function () {}); io.observe({}); io.disconnect(); steps++;
+        var mo = new MutationObserver(function () {}); mo.observe({}, {}); mo.disconnect(); steps++;
+        var ro = new ResizeObserver(function () {}); ro.observe({}); ro.disconnect(); steps++;
+        customElements.define("x-demo", function () {}); steps++;
+        var ws = new WebSocket("wss://example.dev/socket"); ws.send("hello"); steps++;
+        var width = getComputedStyle(document.body).getPropertyValue("width"); steps++;
+        var agreed = confirm("Does this dialog exist?"); steps++;
+        var copy = structuredClone({ nested: [1, 2, 3] }); steps++;
+
+        out.textContent = steps + " of 8 calls completed, script still alive."
+          + "   socket.readyState = " + ws.readyState + " (3 = CLOSED, never a fake connection)"
+          + "   |   getComputedStyle width = '" + width + "' (empty, never a made-up length)"
+          + "   |   confirm() = " + agreed
+          + "   |   navigator.userAgent = '" + navigator.userAgent + "'"
+          + "   |   structuredClone deep-copied: " + (copy.nested[2] === 3);
       });
     </script>
   </body>

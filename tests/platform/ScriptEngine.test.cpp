@@ -1036,3 +1036,110 @@ TEST(ScriptEngineTest, AnimationFramesCanceledOnNavigationTeardown) {
     EXPECT_FALSE(fx.engine->has_pending_animation_frames());
     EXPECT_FALSE(fx.engine->run_animation_frames(16.0));
 }
+
+// T-JS-MISSING-API-COVERAGE-1: the widened reporting surface. Before this the
+// prelude reported four names, two of which (localStorage/sessionStorage) cover
+// features implemented in 8.2.2/8.2.3 and so never fire — leaving exactly two
+// observable APIs to derive M12's scope from.
+//
+// The critical property is not that each reports, it is that each is USED the
+// way a page uses it and still does not throw. A stub that reports and then
+// dies on the next line is worse than no stub: the page fails anyway, and the
+// telemetry claims it was handled.
+TEST(ScriptEngineTest, WidenedFailSoftStubsReportAndSurviveRealisticUse) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "globalThis.ran = 0;"
+        // Observers: construct, then call the methods a page calls on them.
+        "var io = new IntersectionObserver(function () {});"
+        "io.observe({}); io.unobserve({}); io.takeRecords(); io.disconnect();"
+        "var mo = new MutationObserver(function () {}); mo.observe({}, {}); mo.disconnect();"
+        "var ro = new ResizeObserver(function () {}); ro.observe({}); ro.disconnect();"
+        // Custom elements: define + get, the two a page actually reaches for.
+        "customElements.define('x-thing', function () {}); customElements.get('x-thing');"
+        // WebSocket: construct and use, including the state a page branches on.
+        "var ws = new WebSocket('wss://example.test/s'); ws.send('hi'); ws.close();"
+        "globalThis.wsClosed = (ws.readyState === WebSocket.CLOSED);"
+        "getComputedStyle({}).getPropertyValue('width');"
+        "globalThis.ua = navigator.userAgent;"
+        "alert('x'); globalThis.confirmed = confirm('y'); globalThis.prompted = prompt('z');"
+        "globalThis.cloned = structuredClone({ a: [1, 2] }).a[1];"
+        "globalThis.ran = 1;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+    ASSERT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
+
+    // The values pages branch on must be honest, not merely present.
+    EXPECT_TRUE(engine->eval("if (!globalThis.wsClosed) throw new Error('socket claimed to be open');", "inline").ok)
+        << "a stub socket must report CLOSED, never pretend a connection exists";
+    EXPECT_TRUE(engine->eval("if (globalThis.ua !== '') throw new Error('fabricated a user agent');", "inline").ok)
+        << "navigator.userAgent stays empty: M8 owns identity, and a second answer here would contradict it";
+    EXPECT_TRUE(engine->eval("if (globalThis.confirmed !== false) throw new Error('confirm said yes');", "inline").ok)
+        << "no dialog surface exists, so the user cannot have agreed to anything";
+    EXPECT_TRUE(engine->eval("if (globalThis.prompted !== null) throw new Error('prompt invented input');", "inline").ok);
+    EXPECT_TRUE(engine->eval("if (globalThis.cloned !== 2) throw new Error('structuredClone lost data');", "inline").ok)
+        << "a JSON-shaped clone must actually deep-copy";
+
+    const auto reported = engine->missing_apis();
+    const auto reported_has = [&](const char* name) {
+        return std::find(reported.begin(), reported.end(), name) != reported.end();
+    };
+    for (const char* name : {"IntersectionObserver", "MutationObserver", "ResizeObserver", "customElements",
+                             "WebSocket", "getComputedStyle", "navigator.userAgent", "alert", "confirm", "prompt",
+                             "structuredClone"}) {
+        EXPECT_TRUE(reported_has(name)) << name << " was used but never reported";
+    }
+    // Deduped per document even though customElements was touched twice.
+    EXPECT_EQ(std::count(reported.begin(), reported.end(), std::string("customElements")), 1);
+}
+
+// requestIdleCallback is the one stub that must actually RUN its callback.
+// Pages defer real initialization into it; dropping the callback leaves the
+// page half-built with no error to explain why.
+TEST(ScriptEngineTest, RequestIdleCallbackStubStillRunsTheCallback) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    ASSERT_TRUE(engine->eval("globalThis.idle = 0;"
+                             "requestIdleCallback(function (deadline) {"
+                             "  globalThis.idle = deadline.timeRemaining() === 0 ? 2 : 1;"
+                             "});",
+                             "inline")
+                    .ok);
+    EXPECT_TRUE(engine->eval("if (globalThis.idle !== 0) throw new Error('ran synchronously');", "inline").ok)
+        << "an idle callback must not run inside the call that scheduled it";
+
+    EXPECT_TRUE(engine->run_due_timers(1000.0));
+    EXPECT_TRUE(engine->eval("if (globalThis.idle !== 2) throw new Error('callback never ran');", "inline").ok);
+}
+
+// A real implementation landing later must win over its stub. The `typeof`
+// guard is what makes that true, and it is the reason a stub can be added
+// without scheduling its own removal.
+TEST(ScriptEngineTest, FailSoftStubsNeverOverwriteARealImplementation) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    // `fetch` is real since 9.1.1 and installed before the prelude runs, so it
+    // is the live proof that the guard holds rather than a synthetic one.
+    ASSERT_TRUE(engine->eval("globalThis.kind = typeof fetch;", "inline").ok);
+    EXPECT_TRUE(engine->eval("if (globalThis.kind !== 'function') throw new Error('fetch missing');", "inline").ok);
+    EXPECT_TRUE(engine->missing_apis().empty()) << "a real API must not be reported as missing";
+}
