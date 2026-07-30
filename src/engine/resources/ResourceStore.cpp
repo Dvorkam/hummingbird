@@ -94,6 +94,37 @@ bool ResourceStore::set_animation(std::string_view url, ResourceType type, Anima
     return true;
 }
 
+ResourceRef ResourceStore::ref_for(std::string_view url, ResourceType type) {
+    if (url.empty()) {
+        return {};
+    }
+    if (auto it = ref_by_key_.find(ResourceKeyView{type, url}); it != ref_by_key_.end()) {
+        return ResourceRef{it->second, generation_};
+    }
+    ResourceKey key{type, std::string(url)};
+    ref_slots_.push_back(key);
+    const auto index = static_cast<std::uint32_t>(ref_slots_.size());  // 1-based; 0 is the null handle
+    ref_by_key_.emplace(std::move(key), index);
+    return ResourceRef{index, generation_};
+}
+
+const ImageBitmap* ResourceStore::resolve_image(ResourceRef ref) const {
+    // A handle from a previous document, or the null handle: nothing to draw.
+    // Deliberately not an error — a caller holding a stale ref is exactly the
+    // situation this design makes survivable.
+    if (!ref.valid() || ref.generation != generation_ || ref.index > ref_slots_.size()) {
+        return nullptr;
+    }
+    const ResourceKey& key = ref_slots_[ref.index - 1];
+    auto it = resources_.find(ResourceKeyView{key.type, key.url});
+    if (it == resources_.end() || it->second.state != ResourceState::Ready) {
+        return nullptr;
+    }
+    // Resolved per call, so an animation's current frame is always the right one
+    // and nothing has to re-point anything when it advances.
+    return current_image(it->second);
+}
+
 const ResourceEntry* ResourceStore::find(std::string_view url, ResourceType type) const {
     auto it = resources_.find(ResourceKeyView{type, url});
     if (it == resources_.end()) return nullptr;
@@ -146,6 +177,12 @@ bool ResourceStore::tick_animations(int delta_ms) {
 
 void ResourceStore::clear() {
     resources_.clear();
+    // Retire every handle in issue. A render tree or display list left over from
+    // the previous document may still hold one, and without the generation bump
+    // it would resolve against whatever reuses its slot.
+    ref_slots_.clear();
+    ref_by_key_.clear();
+    ++generation_;
 }
 
 }  // namespace Hummingbird::Engine
