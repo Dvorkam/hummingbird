@@ -1095,7 +1095,20 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       **verified load-bearing** by forcing traversal to always reload and watching
       it fail on the "must not reload" assertion. 998 green, up from 990.
       Demo: an m9 card whose route counter lives in page script, so a reload would
-      reset it to zero — the one number a page cannot fake.)*
+      reset it to zero — the one number a page cannot fake.
+      **Two follow-ups came out of manual testing, both real:** the demo server
+      served only single-segment page names, so walking Forward onto a pushed
+      `/m9/detail/42` from another document showed "failed to load" — correct
+      browser behaviour meeting an incomplete server, since a pushState URL is a
+      REAL url the host must answer (SPA fallback added, and the demo now reads
+      its route from `location` because `history.state` is null on a fresh load).
+      And `location` had only `href` and `hash` bound, so `location.pathname` was
+      undefined and routing code calling `.split()` on it threw — the third
+      instance this milestone of "the object exists, the members pages use do
+      not", after `document.body` and `window.console`. Components added;
+      assignment/`assign`/`replace`/`reload` deliberately left out as
+      `T-JS-LOCATION-NAVIGATE-1`, because a setter that moves the reported URL
+      without navigating is worse than an absent one.)*
 - [ ] 9.4.1: Declarative Request-Filtering Rules *(the big one. Named in the North
       Star, and it closes two extension-HOST holes as a side effect: `permissions`
       is parsed but not enforced, and rule sets need persistence the host lacks.

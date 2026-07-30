@@ -305,6 +305,61 @@ JSValue QuickJSScriptEngine::js_location_get_href(JSContext* ctx, JSValueConst /
     return JS_NewString(ctx, engine ? engine->location_url_.c_str() : "");
 }
 
+// The URL components a page reads off `location`. Only `href` and `hash` were
+// bound, so `location.pathname` — which routing code reaches for constantly —
+// was undefined, and calling `.split()` on it threw. Same shape of gap as
+// `document.body` and `window.console`: the object existed, the members did not.
+//
+// Read-only. Assigning to `location.href`/`pathname` NAVIGATES, which needs the
+// Tab, and is filed as T-JS-LOCATION-NAVIGATE-1 rather than half-done here.
+JSValue QuickJSScriptEngine::js_location_get_part(JSContext* ctx, JSValueConst /*this_val*/, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine) {
+        return JS_NewString(ctx, "");
+    }
+    const std::string& url = engine->location_url_;
+    auto parts = Core::parse_absolute_url(url);
+    if (!parts) {
+        return JS_NewString(ctx, "");
+    }
+
+    // `UrlParts::path` runs from the first '/' to the end, so it still carries
+    // the query and fragment; pathname and search are cut out of it here.
+    std::string_view path = parts->path;
+    const size_t fragment_pos = path.find('#');
+    if (fragment_pos != std::string_view::npos) {
+        path = path.substr(0, fragment_pos);
+    }
+    std::string_view pathname = path;
+    std::string_view search;
+    if (const size_t query_pos = path.find('?'); query_pos != std::string_view::npos) {
+        pathname = path.substr(0, query_pos);
+        search = path.substr(query_pos);
+    }
+
+    const std::string port = parts->port ? std::to_string(*parts->port) : std::string();
+    const std::string host_with_port = port.empty() ? parts->host : parts->host + ":" + port;
+
+    switch (static_cast<LocationPart>(magic)) {
+        case LocationPart::Protocol:
+            return JS_NewString(ctx, (parts->scheme + ":").c_str());  // includes the colon, per spec
+        case LocationPart::Host:
+            return JS_NewString(ctx, host_with_port.c_str());
+        case LocationPart::Hostname:
+            return JS_NewString(ctx, parts->host.c_str());
+        case LocationPart::Port:
+            // Empty for a default port, which is what a browser reports.
+            return JS_NewString(ctx, port.c_str());
+        case LocationPart::Pathname:
+            return JS_NewStringLen(ctx, pathname.data(), pathname.size());
+        case LocationPart::Search:
+            return JS_NewStringLen(ctx, search.data(), search.size());
+        case LocationPart::Origin:
+            return JS_NewString(ctx, (parts->scheme + "://" + host_with_port).c_str());
+    }
+    return JS_NewString(ctx, "");
+}
+
 JSValue QuickJSScriptEngine::js_location_get_hash(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/,
                                                   JSValueConst* /*argv*/) {
     auto* engine = engine_from_context(ctx);
@@ -1820,6 +1875,15 @@ void QuickJSScriptEngine::install_window_bindings() {
     JSValue location = JS_NewObject(context_);
     define_accessor(location, "href", js_location_get_href, nullptr);
     define_accessor(location, "hash", js_location_get_hash, js_location_set_hash);
+    define_getter_magic(location, "protocol", js_location_get_part, static_cast<int>(LocationPart::Protocol));
+    define_getter_magic(location, "host", js_location_get_part, static_cast<int>(LocationPart::Host));
+    define_getter_magic(location, "hostname", js_location_get_part, static_cast<int>(LocationPart::Hostname));
+    define_getter_magic(location, "port", js_location_get_part, static_cast<int>(LocationPart::Port));
+    define_getter_magic(location, "pathname", js_location_get_part, static_cast<int>(LocationPart::Pathname));
+    define_getter_magic(location, "search", js_location_get_part, static_cast<int>(LocationPart::Search));
+    define_getter_magic(location, "origin", js_location_get_part, static_cast<int>(LocationPart::Origin));
+    // `String(location)` and string concatenation both yield the full URL.
+    JS_SetPropertyStr(context_, location, "toString", JS_NewCFunction(context_, js_location_get_href, "toString", 0));
 
     // `window` IS the global object (T-JS-WINDOW-IS-GLOBAL-1). This used to be a
     // separate JS_NewObject onto which a hand-picked subset of globals was

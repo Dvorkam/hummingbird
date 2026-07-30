@@ -1535,3 +1535,99 @@ TEST(ScriptEngineTest, PushStateRejectsUnserializableState) {
     EXPECT_FALSE(result.ok) << "an unserializable state must throw, not store garbage";
     EXPECT_FALSE(engine->consume_history_change().has_value()) << "and must not record an entry";
 }
+
+// `location` had only href and hash, so `location.pathname` was undefined and
+// routing code calling `.split()` on it threw. Found by manual testing of the
+// 9.6.1 demo: going Back onto the document's own entry fires popstate with null
+// state, the page falls back to reading the route out of the URL, and that is
+// where it died.
+TEST(ScriptEngineTest, LocationExposesTheUrlComponentsPagesRead) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://app.test:8443/m9/detail/42?sort=new&page=2#comments");
+
+    const auto result = engine->eval(
+        "function check(n, a, b) { if (a !== b) throw new Error(n + ': got ' + a + ' want ' + b); }"
+        "check('href', location.href, 'https://app.test:8443/m9/detail/42?sort=new&page=2#comments');"
+        "check('protocol', location.protocol, 'https:');"
+        "check('host', location.host, 'app.test:8443');"
+        "check('hostname', location.hostname, 'app.test');"
+        "check('port', location.port, '8443');"
+        // The one the demo actually needed: no query, no fragment.
+        "check('pathname', location.pathname, '/m9/detail/42');"
+        "check('search', location.search, '?sort=new&page=2');"
+        "check('hash', location.hash, '#comments');"
+        "check('origin', location.origin, 'https://app.test:8443');"
+        // The idiom that threw before this fix.
+        "check('split', location.pathname.split('/detail/')[1], '42');"
+        "check('toString', String(location), location.href);"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+}
+
+// A default port reports empty, which is what a browser does — a page comparing
+// location.port to '' must not see '443'.
+TEST(ScriptEngineTest, LocationOmitsADefaultPortAndHandlesABareRoot) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/m9");
+
+    ASSERT_TRUE(engine
+                    ->eval("function check(n, a, b) { if (a !== b) throw new Error(n + ': got ' + a); }"
+                           "check('port', location.port, '');"
+                           "check('host', location.host, 'example.dev');"
+                           "check('origin', location.origin, 'https://example.dev');"
+                           "check('pathname', location.pathname, '/m9');"
+                           "check('search', location.search, '');"
+                           "check('hash', location.hash, '');"
+                           "true;",
+                           "inline")
+                    .ok);
+
+    // A URL with no path at all still reports "/" rather than an empty string,
+    // so `location.pathname.split(...)` is safe on every page.
+    engine->set_location("https://example.dev");
+    EXPECT_TRUE(engine->eval("if (location.pathname !== '/') throw new Error(location.pathname);", "inline").ok);
+}
+
+// pathname must track pushState, since that is where routing code reads it.
+TEST(ScriptEngineTest, LocationComponentsFollowPushState) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/m9");
+
+    ASSERT_TRUE(engine->eval("history.pushState({ id: 42 }, '', '/m9/detail/42?from=list');", "inline").ok);
+    EXPECT_TRUE(engine
+                    ->eval("if (location.pathname !== '/m9/detail/42') throw new Error(location.pathname);"
+                           "if (location.search !== '?from=list') throw new Error(location.search);"
+                           "true;",
+                           "inline")
+                    .ok);
+
+    // And after a traversal back onto an entry with no state — the exact case
+    // that produced the reported TypeError.
+    EXPECT_TRUE(engine->apply_popstate("https://example.dev/m9", ""));
+    EXPECT_TRUE(engine
+                    ->eval("if (history.state !== null) throw new Error('state should be null here');"
+                           "if (location.pathname !== '/m9') throw new Error(location.pathname);"
+                           "if (location.pathname.split('/detail/')[1] !== undefined) throw new Error('route');"
+                           "true;",
+                           "inline")
+                    .ok);
+}

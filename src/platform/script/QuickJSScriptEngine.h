@@ -143,6 +143,9 @@ private:
     // document.documentElement / body / head (T-DOM-DOCUMENT-BODY-1); magic is
     // an IScriptHost::DocumentPart.
     static JSValue js_document_get_part(JSContext* ctx, JSValueConst this_val, int magic);
+    // The URL components read off `location`; magic selects which.
+    enum class LocationPart { Protocol = 0, Host, Hostname, Port, Pathname, Search, Origin };
+    static JSValue js_location_get_part(JSContext* ctx, JSValueConst this_val, int magic);
     static JSValue js_location_get_href(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_get_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_set_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
