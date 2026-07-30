@@ -226,6 +226,7 @@ add_library(Engine STATIC
     src/engine/extensions/ExtensionLoader.cpp
     src/engine/extensions/ExtensionHost.cpp
     src/engine/extensions/ExtensionSettings.cpp
+    src/engine/extensions/FilterRuleSet.cpp
     src/engine/script/DocumentScriptController.cpp
     src/engine/script/DocumentScriptHost.cpp
     src/engine/resources/NetworkErrorPage.cpp

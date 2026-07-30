@@ -350,6 +350,166 @@ TEST(ExtensionHostTest, ADisabledExtensionHasNoPermissions) {
     EXPECT_FALSE(host.insert_css("dark-mode", 1, "body{}"));
 }
 
+// --- 9.4.1 static rulesets ---------------------------------------------------
+
+namespace {
+const char* kBlockTrackerRules = R"([
+  {"id": 11, "condition": {"requestDomains": ["tracker.net"]}, "action": {"type": "block"}}
+])";
+
+Hummingbird::Core::RequestFilter::Request script_request(std::string_view url) {
+    return {url, Hummingbird::Core::RequestDestination::Script, "example.com"};
+}
+}  // namespace
+
+TEST(ExtensionHostTest, ManifestDeclaredRulesLoadIntoTheFilter) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-static-rules");
+    auto ext_root = root.path() / "ad-block-lite";
+    write_text(ext_root / "bg.js", "");
+    write_text(ext_root / "rules.json", kBlockTrackerRules);
+
+    auto ext = make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"});
+    ext.manifest.rule_resources = {"rules.json"};
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(std::move(ext));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    EXPECT_TRUE(filter->match(script_request("https://tracker.net/a.js")).blocked);
+    EXPECT_FALSE(filter->match(script_request("https://example.com/app.js")).blocked);
+}
+
+// Declaring rules in the manifest must not be a way around asking for the
+// capability — otherwise the permission is a formality the JS path observes and
+// the static path ignores.
+TEST(ExtensionHostTest, StaticRulesNeedTheDeclarativeRequestPermission) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-rules-denied");
+    auto ext_root = root.path() / "sneaky";
+    write_text(ext_root / "bg.js", "");
+    write_text(ext_root / "rules.json", kBlockTrackerRules);
+
+    auto ext = make_loaded_extension(ext_root, "Sneaky", "bg.js", {"tabs"});
+    ext.manifest.rule_resources = {"rules.json"};
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(std::move(ext));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    EXPECT_TRUE(filter->empty());
+    EXPECT_FALSE(filter->match(script_request("https://tracker.net/a.js")).blocked);
+}
+
+// The rules live in a filter that outlives the runtime, so tearing down the
+// engine is not enough. A disabled ad-blocker that goes on blocking is the
+// worst kind of bug: nothing in any UI admits it is happening.
+TEST(ExtensionHostTest, DisablingAnExtensionWithdrawsItsRules) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-rules-disable");
+    auto ext_root = root.path() / "ad-block-lite";
+    write_text(ext_root / "bg.js", "");
+    write_text(ext_root / "rules.json", kBlockTrackerRules);
+
+    auto ext = make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"});
+    ext.manifest.rule_resources = {"rules.json"};
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(std::move(ext));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+    ASSERT_TRUE(filter->match(script_request("https://tracker.net/a.js")).blocked);
+
+    ASSERT_TRUE(host.set_extension_enabled("ad-block-lite", false));
+    EXPECT_FALSE(filter->match(script_request("https://tracker.net/a.js")).blocked)
+        << "a disabled blocker must stop blocking";
+
+    ASSERT_TRUE(host.set_extension_enabled("ad-block-lite", true));
+    EXPECT_TRUE(filter->match(script_request("https://tracker.net/a.js")).blocked) << "and start again when re-enabled";
+}
+
+TEST(ExtensionHostTest, ShutdownWithdrawsRulesFromTheSharedFilter) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-rules-shutdown");
+    auto ext_root = root.path() / "ad-block-lite";
+    write_text(ext_root / "bg.js", "");
+    write_text(ext_root / "rules.json", kBlockTrackerRules);
+
+    auto ext = make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"});
+    ext.manifest.rule_resources = {"rules.json"};
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(std::move(ext));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+    ASSERT_FALSE(filter->empty());
+
+    host.shutdown();
+    EXPECT_TRUE(filter->empty());
+}
+
+// The whole point of static rulesets: no persistence needed, because a declared
+// rule is simply read again. This models a restart as a second host over the
+// same extension directory and a fresh filter.
+TEST(ExtensionHostTest, StaticRulesSurviveARestartWithoutAnyPersistence) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-rules-restart");
+    auto ext_root = root.path() / "ad-block-lite";
+    write_text(ext_root / "bg.js", "");
+    write_text(ext_root / "rules.json", kBlockTrackerRules);
+
+    const auto start_a_session = [&] {
+        auto ext = make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"});
+        ext.manifest.rule_resources = {"rules.json"};
+        std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+        extensions.push_back(std::move(ext));
+
+        auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+        Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+        host.set_request_filter(filter);
+        host.set_extensions(std::move(extensions));
+        host.start_background_scripts();
+        const bool blocked = filter->match(script_request("https://tracker.net/a.js")).blocked;
+        host.shutdown();
+        return blocked;
+    };
+
+    EXPECT_TRUE(start_a_session());
+    EXPECT_TRUE(start_a_session()) << "a fresh process blocks the same URL, with nothing persisted between runs";
+}
+
+TEST(ExtensionHostTest, AMissingOrUnreadableRuleSetIsNotFatal) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-rules-missing");
+    auto ext_root = root.path() / "ad-block-lite";
+    write_text(ext_root / "bg.js", "globalThis.__ran = 1;");
+    // rules.json is deliberately never written.
+
+    auto ext = make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"});
+    ext.manifest.rule_resources = {"rules.json"};
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(std::move(ext));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    // The extension still starts. A broken list is a reason to block nothing,
+    // not a reason to refuse to load the extension.
+    EXPECT_TRUE(filter->empty());
+    EXPECT_TRUE(host.errors().empty());
+}
+
 TEST(ExtensionHostTest, NavigatedListenerCanInjectCssForEventTab) {
     TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-nav-insert-css");
     auto ext_root = root.path() / "dark-mode";

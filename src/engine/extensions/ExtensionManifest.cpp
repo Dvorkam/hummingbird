@@ -252,6 +252,48 @@ std::optional<ExtensionManifest> parse_extension_manifest(std::string_view json,
             auto perms = parse_string_array(c, error);
             if (!perms) return std::nullopt;
             out.permissions = std::move(*perms);
+        } else if (*key == "declarative_net_request") {
+            // MV3's shape: { "rule_resources": ["rules.json"] }. Chrome's real
+            // field is an array of objects with id/enabled/path; we take the
+            // paths directly, and keep the outer key spelled the same so a
+            // manifest written against Chrome's docs reads as expected here.
+            skip_ws(c);
+            if (!match(c, '{')) {
+                if (error) {
+                    error->message = "declarative_net_request must be an object";
+                    error->offset = c.offset;
+                }
+                return std::nullopt;
+            }
+            skip_ws(c);
+            if (!match(c, '}')) {
+                while (true) {
+                    auto dnr_key = parse_string(c, error);
+                    if (!dnr_key) return std::nullopt;
+                    if (!match(c, ':')) {
+                        if (error) {
+                            error->message = "Expected ':' after declarative_net_request key";
+                            error->offset = c.offset;
+                        }
+                        return std::nullopt;
+                    }
+                    if (*dnr_key == "rule_resources") {
+                        auto paths = parse_string_array(c, error);
+                        if (!paths) return std::nullopt;
+                        out.rule_resources = std::move(*paths);
+                    } else {
+                        if (!skip_value(c, error)) return std::nullopt;
+                    }
+                    skip_ws(c);
+                    if (match(c, '}')) break;
+                    if (match(c, ',')) continue;
+                    if (error) {
+                        error->message = "Expected ',' or '}' in declarative_net_request";
+                        error->offset = c.offset;
+                    }
+                    return std::nullopt;
+                }
+            }
         } else if (*key == "background") {
             skip_ws(c);
             if (!match(c, '{')) {

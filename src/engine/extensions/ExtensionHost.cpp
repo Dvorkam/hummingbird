@@ -7,10 +7,14 @@
 #include <utility>
 
 #include "core/utils/Log.h"
+#include "engine/extensions/FilterRuleSet.h"
 
 namespace Hummingbird::Engine {
 
 namespace {
+// The permission an extension must declare to register block rules, whether
+// statically in its manifest or dynamically from its background script.
+constexpr std::string_view kDeclarativeRequestPermission = "declarativeRequest";
 std::optional<std::string> read_file_to_string(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::in | std::ios::binary);
     if (!file) return std::nullopt;
@@ -136,6 +140,11 @@ bool ExtensionHost::start_background_script(Runtime& runtime) {
         return false;
     }
 
+    // Before the script, deliberately: a manifest-declared ruleset is in force
+    // for the first request of the session, rather than from whenever the
+    // background script happens to finish starting.
+    load_static_rules(runtime);
+
     runtime.engine->bind_extension_host(this, extension_id(runtime.extension));
 
     auto bootstrap = runtime.engine->eval(kExtensionBootstrap, "hb-extension-bootstrap");
@@ -203,6 +212,10 @@ bool ExtensionHost::set_extension_enabled(std::string_view id, bool enabled) {
         if (!enabled) {
             runtime.engine.reset();
             runtime.started = false;
+            // Tearing down the runtime is not enough: rules live in the shared
+            // filter, which outlives it. Leaving them there would let a disabled
+            // ad-blocker go on blocking, with no UI anywhere admitting it.
+            if (request_filter_) request_filter_->remove_source(id_str);
         } else if (started_) {
             (void)start_background_script(runtime);
         }
@@ -212,6 +225,50 @@ bool ExtensionHost::set_extension_enabled(std::string_view id, bool enabled) {
 
 void ExtensionHost::set_insert_css_handler(InsertCssHandler handler) {
     insert_css_handler_ = std::move(handler);
+}
+
+void ExtensionHost::set_request_filter(std::shared_ptr<Core::RequestFilter> filter) {
+    request_filter_ = std::move(filter);
+}
+
+void ExtensionHost::load_static_rules(const Runtime& runtime) {
+    if (!request_filter_) return;
+    const auto id = extension_id(runtime.extension);
+    if (runtime.extension.manifest.rule_resources.empty()) return;
+
+    // Same permission the JS rules API needs. Declaring rules in the manifest
+    // is not a way around asking for the capability.
+    if (!manifest_has_permission(runtime.extension.manifest, kDeclarativeRequestPermission)) {
+        HB_LOG_WARN("[ext] " << id << " declares rule_resources but not the \"" << kDeclarativeRequestPermission
+                             << "\" permission; its rules are ignored");
+        return;
+    }
+
+    std::vector<Core::FilterRule> rules;
+    for (const auto& relative : runtime.extension.manifest.rule_resources) {
+        const auto path = runtime.extension.root_dir / relative;
+        auto source = read_file_to_string(path);
+        if (!source) {
+            HB_LOG_WARN("[ext] " << id << " ruleset not readable: " << path.string());
+            continue;
+        }
+        auto parsed = parse_filter_rule_set(*source);
+        if (!parsed.ok()) {
+            HB_LOG_WARN("[ext] " << id << " ruleset " << relative << " rejected: " << parsed.fatal_error);
+            continue;
+        }
+        // Rejected rules are reported individually. A rule that fails to load is
+        // a rule that does not block, and that difference is invisible from the
+        // outside unless it is said out loud.
+        for (const auto& warning : parsed.warnings) {
+            HB_LOG_WARN("[ext] " << id << " ruleset " << relative << ": " << warning);
+        }
+        rules.insert(rules.end(), std::make_move_iterator(parsed.rules.begin()),
+                     std::make_move_iterator(parsed.rules.end()));
+    }
+
+    HB_LOG_INFO("[ext] " << id << " loaded " << rules.size() << " static filter rules");
+    request_filter_->set_rules(id, std::move(rules));
 }
 
 void ExtensionHost::eval_all_started(std::string_view source, std::string_view filename) {
@@ -286,6 +343,9 @@ bool ExtensionHost::insert_css(std::string_view extension_id_value, std::uint32_
 
 void ExtensionHost::shutdown() {
     for (auto& runtime : runtimes_) {
+        // Same reasoning as disabling: the filter is shared and outlives these
+        // runtimes, so rules have to be withdrawn explicitly.
+        if (request_filter_) request_filter_->remove_source(extension_id(runtime.extension));
         runtime.engine.reset();
         runtime.started = false;
     }
