@@ -82,6 +82,7 @@ add_executable(HummingbirdTests
     engine/ScriptController.test.cpp
     engine/TodoMvc.test.cpp
     engine/LoginFlow.test.cpp
+    engine/ApiRenderFlow.test.cpp
     engine/SessionStorage.test.cpp
     platform/ResourceProvider.test.cpp
     platform/ImageDecoder.test.cpp

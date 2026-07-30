@@ -881,7 +881,32 @@ P0: Cache (North Star)
       principle).)*
 
 P0: Guardrails
-- [ ] 9.5.1: API-Render Harness
+- [x] 9.5.1: API-Render Harness *(new `tests/engine/ApiRenderFlow.test.cpp` +
+      `tests/fixtures/api_render/{story_list,summary}.html`, driving the real Tab
+      against a `MockApiServer` fake `INetwork`. Six cases: the same-origin list
+      render, the cross-origin summary allowed and blocked, a cached second visit,
+      a cached cross-origin response re-passing CORS, and F5.
+      **Every assertion is on painted text or on what the server saw**, never on
+      the DOM or on the cache's own stats — a DOM assertion passes while a missed
+      rebuild leaves the screen stale, and a cache that reports a hit while still
+      issuing the request can only be caught from the transport side. The fixture
+      pages build one element per story rather than one blob of text, so the
+      fetched data has to survive DOM → style → layout → paint before a test can
+      see it.
+      **All three guards verified load-bearing** by disabling each and watching
+      the right tests fail: no cache lookup → 3 fail, no CORS response check → the
+      blocked case passes a cross-origin body to the page, no
+      rebuild-on-fetch-settle → **all 6** fail (the render half is what every one
+      of them rides on). 954 tests green, up from 948.
+      **Gap found while writing it:** `document.body` is not bound at all — the
+      summary fixture's `document.body.appendChild` threw a `TypeError` that the
+      page's own `.catch` then reported as a network failure, which is exactly how
+      it presents in the wild. Filed as `T-DOM-DOCUMENT-BODY-1` (P1) and the
+      fixture pointed at a pre-existing element rather than worked around.
+      `HeadlessTabHarness` grew `identity_store` + `http_cache` parameters so a
+      test can own the cache it asserts on.
+      **Deliberately still manual:** the live run against `api.hnpwa.com` and
+      `en.wikipedia.org`, which stays the `example.dev/m9` demo card.)*
 
 P1: If Schedule Allows
 - [ ] 9.6.1: History API MVP *(needed for "browse a thread and come back")*
