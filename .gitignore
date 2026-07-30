@@ -43,6 +43,8 @@ debug.log
 # Folders
 tmp
 .claude
+# Session logs written by main() (HB_LOG_DIR overrides the location).
+logs
 
 #files
 assets/config/bookmarks.tsv

@@ -48,6 +48,7 @@ add_executable(HummingbirdTests
     core/Url.test.cpp
     core/UrlEncoding.test.cpp
     core/Timing.test.cpp
+    core/Log.test.cpp
     core/WarnOnce.test.cpp
     core/CompatibilityWarnings.test.cpp
     core/ElementSemanticRole.test.cpp
