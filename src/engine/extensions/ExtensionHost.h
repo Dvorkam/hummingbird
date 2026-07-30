@@ -51,6 +51,7 @@ public:
     void notify_tab_navigated(TabId id, std::string_view url);
 
     bool insert_css(std::string_view extension_id, std::uint32_t tab_id, std::string_view css_text) override;
+    bool set_filter_rules(std::string_view extension_id, std::string_view rules_json) override;
 
     // Whether `extension_id` is loaded, enabled, and declares `permission`
     // (story 9.4.1). Every gated API goes through this, so there is one place

@@ -58,10 +58,11 @@ Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_n
          std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
          std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar,
          std::shared_ptr<Core::StorageManager> storage_manager,
-         std::shared_ptr<Core::IdentityPolicyStore> identity_store, std::shared_ptr<Core::HttpCache> http_cache)
+         std::shared_ptr<Core::IdentityPolicyStore> identity_store, std::shared_ptr<Core::HttpCache> http_cache,
+         std::shared_ptr<Core::RequestFilter> request_filter)
     : resource_loader_(std::make_unique<ResourceLoader>(
           std::move(network), std::move(fallback_network), std::move(resource_provider), std::move(image_decoder),
-          std::move(cookie_jar), std::move(identity_store), std::move(http_cache))),
+          std::move(cookie_jar), std::move(identity_store), std::move(http_cache), std::move(request_filter))),
       storage_manager_(std::move(storage_manager)),
       document_pipeline_(
           std::make_unique<DocumentPipeline>(&resource_loader_->store(), resource_loader_->resource_provider(),

@@ -112,6 +112,12 @@ void BrowserApp::initialize_extensions(Hummingbird::Engine::TabId first_tab_id) 
     extension_host_->set_insert_css_handler([this](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
         return insert_extension_css(tab_id, css_text);
     });
+    // Before set_extensions, which starts nothing yet but is where rules would
+    // be read from if it did. The filter belongs to the profile (TabManager
+    // owns it and every tab's loader consults it), so extensions write into it
+    // rather than owning it — which is what will let a non-extension block list
+    // share the same mechanism.
+    extension_host_->set_request_filter(tab_controller_.manager().request_filter());
     extension_host_->set_extensions(std::move(bootstrap.extensions));
     if (extension_host_->extension_count() > 0) {
         HB_LOG_INFO("[ext] loaded extensions: " << extension_host_->extension_count());

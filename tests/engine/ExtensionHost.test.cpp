@@ -510,6 +510,157 @@ TEST(ExtensionHostTest, AMissingOrUnreadableRuleSetIsNotFatal) {
     EXPECT_TRUE(host.errors().empty());
 }
 
+// --- 9.4.1 dynamic rules from JS ---------------------------------------------
+
+TEST(ExtensionHostTest, ABackgroundScriptCanRegisterBlockRules) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-dynamic-rules");
+    auto ext_root = root.path() / "blocker";
+    write_text(ext_root / "bg.js", R"JS(
+      globalThis.__ok = browser.declarativeRequest.updateRules({
+        rules: [{ id: 1,
+                  condition: { requestDomains: ["tracker.net"] },
+                  action: { type: "block" } }]
+      });
+    )JS");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"}));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    EXPECT_TRUE(filter->match(script_request("https://tracker.net/a.js")).blocked);
+    EXPECT_FALSE(filter->match(script_request("https://example.com/app.js")).blocked);
+    EXPECT_TRUE(host.errors().empty());
+}
+
+TEST(ExtensionHostTest, DynamicRulesNeedTheDeclarativeRequestPermission) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-dynamic-denied");
+    auto ext_root = root.path() / "sneaky";
+    write_text(ext_root / "bg.js", R"JS(
+      globalThis.__ok = browser.declarativeRequest.updateRules({
+        rules: [{ id: 1,
+                  condition: { requestDomains: ["tracker.net"] },
+                  action: { type: "block" } }]
+      });
+    )JS");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Sneaky", "bg.js", {"tabs", "scripting"}));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    EXPECT_TRUE(filter->empty());
+    EXPECT_FALSE(host.set_filter_rules("sneaky", R"([{"id":1,"condition":{"urlFilter":"/x"},"action":{"type":"block"}}])"));
+}
+
+// Dynamic and static rules occupy separate filter sources. Sharing one would
+// mean an extension calling updateRules silently wiped its own manifest
+// ruleset — for ad-block-lite, the entire curated list.
+TEST(ExtensionHostTest, DynamicRulesDoNotReplaceTheManifestRuleset) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-dynamic-plus-static");
+    auto ext_root = root.path() / "blocker";
+    write_text(ext_root / "rules.json", kBlockTrackerRules);
+    write_text(ext_root / "bg.js", R"JS(
+      browser.declarativeRequest.updateRules({
+        rules: [{ id: 99,
+                  condition: { requestDomains: ["extra.net"] },
+                  action: { type: "block" } }]
+      });
+    )JS");
+
+    auto ext = make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"});
+    ext.manifest.rule_resources = {"rules.json"};
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(std::move(ext));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    EXPECT_TRUE(filter->match(script_request("https://tracker.net/a.js")).blocked) << "the static rule survives";
+    EXPECT_TRUE(filter->match(script_request("https://extra.net/b.js")).blocked) << "and the dynamic rule applies";
+}
+
+TEST(ExtensionHostTest, UpdateRulesReplacesTheExtensionsPreviousDynamicRules) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-dynamic-replace");
+    auto ext_root = root.path() / "blocker";
+    write_text(ext_root / "bg.js", "");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"}));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    ASSERT_TRUE(host.set_filter_rules(
+        "blocker", R"([{"id":1,"condition":{"requestDomains":["first.net"]},"action":{"type":"block"}}])"));
+    ASSERT_TRUE(filter->match(script_request("https://first.net/a.js")).blocked);
+
+    ASSERT_TRUE(host.set_filter_rules(
+        "blocker", R"([{"id":2,"condition":{"requestDomains":["second.net"]},"action":{"type":"block"}}])"));
+    EXPECT_FALSE(filter->match(script_request("https://first.net/a.js")).blocked) << "superseded rules are gone";
+    EXPECT_TRUE(filter->match(script_request("https://second.net/a.js")).blocked);
+}
+
+// A typo must not become an unblocking event: the rules already in force stay
+// in force when a replacement fails to parse.
+TEST(ExtensionHostTest, RulesThatFailToParseLeaveThePreviousOnesInForce) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-dynamic-bad");
+    auto ext_root = root.path() / "blocker";
+    write_text(ext_root / "bg.js", "");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"}));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+
+    ASSERT_TRUE(host.set_filter_rules(
+        "blocker", R"([{"id":1,"condition":{"requestDomains":["tracker.net"]},"action":{"type":"block"}}])"));
+    ASSERT_TRUE(filter->match(script_request("https://tracker.net/a.js")).blocked);
+
+    EXPECT_FALSE(host.set_filter_rules("blocker", "not json at all"));
+    EXPECT_TRUE(filter->match(script_request("https://tracker.net/a.js")).blocked)
+        << "a malformed update must not silently unblock what was already blocked";
+}
+
+TEST(ExtensionHostTest, DisablingAnExtensionWithdrawsItsDynamicRulesToo) {
+    TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-dynamic-disable");
+    auto ext_root = root.path() / "blocker";
+    write_text(ext_root / "bg.js", "");
+
+    std::vector<Hummingbird::Engine::LoadedExtension> extensions;
+    extensions.push_back(make_loaded_extension(ext_root, "Blocker", "bg.js", {"declarativeRequest"}));
+
+    auto filter = std::make_shared<Hummingbird::Core::RequestFilter>();
+    Hummingbird::Engine::ExtensionHost host([]() { return Hummingbird::create_script_engine(); });
+    host.set_request_filter(filter);
+    host.set_extensions(std::move(extensions));
+    host.start_background_scripts();
+    ASSERT_TRUE(host.set_filter_rules(
+        "blocker", R"([{"id":1,"condition":{"requestDomains":["tracker.net"]},"action":{"type":"block"}}])"));
+    ASSERT_FALSE(filter->empty());
+
+    ASSERT_TRUE(host.set_extension_enabled("blocker", false));
+    EXPECT_TRUE(filter->empty()) << "dynamic rules live in their own source and must be withdrawn as well";
+}
+
 TEST(ExtensionHostTest, NavigatedListenerCanInjectCssForEventTab) {
     TempDirGuard root(std::filesystem::temp_directory_path() / "hummingbird-ext-host-test-nav-insert-css");
     auto ext_root = root.path() / "dark-mode";

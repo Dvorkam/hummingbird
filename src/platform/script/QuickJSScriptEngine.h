@@ -164,6 +164,7 @@ private:
                                                        JSValueConst* argv);
 
     static JSValue js_native_insert_css(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_native_set_filter_rules(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
 
     // fetch (9.1.1): starts the request through the host and returns a Promise
     // that settle_fetch resolves later. The `fetch` a page sees is the prelude

@@ -24,6 +24,16 @@ public:
     // which the caller cannot distinguish — deliberately, since an extension
     // learning exactly why it was refused is of no use to it.
     virtual bool insert_css(std::string_view extension_id, std::uint32_t tab_id, std::string_view css_text) = 0;
+
+    // Replaces this extension's DYNAMIC filter rules with `rules_json`, in the
+    // same format as a manifest ruleset (story 9.4.1). Returns false when the
+    // extension lacks the permission or the rules do not parse.
+    //
+    // Dynamic rules are session-scoped and are NOT persisted: they live until
+    // the extension is disabled or the browser closes. Rules that must survive a
+    // restart belong in the manifest's `rule_resources`, which is read again on
+    // every run and therefore needs no persistence at all.
+    virtual bool set_filter_rules(std::string_view extension_id, std::string_view rules_json) = 0;
 };
 
 }  // namespace Hummingbird

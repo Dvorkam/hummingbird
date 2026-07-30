@@ -15,6 +15,14 @@ namespace {
 // The permission an extension must declare to register block rules, whether
 // statically in its manifest or dynamically from its background script.
 constexpr std::string_view kDeclarativeRequestPermission = "declarativeRequest";
+
+// Dynamic rules occupy their own filter source, separate from the extension's
+// manifest ruleset. Sharing one key would mean a background script calling
+// updateRules silently wiped its own static list — which for ad-block-lite is
+// the entire curated list, replaced by whatever one call happened to pass.
+std::string dynamic_rules_source(std::string_view id) {
+    return std::string(id) + "#dynamic";
+}
 std::optional<std::string> read_file_to_string(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::in | std::ios::binary);
     if (!file) return std::nullopt;
@@ -88,6 +96,24 @@ constexpr std::string_view kExtensionBootstrap = R"JS(
   browser.tabs.active = function() {
     if (hb.tabs.activeTabId === null || hb.tabs.activeTabId === undefined) return null;
     return { id: hb.tabs.activeTabId };
+  };
+
+  if (!browser.declarativeRequest) browser.declarativeRequest = {};
+
+  // Replaces this extension's dynamic rules with `args.rules`. Session-scoped:
+  // dynamic rules are NOT persisted, and rules that must survive a restart
+  // belong in the manifest's declarative_net_request.rule_resources, which is
+  // read again on every run.
+  //
+  // The rules are stringified here and parsed by the host, so a rule written in
+  // JS and a rule written in a ruleset file go through exactly the same
+  // validation and are accepted or rejected for the same reasons.
+  browser.declarativeRequest.updateRules = function(args) {
+    if (!args || !Array.isArray(args.rules)) return false;
+    if (typeof globalThis.__hb_nativeSetFilterRules !== "function") return false;
+    let json;
+    try { json = JSON.stringify(args.rules); } catch (e) { return false; }
+    return !!globalThis.__hb_nativeSetFilterRules(json);
   };
 
   browser.scripting.insertCSS = function(args) {
@@ -215,7 +241,10 @@ bool ExtensionHost::set_extension_enabled(std::string_view id, bool enabled) {
             // Tearing down the runtime is not enough: rules live in the shared
             // filter, which outlives it. Leaving them there would let a disabled
             // ad-blocker go on blocking, with no UI anywhere admitting it.
-            if (request_filter_) request_filter_->remove_source(id_str);
+            if (request_filter_) {
+                request_filter_->remove_source(id_str);
+                request_filter_->remove_source(dynamic_rules_source(id_str));
+            }
         } else if (started_) {
             (void)start_background_script(runtime);
         }
@@ -341,11 +370,40 @@ bool ExtensionHost::insert_css(std::string_view extension_id_value, std::uint32_
     return insert_css_handler_(tab_id, css_text);
 }
 
+bool ExtensionHost::set_filter_rules(std::string_view extension_id_value, std::string_view rules_json) {
+    if (!has_permission(extension_id_value, kDeclarativeRequestPermission)) {
+        return false;
+    }
+    if (!request_filter_) {
+        return false;
+    }
+
+    auto parsed = parse_filter_rule_set(rules_json);
+    if (!parsed.ok()) {
+        HB_LOG_WARN("[ext] " << extension_id_value << " updateRules rejected: " << parsed.fatal_error);
+        // The previous dynamic rules stay in force. Wiping them because the new
+        // set failed to parse would turn a typo into an unblocking event, which
+        // is the opposite of what the caller was reaching for.
+        return false;
+    }
+    for (const auto& warning : parsed.warnings) {
+        HB_LOG_WARN("[ext] " << extension_id_value << " updateRules: " << warning);
+    }
+
+    HB_LOG_INFO("[ext] " << extension_id_value << " set " << parsed.rules.size() << " dynamic filter rules");
+    request_filter_->set_rules(dynamic_rules_source(extension_id_value), std::move(parsed.rules));
+    return true;
+}
+
 void ExtensionHost::shutdown() {
     for (auto& runtime : runtimes_) {
         // Same reasoning as disabling: the filter is shared and outlives these
         // runtimes, so rules have to be withdrawn explicitly.
-        if (request_filter_) request_filter_->remove_source(extension_id(runtime.extension));
+        if (request_filter_) {
+            const auto id = extension_id(runtime.extension);
+            request_filter_->remove_source(id);
+            request_filter_->remove_source(dynamic_rules_source(id));
+        }
         runtime.engine.reset();
         runtime.started = false;
     }

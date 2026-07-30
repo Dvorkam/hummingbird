@@ -1222,6 +1222,26 @@ JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /
     return JS_NewBool(ctx, ok ? 1 : 0);
 }
 
+// Declarative request filtering (9.4.1). The rules arrive as a JSON STRING
+// rather than as a JS object graph, so the host parses exactly the same text a
+// manifest ruleset contains — one format, one parser, one set of rejection
+// rules. Walking a QuickJS object here would be a second implementation that
+// could disagree with the file one about what a valid rule is.
+JSValue QuickJSScriptEngine::js_native_set_filter_rules(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                        JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->extension_host_ || argc < 1) {
+        return JS_NewBool(ctx, 0);
+    }
+    const char* rules_json = JS_ToCString(ctx, argv[0]);
+    if (!rules_json) {
+        return JS_NewBool(ctx, 0);
+    }
+    const bool ok = engine->extension_host_->set_filter_rules(engine->extension_id_, rules_json);
+    JS_FreeCString(ctx, rules_json);
+    return JS_NewBool(ctx, ok ? 1 : 0);
+}
+
 // --- fetch (9.1.1) ---------------------------------------------------------
 
 JSValue QuickJSScriptEngine::js_native_fetch(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv) {
@@ -2784,6 +2804,8 @@ void QuickJSScriptEngine::install_extension_bindings() {
     JSValue global = JS_GetGlobalObject(context_);
     JS_SetPropertyStr(context_, global, "__hb_nativeInsertCss",
                       JS_NewCFunction(context_, js_native_insert_css, "__hb_nativeInsertCss", 2));
+    JS_SetPropertyStr(context_, global, "__hb_nativeSetFilterRules",
+                      JS_NewCFunction(context_, js_native_set_filter_rules, "__hb_nativeSetFilterRules", 1));
     JS_FreeValue(context_, global);
     extension_ready_ = true;
 }

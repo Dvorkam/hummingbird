@@ -70,7 +70,8 @@ public:
         std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr,
         std::shared_ptr<Core::StorageManager> storage_manager = nullptr,
         std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr,
-        std::shared_ptr<Core::HttpCache> http_cache = nullptr);
+        std::shared_ptr<Core::HttpCache> http_cache = nullptr,
+        std::shared_ptr<Core::RequestFilter> request_filter = nullptr);
     ~Tab();
 
     Tab(const Tab&) = delete;
