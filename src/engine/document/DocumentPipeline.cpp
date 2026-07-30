@@ -442,6 +442,23 @@ std::optional<std::string> DocumentPipeline::consume_location_change() {
     return scripting_->consume_location_change();
 }
 
+std::optional<IScriptEngine::HistoryChange> DocumentPipeline::consume_history_change() {
+    return scripting_->consume_history_change();
+}
+
+std::optional<int> DocumentPipeline::consume_history_delta() {
+    return scripting_->consume_history_delta();
+}
+
+void DocumentPipeline::set_history_length(size_t length) {
+    scripting_->set_history_length(length);
+}
+
+DocumentPipeline::ScriptDispatchResult DocumentPipeline::apply_popstate(std::string_view url, std::string_view state) {
+    auto result = scripting_->apply_popstate(*model_, url, state);
+    return {result.handled, result.mutated, result.default_prevented};
+}
+
 DocumentPipeline::SubmitDispatchResult DocumentPipeline::dispatch_submit(const DOM::Element* form) {
     if (!form) {
         return {};

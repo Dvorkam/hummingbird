@@ -79,6 +79,13 @@ public:
     // Returns/clears a script-initiated location.hash change to reflect in the
     // chrome + tab history (7.7.3).
     std::optional<std::string> consume_location_change();
+    // History API MVP (9.6.1): pass-throughs plus the popstate dispatch, which
+    // reports DOM mutation the same way navigate_fragment does.
+    std::optional<IScriptEngine::HistoryChange> consume_history_change();
+    std::optional<int> consume_history_delta();
+    void set_history_length(size_t length);
+    ScriptDispatchResult apply_popstate(DOM::Node* dom_root, Core::ArenaAllocator* arena, std::string_view url,
+                                        std::string_view state);
 
     // Unimplemented APIs this document's scripts touched (7.5.2 telemetry).
     // Read at document end, before reset() clears it.

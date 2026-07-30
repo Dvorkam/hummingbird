@@ -1855,6 +1855,24 @@ void QuickJSScriptEngine::install_window_bindings() {
     JSValue local_storage = make_storage_object(/*magic=*/0);
     JSValue session_storage = make_storage_object(/*magic=*/1);
 
+    // history (9.6.1). pushState/replaceState share one callback via magic; the
+    // traversal trio does the same with its delta.
+    JSValue history = JS_NewObject(context_);
+    JS_SetPropertyStr(context_, history, "pushState",
+                      JS_NewCFunctionMagic(context_, js_history_push_state, "pushState", 3, JS_CFUNC_generic_magic, 0));
+    JS_SetPropertyStr(
+        context_, history, "replaceState",
+        JS_NewCFunctionMagic(context_, js_history_push_state, "replaceState", 3, JS_CFUNC_generic_magic, 1));
+    JS_SetPropertyStr(context_, history, "back",
+                      JS_NewCFunctionMagic(context_, js_history_go, "back", 0, JS_CFUNC_generic_magic, -1));
+    JS_SetPropertyStr(context_, history, "forward",
+                      JS_NewCFunctionMagic(context_, js_history_go, "forward", 0, JS_CFUNC_generic_magic, 1));
+    JS_SetPropertyStr(context_, history, "go",
+                      JS_NewCFunctionMagic(context_, js_history_go, "go", 1, JS_CFUNC_generic_magic, 0));
+    define_getter_magic(history, "state", js_history_get_state, 0);
+    define_getter_magic(history, "length", js_history_get_length, 0);
+    JS_SetPropertyStr(context_, global, "history", history);  // transfers the ref
+
     JS_SetPropertyStr(context_, global, "location", location);               // transfers the ref
     JS_SetPropertyStr(context_, global, "localStorage", local_storage);      // transfers the ref
     JS_SetPropertyStr(context_, global, "sessionStorage", session_storage);  // transfers the ref
@@ -1997,6 +2015,158 @@ bool QuickJSScriptEngine::navigate_fragment(std::string_view url) {
     bool changed = update_location(url);
     script_location_change_.reset();
     return changed;
+}
+
+// --- History API MVP (9.6.1) ------------------------------------------------
+//
+// pushState/replaceState are a *session history* operation, not a navigation:
+// the document must not be torn down, so the binding only records what the page
+// asked for and updates `location` in place. The Tab drains the request, because
+// it owns the history stack and the URL bar.
+//
+// `title` (argv[1]) is accepted and ignored, which is what browsers do — it was
+// never implemented by any of them.
+JSValue QuickJSScriptEngine::js_history_push_state(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                   JSValueConst* argv, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine) {
+        return JS_UNDEFINED;
+    }
+
+    // Serialize the state now rather than holding a JSValue: it has to survive
+    // in the Tab's history stack, which outlives this document's JS context.
+    // JSON is the MVP's stated limit (structured clone is M12's).
+    std::string serialized;
+    if (argc >= 1 && !JS_IsUndefined(argv[0]) && !JS_IsNull(argv[0])) {
+        JSValue json = JS_JSONStringify(ctx, argv[0], JS_UNDEFINED, JS_UNDEFINED);
+        if (JS_IsException(json)) {
+            // A non-serializable state is a DataCloneError in the spec. Report it
+            // rather than storing something the page did not ask for.
+            JS_FreeValue(ctx, json);
+            return JS_ThrowTypeError(ctx, "history state could not be serialized");
+        }
+        if (const char* text = JS_ToCString(ctx, json)) {
+            serialized = text;
+            JS_FreeCString(ctx, text);
+        }
+        JS_FreeValue(ctx, json);
+    }
+
+    // An omitted or empty url means "the current one", per spec.
+    std::string url = engine->location_url_;
+    if (argc >= 3 && !JS_IsUndefined(argv[2]) && !JS_IsNull(argv[2])) {
+        if (const char* text = JS_ToCString(ctx, argv[2])) {
+            const std::string requested(text);
+            JS_FreeCString(ctx, text);
+            if (!requested.empty()) {
+                // Resolved against `location_url_`, not through the host resolver
+                // that fetch uses. Two reasons: pushState updates location_url_
+                // synchronously, so a second relative push inside the same script
+                // run chains off the first (the host's base only moves once the
+                // Tab drains); and it keeps the API working with no resolver
+                // wired, which a location operation should not depend on.
+                url = Core::resolve_url(engine->location_url_, requested);
+            }
+        }
+    }
+
+    const bool replace = magic != 0;
+    engine->history_state_ = serialized;
+    // location reflects the new URL immediately — a page that pushes and then
+    // reads location.href must see the pushed address, and no hashchange fires
+    // for a pushState even when the fragment differs.
+    engine->location_url_ = url;
+    engine->script_history_change_ = HistoryChange{url, serialized, replace};
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_history_get_state(JSContext* ctx, JSValueConst /*this_val*/, int /*magic*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || engine->history_state_.empty()) {
+        return JS_NULL;  // no state is null, which is distinct from the string "null"
+    }
+    return JS_ParseJSON(ctx, engine->history_state_.c_str(), engine->history_state_.size(), "<history.state>");
+}
+
+JSValue QuickJSScriptEngine::js_history_get_length(JSContext* ctx, JSValueConst /*this_val*/, int /*magic*/) {
+    auto* engine = engine_from_context(ctx);
+    return JS_NewInt64(ctx, engine ? static_cast<int64_t>(engine->history_length_) : 1);
+}
+
+// back()/forward()/go(n). magic is the fixed delta, or 0 for go(n) which reads
+// its own. Only the request is recorded: traversal needs the Tab, which owns the
+// stack and the graphics context a re-render requires.
+JSValue QuickJSScriptEngine::js_history_go(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv,
+                                           int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine) {
+        return JS_UNDEFINED;
+    }
+    int delta = magic;
+    if (magic == 0) {
+        int32_t requested = 0;
+        if (argc >= 1 && JS_ToInt32(ctx, &requested, argv[0]) == 0) {
+            delta = requested;
+        }
+        // go(0) reloads in a browser; the MVP treats it as a no-op rather than
+        // pretending to implement a reload from here.
+        if (delta == 0) {
+            return JS_UNDEFINED;
+        }
+    }
+    engine->script_history_delta_ = delta;
+    return JS_UNDEFINED;
+}
+
+std::optional<IScriptEngine::HistoryChange> QuickJSScriptEngine::consume_history_change() {
+    std::optional<HistoryChange> out = std::move(script_history_change_);
+    script_history_change_.reset();
+    return out;
+}
+
+std::optional<int> QuickJSScriptEngine::consume_history_delta() {
+    std::optional<int> out = script_history_delta_;
+    script_history_delta_.reset();
+    return out;
+}
+
+void QuickJSScriptEngine::set_history_length(size_t length) {
+    history_length_ = length == 0 ? 1 : length;
+}
+
+bool QuickJSScriptEngine::apply_popstate(std::string_view url, std::string_view state) {
+    if (!context_) {
+        return false;
+    }
+    location_url_ = std::string(url);
+    history_state_ = std::string(state);
+    // A traversal the app drove: it must NOT report back as a script-initiated
+    // change, or the Tab would re-push the entry it just moved to.
+    script_history_change_.reset();
+    script_location_change_.reset();
+
+    // Same shape as the hashchange dispatch above: a real event object on the
+    // window target, bracketed by a ScriptEntryScope, with a microtask
+    // checkpoint after the listeners (7.3.2).
+    JSValue event = make_event("popstate", window_target());
+    JSValue state_value = history_state_.empty()
+                              ? JS_NULL
+                              : JS_ParseJSON(context_, history_state_.c_str(), history_state_.size(), "<popstate>");
+    if (JS_IsException(state_value)) {
+        JS_FreeValue(context_, state_value);
+        state_value = JS_NULL;
+    }
+    JS_SetPropertyStr(context_, event, "state", state_value);
+    {
+        ScriptEntryScope entry(script_entry_depth_);
+        dispatch_event(window_target(), "popstate", event);
+    }
+    JS_FreeValue(context_, event);
+    drain_microtasks();
+    // Whether a listener mutated the DOM is the controller's to report — it owns
+    // the host's mutation epoch, exactly as it does for hashchange. Returning
+    // true here means only "the event was dispatched".
+    return true;
 }
 
 std::optional<std::string> QuickJSScriptEngine::consume_location_change() {

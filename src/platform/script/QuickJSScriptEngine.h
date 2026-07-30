@@ -33,6 +33,10 @@ public:
     void set_location(std::string_view url) override;
     bool navigate_fragment(std::string_view url) override;
     std::optional<std::string> consume_location_change() override;
+    std::optional<HistoryChange> consume_history_change() override;
+    std::optional<int> consume_history_delta() override;
+    bool apply_popstate(std::string_view url, std::string_view state) override;
+    void set_history_length(size_t length) override;
     bool run_due_timers(double now_ms) override;
     bool has_pending_timers() const override { return !timers_.empty(); }
     bool run_animation_frames(double now_ms) override;
@@ -142,6 +146,12 @@ private:
     static JSValue js_location_get_href(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_get_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_set_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    // history.pushState / replaceState (9.6.1); magic selects which.
+    static JSValue js_history_push_state(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv,
+                                         int magic);
+    static JSValue js_history_get_state(JSContext* ctx, JSValueConst this_val, int magic);
+    static JSValue js_history_get_length(JSContext* ctx, JSValueConst this_val, int magic);
+    static JSValue js_history_go(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
 
     // Event object methods (7.2.2). The Event is a plain object; these set flags
     // the C++ dispatch loop reads back (defaultPrevented / propagation state).
@@ -301,6 +311,14 @@ private:
     // Set when a script assigns location.hash; consumed by the app to sync the
     // URL bar + tab history (7.7.3). Not set by app-initiated navigation.
     std::optional<std::string> script_location_change_;
+    // History API MVP (9.6.1). `history_state_` is the serialized state of the
+    // CURRENT entry — empty means null. It is per-document and dropped with the
+    // context, like every other per-document value.
+    std::string history_state_;
+    std::optional<HistoryChange> script_history_change_;
+    size_t history_length_ = 1;
+    // A pending history.back()/forward()/go(n) delta the Tab has yet to apply.
+    std::optional<int> script_history_delta_;
     // Nesting depth of JS entry points (eval, event dispatch, timer/rAF
     // callback). A host callback can re-enter the engine while script is still
     // on the stack — JS element.focus() routes through IScriptHost and comes

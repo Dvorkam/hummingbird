@@ -212,6 +212,26 @@
         <code>window.console.warn</code>. Added in M9 (T-JS-WINDOW-IS-GLOBAL-1).</p>
       </div>
 
+      <div class="card">
+        <h2>Routing without reloading &mdash; the History API</h2>
+        <p class="card-lead">An API-driven page changes what it shows without fetching a new document. That needs the
+        URL to move anyway, or Back stops working and the address bar starts lying. <code>history.pushState</code> adds
+        a session-history entry; Back and Forward then fire <code>popstate</code> and hand the page its state back,
+        with no reload.</p>
+        <p><button id="route-list">List view</button>
+        <button id="route-detail">Detail view (pushState)</button>
+        <button id="route-back">history.back()</button></p>
+        <p class="out" id="route-view">List view. The URL above still says /m9.</p>
+        <p class="out" id="route-log">No route changes yet.</p>
+        <p class="note">Watch the <strong>URL bar</strong> as you click: it moves to <code>/m9/detail/…</code> and back,
+        while this page is never rebuilt &mdash; the counter below only ever counts <em>route</em> changes, because a
+        reload would reset it to zero. That counter is the whole demonstration: it is the piece a page cannot fake.</p>
+        <p class="note">Back and Forward in the browser chrome drive the same entries, and so does the
+        <code>history.back()</code> button, which routes through exactly the path the chrome buttons use so the two
+        cannot diverge. Added in M9 (story 9.6.1). Full SPA navigation &mdash; scroll restoration, navigation
+        interception, structured-clone state &mdash; stays M12.</p>
+      </div>
+
       <p><a href="https://example.dev">&laquo; back to example.dev</a></p>
     </div>
 
@@ -426,6 +446,38 @@
             + "assignment creates a bare global."
           : "FAILED: " + failed.join("; ");
       });
+
+      // --- History API MVP (story 9.6.1) -------------------------------------
+      var routeView = document.getElementById("route-view");
+      var routeLog = document.getElementById("route-log");
+      // Lives in this document's script. A reload would reset it to zero, which
+      // is exactly why it is the honest way to show that no reload happened.
+      var routeChanges = 0;
+
+      function renderRoute(state) {
+        routeChanges++;
+        var where = (state && state.view === "detail")
+          ? "Detail view for story #" + state.id + "."
+          : "List view.";
+        routeView.textContent = where + "   URL is now " + location.href;
+        routeLog.textContent = routeChanges + " route change(s) in THIS document, never reloaded."
+          + "   history.length = " + history.length
+          + "   history.state = " + (history.state ? JSON.stringify(history.state) : "null");
+      }
+
+      document.getElementById("route-detail").addEventListener("click", function () {
+        history.pushState({ view: "detail", id: 42 }, "", "/m9/detail/42");
+        renderRoute(history.state);
+      });
+      document.getElementById("route-list").addEventListener("click", function () {
+        history.pushState({ view: "list" }, "", "/m9");
+        renderRoute(history.state);
+      });
+      document.getElementById("route-back").addEventListener("click", function () {
+        history.back();
+      });
+      // Back/Forward — chrome buttons or history.back() — arrive here.
+      addEventListener("popstate", function (e) { renderRoute(e.state); });
     </script>
   </body>
 </html>

@@ -107,6 +107,24 @@ std::optional<std::string> DocumentScripting::consume_location_change() {
     return controller_->consume_location_change();
 }
 
+std::optional<IScriptEngine::HistoryChange> DocumentScripting::consume_history_change() {
+    return controller_->consume_history_change();
+}
+
+std::optional<int> DocumentScripting::consume_history_delta() {
+    return controller_->consume_history_delta();
+}
+
+void DocumentScripting::set_history_length(size_t length) {
+    controller_->set_history_length(length);
+}
+
+DocumentScripting::DispatchResult DocumentScripting::apply_popstate(DocumentModel& model, std::string_view url,
+                                                                    std::string_view state) {
+    auto result = controller_->apply_popstate(model.dom_root(), model.dom_arena(), url, state);
+    return {result.handled, result.mutated, result.default_prevented};
+}
+
 std::vector<std::string> DocumentScripting::missing_apis() const {
     return controller_->missing_apis();
 }

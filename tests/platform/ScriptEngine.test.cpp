@@ -1370,3 +1370,168 @@ TEST(ScriptEngineTest, ConsoleExposesTheMethodsPagesActuallyCall) {
     EXPECT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
     EXPECT_TRUE(engine->missing_apis().empty()) << "console is real, so nothing should be reported missing";
 }
+
+// --- History API MVP (story 9.6.1) -----------------------------------------
+
+// pushState is a session-history operation, not a navigation: it must move
+// `location` immediately, report itself for the Tab to record, and fire NO
+// hashchange even when the fragment differs.
+TEST(ScriptEngineTest, PushStateMovesLocationAndReportsTheEntry) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    ASSERT_TRUE(engine
+                    ->eval("globalThis.hashFired = 0;"
+                           "addEventListener('hashchange', function () { globalThis.hashFired++; });"
+                           "history.pushState({ id: 7, tag: 'detail' }, '', '/app/detail/7#frag');",
+                           "inline")
+                    .ok);
+
+    // location is updated in place, synchronously, before the Tab hears anything.
+    const auto check = engine->eval(
+        "if (location.href !== 'https://example.dev/app/detail/7#frag') throw new Error('href: ' + location.href);"
+        "if (history.state.id !== 7) throw new Error('state.id');"
+        "if (history.state.tag !== 'detail') throw new Error('state.tag');"
+        // A pushState is not a fragment navigation, so hashchange must stay quiet
+        // even though the fragment went from nothing to '#frag'.
+        "if (globalThis.hashFired !== 0) throw new Error('hashchange fired for a pushState');"
+        "true;",
+        "inline");
+    EXPECT_TRUE(check.ok) << check.error;
+
+    const auto change = engine->consume_history_change();
+    ASSERT_TRUE(change.has_value());
+    EXPECT_EQ(change->url, "https://example.dev/app/detail/7#frag") << "the URL must be resolved, not relative";
+    EXPECT_FALSE(change->replace);
+    EXPECT_NE(change->state.find("\"id\":7"), std::string::npos) << "state serialized as JSON: " << change->state;
+    // Drained once, like every other consume_* on this port.
+    EXPECT_FALSE(engine->consume_history_change().has_value());
+}
+
+TEST(ScriptEngineTest, ReplaceStateIsReportedAsAReplacement) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    ASSERT_TRUE(engine->eval("history.replaceState({ v: 1 }, '', '/app/list?page=2');", "inline").ok);
+    const auto change = engine->consume_history_change();
+    ASSERT_TRUE(change.has_value());
+    EXPECT_TRUE(change->replace);
+    EXPECT_EQ(change->url, "https://example.dev/app/list?page=2");
+}
+
+// An omitted url means "keep the current one", and null/undefined state is null
+// rather than the string "null" — a page can legitimately store that string.
+TEST(ScriptEngineTest, PushStateDefaultsUrlAndDistinguishesNullState) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    ASSERT_TRUE(engine->eval("history.pushState(null, '');", "inline").ok);
+    auto change = engine->consume_history_change();
+    ASSERT_TRUE(change.has_value());
+    EXPECT_EQ(change->url, "https://example.dev/app/list") << "an omitted url keeps the current one";
+    EXPECT_TRUE(change->state.empty()) << "null state is stored as absent, not as the text null";
+    EXPECT_TRUE(engine->eval("if (history.state !== null) throw new Error('state should be null');", "inline").ok);
+
+    // A page that really stores the STRING gets it back as a string.
+    ASSERT_TRUE(engine->eval("history.pushState('null', '');", "inline").ok);
+    EXPECT_TRUE(engine->eval("if (history.state !== 'null') throw new Error('lost the string');", "inline").ok);
+}
+
+// popstate is the app telling the page it traversed: state comes back, location
+// moves, and the listener's DOM changes are visible to the caller.
+TEST(ScriptEngineTest, ApplyPopstateRestoresStateAndFiresTheEvent) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 8);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto out_el = Hummingbird::DOM::Element::create(arena, "div");
+    out_el->set_attribute("id", "view");
+    root->append_child(std::move(out_el));
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/detail/7");
+
+    ASSERT_TRUE(engine
+                    ->eval("addEventListener('popstate', function (e) {"
+                           "  document.getElementById('view').textContent ="
+                           "    'route:' + (e.state ? e.state.route : 'none') + ' at ' + location.href;"
+                           "});",
+                           "inline")
+                    .ok);
+
+    EXPECT_TRUE(engine->apply_popstate("https://example.dev/app/list", "{\"route\":\"list\"}"));
+
+    auto* view = host.get_element_by_id("view");
+    ASSERT_NE(view, nullptr);
+    EXPECT_EQ(host.get_text_content(view), "route:list at https://example.dev/app/list")
+        << "the listener must see both the restored state and the new location";
+    EXPECT_TRUE(engine->eval("if (history.state.route !== 'list') throw new Error('state not restored');", "inline").ok);
+    // A traversal is app-driven, so it must NOT report back as a script change —
+    // otherwise the Tab would re-push the entry it just moved to.
+    EXPECT_FALSE(engine->consume_history_change().has_value());
+}
+
+// back()/forward()/go() only record a delta; the Tab owns traversal.
+TEST(ScriptEngineTest, HistoryTraversalMethodsRecordADelta) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    ASSERT_TRUE(engine->eval("history.back();", "inline").ok);
+    EXPECT_EQ(engine->consume_history_delta(), -1);
+    EXPECT_FALSE(engine->consume_history_delta().has_value()) << "drained once";
+
+    ASSERT_TRUE(engine->eval("history.forward();", "inline").ok);
+    EXPECT_EQ(engine->consume_history_delta(), 1);
+
+    ASSERT_TRUE(engine->eval("history.go(-3);", "inline").ok);
+    EXPECT_EQ(engine->consume_history_delta(), -3);
+
+    // go(0) reloads in a browser; the MVP declines rather than half-implementing it.
+    ASSERT_TRUE(engine->eval("history.go(0);", "inline").ok);
+    EXPECT_FALSE(engine->consume_history_delta().has_value());
+
+    engine->set_history_length(4);
+    EXPECT_TRUE(engine->eval("if (history.length !== 4) throw new Error('length: ' + history.length);", "inline").ok);
+}
+
+// A state object that cannot be serialized is a DataCloneError in the spec.
+// Reporting it beats silently storing something the page did not ask for.
+TEST(ScriptEngineTest, PushStateRejectsUnserializableState) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app");
+
+    // A cycle cannot be JSON-serialized.
+    const auto result = engine->eval("var a = {}; a.self = a; history.pushState(a, '', '/x');", "inline");
+    EXPECT_FALSE(result.ok) << "an unserializable state must throw, not store garbage";
+    EXPECT_FALSE(engine->consume_history_change().has_value()) << "and must not record an entry";
+}

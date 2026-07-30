@@ -20,6 +20,7 @@
 #include <fstream>
 #include <functional>
 #include <map>
+#include <optional>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -27,9 +28,11 @@
 #include <utility>
 #include <vector>
 
+#include "core/dom/Element.h"
 #include "core/net/HttpCache.h"
 #include "core/net/HttpHeaders.h"
 #include "core/platform_api/INetwork.h"
+#include "layout/RenderObject.h"
 #include "core/platform_api/ResourceProviderFactory.h"
 #include "test_utils/HeadlessTabHarness.h"
 
@@ -46,6 +49,8 @@ const std::string kListPage = kApp + "list";
 const std::string kSummaryPage = kApp + "summary";
 const std::string kNewsApi = kApp + "api/news";
 const std::string kWikiApi = "https://wiki.test/api/rest_v1/page/summary/Hummingbird";
+// Story 9.6.1: one document, several routes.
+const std::string kSpaPage = kApp + "spa";
 
 // The story-list payload, in api.hnpwa.com's shape (id/title/points/user/
 // comments_count). Titles are kept short so each rendered row fits one 800px
@@ -65,6 +70,26 @@ std::string read_fixture(const std::string& name) {
     std::ostringstream ss;
     ss << file.rdbuf();
     return ss.str();
+}
+
+// Absolute-space centre of the first render box whose element carries `id`.
+// Mirrors the TodoMVC harness's helper: a click has to be synthesized at real
+// coordinates so it goes through the same hit-test the user's would.
+std::optional<Hummingbird::Layout::Point> center_of_element(const Hummingbird::Layout::RenderObject* node,
+                                                            std::string_view id, float ox = 0.0f, float oy = 0.0f) {
+    if (!node) return std::nullopt;
+    Hummingbird::Layout::Rect rect = node->get_rect();
+    rect.x += ox;
+    rect.y += oy;
+    if (const auto* element = dynamic_cast<const Hummingbird::DOM::Element*>(node->get_dom_node())) {
+        if (const auto* value = element->find_attribute("id"); value && *value == id) {
+            return Hummingbird::Layout::Point{rect.x + rect.width * 0.5f, rect.y + rect.height * 0.5f};
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (auto found = center_of_element(child.get(), id, rect.x, rect.y)) return found;
+    }
+    return std::nullopt;
 }
 
 // The mock API server. It answers like a real one — status, headers and body —
@@ -122,13 +147,16 @@ private:
         response.effective_url = url;
         response.status = 200;
 
-        if (url == kListPage || url == kSummaryPage) {
+        if (url == kListPage || url == kSummaryPage || url == kSpaPage) {
             // The pages themselves are never cached, so each navigation really
             // re-parses and re-runs the script. That keeps the cache assertions
             // below about the API endpoint and nothing else.
             response.headers.add("Content-Type", "text/html; charset=utf-8");
             response.headers.add("Cache-Control", "no-store");
-            response.body = read_fixture(url == kListPage ? "api_render/story_list.html" : "api_render/summary.html");
+            const char* fixture = "api_render/story_list.html";
+            if (url == kSummaryPage) fixture = "api_render/summary.html";
+            if (url == kSpaPage) fixture = "api_render/spa.html";
+            response.body = read_fixture(fixture);
         } else if (url == kNewsApi) {
             // HNPWA's real freshness shape: an hour of max-age plus a strong ETag.
             response.headers.add("Content-Type", "application/json");
@@ -182,6 +210,15 @@ struct ApiRenderFixture {
 
     void pump(int ticks = 8) {
         for (int i = 0; i < ticks; ++i) harness->tick();
+    }
+
+    // Clicks the centre of the element carrying `id`, through the real hit-test
+    // and event pipeline. Layout is refreshed first so the box is current.
+    bool click_by_id(std::string_view id) {
+        harness->tick();
+        const auto point = center_of_element(harness->tab().render_root(), id);
+        if (!point) return false;
+        return harness->dispatch_click(*point).handled;
     }
 
     // Repaints and reports whether `needle` reached the screen. Inline text is
@@ -304,4 +341,73 @@ TEST(ApiRenderHarnessTest, ReloadRefetchesTheDocumentAndKeepsTheFreshApiAnswer) 
     EXPECT_EQ(fx.server->calls_for(kListPage), 2u) << "a reload always re-asks for the document";
     EXPECT_EQ(fx.server->calls_for(kNewsApi), 1u) << "a normal reload does not reach past the document";
     EXPECT_TRUE(fx.painted("2. A promise that settles (95 points, 7 comments)"));
+}
+
+// Story 9.6.1 acceptance, end to end: a page fetches a list, pushState's a
+// detail route, renders the detail from a second fetch, and Back returns to the
+// list with popstate fired and NO document reload.
+//
+// The "no reload" half is the whole point of the API, and it is only checkable
+// from outside the page: the mock server counts document requests, so a reload
+// cannot hide behind a re-render that happens to look right.
+TEST(ApiRenderHarnessTest, HistoryApiRoutesBetweenViewsWithoutReloadingTheDocument) {
+    ApiRenderFixture fx;
+    fx.load(kSpaPage);
+
+    // The list rendered from the first fetch.
+    ASSERT_EQ(fx.server->calls_for(kNewsApi), 1u);
+    EXPECT_TRUE(fx.painted("LIST: Hummingbird fetches its own data"));
+    EXPECT_FALSE(fx.painted("DETAIL:"));
+
+    const std::size_t document_loads = fx.server->calls_for(kSpaPage);
+    ASSERT_EQ(document_loads, 1u);
+
+    // --- route to the detail view (pushState + a second fetch) ---------------
+    fx.click_by_id("go-detail");
+    fx.pump();
+
+    EXPECT_EQ(std::string(fx.harness->tab().requested_url()), kApp + "spa/detail/2")
+        << "pushState must move the tab's URL — and to a PATH, which is the case that "
+           "cannot be mistaken for hash routing";
+    EXPECT_TRUE(fx.painted("DETAIL: A promise that settles (95 points)"))
+        << "the detail view renders from its own fetch";
+    EXPECT_FALSE(fx.painted("LIST: Hummingbird fetches its own data")) << "the list view was replaced";
+    EXPECT_EQ(fx.server->calls_for(kSpaPage), document_loads)
+        << "a route change must not re-request the document";
+
+    // --- Back returns to the list -------------------------------------------
+    ASSERT_TRUE(fx.harness->go_back());
+    fx.pump();
+
+    EXPECT_TRUE(fx.painted("LIST: Hummingbird fetches its own data")) << "popstate re-rendered the list";
+    EXPECT_FALSE(fx.painted("DETAIL:"));
+    EXPECT_EQ(fx.server->calls_for(kSpaPage), document_loads)
+        << "going back to a pushState entry must not reload either";
+    // The API answer was already cached, so the list re-render costs nothing.
+    EXPECT_EQ(fx.server->calls_for(kNewsApi), 1u);
+
+    // --- Forward goes to the detail again, with its state intact ------------
+    ASSERT_TRUE(fx.harness->go_forward());
+    fx.pump();
+    EXPECT_TRUE(fx.painted("DETAIL: A promise that settles (95 points)"))
+        << "forward restores the state object, so the page knows which detail to draw";
+    EXPECT_EQ(fx.server->calls_for(kSpaPage), document_loads);
+}
+
+// Stage A of the story: hash routing already worked, and must keep working
+// alongside pushState rather than being replaced by it.
+TEST(ApiRenderHarnessTest, HashRoutingStillWorksAlongsideThePushStateRoutes) {
+    ApiRenderFixture fx;
+    fx.load(kSpaPage);
+    const std::size_t document_loads = fx.server->calls_for(kSpaPage);
+
+    fx.click_by_id("go-hash");
+    fx.pump();
+    EXPECT_TRUE(fx.painted("HASH: about")) << "a hashchange listener rendered the route";
+    EXPECT_EQ(fx.server->calls_for(kSpaPage), document_loads);
+
+    ASSERT_TRUE(fx.harness->go_back());
+    fx.pump();
+    EXPECT_TRUE(fx.painted("LIST: Hummingbird fetches its own data"));
+    EXPECT_EQ(fx.server->calls_for(kSpaPage), document_loads);
 }

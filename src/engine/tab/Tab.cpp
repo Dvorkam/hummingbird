@@ -219,7 +219,7 @@ void Tab::navigate_with_cache_policy(std::string_view url, NavigationSource sour
 
     begin_navigation_session(url);
     if (!in_history_navigation_) {
-        history_.push(std::string(navigation_lifecycle_.requested_url()));
+        history_.push(std::string(navigation_lifecycle_.requested_url()), document_generation_);
     }
     resource_loader_->navigate(navigation_lifecycle_.requested_url(), request);
 }
@@ -236,17 +236,41 @@ bool Tab::go_forward(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     return true;
 }
 
-void Tab::navigate_history_entry(const std::string& url, IGraphicsContext& graphics, const Layout::Rect& viewport) {
+void Tab::navigate_history_entry(const NavigationHistory::Entry& entry, IGraphicsContext& graphics,
+                                 const Layout::Rect& viewport) {
     in_history_navigation_ = true;
+    const std::string& url = entry.url;
     const std::string_view current = navigation_lifecycle_.requested_url();
-    if (Core::url_without_fragment(url) == Core::url_without_fragment(current) &&
-        Core::url_fragment(url) != Core::url_fragment(current)) {
-        // Same document, only the fragment differs: navigate in place (no reload).
+    if (entry.document_id != document_generation_) {
+        navigate(url);  // a different document: full (re)load
+    } else if (!entry.same_document && Core::url_without_fragment(url) == Core::url_without_fragment(current) &&
+               Core::url_fragment(url) != Core::url_fragment(current)) {
+        // Same document, only the fragment differs: navigate in place (no
+        // reload). Kept ahead of the popstate path so hash routing behaves
+        // exactly as it did before 9.6.1.
         (void)navigate_fragment(url, graphics, viewport);
     } else {
-        navigate(url);  // different document (or exact reload): full (re)load
+        // Same document, any other difference — including back onto the
+        // document's own entry from a pushed one. No reload: the page's popstate
+        // listener is what re-renders.
+        apply_history_state(entry, graphics, viewport);
     }
     in_history_navigation_ = false;
+}
+
+// Traversal onto a same-document entry: move the tab's URL, hand the state to
+// the page, and repaint whatever its popstate listener changed. No document is
+// built, which is the observable contract of the History API.
+void Tab::apply_history_state(const NavigationHistory::Entry& entry, IGraphicsContext& graphics,
+                              const Layout::Rect& viewport) {
+    navigation_lifecycle_.update_same_document_url(entry.url);
+    document_pipeline_->set_history_length(history_.size());
+    auto result = document_pipeline_->apply_popstate(entry.url, entry.state);
+    if (result.mutated) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "history:popstate_mutation");
+    }
+    pending_url_bar_update_ = entry.url;
+    mark_dirty("history_traversal");
 }
 
 void Tab::navigate(const FormSubmission& submission) {
@@ -260,7 +284,7 @@ void Tab::navigate(const FormSubmission& submission) {
 
     begin_navigation_session(submission.url);
     if (!in_history_navigation_) {
-        history_.push(std::string(navigation_lifecycle_.requested_url()));
+        history_.push(std::string(navigation_lifecycle_.requested_url()), document_generation_);
     }
 
     if (submission.method == FormSubmitMethod::Post) {
@@ -276,6 +300,8 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
 
     consume_pending_resources(graphics, viewport);
     process_settled_fetches(graphics, viewport);
+    process_script_history_change();
+    process_script_history_traversal(graphics, viewport);
     apply_extension_css_if_needed(graphics, viewport);
     relayout_if_viewport_changed(graphics, viewport);
     process_animation_updates();
@@ -356,17 +382,54 @@ void Tab::process_scheduled_scripts(IGraphicsContext& graphics, const Layout::Re
     }
 }
 
+const Layout::RenderObject* Tab::render_root() const {
+    return document_pipeline_->render_root();
+}
+
 size_t Tab::style_layout_pass_count() const {
     return document_pipeline_->style_layout_pass_count();
+}
+
+// history.pushState / replaceState (9.6.1): record the entry and move the URL
+// bar, without touching the document. Drained next to the location-change path
+// because they are the same kind of event — a script changing the address of a
+// document that stays loaded.
+void Tab::process_script_history_change() {
+    if (auto change = document_pipeline_->consume_history_change()) {
+        navigation_lifecycle_.update_same_document_url(change->url);
+        if (change->replace) {
+            history_.replace_current(change->url, change->state, document_generation_);
+        } else {
+            history_.push_same_document(change->url, change->state, document_generation_);
+        }
+        document_pipeline_->set_history_length(history_.size());
+        pending_url_bar_update_ = change->url;
+        mark_dirty("script_history_change");
+    }
+}
+
+// history.back()/forward()/go(n). The binding only records the delta; traversal
+// belongs here, where the stack and the graphics context both live. Applied one
+// step at a time through the same path the chrome buttons use, so a script
+// traversal and a user traversal cannot diverge.
+void Tab::process_script_history_traversal(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    auto delta = document_pipeline_->consume_history_delta();
+    if (!delta) return;
+    for (int i = 0; i < *delta; ++i) {
+        if (!go_forward(graphics, viewport)) break;
+    }
+    for (int i = 0; i > *delta; --i) {
+        if (!go_back(graphics, viewport)) break;
+    }
 }
 
 void Tab::process_script_url_change() {
     // A script assigned location.hash (7.7.3): reflect it in the tab's requested
     // URL in place (no reload) and queue the URL-bar text for the app.
     if (auto url = document_pipeline_->consume_location_change()) {
-        navigation_lifecycle_.update_fragment_url(*url);
+        navigation_lifecycle_.update_same_document_url(*url);
         if (!in_history_navigation_) {
-            history_.push(*url);  // JS hash routing is a history entry too (7.6.1)
+            history_.push(*url, document_generation_);  // JS hash routing is an entry too (7.6.1)
         }
         pending_url_bar_update_ = std::move(url);
         mark_dirty("script_location_change");
@@ -480,9 +543,9 @@ Tab::FragmentResult Tab::navigate_fragment(std::string_view url, IGraphicsContex
         // Same-document fragment nav: keep the tab's requested URL in sync so
         // back/forward history and the URL bar reflect it (7.7.3 mirror of the
         // click path's URL-bar update).
-        navigation_lifecycle_.update_fragment_url(url);
+        navigation_lifecycle_.update_same_document_url(url);
         if (!in_history_navigation_) {
-            history_.push(std::string(url));  // fragment routes are history entries (7.6.1)
+            history_.push(std::string(url), document_generation_);  // fragment routes are entries too (7.6.1)
         }
     }
     if (result.mutated) {
@@ -770,6 +833,11 @@ bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Lay
 }
 
 void Tab::begin_navigation_session(std::string_view url) {
+    // A new document is loading, so every history entry recorded from here on
+    // belongs to it. Traversal compares against this to decide reload vs
+    // popstate (9.6.1), which is the same question the fetch generation answers
+    // for in-flight responses.
+    ++document_generation_;
     navigation_lifecycle_.begin_navigation_from_input(url);
     reset_document_state();
 }

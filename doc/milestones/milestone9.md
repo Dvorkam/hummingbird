@@ -1066,8 +1066,36 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       demand**, since XHR is one of the only two things that can ever fire it.
       **Outstanding and needs the app** (the sandbox blocks SDL exes): the live
       sweep over real pages that turns the instrument into numbers.)*
-- [ ] 9.6.1: History API MVP *(needed for "browse a thread and come back" —
-      the one P1 that is part of M9's own thesis rather than parked in it)*
+- [x] 9.6.1: History API MVP *(`history.pushState`/`replaceState`/`state`/
+      `length`/`back`/`forward`/`go` plus the `popstate` event, wired to the tab's
+      existing back/forward stack. **Stage A** (hash routing) was already working
+      and is now covered by the harness alongside the new routes rather than
+      being replaced by them.
+      **The design correction that made it work:** the first cut flagged each
+      pushState ENTRY as same-document, which is not enough — going Back from a
+      pushed entry lands on the DOCUMENT's own entry, which no pushState created,
+      and reloading there defeats the API just as completely. Entries now carry
+      the id of the document they belong to (`Tab::document_generation_`, bumped
+      in `begin_navigation_session`), and traversal is same-document exactly when
+      that matches what is loaded — which is how browsers decide it.
+      `pushState` resolves its URL against the engine's own `location_url_`
+      rather than the host resolver `fetch` uses, so two relative pushes in one
+      script run chain off each other (the host's base only moves once the Tab
+      drains) and the API does not depend on a resolver being wired.
+      State is serialized to JSON at the call, because it has to outlive the JS
+      context in the Tab's stack; an unserializable state throws rather than
+      storing something the page did not ask for. Empty state is null, which is
+      distinct from the string "null" a page may legitimately store.
+      **Deliberate deviations, both narrow:** traversing to a *fragment* entry
+      fires `hashchange` only, not also `popstate` — preserving 7.2.5's behaviour
+      exactly, and the spec's both-events rule is a same-document edge case M12
+      owns; and `history.go(0)` is a no-op rather than a half-implemented reload.
+      Tests: 6 binding cases + 2 harness flows. The acceptance flow asserts the
+      document was requested exactly once across list → detail → back → forward,
+      **verified load-bearing** by forcing traversal to always reload and watching
+      it fail on the "must not reload" assertion. 998 green, up from 990.
+      Demo: an m9 card whose route counter lives in page script, so a reload would
+      reset it to zero — the one number a page cannot fake.)*
 - [ ] 9.4.1: Declarative Request-Filtering Rules *(the big one. Named in the North
       Star, and it closes two extension-HOST holes as a side effect: `permissions`
       is parsed but not enforced, and rule sets need persistence the host lacks.

@@ -64,6 +64,31 @@ public:
     // NOT report here. Default: nothing.
     virtual std::optional<std::string> consume_location_change() { return std::nullopt; }
 
+    // --- History API MVP (9.6.1) ---------------------------------------------
+    // What a script asked the session history to do via
+    // `history.pushState`/`replaceState`. Reported the same way as a location
+    // change: queued by the binding, drained by the Tab, which owns the history
+    // stack and the URL bar.
+    struct HistoryChange {
+        std::string url;    // already resolved against the document's base
+        std::string state;  // serialized state as JSON; empty means "no state"
+        bool replace = false;
+    };
+    virtual std::optional<HistoryChange> consume_history_change() { return std::nullopt; }
+    // A pending `history.back()`/`forward()`/`go(n)` delta. Traversal is the
+    // Tab's job (it owns the stack and the graphics context a re-render needs),
+    // so the binding only records the request. Default: nothing.
+    virtual std::optional<int> consume_history_delta() { return std::nullopt; }
+    // A traversal the page did NOT initiate: back/forward landing on a
+    // same-document entry. Sets `location` and `history.state` without a reload,
+    // then fires `popstate`. Returns true when the event was dispatched; whether
+    // a listener mutated the DOM is reported by the caller that owns the host's
+    // mutation epoch, as with hashchange. `state` empty means null.
+    virtual bool apply_popstate(std::string_view /*url*/, std::string_view /*state*/) { return false; }
+    // How many entries deep the session history is, for `history.length`. The Tab
+    // owns the stack, so it has to tell the engine.
+    virtual void set_history_length(size_t /*length*/) {}
+
     // Timer scheduling (7.3.1). `run_due_timers` fires every setTimeout/setInterval
     // callback whose deadline has passed at `now_ms` — a monotonically
     // non-decreasing, document-relative clock in milliseconds — in deadline then

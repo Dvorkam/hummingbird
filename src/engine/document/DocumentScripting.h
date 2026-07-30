@@ -72,6 +72,11 @@ public:
     bool has_pending_animation_frames() const;
     // Script-initiated location.hash change to reflect in chrome/history (7.7.3).
     std::optional<std::string> consume_location_change();
+    // History API MVP (9.6.1).
+    std::optional<IScriptEngine::HistoryChange> consume_history_change();
+    std::optional<int> consume_history_delta();
+    void set_history_length(size_t length);
+    DispatchResult apply_popstate(DocumentModel& model, std::string_view url, std::string_view state);
 
     // Unimplemented APIs this document's scripts touched (7.5.2). Read at
     // document end, before reset() clears the engine's per-document list.

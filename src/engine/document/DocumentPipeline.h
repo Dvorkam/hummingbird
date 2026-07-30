@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "core/platform_api/IScriptEngine.h"
 #include "core/platform_api/ScriptFetch.h"
 #include "engine/document/ExternalScriptLookup.h"
 #include "engine/forms/FormSubmission.h"
@@ -168,6 +169,12 @@ public:
     FragmentNavResult navigate_fragment(std::string_view url);
     // Returns/clears a script-initiated location.hash change (7.7.3).
     std::optional<std::string> consume_location_change();
+    // History API MVP (9.6.1). pushState/replaceState are reported for the Tab
+    // to record; apply_popstate is the Tab telling the page it traversed.
+    std::optional<IScriptEngine::HistoryChange> consume_history_change();
+    std::optional<int> consume_history_delta();
+    void set_history_length(size_t length);
+    ScriptDispatchResult apply_popstate(std::string_view url, std::string_view state);
 
     // Count of completed style+layout passes (7.4.1 invalidation instrumentation).
     // Batching guarantee: a task making N DOM mutations advances this by exactly 1.

@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>API-driven routes</title>
+    <style>
+      body { margin: 0; }
+      button { display: block; }
+      #view { display: block; }
+    </style>
+  </head>
+  <body>
+    <button id="go-detail">Open the second story</button>
+    <button id="go-hash">Go to the about route</button>
+    <p id="view">Loading...</p>
+    <script>
+      // Story 9.6.1 fixture: list -> detail -> back, all in one document. The
+      // point of the flow is what does NOT happen — no navigation, no reload —
+      // so every view is rendered by this script from state it already holds.
+      var view = document.getElementById("view");
+      var stories = null;
+
+      function renderList() {
+        var text = "";
+        for (var i = 0; i < stories.length; i++) {
+          text += "LIST: " + stories[i].title + "   ";
+        }
+        view.textContent = text;
+      }
+
+      function renderDetail(id) {
+        for (var i = 0; i < stories.length; i++) {
+          if (stories[i].id === id) {
+            view.textContent = "DETAIL: " + stories[i].title + " (" + stories[i].points + " points)";
+            return;
+          }
+        }
+        view.textContent = "DETAIL: unknown story " + id;
+      }
+
+      // The route is derived from history.state, so back and forward both land
+      // on the right view without the page tracking anything itself.
+      function renderRoute(state) {
+        if (!stories) { return; }
+        if (state && state.detail) { renderDetail(state.detail); return; }
+        if (location.hash === "#about") { view.textContent = "HASH: about"; return; }
+        renderList();
+      }
+
+      fetch("/api/news").then(function (response) {
+        return response.json();
+      }).then(function (items) {
+        stories = items;
+        renderRoute(history.state);
+      });
+
+      document.getElementById("go-detail").addEventListener("click", function () {
+        // A path change, not a fragment one: this is the case that cannot be
+        // mistaken for hash routing, and the one that used to force a reload.
+        history.pushState({ detail: 2 }, "", "/spa/detail/2");
+        renderRoute(history.state);
+      });
+
+      document.getElementById("go-hash").addEventListener("click", function () {
+        location.hash = "#about";
+      });
+
+      addEventListener("popstate", function (e) { renderRoute(e.state); });
+      addEventListener("hashchange", function () { renderRoute(history.state); });
+    </script>
+  </body>
+</html>
