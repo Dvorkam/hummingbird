@@ -593,3 +593,29 @@ TEST(HtmlParserTest, LeavesUnterminatedAndUnknownReferencesAloneInAttributes) {
     EXPECT_EQ(attribute_of(result.dom.get(), "lone", "href"), "/q?a=1&b=2")
         << "a bare ampersand is already correct and must not change";
 }
+
+// The half of T-HTML-ATTR-ENTITY-DECODE-1 the first fix missed, caught by a live
+// log line:
+//   [warn] [image] decode failed: .../start?useformat=desktop&amp;type=1x1&amp;usesul3=1
+// `apply_attributes` decoded the DOM, but the resource-link lists the loader
+// actually fetches from were still built out of the RAW token. So a link
+// navigated correctly while the identical URL as an <img src> was requested with
+// the entity intact.
+TEST(HtmlParserTest, ResourceLinkListsCarryDecodedUrls) {
+    std::string_view html =
+        "<html><head>"
+        "<link rel='stylesheet' href='/w/load.php?lang=en&amp;modules=startup&amp;only=styles'>"
+        "</head><body>"
+        "<img src='/wiki/Special:CentralAutoLogin/start?useformat=desktop&amp;type=1x1&amp;usesul3=1'>"
+        "</body></html>";
+    Hummingbird::Core::ArenaAllocator arena(8192);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+
+    ASSERT_EQ(result.stylesheet_links.size(), 1u);
+    EXPECT_EQ(result.stylesheet_links[0], "/w/load.php?lang=en&modules=startup&only=styles");
+
+    ASSERT_EQ(result.image_links.size(), 1u);
+    EXPECT_EQ(result.image_links[0], "/wiki/Special:CentralAutoLogin/start?useformat=desktop&type=1x1&usesul3=1");
+}

@@ -113,15 +113,27 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
         track_unsupported_tag(lowered_name);
     }
     track_semantic_tag(lowered_name);
+    // Resource links are read back off the ELEMENT, not out of the raw token
+    // (T-HTML-ATTR-ENTITY-DECODE-1). `apply_attributes` decoded the character
+    // references on the way in, and these lists are what the loader actually
+    // fetches — reading the token instead left the DOM correct while every
+    // fetched URL kept its `&amp;`, so a link navigated fine and the identical
+    // URL as an <img> src 404'd. One decoded source of truth, no second decode.
+    const auto* appended_element = dynamic_cast<const DOM::Element*>(appended);
+    const auto attribute_of = [appended_element](std::string_view name) -> std::string_view {
+        if (!appended_element) return {};
+        const auto* value = appended_element->find_attribute(name);
+        return value ? std::string_view{*value} : std::string_view{};
+    };
     if (lowered_name == Hummingbird::Html::TagNames::Link) {
-        auto rel = Core::Utils::to_lower(Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
-        auto href = Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Href);
+        auto rel = Core::Utils::to_lower(attribute_of(Hummingbird::Html::AttributeNames::Rel));
+        auto href = attribute_of(Hummingbird::Html::AttributeNames::Href);
         if (rel == "stylesheet" && !href.empty()) {
             m_stylesheet_links.emplace_back(href);
         }
     }
     if (lowered_name == Hummingbird::Html::TagNames::Img) {
-        auto src = Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Src);
+        auto src = attribute_of(Hummingbird::Html::AttributeNames::Src);
         if (!src.empty()) {
             m_image_links.emplace_back(src);
         }
