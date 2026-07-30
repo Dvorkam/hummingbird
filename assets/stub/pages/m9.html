@@ -176,6 +176,24 @@
         for instead of from guesswork. Added in M9 (T-JS-MISSING-API-COVERAGE-1, story 9.5.2).</p>
       </div>
 
+      <div class="card">
+        <h2>Inline <code>data:</code> URLs</h2>
+        <p class="card-lead">A <code>data:</code> URL carries its own bytes, so nothing should go to the network for
+        one. Until now the loader handed them to curl anyway, which failed them as network errors &mdash; so every
+        inline icon on a modern site cost a wasted request <em>and</em> rendered nothing.</p>
+        <p>
+          <img alt="percent-encoded inline SVG" width="48" height="48"
+               src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Ccircle cx='24' cy='24' r='22' fill='%23e679a6'/%3E%3C/svg%3E">
+          <img alt="base64 inline SVG" width="48" height="48"
+               src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCA0OCI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiByeD0iOCIgZmlsbD0iIzRhOWVmZiIvPjwvc3ZnPg==">
+        </p>
+        <p class="note">A pink circle and a blue rounded square, both drawn from bytes written into this page's HTML:
+        the first percent-encoded, the second base64. Neither is a file and neither is a request &mdash; with the log at
+        <code>INFO</code> you will see no <code>[network]</code> line for either. Found in a live browsing log, where
+        <code>curl failed: url=data:image/svg+xml…</code> repeated on every icon of a real site. Added in M9
+        (T-NET-DATA-URL-1).</p>
+      </div>
+
       <p><a href="https://example.dev">&laquo; back to example.dev</a></p>
     </div>
 

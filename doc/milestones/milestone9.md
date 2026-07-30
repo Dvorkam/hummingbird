@@ -1103,6 +1103,19 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       socket claim `OPEN` and watching the honesty assertion fail. 964 green.
       Demo: a card on `example.dev/m9` that uses eight unimplemented APIs and
       reports how many calls completed.)*
+- [x] T-HTML-ATTR-ENTITY-DECODE-1 + T-NET-DATA-URL-1 *(both P1 bugs found by the
+      first live sweep, both fixed. Entity decoding ran on character data only,
+      so `href="/wiki/Sam_&amp;_Max"` requested the entity and 404'd on a real
+      article; reusing the text decoder is safe because it only accepts a
+      SEMICOLON-terminated reference, which is exactly the spec's
+      ambiguous-ampersand protection for attributes. `data:` URLs were handed to
+      curl; a new `core/utils/DataUrl` parser answers them in the loader before
+      any transport is chosen, covering images, stylesheets and fonts at one
+      seam. Both verified load-bearing — the data-URL revert reproduces the
+      original log line verbatim. Two further gaps filed rather than absorbed:
+      `T-HTML-ENTITY-TABLE-1` (32 of ~2231 named entities; every accented Latin
+      one missing, which biases against non-English pages) and
+      `T-NET-RELOAD-FETCH-POLICY-1`.)*
 - [ ] T-COOKIE-CONFORMANCE-VECTORS-1: cookie conformance number *(cheap filler,
       precondition now met)*
 - [ ] T-NET-IDENTITY-UI-1 (+ T-NET-IDENTITY-AUTOOFFER-1 behind it) *(if appetite

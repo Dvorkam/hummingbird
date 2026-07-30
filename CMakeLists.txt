@@ -103,6 +103,7 @@ add_library(Core STATIC
     src/core/net/StorageManager.cpp
     src/core/utils/AssetLoader.cpp
     src/core/utils/AssetPath.cpp
+    src/core/utils/DataUrl.cpp
     src/core/utils/Log.cpp
     src/core/utils/TextEditBuffer.cpp
     src/core/utils/Url.cpp

@@ -808,3 +808,81 @@ TEST(ResourceLoaderTest, UnreachableDocumentRendersTheErrorPage) {
     EXPECT_NE(std::string(view->body).find("Try again"), std::string::npos);
     EXPECT_NE(std::string(view->body).find("offline.invalid"), std::string::npos);
 }
+
+// T-NET-DATA-URL-1. The acceptance criterion is negative and can only be
+// checked from the transport side: a `data:` URL must be decoded in the loader
+// and NEVER reach INetwork. It used to fall through to curl, which failed it as
+// a network error, so every inline SVG cost a request and rendered nothing.
+TEST(ResourceLoaderTest, DataUrlImagesAreDecodedWithoutTouchingTheNetwork) {
+    auto provider = std::make_unique<FakeResourceProvider>();
+    auto* provider_ptr = provider.get();
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+
+    // A decoder is required: images take the decode path, so "Ready" here means
+    // the bytes came out of the URL AND survived to a bitmap.
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), std::move(provider),
+                          std::make_unique<Hummingbird::Test::InlineImageDecoder>());
+
+    // The shape from the live log: percent-encoded SVG with a charset parameter.
+    const std::string svg_url =
+        "data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3C/svg%3E";
+    const std::string base64_url = "data:text/plain;base64,SGVsbG8=";
+    loader.request_images({svg_url, base64_url}, "https://example.dev/page.html");
+    (void)loader.consume_pending_updates();
+
+    EXPECT_TRUE(network_ptr->requests.empty()) << "a data: URL must never reach the transport";
+    // Nor the asset provider: a data URL is not a bundled file, and probing the
+    // filesystem with page-controlled bytes is the T-SEC-URL-1 hazard.
+    for (const auto& queried : provider_ptr->queried) {
+        EXPECT_EQ(queried.rfind("data:", 0), std::string::npos) << "probed the provider with " << queried;
+    }
+
+    auto svg = loader.view(svg_url, ResourceType::Image);
+    ASSERT_TRUE(svg.has_value());
+    EXPECT_EQ(svg->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_EQ(svg->body, "<svg xmlns='http://www.w3.org/2000/svg'></svg>");
+    EXPECT_NE(svg->image, nullptr) << "the decoded bytes must reach the decoder";
+
+    auto text = loader.view(base64_url, ResourceType::Image);
+    ASSERT_TRUE(text.has_value());
+    EXPECT_EQ(text->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_EQ(text->body, "Hello");
+}
+
+// The seam is shared, so stylesheets and fonts get the same treatment for free.
+// Worth pinning: a data-URL stylesheet reaching the network would fail the whole
+// page's styling, not one icon.
+TEST(ResourceLoaderTest, DataUrlStylesheetsAreDecodedWithoutTouchingTheNetwork) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr, nullptr);
+
+    const std::string css_url = "data:text/css,body%20%7B%20color%3A%20red%3B%20%7D";
+    loader.request_stylesheets({css_url}, "https://example.dev/page.html");
+    (void)loader.consume_pending_updates();
+
+    EXPECT_TRUE(network_ptr->requests.empty());
+    auto view = loader.view(css_url, ResourceType::Stylesheet);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Ready);
+    EXPECT_EQ(view->body, "body { color: red; }");
+}
+
+// A malformed data URL must fail as a resource, not as a network error, and
+// still must not be retried over the wire.
+TEST(ResourceLoaderTest, MalformedDataUrlFailsLocallyRatherThanOnTheNetwork) {
+    auto network = std::make_unique<CapturingNetwork>();
+    auto* network_ptr = network.get();
+    ResourceLoader loader(std::move(network), std::make_unique<CapturingNetwork>(), nullptr,
+                          std::make_unique<Hummingbird::Test::InlineImageDecoder>());
+
+    const std::string broken = "data:image/png;base64";  // no comma: no payload boundary
+    loader.request_images({broken}, "https://example.dev/page.html");
+    (void)loader.consume_pending_updates();
+
+    EXPECT_TRUE(network_ptr->requests.empty());
+    auto view = loader.view(broken, ResourceType::Image);
+    ASSERT_TRUE(view.has_value());
+    EXPECT_EQ(view->state, Hummingbird::Engine::ResourceState::Failed);
+}

@@ -9,6 +9,7 @@
 
 #include "core/BookmarkStore.h"
 #include "core/net/Referrer.h"
+#include "core/utils/DataUrl.h"
 #include "core/utils/Log.h"
 #include "core/utils/Timing.h"
 #include "core/utils/Url.h"
@@ -932,6 +933,33 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
 
         HB_LOG_DEBUG("[resource] " << options.type_label << " link: " << options.attr_label << "=" << raw_url
                                    << " base=" << base_url << " resolved=" << url);
+
+        // A `data:` URL carries its own bytes, so it is answered here — before
+        // the asset provider is probed and before any transport is chosen
+        // (T-NET-DATA-URL-1). It used to fall through to curl, which failed it as
+        // a network error: every inline SVG icon cost a request AND rendered
+        // nothing. Deliberately ahead of the non-absolute-URL warning below too,
+        // since a data URL has no `://` and is not a resolution mistake.
+        if (Core::Utils::is_data_url(url)) {
+            auto parsed = Core::Utils::parse_data_url(url);
+            if (!parsed) {
+                HB_LOG_WARN("[resource] malformed data: url for " << options.type_label);
+                resource_store_.mark_failed(url, options.type);
+                continue;
+            }
+            HB_LOG_DEBUG("[resource] " << options.type_label << " decoded data: url mime=" << parsed->mime_type
+                                       << " bytes=" << parsed->data.size());
+            // Same delivery path a bundled asset takes: both are local bytes
+            // available immediately, so they must not take two different routes
+            // into the store.
+            if (options.mark_ready_on_asset) {
+                resource_store_.mark_ready(url, options.type, std::move(parsed->data));
+            } else {
+                enqueue_resource_update(options.type, url, std::move(parsed->data), true);
+            }
+            continue;
+        }
+
         if (url.find("://") == std::string::npos) {
             HB_LOG_WARN("[resource] " << options.type_label << " resolved to non-absolute url: " << url
                                       << " base=" << base_url);
