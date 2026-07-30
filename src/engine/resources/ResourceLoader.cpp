@@ -60,19 +60,48 @@ Core::CookieRequestContext subresource_cookie_context(std::string_view base_url)
     }
     return context;
 }
+
+// The one place that translates the engine's resource-store vocabulary into the
+// filter's request-purpose vocabulary (story 9.4.1). They are kept separate so
+// `core/` never has to know what a resource store is; this is the single seam
+// where both are in scope.
+//
+// A `switch` with no `default`, deliberately: adding a ResourceType must break
+// this build rather than silently map to Document, which is the one value that
+// is never filtered. A new resource type quietly becoming unblockable is a hole
+// nobody would notice.
+Core::RequestDestination filter_destination_for(ResourceType type) {
+    switch (type) {
+        case ResourceType::Document:
+            return Core::RequestDestination::Document;
+        case ResourceType::Stylesheet:
+            return Core::RequestDestination::Stylesheet;
+        case ResourceType::Image:
+            return Core::RequestDestination::Image;
+        case ResourceType::Font:
+            return Core::RequestDestination::Font;
+        case ResourceType::Script:
+            return Core::RequestDestination::Script;
+        case ResourceType::Count:
+            break;
+    }
+    return Core::RequestDestination::Document;
+}
 }  // namespace
 
 ResourceLoader::ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
                                ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar,
                                std::shared_ptr<Core::IdentityPolicyStore> identity_store,
-                               std::shared_ptr<Core::HttpCache> http_cache)
+                               std::shared_ptr<Core::HttpCache> http_cache,
+                               std::shared_ptr<Core::RequestFilter> request_filter)
     : network_(std::move(network)),
       fallback_network_(std::move(fallback_network)),
       resource_provider_(std::move(resource_provider)),
       image_decoder_(std::move(image_decoder)),
       cookie_jar_(std::move(cookie_jar)),
       identity_store_(std::move(identity_store)),
-      http_cache_(std::move(http_cache)) {
+      http_cache_(std::move(http_cache)),
+      request_filter_(std::move(request_filter)) {
     // Only "nothing can fetch at all" is an error. Having just one backend is a
     // deliberate configuration (tests, headless harnesses, stub-only demo runs),
     // and shouting about it on every construction trained the eye to ignore a
@@ -165,6 +194,7 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
     chain.cors.document_url = std::string(document_url);
     chain.cors.origin = origin_header;
     chain.cors.credentials = request.credentials;
+    chain.destination = Core::RequestDestination::Fetch;
 
     std::optional<std::string> body;
     if (request.has_body) {
@@ -264,6 +294,11 @@ void ResourceLoader::send_preflight(INetwork& network, const ScriptFetchRequest&
     // check_preflight (which asks about the method and headers too), and running
     // both would check it twice against different rules.
     preflight_chain.cors.is_preflight = true;
+    // Filtered like the request it asks about. A preflight to a blocked endpoint
+    // is still a request to that endpoint — and sending one for a request that
+    // will be refused anyway would announce the page's intent to a server the
+    // user has said they do not want contacted.
+    preflight_chain.destination = chain.destination;
     // Carry the deadline, so a slow preflight spends the request's budget rather
     // than doubling it (story 9.1.3).
     preflight_chain.deadline = chain.deadline;
@@ -318,6 +353,28 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
                                   std::function<void(NetworkResponse)> callback,
                                   const Core::CookieRequestContext& context, std::optional<std::string> post_body,
                                   RedirectChain chain) {
+    // Declarative request filtering (story 9.4.1). First thing in the function,
+    // so a blocked request costs no cookie header, no cache lookup and no
+    // transport — it is refused before anything is spent on it.
+    //
+    // Being here also means it runs on EVERY HOP, which is the point rather than
+    // a side effect: the CORS code below makes the same argument, and it applies
+    // with more force here because redirecting through a chain of domains is
+    // ordinary behaviour for ad and tracking networks. Filtering only the first
+    // URL would be trivially evaded by a single 302.
+    if (request_filter_) {
+        const auto verdict = request_filter_->match({url, chain.destination, context.initiator_host});
+        if (verdict.blocked) {
+            HB_LOG_INFO("[filter] blocked " << url << " (" << verdict.source << " rule " << verdict.rule_id << ")");
+            NetworkResponse blocked;
+            blocked.url = chain.visited.empty() ? url : chain.visited.front();
+            blocked.effective_url = url;
+            blocked.error = NetworkError::BlockedByFilter;
+            if (callback) callback(std::move(blocked));
+            return;
+        }
+    }
+
     // Spend the chain's remaining time budget on this hop (story 9.1.3). A hop
     // that starts with nothing left fails as a timeout instead of being issued:
     // the transport only ever sees one hop, so nothing below can enforce a limit
@@ -1040,6 +1097,7 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
         // revalidated the document but served its stylesheet from cache would
         // refresh the words and not the layout.
         chain.cache_policy = nav_cache_policy_.load(std::memory_order_acquire);
+        chain.destination = filter_destination_for(options.type);
         send_request(
             *fetcher, url, request_options,
             [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {

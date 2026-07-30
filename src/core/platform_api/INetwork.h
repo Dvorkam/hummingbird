@@ -27,6 +27,12 @@ enum class NetworkError {
     // a NetworkError variant because the redirect loop must be able to abandon a
     // chain mid-flight, and that loop only speaks this vocabulary.
     CorsBlocked,
+    // A declarative filter rule refused this request before it was sent (story
+    // 9.4.1). Distinct from CorsBlocked and from CurlError because it is not a
+    // failure at all: the engine did exactly what it was asked to. Keeping it
+    // separate is what lets a blocked subresource reach ResourceState::Blocked
+    // instead of Failed, and so keeps the M8 error-page path out of it.
+    BlockedByFilter,
 };
 
 struct NetworkRequestOptions {

@@ -206,6 +206,12 @@ std::string DocumentResources::build_css_source(std::string_view base_url, const
         } else if (view->state == ResourceState::Failed) {
             ++failed_count;
             HB_LOG_WARN("[resource] missing stylesheet: " << key);
+        } else if (view->state == ResourceState::Blocked) {
+            // Not counted as failed, and not warned about: a filter rule did
+            // exactly what it was told to (story 9.4.1). Logged all the same,
+            // because "the page looks wrong with the blocker on" needs to be
+            // traceable to the stylesheet that did not load.
+            HB_LOG_INFO("[resource] stylesheet blocked by filter: " << key);
         }
     }
     if (!stylesheet_links.empty()) {
@@ -294,8 +300,12 @@ Css::FontFaceRegistry DocumentResources::resolve_font_faces(const std::vector<Cs
                     }
                     continue;
                 }
-                if (view && view->state == ResourceState::Failed) {
-                    continue;  // Already tried and failed; do not re-request.
+                // Both are terminal answers, so neither may be re-requested.
+                // Blocked especially: this runs on every style resolve, so
+                // leaving it out would re-request a filtered font continuously
+                // for as long as the page is open.
+                if (view && (view->state == ResourceState::Failed || view->state == ResourceState::Blocked)) {
+                    continue;
                 }
             }
             // Not fetched yet: ask the caller to request it, then re-resolve on

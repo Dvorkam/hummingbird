@@ -17,6 +17,7 @@
 #include "core/net/CookieJar.h"
 #include "core/net/HttpCache.h"
 #include "core/net/IdentityPolicyStore.h"
+#include "core/net/RequestFilter.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
 #include "core/platform_api/IResourceProvider.h"
@@ -118,7 +119,8 @@ public:
     ResourceLoader(NetworkPtr network, NetworkPtr fallback_network, ResourceProviderPtr resource_provider,
                    ImageDecoderPtr image_decoder, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr,
                    std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr,
-                   std::shared_ptr<Core::HttpCache> http_cache = nullptr);
+                   std::shared_ptr<Core::HttpCache> http_cache = nullptr,
+                   std::shared_ptr<Core::RequestFilter> request_filter = nullptr);
 
     ResourceLoader(const ResourceLoader&) = delete;
     ResourceLoader& operator=(const ResourceLoader&) = delete;
@@ -219,6 +221,18 @@ private:
         // Set once a 304 arrived for an entry that was no longer there, so the
         // unconditional retry cannot itself retry and loop.
         bool revalidation_retried = false;
+
+        // What this request is FOR, for declarative filtering (story 9.4.1).
+        // Carried on the chain rather than passed per call because it is a
+        // property of the request, constant across every hop — an image that
+        // redirects is still an image.
+        //
+        // Defaulting to Document means "never filtered" (a top-level navigation
+        // is out of M9 scope), so a new call site that forgets to set it
+        // fails OPEN. For a blocker that is the right direction to fail: an
+        // unblocked ad is a nuisance, a wrongly blocked resource is a broken
+        // page with no explanation.
+        Core::RequestDestination destination = Core::RequestDestination::Document;
     };
 
     // The single choke point for network requests. `send_request`:
@@ -277,6 +291,10 @@ private:
     std::shared_ptr<Core::IdentityPolicyStore> identity_store_;
     // Self-synchronizing, so unlike the jar it needs no lock here.
     std::shared_ptr<Core::HttpCache> http_cache_;
+    // Declarative block rules, shared per profile and populated by the extension
+    // host (story 9.4.1). Null means nothing is filtered, which is what every
+    // test that does not say otherwise wants. Self-synchronizing, like the cache.
+    std::shared_ptr<Core::RequestFilter> request_filter_;
     mutable std::mutex cookie_mutex_;
 
     // The cache policy the subresources of the navigation in flight inherit.

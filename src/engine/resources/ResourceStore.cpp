@@ -41,7 +41,11 @@ ResourceEntry& ResourceStore::request(std::string_view url, ResourceType type) {
 bool ResourceStore::mark_loading(std::string_view url, ResourceType type) {
     auto it = resources_.find(ResourceKeyView{type, url});
     if (it == resources_.end()) return false;
-    if (it->second.state == ResourceState::Loading || it->second.state == ResourceState::Ready) {
+    // Blocked is in this list because it is a definitive answer, not a pending
+    // one: re-requesting a filtered URL would only run the gate again and block
+    // it again, once per layout pass.
+    if (it->second.state == ResourceState::Loading || it->second.state == ResourceState::Ready ||
+        it->second.state == ResourceState::Blocked) {
         return false;
     }
     it->second.state = ResourceState::Loading;
@@ -60,6 +64,16 @@ bool ResourceStore::mark_failed(std::string_view url, ResourceType type) {
     auto it = resources_.find(ResourceKeyView{type, url});
     if (it == resources_.end()) return false;
     it->second.state = ResourceState::Failed;
+    it->second.body.clear();
+    it->second.image.reset();
+    it->second.animation.reset();
+    return true;
+}
+
+bool ResourceStore::mark_blocked(std::string_view url, ResourceType type) {
+    auto it = resources_.find(ResourceKeyView{type, url});
+    if (it == resources_.end()) return false;
+    it->second.state = ResourceState::Blocked;
     it->second.body.clear();
     it->second.image.reset();
     it->second.animation.reset();

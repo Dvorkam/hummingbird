@@ -26,6 +26,7 @@ add_executable(HummingbirdTests
     engine/RequestDeadline.test.cpp
     engine/Fetch.test.cpp
     engine/HttpCacheIntegration.test.cpp
+    engine/RequestFilterIntegration.test.cpp
     engine/LocalStorage.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp

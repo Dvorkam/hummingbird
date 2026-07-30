@@ -48,6 +48,15 @@ bool handle_image_decode(ResourceLoader::PendingResourceUpdate& update, Resource
 }
 
 void handle_failed_update(const ResourceLoader::PendingResourceUpdate& update, ResourceStore& store) {
+    // A filtered request is not a failure (story 9.4.1). It arrives here because
+    // it produced no body, which is the only thing `success` means — but routing
+    // it to Failed would put a deliberately blocked tracker on the same footing
+    // as a server that went down, and everything downstream reads Failed as
+    // "something went wrong".
+    if (update.error == NetworkError::BlockedByFilter) {
+        store.mark_blocked(update.url, update.type);
+        return;
+    }
     store.mark_failed(update.url, update.type);
     if (update.type == ResourceType::Document) {
         HB_LOG_WARN("[resource] document failed to load: " << update.url);

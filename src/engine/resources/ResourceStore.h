@@ -30,7 +30,14 @@ enum class ResourceState : uint8_t {
     Requested,
     Loading,
     Ready,
+    // The request was attempted and did not produce a usable resource.
     Failed,
+    // A declarative filter rule refused the request before it was sent (story
+    // 9.4.1). Deliberately NOT Failed: nothing went wrong, and code that treats
+    // "not Ready" as "something broke" would turn a blocked tracker into a
+    // warning, an error page, or an endless re-request. Like Failed it is
+    // terminal — there is a definitive answer for this URL.
+    Blocked,
 };
 
 struct ResourceEntry {
@@ -64,6 +71,10 @@ class ResourceStore : public IResourceResolver {
 public:
     bool mark_ready(std::string_view url, ResourceType type, std::string body);
     bool mark_failed(std::string_view url, ResourceType type);
+    // Records that a filter rule refused this request (story 9.4.1). Drops any
+    // payload, exactly like mark_failed — a blocked resource has nothing to show
+    // — but leaves the entry distinguishable from one that was tried and broke.
+    bool mark_blocked(std::string_view url, ResourceType type);
     bool begin_request(std::string_view url, ResourceType type);
     bool set_image(std::string_view url, ResourceType type, ImageBitmap image);
     bool set_animation(std::string_view url, ResourceType type, AnimatedImage image);
