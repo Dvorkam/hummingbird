@@ -209,7 +209,18 @@ DOM::Node* Parser::select_parent(const ParseState& state, std::string_view tag_n
 
 void Parser::apply_attributes(DOM::Element& element, const StartTagToken& tag_data) {
     for (const auto& attr : tag_data.attributes) {
-        element.set_attribute(attr.name, attr.value);
+        // Character references are decoded in attribute values, not only in text
+        // (T-HTML-ATTR-ENTITY-DECODE-1). HTML *requires* a literal `&` to be
+        // written `&amp;` inside an attribute, so skipping this made every URL
+        // with an ampersand wrong: `href="/wiki/Sam_&amp;_Max"` requested the
+        // entity verbatim and 404'd on a real article.
+        //
+        // Safe to reuse the text decoder here because it only accepts a
+        // SEMICOLON-TERMINATED reference. That is what the spec's
+        // ambiguous-ampersand rule protects in attributes — a legacy query
+        // string like `?a=1&amp=2` must keep its literal `&amp`, and it does,
+        // because there is no `;` to terminate it.
+        element.set_attribute(attr.name, Utils::decode_named_entities(attr.value));
     }
 }
 

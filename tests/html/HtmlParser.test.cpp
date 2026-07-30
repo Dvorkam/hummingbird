@@ -508,3 +508,88 @@ TEST(HtmlParserTest, MovesBodyOutOfHead) {
     EXPECT_EQ(head->get_tag_name(), TagNames::Head);
     EXPECT_EQ(body->get_tag_name(), TagNames::Body);
 }
+
+// --- T-HTML-ATTR-ENTITY-DECODE-1 -------------------------------------------
+namespace {
+// First element with the given id, anywhere in the tree.
+const Hummingbird::DOM::Element* element_by_id(const Hummingbird::DOM::Node* node, std::string_view id) {
+    if (!node) return nullptr;
+    if (const auto* element = dynamic_cast<const Hummingbird::DOM::Element*>(node)) {
+        if (const auto* value = element->find_attribute("id"); value && *value == id) {
+            return element;
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (const auto* found = element_by_id(child.get(), id)) return found;
+    }
+    return nullptr;
+}
+
+std::string attribute_of(const Hummingbird::DOM::Node* root, std::string_view id, const char* name) {
+    const auto* element = element_by_id(root, id);
+    if (!element) return "<missing element>";
+    const auto* value = element->find_attribute(name);
+    return value ? *value : std::string("<missing attribute>");
+}
+}  // namespace
+
+// Character references were decoded in character data but NOT in attribute
+// values, so every URL containing an ampersand — which HTML *requires* be
+// written `&amp;` — reached the network with the entity intact. Found by a line
+// in a live browsing log:
+//   http error: url=.../wiki/Sam_&amp;_Max:_Freelance_Police status=404
+// on an article that exists.
+TEST(HtmlParserTest, DecodesCharacterReferencesInAttributeValues) {
+    std::string_view html =
+        "<html><body>"
+        "<a id='real' href='/wiki/Sam_&amp;_Max:_Freelance_Police'>x</a>"
+        "<a id='query' href='/search?a=1&amp;b=2&amp;c=3'>y</a>"
+        "<img id='img' alt='&quot;quoted&quot; &lt;tag&gt;' src='/i.png'>"
+        "<a id='numeric' href='/n?x=&#38;&#x26;'>z</a>"
+        "<p id='title' title='&copy;&nbsp;end'>t</p>"
+        "</body></html>";
+    Hummingbird::Core::ArenaAllocator arena(8192);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+
+    // The exact failure from the log.
+    EXPECT_EQ(attribute_of(result.dom.get(), "real", "href"), "/wiki/Sam_&_Max:_Freelance_Police");
+    // Every separator in a query string, not just the first.
+    EXPECT_EQ(attribute_of(result.dom.get(), "query", "href"), "/search?a=1&b=2&c=3");
+    EXPECT_EQ(attribute_of(result.dom.get(), "img", "alt"), "\"quoted\" <tag>");
+    // Numeric references, decimal and hex.
+    EXPECT_EQ(attribute_of(result.dom.get(), "numeric", "href"), "/n?x=&&");
+    // A named non-ASCII entity plus a non-breaking space, as UTF-8 bytes.
+    // Split literal: an \x escape is greedy, so "\xA0end" would parse as one
+    // out-of-range hex escape rather than U+00A0 followed by "end".
+    // `&copy;` and `&nbsp;` are in the decoder's 32-name table; accented Latin
+    // names such as `&eacute;` are NOT — see T-HTML-ENTITY-TABLE-1.
+    EXPECT_EQ(attribute_of(result.dom.get(), "title", "title"), "\xC2\xA9\xC2\xA0" "end");
+}
+
+// The other half of the spec's rule, and the reason reusing the text decoder is
+// safe here: an UNTERMINATED reference in an attribute must stay literal.
+// Legacy query strings depend on it — `?a=1&amp=2` means what it says, and
+// "helpfully" decoding `&amp` there would corrupt a URL that was never wrong.
+TEST(HtmlParserTest, LeavesUnterminatedAndUnknownReferencesAloneInAttributes) {
+    std::string_view html =
+        "<html><body>"
+        "<a id='bare' href='/q?a=1&amp=2&lt=3'>x</a>"
+        "<a id='wordy' href='/q?x=1&ampersand=2'>y</a>"
+        "<a id='unknown' href='/q?v=&notanentity;'>z</a>"
+        "<a id='lone' href='/q?a=1&b=2'>w</a>"
+        "</body></html>";
+    Hummingbird::Core::ArenaAllocator arena(8192);
+    Parser parser(arena, html);
+    auto result = parser.parse();
+    ASSERT_NE(result.dom, nullptr);
+
+    EXPECT_EQ(attribute_of(result.dom.get(), "bare", "href"), "/q?a=1&amp=2&lt=3")
+        << "no semicolon, so there is nothing to decode";
+    EXPECT_EQ(attribute_of(result.dom.get(), "wordy", "href"), "/q?x=1&ampersand=2");
+    EXPECT_EQ(attribute_of(result.dom.get(), "unknown", "href"), "/q?v=&notanentity;")
+        << "an unknown name is preserved verbatim";
+    EXPECT_EQ(attribute_of(result.dom.get(), "lone", "href"), "/q?a=1&b=2")
+        << "a bare ampersand is already correct and must not change";
+}
