@@ -420,8 +420,23 @@ void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird:
         // here. Nothing structurally guarantees the two agree: ImageBitmap is a
         // port type any decoder can fill in. Check it at the boundary where the
         // pointer is about to escape into C.
+        // No real image is anywhere near this large; a bitmap claiming to be is
+        // not an image at all. Checked FIRST and separately from the consistency
+        // test below, because when the object has been freed every field is
+        // garbage — `pixels.size()` included — so comparing them to each other
+        // can pass on nonsense. Catching it by plausibility is what turns a
+        // silent use-after-free into a line that says so
+        // (T-CRASH-IMAGE-HEAVY-PAGE-1).
+        constexpr int kMaxPlausibleDimension = 1 << 16;
+        if (image.width <= 0 || image.height <= 0 || image.stride <= 0 || image.width > kMaxPlausibleDimension ||
+            image.height > kMaxPlausibleDimension) {
+            HB_LOG_ERROR("[platform] implausible image bitmap "
+                         << image.width << "x" << image.height << " stride=" << image.stride
+                         << " — this is not an image; almost certainly a freed or uninitialised ImageBitmap");
+            return;
+        }
         const size_t required = static_cast<size_t>(image.stride) * static_cast<size_t>(image.height);
-        if (image.width <= 0 || image.height <= 0 || image.stride <= 0 || image.pixels.size() < required) {
+        if (image.pixels.size() < required) {
             HB_LOG_ERROR("[platform] refusing an inconsistent image bitmap: "
                          << image.width << "x" << image.height << " stride=" << image.stride << " needs=" << required
                          << " has=" << image.pixels.size());
@@ -432,13 +447,14 @@ void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird:
             SDL_CreateRGBSurfaceWithFormatFrom(const_cast<std::uint8_t*>(image.pixels.data()), image.width,
                                                image.height, 32, image.stride, SDL_PIXELFORMAT_BGRA32);
         if (!surface) {
-            // With a fixed valid format and validated dimensions, SDL failing
-            // here means the allocation failed — i.e. the process is out of
-            // memory. Say so, because "failed to create surface" reads like a
-            // format problem and sends the reader in the wrong direction.
-            HB_LOG_ERROR("[platform] SDL_CreateRGBSurfaceWithFormatFrom failed for a valid "
-                         << image.width << "x" << image.height
-                         << " bitmap — almost certainly out of memory (SDL: " << SDL_GetError() << ")");
+            // Report what SDL actually said rather than guessing at the cause. An
+            // earlier version of this line asserted "almost certainly out of
+            // memory", which was wrong and cost real debugging time: SDL was
+            // reporting an invalid pitch — a malformed bitmap, not an exhausted
+            // heap.
+            HB_LOG_ERROR("[platform] SDL_CreateRGBSurfaceWithFormatFrom failed for "
+                         << image.width << "x" << image.height << " stride=" << image.stride
+                         << " (SDL: " << SDL_GetError() << ")");
             return;
         }
 
