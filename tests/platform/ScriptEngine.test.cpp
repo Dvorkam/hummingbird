@@ -1215,3 +1215,158 @@ TEST(ScriptEngineTest, NavigatorStubFieldsAreStringsNotUndefined) {
     ASSERT_TRUE(result.ok) << result.error;
     EXPECT_TRUE(engine->eval("if (globalThis.probed !== 1) throw new Error('died');", "inline").ok);
 }
+
+// T-JS-WINDOW-IS-GLOBAL-1. `window` used to be a separate object with a
+// hand-mirrored subset of globals, so anything not on that list was missing from
+// it. A browser has one object: window === globalThis.
+TEST(ScriptEngineTest, WindowIsTheGlobalObjectSoEveryGlobalIsReachableBothWays) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "check('self', window === globalThis);"
+        "check('window.window', window.window === window);"
+        // The ones that were missing, and the reason this story exists. Identity
+        // rather than typeof: a mirrored copy would pass a typeof check.
+        "check('console', window.console === console);"
+        "check('document', window.document === document);"
+        "check('location', window.location === location);"
+        "check('fetch', window.fetch === fetch);"
+        "check('navigator', window.navigator === navigator);"
+        "check('matchMedia', window.matchMedia === matchMedia);"
+        "check('setTimeout', window.setTimeout === setTimeout);"
+        "check('localStorage', window.localStorage === localStorage);"
+        // Everything T-JS-MISSING-API-COVERAGE-1 added comes along for free,
+        // which is the point: the mirror list can no longer fall behind.
+        "check('IntersectionObserver', window.IntersectionObserver === IntersectionObserver);"
+        "check('MutationObserver', window.MutationObserver === MutationObserver);"
+        "check('customElements', window.customElements === customElements);"
+        "check('WebSocket', window.WebSocket === WebSocket);"
+        "check('structuredClone', window.structuredClone === structuredClone);"
+        "check('URL', window.URL === URL);"
+        // A global assigned through `window` is a bare global, and the reverse.
+        "window.hbViaWindow = 'w'; check('alias-out', hbViaWindow === 'w');"
+        "globalThis.hbViaGlobal = 'g'; check('alias-in', window.hbViaGlobal === 'g');"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
+// The exact live failure this fixes: MediaWiki's startup module died with
+// "TypeError: cannot read property 'warn' of undefined" on
+// /w/load.php?...modules=startup, which is the shape of window.console.warn.
+TEST(ScriptEngineTest, WindowConsoleIsUsableLikeAPageExpects) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "globalThis.ran = 0;"
+        "window.console.warn('from window.console');"
+        "window.console.log('and log');"
+        "var con = window.console || {};"
+        "if (typeof con.warn !== 'function') { throw new Error('no warn'); }"
+        "globalThis.ran = 1;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+    EXPECT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
+    // And it is not reported as a missing API, because it is really there.
+    EXPECT_TRUE(engine->missing_apis().empty());
+}
+
+// A bare `addEventListener` is window.addEventListener. It used to be a
+// ReferenceError, because the trio lived only on the separate window object.
+TEST(ScriptEngineTest, BareAddEventListenerRegistersOnWindow) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/page#one");
+
+    ASSERT_TRUE(engine
+                    ->eval("globalThis.seen = [];"
+                           // Bare call — no `window.` prefix.
+                           "addEventListener('hashchange', function (e) { globalThis.seen.push(e.newURL); });",
+                           "inline")
+                    .ok);
+
+    EXPECT_TRUE(engine->navigate_fragment("https://example.dev/page#two"));
+    const auto check = engine->eval(
+        "if (globalThis.seen.length !== 1) throw new Error('listener never fired');"
+        "if (globalThis.seen[0] !== 'https://example.dev/page#two') throw new Error('wrong url');"
+        "true;",
+        "inline");
+    EXPECT_TRUE(check.ok) << check.error;
+}
+
+// window is now the isolation surface too: since it IS the global, 9.0.2's
+// per-document teardown must wipe it. Worth asserting explicitly — the identity
+// change would otherwise be a quiet way to reintroduce cross-document leakage.
+TEST(ScriptEngineTest, WindowPropertiesDoNotSurviveIntoTheNextDocument) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    ASSERT_TRUE(engine->eval("window.hbLeak = 'from page A';", "inline").ok);
+    ASSERT_TRUE(engine->eval("if (window.hbLeak !== 'from page A') throw new Error('not set');", "inline").ok);
+
+    engine->reset_bindings();  // navigation teardown
+    engine->bind_host(&host);
+
+    const auto after = engine->eval(
+        "if (typeof window.hbLeak !== 'undefined') throw new Error('leaked: ' + window.hbLeak);"
+        "if (window !== globalThis) throw new Error('window lost its self-reference');"
+        "true;",
+        "inline");
+    EXPECT_TRUE(after.ok) << after.error;
+}
+
+// `console` had exactly one method. An object existing is not the same as it
+// being usable: console.warn -- which MediaWiki's startup module calls -- was
+// "not a function", so fixing window.console alone would have moved the same
+// page's death one line later.
+TEST(ScriptEngineTest, ConsoleExposesTheMethodsPagesActuallyCall) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    // Every method is called the way a page calls it, not merely typeof-checked:
+    // a missing one must fail here rather than on somebody's real page.
+    const auto result = engine->eval(
+        "globalThis.ran = 0;"
+        "var names = ['log','info','debug','warn','error','trace','dir','table',"
+        "             'group','groupCollapsed','groupEnd','time','timeEnd','timeLog','count','assert'];"
+        "for (var i = 0; i < names.length; i++) {"
+        "  if (typeof console[names[i]] !== 'function') { throw new Error('missing console.' + names[i]); }"
+        "  console[names[i]]('probe ' + names[i]);"
+        "}"
+        // Multiple arguments and non-strings must not throw either.
+        "console.log('a', 1, true, null, undefined, { k: 'v' }, [1, 2]);"
+        "console.warn();"
+        "globalThis.ran = 1;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+    EXPECT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
+    EXPECT_TRUE(engine->missing_apis().empty()) << "console is real, so nothing should be reported missing";
+}

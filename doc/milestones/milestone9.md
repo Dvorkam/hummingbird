@@ -1116,6 +1116,29 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       `T-HTML-ENTITY-TABLE-1` (32 of ~2231 named entities; every accented Latin
       one missing, which biases against non-English pages) and
       `T-NET-RELOAD-FETCH-POLICY-1`.)*
+- [x] T-JS-WINDOW-IS-GLOBAL-1: `window === globalThis` *(`window` was a separate
+      `JS_NewObject` onto which a hand-picked subset of globals was mirrored, so
+      `window.console`, `window.document`, `window.navigator`, `window.fetch` and
+      every fail-soft stub were missing from it — and the list had to grow by hand
+      forever. Now there is one object, as in a browser, so anything added later
+      is reachable both ways for free.
+      **Two more gaps had to close before the motivating page actually ran**,
+      which is exactly why patching the symptom would have failed: an unqualified
+      `addEventListener(...)` arrives with `this` **undefined** (quickjs does not
+      substitute the global for a C function the way sloppy-mode JS does for a
+      script function), so it was resolving to the DOCUMENT and its listener never
+      saw a window event; and **`console` had exactly one method** — `log` — so
+      `console.warn` was "not a function" and fixing `window.console` alone would
+      have moved MediaWiki's death one line later. `console` now carries severity
+      in the quickjs `magic` value, so a page's own `console.error` survives a
+      build that only logs errors; previously everything went to INFO and the most
+      important half of a page's diagnostics vanished first.
+      All three verified load-bearing by reverting each in turn. The 9.0.2
+      isolation tests stayed green, plus a new one asserting `window.x` does not
+      survive into the next document — `window` is now the isolation surface, so
+      that had to be pinned explicitly. 990 green.
+      Demo: an m9 card checking ten identities, because a mirrored copy would pass
+      a `typeof` check and still be the wrong object.)*
 - [ ] T-COOKIE-CONFORMANCE-VECTORS-1: cookie conformance number *(cheap filler,
       precondition now met)*
 - [ ] T-NET-IDENTITY-UI-1 (+ T-NET-IDENTITY-AUTOOFFER-1 behind it) *(if appetite

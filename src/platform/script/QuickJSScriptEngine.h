@@ -44,7 +44,9 @@ public:
 private:
     static QuickJSScriptEngine* engine_from_context(JSContext* ctx);
 
-    static JSValue js_console_log(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    // Severity for the console methods, carried as the quickjs `magic` value.
+    enum class ConsoleLevel { Info = 0, Warn = 1, Error = 2 };
+    static JSValue js_console_log(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
 
     // document.*
     static JSValue js_document_get_element_by_id(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);

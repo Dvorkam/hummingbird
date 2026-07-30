@@ -194,6 +194,24 @@
         (T-NET-DATA-URL-1).</p>
       </div>
 
+      <div class="card">
+        <h2><code>window</code> is the global object</h2>
+        <p class="card-lead">In a browser <code>window === globalThis</code> &mdash; one object, not two. This engine
+        used to build a separate <code>window</code> and copy a hand-picked list of globals onto it, so everything not
+        on that list was missing: <code>window.console</code>, <code>window.document</code>,
+        <code>window.fetch</code>. Real pages died on it.</p>
+        <p><button id="winglobal">Check the identities</button></p>
+        <p class="out" id="winglobal-out">Not run yet.</p>
+        <p class="note">Identity, not merely presence: a mirrored copy would satisfy a <code>typeof</code> check and
+        still be the wrong object. Because the self-reference is real, everything added to the engine later is reachable
+        both ways for free &mdash; the old list could only ever fall behind again. A bare
+        <code>addEventListener</code> now works too, and <code>console</code> gained the fifteen methods pages
+        actually call (it had exactly one: <code>log</code>).</p>
+        <p class="note">Found by a live log: MediaWiki's startup script died on
+        <code>cannot read property 'warn' of undefined</code> &mdash; the shape of
+        <code>window.console.warn</code>. Added in M9 (T-JS-WINDOW-IS-GLOBAL-1).</p>
+      </div>
+
       <p><a href="https://example.dev">&laquo; back to example.dev</a></p>
     </div>
 
@@ -379,6 +397,34 @@
           + "   |   confirm() = " + agreed
           + "   |   navigator.userAgent = '" + navigator.userAgent + "'"
           + "   |   structuredClone deep-copied: " + (copy.nested[2] === 3);
+      });
+
+      // --- window === globalThis (T-JS-WINDOW-IS-GLOBAL-1) --------------------
+      document.getElementById("winglobal").addEventListener("click", function () {
+        var checks = [
+          ["window === globalThis", window === globalThis],
+          ["window.window === window", window.window === window],
+          ["window.console === console", window.console === console],
+          ["window.document === document", window.document === document],
+          ["window.fetch === fetch", window.fetch === fetch],
+          ["window.navigator === navigator", window.navigator === navigator],
+          ["window.localStorage === localStorage", window.localStorage === localStorage],
+          ["window.IntersectionObserver === IntersectionObserver",
+            window.IntersectionObserver === IntersectionObserver],
+          ["typeof console.warn === 'function'", typeof console.warn === "function"]
+        ];
+        // A global assigned through window is a bare global, and vice versa.
+        window.hbAliasProbe = "set-via-window";
+        checks.push(["window.x assignment creates a global", hbAliasProbe === "set-via-window"]);
+
+        var failed = [];
+        for (var i = 0; i < checks.length; i++) {
+          if (!checks[i][1]) { failed.push(checks[i][0]); }
+        }
+        document.getElementById("winglobal-out").textContent = failed.length === 0
+          ? checks.length + " of " + checks.length + " identities hold. console.warn is callable, and window.x "
+            + "assignment creates a bare global."
+          : "FAILED: " + failed.join("; ");
       });
     </script>
   </body>

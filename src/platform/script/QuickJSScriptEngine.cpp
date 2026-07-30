@@ -66,6 +66,14 @@ DOM::Node* QuickJSScriptEngine::resolve_event_target(JSValueConst this_val) {
     if (JS_IsStrictEqual(context_, this_val, window_object_)) {
         return window_target();
     }
+    // An unqualified call — `addEventListener(...)` with no base object — arrives
+    // with `this` undefined, because quickjs does not substitute the global for a
+    // C function the way sloppy-mode JS does for a script function. A bare
+    // addEventListener IS window.addEventListener, so it must not fall through to
+    // the document (where its listener would never see a window event).
+    if (JS_IsUndefined(this_val) || JS_IsNull(this_val)) {
+        return window_target();
+    }
     return document_target();
 }
 
@@ -79,7 +87,8 @@ JSValue QuickJSScriptEngine::event_target_value(DOM::Node* target) {
     return wrap_node(target);
 }
 
-JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv) {
+JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv,
+                                            int magic) {
     std::string message;
     for (int i = 0; i < argc; ++i) {
         const char* text = JS_ToCString(ctx, argv[i]);
@@ -91,7 +100,21 @@ JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_
             JS_FreeCString(ctx, text);
         }
     }
-    HB_LOG_INFO("[js] " << message);
+    // Severity is carried in `magic` so a page's own console.error survives a
+    // build that only logs errors — routing everything through INFO meant the
+    // most important half of a page's diagnostics vanished first.
+    switch (static_cast<ConsoleLevel>(magic)) {
+        case ConsoleLevel::Warn:
+            HB_LOG_WARN("[js] " << message);
+            break;
+        case ConsoleLevel::Error:
+            HB_LOG_ERROR("[js] " << message);
+            break;
+        case ConsoleLevel::Info:
+        default:
+            HB_LOG_INFO("[js] " << message);
+            break;
+    }
     return JS_UNDEFINED;
 }
 
@@ -1703,8 +1726,34 @@ void QuickJSScriptEngine::install_console_bindings() {
     }
     JSValue global = JS_GetGlobalObject(context_);
 
+    // `console` used to have exactly one method. A page calling console.warn --
+    // which MediaWiki's startup module does -- got "not a function" and died, so
+    // the object existing was not the same as the object being usable.
     JSValue console = JS_NewObject(context_);
-    JS_SetPropertyStr(context_, console, "log", JS_NewCFunction(context_, js_console_log, "log", 1));
+    const auto add = [&](const char* name, ConsoleLevel level) {
+        JS_SetPropertyStr(
+            context_, console, name,
+            JS_NewCFunctionMagic(context_, js_console_log, name, 1, JS_CFUNC_generic_magic, static_cast<int>(level)));
+    };
+    add("log", ConsoleLevel::Info);
+    add("info", ConsoleLevel::Info);
+    add("debug", ConsoleLevel::Info);
+    add("dir", ConsoleLevel::Info);
+    add("table", ConsoleLevel::Info);
+    add("trace", ConsoleLevel::Info);
+    add("warn", ConsoleLevel::Warn);
+    add("error", ConsoleLevel::Error);
+    // Grouping and timing: real methods that log rather than absent ones that
+    // throw. Indentation and elapsed times are not worth the state; a page uses
+    // these for its own readability, never for control flow.
+    add("group", ConsoleLevel::Info);
+    add("groupCollapsed", ConsoleLevel::Info);
+    add("groupEnd", ConsoleLevel::Info);
+    add("time", ConsoleLevel::Info);
+    add("timeEnd", ConsoleLevel::Info);
+    add("timeLog", ConsoleLevel::Info);
+    add("count", ConsoleLevel::Info);
+    add("assert", ConsoleLevel::Warn);
     JS_SetPropertyStr(context_, global, "console", console);
 
     JS_FreeValue(context_, global);
@@ -1772,39 +1821,41 @@ void QuickJSScriptEngine::install_window_bindings() {
     define_accessor(location, "href", js_location_get_href, nullptr);
     define_accessor(location, "hash", js_location_get_hash, js_location_set_hash);
 
-    // window is an EventTarget (hashchange fires here) and owns location.
-    JSValue window = JS_NewObject(context_);
-    JS_SetPropertyStr(context_, window, "location", JS_DupValue(context_, location));
-    JS_SetPropertyStr(context_, window, "addEventListener",
+    // `window` IS the global object (T-JS-WINDOW-IS-GLOBAL-1). This used to be a
+    // separate JS_NewObject onto which a hand-picked subset of globals was
+    // mirrored, which meant everything NOT on that list was missing from
+    // `window` — `window.console`, `window.document`, `window.navigator`,
+    // `window.fetch`, every fail-soft stub — and the list had to grow by hand
+    // every time a global was added. It fell behind, and MediaWiki's startup
+    // module died on `window.console.warn`.
+    //
+    // A browser has exactly one object here: `window === globalThis`. Making the
+    // self-reference real means every global is reachable both ways for free,
+    // now and for anything added later, and `window.foo = 1; foo` aliases the
+    // way script expects. The global->window->global cycle is what browsers have
+    // too; quickjs's GC collects cycles.
+    JS_SetPropertyStr(context_, global, "window", JS_DupValue(context_, global));
+    window_object_ = JS_DupValue(context_, global);
+
+    // window is an EventTarget (hashchange fires here). On the global, so both
+    // `window.addEventListener` and a bare `addEventListener` — which was
+    // previously a ReferenceError — reach the window target.
+    JS_SetPropertyStr(context_, global, "addEventListener",
                       JS_NewCFunction(context_, js_node_add_event_listener, "addEventListener", 3));
-    JS_SetPropertyStr(context_, window, "removeEventListener",
+    JS_SetPropertyStr(context_, global, "removeEventListener",
                       JS_NewCFunction(context_, js_node_remove_event_listener, "removeEventListener", 3));
-    JS_SetPropertyStr(context_, window, "dispatchEvent",
+    JS_SetPropertyStr(context_, global, "dispatchEvent",
                       JS_NewCFunction(context_, js_node_dispatch_event, "dispatchEvent", 1));
-    // Timers (7.3.1): available as both window.* and bare globals.
-    JS_SetPropertyStr(context_, window, "setTimeout", JS_NewCFunction(context_, js_set_timeout, "setTimeout", 2));
-    JS_SetPropertyStr(context_, window, "setInterval", JS_NewCFunction(context_, js_set_interval, "setInterval", 2));
-    JS_SetPropertyStr(context_, window, "clearTimeout", JS_NewCFunction(context_, js_clear_timer, "clearTimeout", 1));
-    JS_SetPropertyStr(context_, window, "clearInterval", JS_NewCFunction(context_, js_clear_timer, "clearInterval", 1));
-    JS_SetPropertyStr(context_, window, "requestAnimationFrame",
-                      JS_NewCFunction(context_, js_request_animation_frame, "requestAnimationFrame", 1));
-    JS_SetPropertyStr(context_, window, "cancelAnimationFrame",
-                      JS_NewCFunction(context_, js_cancel_animation_frame, "cancelAnimationFrame", 1));
-    // window.localStorage (8.2.2) + window.sessionStorage (8.2.3). One object each
-    // per document; the methods route through the host to the right StorageArea
-    // (local = shared/persisted, session = per-tab), so no per-object opaque state
-    // is needed. Set unconditionally so they win over the 7.5.2 fail-soft stubs
-    // (whose typeof guards then skip).
+
+    // localStorage (8.2.2) + sessionStorage (8.2.3). One object each per
+    // document; the methods route through the host to the right StorageArea
+    // (local = shared/persisted, session = per-tab), so no per-object opaque
+    // state is needed. Set unconditionally so they win over the 7.5.2 fail-soft
+    // stubs (whose typeof guards then skip).
     JSValue local_storage = make_storage_object(/*magic=*/0);
     JSValue session_storage = make_storage_object(/*magic=*/1);
-    JS_SetPropertyStr(context_, window, "localStorage", JS_DupValue(context_, local_storage));
-    JS_SetPropertyStr(context_, window, "sessionStorage", JS_DupValue(context_, session_storage));
 
-    window_object_ = JS_DupValue(context_, window);
-
-    // Both `window` and bare `location` are global (window.location === location).
     JS_SetPropertyStr(context_, global, "location", location);               // transfers the ref
-    JS_SetPropertyStr(context_, global, "window", window);                   // transfers the ref
     JS_SetPropertyStr(context_, global, "localStorage", local_storage);      // transfers the ref
     JS_SetPropertyStr(context_, global, "sessionStorage", session_storage);  // transfers the ref
     JS_SetPropertyStr(context_, global, "setTimeout", JS_NewCFunction(context_, js_set_timeout, "setTimeout", 2));
