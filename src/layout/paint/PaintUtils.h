@@ -7,6 +7,7 @@
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "layout/geometry/Geometry.h"
+#include "layout/replaced/ObjectFitUtils.h"
 #include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout::PaintUtils {
@@ -211,6 +212,44 @@ inline void draw_outline(IGraphicsContext& context, const Rect& rect, const Colo
     context.fill_rect(bottom, color);
     context.fill_rect(left, color);
     context.fill_rect(right, color);
+}
+
+// Paints a replaced element's bitmap into its content box with `object-fit`
+// applied (story 8.5.2), clipping when the fitted result overflows.
+//
+// Extracted because RenderImage and RenderSvg carried character-for-character
+// identical copies of this, which is the kind of duplication that diverges
+// silently — an object-fit fix in one is easy to miss in the other. What the two
+// genuinely differ in is how they OBTAIN the bitmap: RenderImage resolves a
+// store handle at paint time, RenderSvg owns the raster it made from its own
+// markup. That difference stays with them; the placement does not.
+inline void paint_replaced_bitmap(IGraphicsContext& context, const Rect& content, const ImageBitmap& image,
+                                  Css::ComputedStyle::ObjectFit fit) {
+    const auto placement =
+        ObjectFitUtils::compute_fit(fit, content, static_cast<float>(image.width), static_cast<float>(image.height));
+    if (placement.needs_clip) {
+        context.push_clip(content);
+        context.draw_image(image, placement.dest);
+        context.pop_clip();
+        return;
+    }
+    context.draw_image(image, placement.dest);
+}
+
+// Same placement, for a bitmap the caller names by reference rather than owns.
+// The overload exists so the ref never has to be resolved early just to compute
+// a size — the resolve happens once, here, and the pointer dies with the call.
+inline void paint_replaced_bitmap(IGraphicsContext& context, const Rect& content, ResourceRef image,
+                                  Css::ComputedStyle::ObjectFit fit, const ImageBitmap& resolved) {
+    const auto placement = ObjectFitUtils::compute_fit(fit, content, static_cast<float>(resolved.width),
+                                                       static_cast<float>(resolved.height));
+    if (placement.needs_clip) {
+        context.push_clip(content);
+        context.draw_image(image, placement.dest);
+        context.pop_clip();
+        return;
+    }
+    context.draw_image(image, placement.dest);
 }
 
 inline void draw_placeholder_box(IGraphicsContext& context, const Rect& rect, const Color& fill_color,

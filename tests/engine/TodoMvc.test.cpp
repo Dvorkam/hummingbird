@@ -33,6 +33,7 @@ public:
     void clear(const Hummingbird::Color&) override {}
     void present() override {}
     void fill_rect(const Rect&, const Hummingbird::Color&) override {}
+    void draw_image(Hummingbird::ResourceRef, const Rect&) override {}
     void draw_image(const Hummingbird::ImageBitmap&, const Rect&) override {}
     Hummingbird::TextMetrics measure_text(const std::string& text, const Hummingbird::TextStyle& style) override {
         const float font_size = style.font_size > 0.0f ? style.font_size : 16.0f;

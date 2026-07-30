@@ -14,6 +14,7 @@ public:
     void clear(const Color& /*color*/) override {}
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& /*rect*/, const Color& /*color*/) override {}
+    void draw_image(ResourceRef /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
     void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
 
     // Clip calls are recorded so tests can assert overflow:hidden clipping

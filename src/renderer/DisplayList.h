@@ -26,6 +26,13 @@ struct DisplayCommand {
     Type type;
     Hummingbird::Layout::Rect rect{};
     Color color{};
+    // Store-owned images are recorded by REFERENCE (T-RESOURCE-REF-1). A display
+    // list is retained and replayed across frames — DocumentPainter reuses it,
+    // and its own comment names animated images as the reuse case — so a payload
+    // pointer recorded here outlives every decision the store makes about that
+    // resource. `image` is only for bitmaps whose owner provably outlives the
+    // replay (an inline <svg>'s own raster, a chrome icon).
+    ResourceRef image_ref{};
     const ImageBitmap* image = nullptr;
     std::string text;
     float x = 0.0f;
@@ -41,6 +48,7 @@ public:
     size_t size() const { return commands_.size(); }
 
     void add_fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color);
+    void add_draw_image(ResourceRef image, const Hummingbird::Layout::Rect& dest);
     void add_draw_image(const ImageBitmap* image, const Hummingbird::Layout::Rect& dest);
     void add_draw_text(const std::string& text, float x, float y, const TextStyle& style);
     void add_draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
@@ -65,6 +73,9 @@ public:
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color) override {
         list_.add_fill_rect(rect, color);
+    }
+    void draw_image(ResourceRef image, const Hummingbird::Layout::Rect& dest) override {
+        list_.add_draw_image(image, dest);
     }
     void draw_image(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest) override {
         list_.add_draw_image(&image, dest);

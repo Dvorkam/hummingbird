@@ -32,6 +32,9 @@ public:
     void clear(const Color&) override {}
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& rect, const Color&) override { fill_calls.push_back(rect); }
+    void draw_image(Hummingbird::ResourceRef /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {
+        ++image_calls;
+    }
     void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override { ++image_calls; }
 
     TextMetrics measure_text(const std::string& text, const TextStyle&) override {
@@ -67,6 +70,7 @@ public:
     void clear(const Color&) override {}
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& rect, const Color&) override { fill_calls.push_back(rect); }
+    void draw_image(Hummingbird::ResourceRef /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
     void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
 
     TextMetrics measure_text(const std::string& text, const TextStyle& style) override {
@@ -909,6 +913,10 @@ public:
     void clear(const Color&) override {}
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect&, const Color&) override {}
+    void draw_image(Hummingbird::ResourceRef, const Hummingbird::Layout::Rect& dest) override {
+        image_dests.push_back(dest);
+        clipped_when_drawn.push_back(clip_depth > 0);
+    }
     void draw_image(const ImageBitmap&, const Hummingbird::Layout::Rect& dest) override {
         image_dests.push_back(dest);
         clipped_when_drawn.push_back(clip_depth > 0);

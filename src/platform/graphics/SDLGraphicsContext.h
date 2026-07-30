@@ -26,7 +26,16 @@ public:
     void clear(const Color& color) override;
     void present() override;
     void fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color) override;
+    void draw_image(ResourceRef image, const Hummingbird::Layout::Rect& dest) override;
     void draw_image(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest) override;
+    void set_resource_resolver(const IResourceResolver* resolver) override { resource_resolver_ = resolver; }
+
+private:
+    // Shared by both entry points; `ref` is the cache identity (null for a
+    // caller-owned bitmap).
+    void draw_image_impl(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest, ResourceRef ref);
+
+public:
     TextMetrics measure_text(const std::string& text, const TextStyle& style) override;
     void draw_text(const std::string& text, float x, float y, const TextStyle& style) override;
     void draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,
@@ -41,13 +50,23 @@ public:
 
 private:
     struct ImageCacheKey {
+        // Keyed on the RESOURCE, not on the address of a decoded bitmap
+        // (T-GFX-IMAGE-CACHE-KEY-1). The old key was `const ImageBitmap*`, and
+        // entries outlive the bitmaps they were made from, so once a bitmap was
+        // freed and a new one landed at the same address with matching
+        // dimensions the lookup hit and drew the WRONG image. A ResourceRef is
+        // stable identity: it cannot be recycled underneath an entry.
+        ResourceRef ref{};
+        // Caller-owned bitmaps have no ref, so they still key on the address —
+        // which is safe for them precisely because their owner outlives the draw.
         const ImageBitmap* image = nullptr;
         int width = 0;
         int height = 0;
         PixelFormat format = PixelFormat::BGRA32;
 
         bool operator==(const ImageCacheKey& other) const {
-            return image == other.image && width == other.width && height == other.height && format == other.format;
+            return ref == other.ref && image == other.image && width == other.width && height == other.height &&
+                   format == other.format;
         }
     };
 
@@ -117,6 +136,9 @@ private:
     std::unordered_map<std::uint64_t, ImageCache> image_caches_;
     std::unordered_map<std::uint64_t, TextCache> text_caches_;
     std::uint64_t text_cache_owner_ = 0;
+    // Injected by the engine, which owns the store. Null in contexts that
+    // never draw resource-backed images.
+    const IResourceResolver* resource_resolver_ = nullptr;
     size_t image_cache_max_bytes_ = 64 * 1024 * 1024;
     size_t image_cache_max_entry_bytes_ = 8 * 1024 * 1024;
     float image_cache_margin_factor_ = 1.0f;
