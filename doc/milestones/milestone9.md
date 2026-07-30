@@ -1026,6 +1026,18 @@ P0: Guardrails
       **Deliberately still manual:** the live run against `api.hnpwa.com` and
       `en.wikipedia.org`, which stays the `example.dev/m9` demo card.)*
 
+P0: Reopened 2026-07-30 by a crash found in manual browsing
+- [ ] T-RESOURCE-REF-1: downstream layers hold resource *references*, not payload
+      pointers *(the fix for `T-CRASH-IMAGE-HEAVY-PAGE-1`, a proven
+      use-after-free that killed the browser on seznam.cz. The render tree and
+      the retained display list both cache `const ImageBitmap*` into
+      ResourceStore memory, which the store frees at four points with no
+      invalidation. Full reasoning, the two rejected designs and the blast radius
+      are in `doc/TODOs.md`; the short version is that the store keeps owning
+      decoded pixels and consumers hold refs resolved at the point of use, which
+      also removes the staleness the current re-pointing step exists to paper
+      over.)*
+
 P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
 - [x] T-DOM-DOCUMENT-BODY-1: `document.body`/`head`/`documentElement` *(one
       enum-keyed port method `IScriptHost::document_part(DocumentPart)` rather
