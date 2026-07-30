@@ -6,6 +6,7 @@
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
 #include "core/dom/Text.h"
+#include "engine/document/DocumentModel.h"
 #include "engine/script/DocumentScriptHost.h"
 
 namespace {
@@ -447,4 +448,77 @@ TEST(DocumentScriptHostTest, TraversalAccessorsSkipTextForElementSiblings) {
     EXPECT_EQ(host.node_kind(between), NodeKind::Text);
     EXPECT_EQ(host.node_name(first), "A");
     EXPECT_EQ(host.node_name(between), "#text");
+}
+
+// T-DOM-DOCUMENT-BODY-1. Driven through the REAL parser, not a hand-built tree:
+// the whole question this API answers is what shape the parser produces
+// (`root` wrapper -> <html> -> <head>/<body>), so a hand-assembled tree would
+// only confirm the assumption instead of testing it.
+TEST(DocumentScriptHostTest, ResolvesTheDocumentPartsFromParsedHtml) {
+    Hummingbird::Engine::DocumentModel model;
+    ASSERT_TRUE(model.parse_html("<html><head><title>t</title></head>"
+                                 "<body><p id='hi'>hello</p></body></html>")
+                    .ok);
+
+    ArenaAllocator arena(4096, 4);
+    DocumentScriptHost host;
+    host.reset(model.dom_root(), &arena);
+
+    auto* document_element = host.document_part(DocumentScriptHost::DocumentPart::DocumentElement);
+    ASSERT_NE(document_element, nullptr);
+    EXPECT_EQ(host.node_name(document_element), "HTML");
+
+    auto* body = host.document_part(DocumentScriptHost::DocumentPart::Body);
+    ASSERT_NE(body, nullptr);
+    EXPECT_EQ(host.node_name(body), "BODY");
+    EXPECT_EQ(host.get_text_content(body), "hello") << "the body must be the real one, holding the page content";
+
+    auto* head = host.document_part(DocumentScriptHost::DocumentPart::Head);
+    ASSERT_NE(head, nullptr);
+    EXPECT_EQ(host.node_name(head), "HEAD");
+
+    // The parts are the same objects the rest of the API hands out, so a page
+    // can compare them by identity the way `el.parentNode === document.body` does.
+    auto* paragraph = host.get_element_by_id("hi");
+    ASSERT_NE(paragraph, nullptr);
+    EXPECT_EQ(host.parent_node(paragraph), body);
+}
+
+// A frameset document has no <body> at all. Returning null there would read as
+// "no document"; the spec says documentElement's frameset child IS the body.
+TEST(DocumentScriptHostTest, DocumentBodyFallsBackToFramesetPerTheSpec) {
+    Hummingbird::Engine::DocumentModel model;
+    ASSERT_TRUE(model.parse_html("<html><head></head><frameset><frame></frameset></html>").ok);
+
+    ArenaAllocator arena(4096, 4);
+    DocumentScriptHost host;
+    host.reset(model.dom_root(), &arena);
+
+    auto* body = host.document_part(DocumentScriptHost::DocumentPart::Body);
+    ASSERT_NE(body, nullptr);
+    EXPECT_EQ(host.node_name(body), "FRAMESET");
+}
+
+// The honest null. This engine's parser does not synthesize the html/head/body
+// skeleton that a browser's tree construction would, so a document written
+// without those tags genuinely has none — and the binding says so rather than
+// substituting the root, which would make `document.body.tagName` a lie.
+// Tracked as T-HTML-TREE-SKELETON-1.
+TEST(DocumentScriptHostTest, DocumentPartsAreNullWhenTheMarkupOmitsThem) {
+    Hummingbird::Engine::DocumentModel model;
+    ASSERT_TRUE(model.parse_html("<p>bare fragment</p>").ok);
+
+    ArenaAllocator arena(4096, 4);
+    DocumentScriptHost host;
+    host.reset(model.dom_root(), &arena);
+
+    EXPECT_EQ(host.document_part(DocumentScriptHost::DocumentPart::DocumentElement), nullptr);
+    EXPECT_EQ(host.document_part(DocumentScriptHost::DocumentPart::Body), nullptr);
+    EXPECT_EQ(host.document_part(DocumentScriptHost::DocumentPart::Head), nullptr);
+}
+
+// No host bound at all: every part is null rather than a crash.
+TEST(DocumentScriptHostTest, DocumentPartsAreNullWithoutADocument) {
+    DocumentScriptHost host;
+    EXPECT_EQ(host.document_part(DocumentScriptHost::DocumentPart::Body), nullptr);
 }

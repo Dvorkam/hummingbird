@@ -80,6 +80,7 @@ public:
     void set_session_storage_accessor(StorageAccessor accessor) { session_storage_accessor_ = std::move(accessor); }
 
     DOM::Element* get_element_by_id(std::string_view id) override;
+    DOM::Element* document_part(DocumentPart part) override;
     std::string get_text_content(const DOM::Node* node) override;
     void set_text_content(DOM::Node* node, std::string_view text) override;
     void set_attribute(DOM::Node* node, std::string_view name, std::string_view value) override;

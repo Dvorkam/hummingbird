@@ -31,8 +31,24 @@ class IScriptHost {
 public:
     virtual ~IScriptHost() = default;
 
+    // The three standard document entry points (T-DOM-DOCUMENT-BODY-1). One
+    // enum-keyed accessor rather than three near-identical port methods, the
+    // shape StorageKind already uses — the alternative grows this interface by
+    // one virtual per property forever.
+    enum class DocumentPart {
+        DocumentElement,  // the root <html> element
+        Body,             // <body> (or <frameset>, per the HTML spec)
+        Head,             // <head>
+    };
+
     // --- Lookup + content (M6) ---
     virtual DOM::Element* get_element_by_id(std::string_view id) = 0;
+    // Returns nullptr when the document has no such element. That is a real
+    // answer, not a failure: this engine's parser does not synthesize the
+    // html/head/body skeleton a browser's tree construction would, so a
+    // document written without those tags genuinely has no body element
+    // (T-HTML-TREE-SKELETON-1). Callers must handle null rather than assume.
+    virtual DOM::Element* document_part(DocumentPart part) = 0;
     virtual std::string get_text_content(const DOM::Node* node) = 0;
     virtual void set_text_content(DOM::Node* node, std::string_view text) = 0;
     virtual void set_attribute(DOM::Node* node, std::string_view name, std::string_view value) = 0;

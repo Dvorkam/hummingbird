@@ -36,6 +36,22 @@ DOM::Element* find_element_by_id(DOM::Node* node, std::string_view id) {
     return nullptr;
 }
 
+// First direct child element with the given (lower-case) tag name. Direct
+// children only, deliberately: `document.body` means "the body child of the
+// html element", not "the first body anywhere", so a stray <body> nested in
+// the content of a malformed page must not be mistaken for the real one.
+DOM::Element* first_child_element_named(DOM::Node* parent, std::string_view tag) {
+    if (!parent) return nullptr;
+    for (const auto& child : parent->get_children()) {
+        if (auto* element = dynamic_cast<DOM::Element*>(child.get())) {
+            if (element->get_tag_name() == tag) {
+                return element;
+            }
+        }
+    }
+    return nullptr;
+}
+
 void collect_text(const DOM::Node* node, std::string& out) {
     if (!node) return;
     if (auto* text_node = dynamic_cast<const DOM::Text*>(node)) {
@@ -245,6 +261,31 @@ DOM::Element* DocumentScriptHost::get_element_by_id(std::string_view id) {
         return nullptr;
     }
     return find_element_by_id(root_, id);
+}
+
+DOM::Element* DocumentScriptHost::document_part(DocumentPart part) {
+    if (!root_) {
+        return nullptr;
+    }
+    // `root_` is the parser's synthetic "root" wrapper, not the document
+    // element, so <html> is looked up one level down rather than assumed.
+    DOM::Element* document_element = first_child_element_named(root_, "html");
+    if (part == DocumentPart::DocumentElement) {
+        return document_element;
+    }
+    if (!document_element) {
+        return nullptr;
+    }
+    if (part == DocumentPart::Head) {
+        return first_child_element_named(document_element, "head");
+    }
+    // Per the HTML spec `document.body` is the first body OR frameset child —
+    // a frameset document has no <body> at all, and returning null there would
+    // read as "no document" rather than "a different kind of document".
+    if (auto* body = first_child_element_named(document_element, "body")) {
+        return body;
+    }
+    return first_child_element_named(document_element, "frameset");
 }
 
 std::string DocumentScriptHost::get_text_content(const DOM::Node* node) {

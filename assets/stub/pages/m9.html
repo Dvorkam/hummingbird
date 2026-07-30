@@ -139,6 +139,21 @@
         Added in M9 (story 9.0.2).</p>
       </div>
 
+      <div class="card">
+        <h2>document.body, head and documentElement</h2>
+        <p class="card-lead">The three entry points every page assumes exist. Until now they were simply
+        <code>undefined</code>, so <code>document.body.appendChild(el)</code> &mdash; the most common way there is to
+        put something on a page &mdash; threw a <code>TypeError</code>.</p>
+        <p><button id="parts">Report the parts, then append to body</button></p>
+        <p class="out" id="parts-out">Not run yet.</p>
+        <p class="note">The appended line is a real element attached to the end of <code>&lt;body&gt;</code> &mdash;
+        it appears <em>below the back-link</em>, outside this card, because that is genuinely where
+        <code>document.body.appendChild</code> puts it. Click twice and you get two. The identity check matters too:
+        reading <code>document.body</code> twice yields the same object, which is what makes
+        <code>el.parentNode === document.body</code> work. Found while writing M9's CI harness, whose fixture page hit
+        exactly this. Added in M9 (T-DOM-DOCUMENT-BODY-1).</p>
+      </div>
+
       <p><a href="https://example.dev">&laquo; back to example.dev</a></p>
     </div>
 
@@ -278,6 +293,30 @@
         ? "globalThis.hbMarker is undefined here — nothing leaked in from the previous page."
         : "LEAKED: globalThis.hbMarker = " + globalThis.hbMarker;
       globalThis.hbMarker = "set-by-m9";
+
+      // --- document.body / head / documentElement (T-DOM-DOCUMENT-BODY-1) ------
+      document.getElementById("parts").addEventListener("click", function () {
+        var out = document.getElementById("parts-out");
+        var body = document.body;
+        if (!body) {
+          // Honest failure rather than a crash: a document whose markup omits
+          // <body> genuinely has none until T-HTML-TREE-SKELETON-1 lands.
+          out.textContent = "document.body is null — this document has no <body> element.";
+          return;
+        }
+        var line = document.createElement("p");
+        line.textContent = "Appended to document.body — a real element, built by script and attached to the "
+          + "end of the page body. Look below the back-link.";
+        body.appendChild(line);
+
+        out.textContent = "documentElement: " + document.documentElement.tagName
+          + "   |   head: " + (document.head ? document.head.tagName : "null")
+          + "   |   body: " + body.tagName
+          // The identity check: reading document.body twice gives the same
+          // object, so the element we just appended reports it as its parent.
+          + "   |   appended element's parentNode === document.body? "
+          + (line.parentNode === document.body);
+      });
     </script>
   </body>
 </html>

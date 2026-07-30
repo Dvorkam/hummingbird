@@ -112,6 +112,21 @@ JSValue QuickJSScriptEngine::js_document_get_element_by_id(JSContext* ctx, JSVal
     return engine->wrap_node(element);
 }
 
+// document.documentElement / body / head (T-DOM-DOCUMENT-BODY-1). `magic`
+// selects which, so all three share one callback.
+//
+// Returns null rather than throwing when the document has no such element —
+// which is what a browser does, and what lets a page's own `if (document.body)`
+// guard work. The throw pages actually hit is on the *use* of the null, at the
+// point the mistake is.
+JSValue QuickJSScriptEngine::js_document_get_part(JSContext* ctx, JSValueConst /*this_val*/, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) {
+        return JS_NULL;
+    }
+    return engine->wrap_node(engine->host_->document_part(static_cast<IScriptHost::DocumentPart>(magic)));
+}
+
 JSValue QuickJSScriptEngine::js_document_create_element(JSContext* ctx, JSValueConst /*this_val*/, int argc,
                                                         JSValueConst* argv) {
     auto* engine = engine_from_context(ctx);
@@ -1631,6 +1646,19 @@ void QuickJSScriptEngine::define_getter(JSValueConst proto, const char* name, JS
     define_accessor(proto, name, getter, nullptr);
 }
 
+void QuickJSScriptEngine::define_getter_magic(JSValueConst target, const char* name, JSCFunctionMagicGetter* getter,
+                                              int magic) {
+    // Magic getters take (ctx, this, magic), a different call convention from
+    // the generic form, so they go through JS_CFUNC_getter_magic with quickjs's
+    // standard cast to the union function type — same shape as localStorage's
+    // `length`.
+    JSAtom atom = JS_NewAtom(context_, name);
+    JSValue getter_fn = JS_NewCFunctionMagic(context_, reinterpret_cast<JSCFunctionMagic*>(getter), name, 0,
+                                             JS_CFUNC_getter_magic, magic);
+    JS_DefinePropertyGetSet(context_, target, atom, getter_fn, JS_UNDEFINED, JS_PROP_CONFIGURABLE);
+    JS_FreeAtom(context_, atom);
+}
+
 void QuickJSScriptEngine::define_accessor(JSValueConst proto, const char* name, JSCFunction* getter,
                                           JSCFunction* setter) {
     JSAtom atom = JS_NewAtom(context_, name);
@@ -1691,6 +1719,13 @@ void QuickJSScriptEngine::install_document_bindings() {
     JSValue document = JS_NewObject(context_);
     JS_SetPropertyStr(context_, document, "getElementById",
                       JS_NewCFunction(context_, js_document_get_element_by_id, "getElementById", 1));
+    // The three document entry points every page assumes exist. Read-only for
+    // now: `document.body` is writable per spec, but replacing it wholesale is
+    // not something pages actually do, and reading is the gap that broke them.
+    define_getter_magic(document, "documentElement", js_document_get_part,
+                        static_cast<int>(IScriptHost::DocumentPart::DocumentElement));
+    define_getter_magic(document, "body", js_document_get_part, static_cast<int>(IScriptHost::DocumentPart::Body));
+    define_getter_magic(document, "head", js_document_get_part, static_cast<int>(IScriptHost::DocumentPart::Head));
     JS_SetPropertyStr(context_, document, "createElement",
                       JS_NewCFunction(context_, js_document_create_element, "createElement", 1));
     JS_SetPropertyStr(context_, document, "createTextNode",

@@ -134,6 +134,9 @@ private:
     static JSValue js_storage_clear(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
     static JSValue js_storage_key(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
     static JSValue js_storage_get_length(JSContext* ctx, JSValueConst this_val, int magic);
+    // document.documentElement / body / head (T-DOM-DOCUMENT-BODY-1); magic is
+    // an IScriptHost::DocumentPart.
+    static JSValue js_document_get_part(JSContext* ctx, JSValueConst this_val, int magic);
     static JSValue js_location_get_href(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_get_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_set_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
@@ -227,7 +230,14 @@ private:
     // Points location at `url` and fires `hashchange` when the fragment changed.
     bool update_location(std::string_view url);
 
+    // Signature of a quickjs magic getter: (ctx, this, magic). Named so the
+    // reinterpret_cast in define_getter_magic has something honest to cast from.
+    using JSCFunctionMagicGetter = JSValue(JSContext*, JSValueConst, int);
+
     void define_getter(JSValueConst proto, const char* name, JSCFunction* getter);
+    // A read-only property whose getter carries `magic`, so several related
+    // properties can share one callback.
+    void define_getter_magic(JSValueConst target, const char* name, JSCFunctionMagicGetter* getter, int magic);
     void define_accessor(JSValueConst proto, const char* name, JSCFunction* getter, JSCFunction* setter);
     // Builds a Web Storage object (localStorage/sessionStorage) whose six members
     // carry `magic` so they route to the right area. Caller owns the returned ref.

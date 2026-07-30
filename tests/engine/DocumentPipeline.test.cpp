@@ -1516,3 +1516,55 @@ TEST(DocumentModelTest, ScriptCollectionFiltersNonJsTypesAndPrefersSrc) {
     EXPECT_FALSE(scripts[1].is_external());
     EXPECT_NE(scripts[1].text.find("inline1"), std::string::npos);
 }
+
+// T-DOM-DOCUMENT-BODY-1, the JS-visible half: the idiom that was broken is
+// `document.body.appendChild(...)`, so the test is that idiom rendering — not
+// that the property is merely non-undefined.
+TEST(DocumentPipelineTest, DocumentBodyAppendChildRendersTheNewElement) {
+    const std::string html = R"HTML(
+<html>
+  <head><style>body { margin: 0; } p { display: block; }</style></head>
+  <body>
+    <p id="existing">before</p>
+    <script>
+      var added = document.createElement('p');
+      added.textContent = 'appended-to-body';
+      document.body.appendChild(added);
+      // The other two entry points, reported through the DOM so C++ can see them.
+      var report = document.createElement('p');
+      report.textContent = 'root:' + document.documentElement.tagName
+        + ' head:' + (document.head ? document.head.tagName : 'MISSING')
+        + ' same:' + (document.getElementById('existing').parentNode === document.body);
+      document.body.appendChild(report);
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 400, 400};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    EXPECT_TRUE(pipeline.run_scripts()) << "appending to document.body is a DOM mutation";
+
+    graphics.drawn_texts.clear();
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.paint(graphics, {viewport, false, 0.0f});
+    std::string joined;
+    for (const auto& text : graphics.drawn_texts) joined += text;
+
+    EXPECT_NE(joined.find("appended-to-body"), std::string::npos)
+        << "the appended element must reach the screen, not just the DOM";
+    EXPECT_NE(joined.find("before"), std::string::npos) << "and it must not replace what was already there";
+    // `same:true` is the identity check: document.body is the same object the
+    // rest of the DOM API hands out, not a fresh wrapper each read.
+    EXPECT_NE(joined.find("root:HTML head:HEAD same:true"), std::string::npos) << "painted: " << joined;
+}

@@ -949,8 +949,33 @@ P0: Guardrails
       `en.wikipedia.org`, which stays the `example.dev/m9` demo card.)*
 
 P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
-- [ ] T-DOM-DOCUMENT-BODY-1: `document.body`/`head`/`documentElement` *(small,
-      P1, and a correctness hole in the layer M9 just built on — do it first)*
+- [x] T-DOM-DOCUMENT-BODY-1: `document.body`/`head`/`documentElement` *(one
+      enum-keyed port method `IScriptHost::document_part(DocumentPart)` rather
+      than three near-identical virtuals — the shape `StorageKind` already uses,
+      and the alternative grows that interface by one virtual per property
+      forever. The three JS properties share one magic getter via a new
+      `define_getter_magic` helper, mirroring how localStorage's `length` is
+      registered. Read-only: `document.body` is writable per spec, but replacing
+      it wholesale is not something pages do, and *reading* is the gap that broke
+      them.
+      **Tested through the real parser, not a hand-built tree** — the entire
+      question is what shape the parser produces (`root` wrapper → `<html>` →
+      `<head>`/`<body>`), so a hand-assembled tree would confirm the assumption
+      instead of testing it. Verified load-bearing by unbinding `document.body`
+      and watching the render test fail. 959 green, up from 954.
+      **Found the deeper half and filed it rather than papering over it:** this
+      engine's parser does **not** synthesize the html/head/body skeleton a
+      browser's tree construction guarantees, so `<p>hi</p>` really has no body
+      element and `document.body` returns **null** there. Substituting the
+      synthetic root would have made `document.body.tagName === 'ROOT'` and
+      quietly misled every page that checks. Filed `T-HTML-TREE-SKELETON-1`
+      (M10 — it owns the style/layout consequences); a `body { }` rule matches
+      nothing on those documents today for the same reason.
+      Spec detail kept: `document.body` falls back to `<frameset>`, because a
+      frameset document has no `<body>` and null would read as "no document".
+      Demo: a new card on `example.dev/m9` that appends a real element to
+      `document.body` — it lands below the back-link, outside the card, because
+      that is genuinely where it goes.)*
 - [ ] 9.5.2: Missing-API Telemetry Triage *(unblocks the 9.1.2 decision and is an
       unticked Done-When; cheap, so it should not be the thing left over)*
 - [ ] 9.6.1: History API MVP *(needed for "browse a thread and come back" —
