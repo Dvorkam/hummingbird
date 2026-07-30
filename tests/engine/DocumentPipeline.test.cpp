@@ -956,8 +956,7 @@ TEST(DocumentPipelineTest, PromiseContinuationRunsAfterAReentrantFocusDispatch) 
     graphics.drawn_texts.clear();
     pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
     pipeline.paint(graphics, {viewport, false, 0.0f});
-    EXPECT_NE(std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), "1234"),
-              graphics.drawn_texts.end());
+    EXPECT_NE(std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), "1234"), graphics.drawn_texts.end());
 }
 
 TEST(DocumentPipelineTest, FragmentNavigationFiresHashchangeWithoutTeardown) {
@@ -1759,4 +1758,75 @@ TEST(DocumentPipelineTest, StoreMutationsUnderALiveDocumentNeverDrawFreedPixels)
     const auto rebound = store.ref_for(photo_url, ResourceType::Image);
     EXPECT_EQ(rebound.index, 1u) << "the slot really was reused, so this is a real test";
     EXPECT_EQ(paint_once(), 0) << "a stale handle must not pick up the next document's image";
+}
+
+namespace {
+// First render object whose element carries `id`.
+const Hummingbird::Layout::RenderObject* find_render_by_id(const Hummingbird::Layout::RenderObject* node,
+                                                           std::string_view id) {
+    if (!node) return nullptr;
+    if (const auto* element = dynamic_cast<const Hummingbird::DOM::Element*>(node->get_dom_node())) {
+        if (const auto* value = element->find_attribute("id"); value && *value == id) {
+            return node;
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (const auto* found = find_render_by_id(child.get(), id)) return found;
+    }
+    return nullptr;
+}
+}  // namespace
+
+// A replaced element takes its size from the pixels, and after T-RESOURCE-REF-1
+// those pixels are reached through a handle resolved during LAYOUT rather than
+// through a pointer the engine pushed in beforehand. If that resolve ever failed
+// the box would collapse, the image would reserve no vertical space, and the
+// content after it would ride up over where it is drawn — so this pins the size
+// the layout actually gives it.
+TEST(DocumentPipelineTest, AnImageReservesItsIntrinsicSizeDuringLayout) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>body { margin: 0; } p { margin: 0; }</style></head>
+  <body>
+    <img id="hero" src="hero.png">
+    <p id="after">text below the image</p>
+  </body>
+</html>
+)HTML";
+
+    const std::string page = "https://example.dev";
+    const std::string image_url = "https://example.dev/hero.png";
+
+    Hummingbird::ImageBitmap bitmap;
+    bitmap.width = 120;
+    bitmap.height = 90;
+    bitmap.stride = 480;
+    bitmap.pixels.assign(static_cast<size_t>(bitmap.stride) * bitmap.height, 0);
+
+    ResourceStore store;
+    ASSERT_TRUE(store.begin_request(image_url, ResourceType::Image));
+    ASSERT_TRUE(store.mark_ready(image_url, ResourceType::Image, "PNGDATA"));
+    ASSERT_TRUE(store.set_image(image_url, ResourceType::Image, std::move(bitmap)));
+
+    auto provider = Hummingbird::create_resource_provider();
+    auto engine = Hummingbird::create_script_engine();
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 400, 400};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, page);
+
+    const auto* hero = find_render_by_id(pipeline.render_root(), "hero");
+    ASSERT_NE(hero, nullptr) << "the image should be in the render tree";
+    EXPECT_FLOAT_EQ(hero->get_rect().width, 120.0f);
+    EXPECT_FLOAT_EQ(hero->get_rect().height, 90.0f) << "a collapsed height is what puts text over the image";
+
+    // The real symptom is about what comes AFTER: the paragraph must start below
+    // the image, not on top of it.
+    const auto* after = find_render_by_id(pipeline.render_root(), "after");
+    ASSERT_NE(after, nullptr);
+    EXPECT_GE(after->get_rect().y, hero->get_rect().y + hero->get_rect().height)
+        << "content after an image must clear it";
 }
