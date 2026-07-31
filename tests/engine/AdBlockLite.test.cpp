@@ -178,6 +178,44 @@ TEST(AdBlockLiteTest, TheShippedRuleSetIsValid) {
     }
 }
 
+// A blocked resource must be reported as blocked, not as broken.
+//
+// Found by the user on the first live run: the state machine knew the
+// difference, but the two places that LOG kept off `success == false` rather
+// than off the state, so turning the blocker on filled the log with
+// "[warn] image fetch failed" and "[warn] external script skipped" about exactly
+// the requests it was installed to prevent. Warnings that fire during correct
+// operation are how real warnings stop being read, so the distinction is pinned
+// here rather than left to review.
+TEST(AdBlockLiteTest, ABlockedResourceIsNotReportedAsAFailure) {
+    auto filter = std::make_shared<RequestFilter>();
+    auto parsed = parse_filter_rule_set(kBundledRules);
+    ASSERT_TRUE(parsed.ok());
+    filter->set_rules("ad-block-lite", std::move(parsed.rules));
+
+    auto transport = std::make_unique<CountingServer>();
+    CountingServer* server = transport.get();
+    server->serve(kTrackerScriptUrl, std::string(4096, 'j'));
+    server->serve(kTrackerPixelUrl, std::string(67, 'p'));
+
+    ResourceLoader loader(std::move(transport), nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, filter);
+    loader.request_scripts({kTrackerScriptUrl}, kPageUrl);
+    loader.request_images({kTrackerPixelUrl}, kPageUrl);
+    loader.consume_pending_updates();
+
+    // The state is the thing every consumer keys off, so assert it for BOTH
+    // resource kinds — the script path and the image path report through
+    // different code and each got this wrong independently.
+    for (const auto& [url, type] : {std::pair{kTrackerScriptUrl, ResourceType::Script},
+                                    std::pair{kTrackerPixelUrl, ResourceType::Image}}) {
+        const auto* entry = loader.find(url, type);
+        ASSERT_NE(entry, nullptr) << url;
+        EXPECT_EQ(entry->state, Hummingbird::Engine::ResourceState::Blocked) << url;
+        EXPECT_NE(entry->state, Hummingbird::Engine::ResourceState::Failed)
+            << url << " reads as a failure, so it will be logged and treated as one";
+    }
+}
+
 // Scoping proof: the same host, requested BY itself, is first-party and must
 // survive. This is what stops the list from breaking ads.example.net's own site.
 TEST(AdBlockLiteTest, AThirdPartyRuleDoesNotBlockTheOriginsOwnRequests) {

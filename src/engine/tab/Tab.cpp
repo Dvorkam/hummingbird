@@ -661,12 +661,19 @@ bool Tab::all_external_scripts_resolved() const {
 bool Tab::run_document_scripts_now() {
     // Point window.location at the document URL before any script reads it (7.2.5).
     document_pipeline_->set_location(navigation_lifecycle_.requested_url());
-    return document_pipeline_->run_scripts([this](std::string_view src) -> std::optional<std::string_view> {
+    return document_pipeline_->run_scripts([this](std::string_view src) -> ExternalScriptSource {
+        ExternalScriptSource source;
         auto resolved = ResourceRequestPlanning::resolve_request_url(navigation_lifecycle_.requested_url(), src);
-        if (resolved.key.empty()) return std::nullopt;
+        if (resolved.key.empty()) return source;
         const auto* entry = resource_loader_->find(resolved.key, ResourceType::Script);
-        if (!entry || entry->state != ResourceState::Ready) return std::nullopt;
-        return std::string_view(entry->body);
+        if (!entry) return source;
+        if (entry->state == ResourceState::Blocked) {
+            source.blocked_by_filter = true;
+            return source;
+        }
+        if (entry->state != ResourceState::Ready) return source;
+        source.body = std::string_view(entry->body);
+        return source;
     });
 }
 

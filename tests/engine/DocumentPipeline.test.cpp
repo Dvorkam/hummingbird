@@ -771,9 +771,10 @@ TEST(DocumentPipelineTest, TodoDemoAssetsDriveTheFullFlow) {
     ASSERT_TRUE(pipeline.parse_html(html));
     pipeline.apply_styles_and_layout(graphics, viewport, base);
     // Provide the external todo.js body the way the resource pipeline would.
-    pipeline.run_scripts([&](std::string_view src) -> std::optional<std::string_view> {
-        if (src == "assets/stub/pages/todo.js") return std::string_view(js);
-        return std::nullopt;
+    pipeline.run_scripts([&](std::string_view src) -> Hummingbird::Engine::ExternalScriptSource {
+        Hummingbird::Engine::ExternalScriptSource source;
+        if (src == "assets/stub/pages/todo.js") source.body = std::string_view(js);
+        return source;
     });
 
     const auto painted_has = [&](const char* text) {
@@ -1451,7 +1452,9 @@ TEST(DocumentScriptingTest, RunsInlineAndExternalScriptsInDocumentOrder) {
     DocumentScripting scripting(Hummingbird::create_script_engine());
     const bool mutated = scripting.run_document_scripts(model, [&](std::string_view src) {
         looked_up.emplace_back(src);
-        return std::optional<std::string_view>("document.getElementById('out').textContent = 'external';");
+        Hummingbird::Engine::ExternalScriptSource source;
+        source.body = std::string_view("document.getElementById('out').textContent = 'external';");
+        return source;
     });
 
     EXPECT_TRUE(mutated);
@@ -1476,7 +1479,9 @@ TEST(DocumentScriptingTest, ExternalScriptRunsBetweenInlineScripts) {
 
     DocumentScripting scripting(Hummingbird::create_script_engine());
     (void)scripting.run_document_scripts(model, [&](std::string_view) {
-        return std::optional<std::string_view>("document.getElementById('out').textContent = 'external';");
+        Hummingbird::Engine::ExternalScriptSource source;
+        source.body = std::string_view("document.getElementById('out').textContent = 'external';");
+        return source;
     });
 
     // The external script is last in document order, so its write survives.
@@ -1498,8 +1503,8 @@ TEST(DocumentScriptingTest, MissingExternalScriptIsSkippedButInlineStillRuns) {
     ASSERT_TRUE(model.parse_html(html).ok);
 
     DocumentScripting scripting(Hummingbird::create_script_engine());
-    const bool mutated =
-        scripting.run_document_scripts(model, [&](std::string_view) { return std::optional<std::string_view>{}; });
+    const bool mutated = scripting.run_document_scripts(
+        model, [&](std::string_view) { return Hummingbird::Engine::ExternalScriptSource{}; });
 
     EXPECT_TRUE(mutated);
     EXPECT_EQ(element_text_by_id(model.dom_root(), "out"), "inline-ran");

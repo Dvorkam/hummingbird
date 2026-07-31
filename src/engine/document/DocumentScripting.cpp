@@ -44,15 +44,21 @@ bool DocumentScripting::run_document_scripts(DocumentModel& model, const Externa
             sources.push_back({script.text, "inline"});
             continue;
         }
-        std::optional<std::string_view> body;
+        ExternalScriptSource source;
         if (external_lookup) {
-            body = external_lookup(script.src);
+            source = external_lookup(script.src);
         }
-        if (!body) {
-            HB_LOG_WARN("[script] external script skipped (not loaded): " << script.src);
+        if (!source.body) {
+            if (source.blocked_by_filter) {
+                // Not a warning: a filter rule refused this on purpose, and the
+                // `[filter] blocked` line already named the rule that did it.
+                HB_LOG_INFO("[script] external script blocked by filter: " << script.src);
+            } else {
+                HB_LOG_WARN("[script] external script skipped (not loaded): " << script.src);
+            }
             continue;
         }
-        sources.push_back({*body, script.src});
+        sources.push_back({*source.body, script.src});
     }
     return controller_->run_scripts(sources, model.dom_root(), model.dom_arena());
 }

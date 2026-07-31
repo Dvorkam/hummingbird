@@ -1119,7 +1119,14 @@ void ResourceLoader::request_resources(const std::vector<std::string>& links, st
             [this, nav_id, url, type = options.type, type_label](NetworkResponse response) {
                 if (nav_id != active_nav_.load(std::memory_order_acquire)) return;
                 bool success = !response.body.empty();
-                if (!success) {
+                // A filtered request produces no body, but it is not a failure
+                // and must not be logged as one (story 9.4.1). `[filter]
+                // blocked` has already reported it, with the rule that decided
+                // — so this would be a second, wronger line about the same
+                // event. An ad blocker that fills the log with warnings about
+                // the requests it was installed to prevent is how real warnings
+                // stop being read.
+                if (!success && response.error != NetworkError::BlockedByFilter) {
                     HB_LOG_WARN("[resource] " << type_label << " fetch failed: " << url);
                 }
                 enqueue_resource_update(type, url, std::move(response.body), success, {}, response.error);

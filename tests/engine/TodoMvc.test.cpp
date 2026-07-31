@@ -114,9 +114,10 @@ TEST(TodoMvcTest, FullFlowDrivesThePinnedFixture) {
     ASSERT_TRUE(pipeline.parse_html(html));
     pipeline.set_location(base);
     pipeline.apply_styles_and_layout(graphics, viewport, base);
-    pipeline.run_scripts([&](std::string_view src) -> std::optional<std::string_view> {
-        if (src == "todomvc.js") return std::string_view(js);
-        return std::nullopt;
+    pipeline.run_scripts([&](std::string_view src) -> Hummingbird::Engine::ExternalScriptSource {
+        Hummingbird::Engine::ExternalScriptSource source;
+        if (src == "todomvc.js") source.body = std::string_view(js);
+        return source;
     });
 
     // Rebuilds layout, repaints, and reports whether `needle` appears in the
