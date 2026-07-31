@@ -210,6 +210,8 @@ private:
     // Exposes a DOM interface constructor carrying `proto`, so `instanceof`
     // resolves against the same object wrappers actually inherit from.
     void install_dom_interface(const char* name, JSValueConst proto);
+    // `Event` / `CustomEvent`, which pages construct and dispatch themselves.
+    void install_event_constructors();
     void install_token_list_prototype();
     void install_console_bindings();
     void install_document_bindings();
@@ -317,6 +319,9 @@ private:
     // so it is not stored here; these two are the levels above it.
     JSValue node_proto_ = JS_UNDEFINED;
     JSValue element_proto_ = JS_UNDEFINED;
+    // Event.prototype, shared by page-constructed and engine-dispatched events
+    // so `instanceof Event` cannot depend on which of the two made it.
+    JSValue event_proto_ = JS_UNDEFINED;
     // Unique listeners_ keys for document- and window-level listeners.
     char document_target_marker_ = 0;
     char window_target_marker_ = 0;

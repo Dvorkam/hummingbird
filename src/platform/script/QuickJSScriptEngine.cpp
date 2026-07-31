@@ -1036,7 +1036,10 @@ bool QuickJSScriptEngine::event_flag(JSValueConst event, const char* name) const
 }
 
 JSValue QuickJSScriptEngine::make_event(const std::string& type, DOM::Node* target) {
-    JSValue event = JS_NewObject(context_);
+    // On Event.prototype, so an engine-dispatched event and a page-constructed
+    // one answer `instanceof Event` the same way. Two sources of events that
+    // disagree about their own type would be worse than having no constructor.
+    JSValue event = JS_IsUndefined(event_proto_) ? JS_NewObject(context_) : JS_NewObjectProto(context_, event_proto_);
     JS_SetPropertyStr(context_, event, "type", JS_NewString(context_, type.c_str()));
     JS_SetPropertyStr(context_, event, "target", event_target_value(target));
     JS_SetPropertyStr(context_, event, "currentTarget", JS_NULL);
@@ -1161,7 +1164,9 @@ JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst
 
     JSValue event = engine->make_event(type, target);
     if (JS_IsObject(init)) {
-        for (const char* field : {"key", "code", "bubbles", "cancelable"}) {
+        // `detail` is what a CustomEvent exists to carry — dropping it would
+        // deliver the event and lose the only thing the sender put in it.
+        for (const char* field : {"key", "code", "bubbles", "cancelable", "detail"}) {
             JSValue value = JS_GetPropertyStr(ctx, init, field);
             if (!JS_IsUndefined(value)) {
                 JS_SetPropertyStr(ctx, event, field, value);  // takes ownership
@@ -1479,6 +1484,8 @@ QuickJSScriptEngine::~QuickJSScriptEngine() {
         node_proto_ = JS_UNDEFINED;
         JS_FreeValue(context_, element_proto_);
         element_proto_ = JS_UNDEFINED;
+        JS_FreeValue(context_, event_proto_);
+        event_proto_ = JS_UNDEFINED;
         JS_FreeContext(context_);
         context_ = nullptr;
     }
@@ -1649,6 +1656,8 @@ void QuickJSScriptEngine::reset_bindings() {
     node_proto_ = JS_UNDEFINED;
     JS_FreeValue(context_, element_proto_);
     element_proto_ = JS_UNDEFINED;
+    JS_FreeValue(context_, event_proto_);
+    event_proto_ = JS_UNDEFINED;
     JS_FreeContext(context_);
     context_ = nullptr;
     console_ready_ = false;
@@ -1725,14 +1734,23 @@ void QuickJSScriptEngine::install_node_prototype() {
     // …` — and a single flat prototype cannot answer those correctly: a text
     // node would come out as an HTMLElement. The split follows the DOM spec's
     // own division so the answers are right, not merely non-throwing.
-    JSValue node_proto = JS_NewObject(context_);
+    JSValue event_target_proto = JS_NewObject(context_);
+    JSValue node_proto = JS_NewObjectProto(context_, event_target_proto);
     JSValue element_proto = JS_NewObjectProto(context_, node_proto);
     JSValue html_proto = JS_NewObjectProto(context_, element_proto);
 
-    // --- Node: structure, text, and events (EventTarget folded in) -----------
-    // EventTarget is deliberately not a fourth level. It would be one more
-    // object for one more name nothing has asked for; the members live at the
-    // lowest level anything can reach them from, which is what matters.
+    // --- EventTarget: the base of the chain ---------------------------------
+    // This level was left out when the chain was first built, on the reasoning
+    // that it would be "one more object for one more name nothing has asked
+    // for". seznam.cz asked for it in the next live sweep, roughly an hour
+    // later. Recorded because the reasoning was sound and still wrong: what a
+    // real page reaches for is not predictable from what looks load-bearing,
+    // which is the entire argument for having the telemetry.
+    define_method(event_target_proto, "addEventListener", js_node_add_event_listener, 3);
+    define_method(event_target_proto, "removeEventListener", js_node_remove_event_listener, 3);
+    define_method(event_target_proto, "dispatchEvent", js_node_dispatch_event, 1);
+
+    // --- Node: structure and text -------------------------------------------
     define_getter(node_proto, "nodeType", js_node_get_node_type);
     define_getter(node_proto, "nodeName", js_node_get_node_name);
     define_accessor(node_proto, "textContent", js_node_get_text_content, js_node_set_text_content);
@@ -1746,9 +1764,6 @@ void QuickJSScriptEngine::install_node_prototype() {
     define_method(node_proto, "insertBefore", js_node_insert_before, 2);
     define_method(node_proto, "removeChild", js_node_remove_child, 1);
     define_method(node_proto, "replaceChild", js_node_replace_child, 2);
-    define_method(node_proto, "addEventListener", js_node_add_event_listener, 3);
-    define_method(node_proto, "removeEventListener", js_node_remove_event_listener, 3);
-    define_method(node_proto, "dispatchEvent", js_node_dispatch_event, 1);
 
     // --- Element: attributes, selectors, element-only traversal --------------
     define_getter(element_proto, "tagName", js_node_get_tag_name);
@@ -1780,6 +1795,7 @@ void QuickJSScriptEngine::install_node_prototype() {
     define_method(html_proto, "focus", js_node_focus, 0);
     define_method(html_proto, "blur", js_node_blur, 0);
 
+    install_dom_interface("EventTarget", event_target_proto);
     install_dom_interface("Node", node_proto);
     install_dom_interface("Element", element_proto);
     install_dom_interface("HTMLElement", html_proto);
@@ -1787,13 +1803,93 @@ void QuickJSScriptEngine::install_node_prototype() {
     // Kept so wrap_node can pick a prototype per node kind.
     node_proto_ = JS_DupValue(context_, node_proto);
     element_proto_ = JS_DupValue(context_, element_proto);
+    JS_FreeValue(context_, event_target_proto);
     JS_FreeValue(context_, node_proto);
     JS_FreeValue(context_, element_proto);
+
+    install_event_constructors();
 
     // Consumes the reference. HTMLElement.prototype is the DEFAULT for the
     // class, so anything wrapped without an explicit prototype is treated as an
     // element — which is what the overwhelming majority of wrapped nodes are.
     JS_SetClassProto(context_, node_class_id_, html_proto);
+}
+
+// `Event` and `CustomEvent`, which pages CONSTRUCT — `new CustomEvent('x', {
+// detail })` then `el.dispatchEvent(e)` is the standard way one component
+// signals another. Both were ReferenceErrors, so a page doing that died there.
+//
+// Written in JS rather than as C constructors because that is all they are:
+// plain objects carrying a type and a few flags. The engine's own dispatch
+// still builds events natively (`make_event`), and the two are tied together by
+// sharing this prototype — otherwise a listener testing `e instanceof Event`
+// would get different answers depending on who created the event, which is the
+// kind of inconsistency that is worse than the absence.
+void QuickJSScriptEngine::install_event_constructors() {
+    if (!context_) {
+        return;
+    }
+    static constexpr char kEventJs[] = R"JS(
+(function (g) {
+  function applyInit(ev, type, init) {
+    ev.type = String(type);
+    ev.bubbles = !!(init && init.bubbles);
+    ev.cancelable = !!(init && init.cancelable);
+    ev.defaultPrevented = false;
+    ev.target = null;
+    ev.currentTarget = null;
+    ev.eventPhase = 0;
+  }
+  function Event(type, init) {
+    if (!(this instanceof Event)) {
+      throw new TypeError("Failed to construct 'Event': Please use the 'new' operator.");
+    }
+    if (arguments.length === 0) {
+      throw new TypeError("Failed to construct 'Event': 1 argument required.");
+    }
+    applyInit(this, type, init);
+  }
+  // These are the no-op-safe forms. An event the ENGINE dispatched carries its
+  // own native versions as own-properties, which shadow these and are what the
+  // dispatcher actually reads; these serve an event the page made itself.
+  Event.prototype.preventDefault = function () { if (this.cancelable) this.defaultPrevented = true; };
+  Event.prototype.stopPropagation = function () {};
+  Event.prototype.stopImmediatePropagation = function () {};
+
+  function CustomEvent(type, init) {
+    if (!(this instanceof CustomEvent)) {
+      throw new TypeError("Failed to construct 'CustomEvent': Please use the 'new' operator.");
+    }
+    if (arguments.length === 0) {
+      throw new TypeError("Failed to construct 'CustomEvent': 1 argument required.");
+    }
+    applyInit(this, type, init);
+    this.detail = init && 'detail' in init ? init.detail : null;
+  }
+  CustomEvent.prototype = Object.create(Event.prototype);
+  CustomEvent.prototype.constructor = CustomEvent;
+
+  g.Event = Event;
+  g.CustomEvent = CustomEvent;
+})(globalThis);
+)JS";
+    JSValue result =
+        JS_Eval(context_, kEventJs, std::char_traits<char>::length(kEventJs), "<dom-events>", JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(result)) {
+        JSValue exc = JS_GetException(context_);
+        const char* message = JS_ToCString(context_, exc);
+        HB_LOG_WARN("[js] event constructor install failed: " << (message ? message : "unknown"));
+        if (message) JS_FreeCString(context_, message);
+        JS_FreeValue(context_, exc);
+    }
+    JS_FreeValue(context_, result);
+
+    // Held so make_event can build engine events on the same prototype.
+    JSValue global = JS_GetGlobalObject(context_);
+    JSValue event_ctor = JS_GetPropertyStr(context_, global, "Event");
+    event_proto_ = JS_GetPropertyStr(context_, event_ctor, "prototype");
+    JS_FreeValue(context_, event_ctor);
+    JS_FreeValue(context_, global);
 }
 
 void QuickJSScriptEngine::install_token_list_prototype() {

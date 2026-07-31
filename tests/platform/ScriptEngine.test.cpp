@@ -1267,6 +1267,76 @@ TEST(ScriptEngineTest, DomInterfacesExistAndInstanceofAnswersCorrectly) {
     ASSERT_TRUE(result.ok) << result.error;
 }
 
+// EventTarget was deliberately left out of the first chain, on the reasoning
+// that nothing had asked for it. seznam.cz asked in the next sweep, about an
+// hour later.
+TEST(ScriptEngineTest, EventTargetIsTheBaseOfTheNodeChain) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var el = document.createElement('p');"
+        "check('el-is-EventTarget', el instanceof EventTarget);"
+        "check('chain', Object.getPrototypeOf(Node.prototype) === EventTarget.prototype);"
+        // The listener methods moved down a level; they must still resolve.
+        "check('addEventListener', typeof el.addEventListener === 'function');"
+        "check('on-prototype', EventTarget.prototype.hasOwnProperty('addEventListener'));"
+        "check('not-on-node', !Node.prototype.hasOwnProperty('addEventListener'));"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
+// `new CustomEvent('x', { detail })` then `dispatchEvent` is how one component
+// signals another. Both constructors were ReferenceErrors, so a page doing it
+// died on the spot.
+TEST(ScriptEngineTest, PagesCanConstructAndDispatchTheirOwnEvents) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var e = new CustomEvent('hb:ping', { detail: { n: 42 }, bubbles: true });"
+        "check('type', e.type === 'hb:ping');"
+        "check('detail', e.detail.n === 42);"
+        "check('bubbles', e.bubbles === true);"
+        "check('is-CustomEvent', e instanceof CustomEvent);"
+        "check('is-Event', e instanceof Event);"
+        "var plain = new Event('hb:plain');"
+        "check('plain-not-custom', !(plain instanceof CustomEvent));"
+        "check('plain-detail-absent', plain.detail === undefined);"
+        // Browsers throw without the operator and without a type.
+        "var threw = false; try { CustomEvent('x'); } catch (err) { threw = true; }"
+        "check('needs-new', threw);"
+        "var threw2 = false; try { new Event(); } catch (err) { threw2 = true; }"
+        "check('needs-type', threw2);"
+        // The round trip: a listener must receive the detail the sender put in,
+        // which is the only reason CustomEvent exists.
+        "var seen = null;"
+        "var el = document.createElement('div');"
+        "el.addEventListener('hb:ping', function (ev) { seen = ev; });"
+        "el.dispatchEvent(new CustomEvent('hb:ping', { detail: { n: 7 } }));"
+        "check('listener-ran', seen !== null);"
+        "check('detail-survived', seen.detail && seen.detail.n === 7);"
+        // An engine-dispatched event must answer instanceof the same way a
+        // page-made one does, or a listener cannot trust the check at all.
+        "check('dispatched-is-Event', seen instanceof Event);"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
 // The half that makes `instanceof` worth having: it must also say NO.
 TEST(ScriptEngineTest, ATextNodeIsANodeButNotAnElement) {
     Hummingbird::Core::ArenaAllocator arena(8192, 4);
