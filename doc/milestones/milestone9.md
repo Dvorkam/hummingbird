@@ -420,6 +420,33 @@ three fixes.)*
 *Reshaped at kickoff. The deliverable here is the **hook**; the extension is its
 proof. See finding 5 above for why the synchronous-callback design was dropped.*
 
+> **What 9.4 actually delivered, so the section title does not mislead
+> (recorded 2026-07-31).** "Extension Follow-Through" reads like the extension
+> platform advanced substantially here. It did not, and the story text is why:
+> the deliverable is stated as *the hook*, and the milestone North Star measures
+> *blocked requests and bytes avoided* — both engine-behavioural. So the split is
+> roughly:
+>
+> * **Engine feature (most of it):** `Core::RequestFilter`, the `send_request`
+>   gate, `ResourceState::Blocked`. `RequestFilter` deliberately does not know
+>   extensions exist; a user-level block list could populate it tomorrow.
+> * **WebExtensions platform (the smaller part, but load-bearing):** caller
+>   identity through `bind_extension_host` and enforced `permissions` — before
+>   this, *no* API could be gated at all — plus MV3 manifest parsing for
+>   `declarative_net_request.rule_resources` and a `browser.*` API in the MV3
+>   shape.
+>
+> None of that is a wrong turn: a native matcher **is** how
+> `declarativeNetRequest` is implemented in Chrome and Firefox, so the engine
+> work is the API, not a detour from it. But it is worth stating that
+> `declarativeNetRequest` is the one WebExtensions API that teaches you *least*
+> about hosting extensions, because it is declarative specifically so that
+> extension code never runs on the request path. Anyone who reads this section
+> expecting content scripts, `runtime` messaging, `storage.local` or
+> extension-hosted pages should go to **`T-EXT-PLATFORM-FOUNDATION-1`**, which is
+> where those live. They were kept out of M9 on purpose: they are not networking
+> work and do not belong in "The Fetcher".
+
 * **Story 9.4.1: Declarative Request-Filtering Rules**
 * **Goal:** let an extension declare, up front, which requests the engine should
   block — with no extension JS on the request path.
