@@ -56,6 +56,78 @@ std::optional<std::string> try_stub_api(const std::string& url) {
 ])JSON");
 }
 
+// A second stub origin, for the ad-block demo (story 9.4.2).
+//
+// This exists because a blocker cannot be demonstrated or tested against a
+// single host: everything on `example.dev` is FIRST-party to the demo page, and
+// first-party is exactly what a blocker must not block. Without a second origin
+// there is no `domainType: thirdParty` rule to exercise and no honest before /
+// after to measure.
+//
+// The three resources are chosen to make 9.4.2's acceptance criteria measurable
+// rather than merely plausible — one per criterion.
+constexpr std::string_view kTrackerHost = "ads.example.net";
+
+// Ad/analytics script. Deliberately does two things beyond existing:
+//   1. appends nodes, so blocking it is visible as a DOM NODE COUNT difference;
+//   2. touches unimplemented APIs, so blocking it is visible as a drop in
+//      missing-API telemetry — which is the real-world observation that
+//      third-party ad code is precisely what hits the gaps in a young engine.
+constexpr std::string_view kTrackerScript = R"JS(
+(function () {
+  var host = document.getElementById('tracker-slot');
+  if (host) {
+    for (var i = 0; i < 25; i++) {
+      var node = document.createElement('span');
+      node.textContent = 'tracker node ' + i;
+      host.appendChild(node);
+    }
+  }
+  // The kind of thing real analytics bundles reach for on load.
+  try { new IntersectionObserver(function () {}); } catch (e) {}
+  try { new WebSocket('wss://ads.example.net/live'); } catch (e) {}
+  try { new PerformanceObserver(function () {}); } catch (e) {}
+  try { navigator.sendBeacon('https://ads.example.net/beacon'); } catch (e) {}
+})();
+)JS";
+
+constexpr std::string_view kTrackerStylesheet = R"CSS(
+.ad-slot { display: block; background: #ffe9b0; border: 1px solid #d8a800; }
+.ad-slot__label { color: #7a5c00; font-weight: bold; }
+)CSS";
+
+// The canonical 1x1 PNG, so the `image` destination is exercised by something
+// the decoder genuinely accepts — a tracking pixel that fails to decode would
+// prove nothing about blocking, since it would not have rendered either way.
+std::string tracker_pixel_png() {
+    static constexpr unsigned char kBytes[] = {
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00,
+        0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00,
+        0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01,
+        0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82};
+    return std::string(reinterpret_cast<const char*>(kBytes), sizeof(kBytes));
+}
+
+// True for a URL on the tracker origin, either scheme.
+std::optional<std::string_view> tracker_path(const std::string& url) {
+    for (std::string_view prefix : {"http://ads.example.net", "https://ads.example.net"}) {
+        if (url.rfind(prefix, 0) != 0) continue;
+        std::string_view rest = std::string_view(url).substr(prefix.size());
+        if (auto query = rest.find('?'); query != std::string_view::npos) rest = rest.substr(0, query);
+        return rest;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> try_tracker_resource(const std::string& url) {
+    auto path = tracker_path(url);
+    if (!path) return std::nullopt;
+    if (*path == "/analytics.js") return std::string(kTrackerScript);
+    if (*path == "/ads.css") return std::string(kTrackerStylesheet);
+    if (*path == "/pixel.png") return tracker_pixel_png();
+    return std::nullopt;
+}
+
 std::string build_stub_body(const std::string& url, std::string_view post_body = {}) {
     if (url.rfind("http://example.dev/search", 0) == 0 || url.rfind("https://example.dev/search", 0) == 0) {
         std::string query;
@@ -84,6 +156,10 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
 
     if (auto api = try_stub_api(url)) {
         return *api;
+    }
+
+    if (auto tracker = try_tracker_resource(url)) {
+        return *tracker;
     }
 
     if (url == "http://example.dev" || url == "https://example.dev") {
@@ -127,6 +203,9 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
     // example.dev subpages keep the demo "failed to load" note.
     const bool is_example_dev = url.rfind("http://example.dev", 0) == 0 || url.rfind("https://example.dev", 0) == 0;
     if (!is_example_dev) {
+        // Includes unknown paths on the tracker origin, which must answer with
+        // nothing rather than with a demo page: a "not found" that renders as
+        // HTML would make an unblocked tracker look like it worked.
         return {};
     }
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";

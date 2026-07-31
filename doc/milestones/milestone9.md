@@ -1204,7 +1204,20 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       is parsed but not enforced, and rule sets need persistence the host lacks.
       A manifest field that is parsed and not enforced is worse than one that is
       absent — it reads as a boundary and is not one.)*
-- [ ] 9.4.2: Built-In Ad-Block-Lite Extension *(rides on 9.4.1)*
+- [x] 9.4.2: Built-In Ad-Block-Lite Extension *(rides on 9.4.1. **Shipped
+      deliberately thin**: manifest + `rules.json` + a `background.js` that only
+      announces itself. A correct blocker needs no code, which is 9.4.1 working
+      as designed rather than a shortcut — and it is stated in the file so nobody
+      "fixes" it later. Required a second stub origin, `ads.example.net`: with
+      only `example.dev` everything is first-party, which is exactly what a
+      blocker must NOT block, so there was no `thirdParty` rule to exercise and
+      no honest before/after to measure. The four acceptance counts come from one
+      harness that loads the same page twice, blocker on and off, and diffs —
+      with **bytes counted by the fake server**, since a request we never sent has
+      no size we can know. `AdBlockLiteTest.TheShippedRuleSetIsValid` parses the
+      **shipped** file, not a copy, and requires every rule to be third-party
+      scoped; verified load-bearing by flipping the list to `firstParty` and
+      watching it fail.)*
 - [x] T-JS-MISSING-API-COVERAGE-1: widen the missing-API stub list *(the
       observable surface went from **2 names to 14**. Stubs for the observers
       (Intersection/Mutation/Resize/Performance), `customElements`, `WebSocket`,

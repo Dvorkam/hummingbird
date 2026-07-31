@@ -28,6 +28,7 @@ add_executable(HummingbirdTests
     engine/HttpCacheIntegration.test.cpp
     engine/RequestFilterIntegration.test.cpp
     engine/FilterRuleSet.test.cpp
+    engine/AdBlockLite.test.cpp
     engine/LocalStorage.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp

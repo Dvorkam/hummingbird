@@ -27,6 +27,11 @@ stable public API.
 The bundled `dark-mode` extension injects CSS when tabs are created, activated, or
 navigated. Open `https://example.dev/m5` for its demonstration page.
 
+The bundled `ad-block-lite` extension blocks a curated list of third-party
+tracker domains. Open `https://example.dev/m9-adblock` for its demonstration
+page. Its `background.js` is deliberately almost empty — the rules live in
+`rules.json` and are matched natively, so a correct blocker needs no code.
+
 ## Current limitations
 
 - No content scripts or direct per-tab DOM access.
@@ -134,6 +139,11 @@ the extension ID.
 assets/extensions/dark-mode/
   manifest.json
   background.js
+
+assets/extensions/ad-block-lite/
+  manifest.json
+  background.js
+  rules.json
 ```
 
 ## Manifest format

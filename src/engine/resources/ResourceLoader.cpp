@@ -25,7 +25,11 @@ namespace {
 // the stub network. Routing them straight there keeps startup deterministic
 // and avoids a doomed DNS lookup (and its scary warning) per demo navigation.
 bool is_builtin_demo_url(std::string_view url) {
-    for (std::string_view prefix : {"http://example.dev", "https://example.dev"}) {
+    // `ads.example.net` is the demo site's THIRD-PARTY origin (story 9.4.2). It
+    // has to be routed here too, or the ad-block demo's tracker requests leave
+    // for real DNS and fail — which would look like blocking and prove nothing.
+    for (std::string_view prefix :
+         {"http://example.dev", "https://example.dev", "http://ads.example.net", "https://ads.example.net"}) {
         if (url.rfind(prefix, 0) != 0) continue;
         if (url.size() == prefix.size()) return true;
         const char next = url[prefix.size()];
@@ -956,6 +960,18 @@ ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {
                                             << " pending=" << pending_count << " ready=[" << ready_summary
                                             << "] decode_ms=" << stats.image_decode_ms
                                             << " decoded_images=" << stats.image_decode_count);
+
+    // What the filter did, reported by the ENGINE rather than by the extension
+    // (story 9.4.2). The measurement must not come from the thing being
+    // measured — an extension that reports its own effectiveness is marketing,
+    // not telemetry. Logged only when something was actually blocked, so a
+    // browser with no blocker installed gains no noise.
+    if (request_filter_) {
+        const auto blocked = request_filter_->blocked_count();
+        if (blocked > 0) {
+            HB_LOG_INFO("[filter] blocked requests this session: " << blocked);
+        }
+    }
 
     result.ready = stats.ready;
     return result;

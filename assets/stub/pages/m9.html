@@ -159,6 +159,20 @@
       </div>
 
       <div class="card">
+        <h2>Declarative request filtering (ad blocking)</h2>
+        <p class="card-lead">An extension can declare, up front, which requests the engine should refuse. The rules
+        are matched natively in C++ at the single choke point every request passes through, so
+        <em>no extension JavaScript runs on the request path</em> &mdash; a blocker cannot slow a request down or
+        hang one, and the matching is the same on every redirect hop, which is how a tracker network would otherwise
+        launder a blocked URL through a single redirect.</p>
+        <p class="card-link"><a href="https://example.dev/m9-adblock">Open the ad-block demo &raquo;</a></p>
+        <p class="note">Blocking is the absence of something, so it cannot be shown with pixels &mdash; the demo page
+        states what should be missing and the log says whether it was. The bundled <code>ad-block-lite</code>
+        extension is toggleable like Dark Mode, and its rules live in a plain JSON file rather than in code: a
+        correct blocker needs no script at all. Added in M9 (stories 9.4.1, 9.4.2).</p>
+      </div>
+
+      <div class="card">
         <h2>Fail-soft stubs for APIs that do not exist yet</h2>
         <p class="card-lead">A browser this young is missing a lot. The question is what happens when a page reaches
         for something absent: a <code>ReferenceError</code> kills the rest of that script, so one unimplemented API
