@@ -1475,6 +1475,10 @@ QuickJSScriptEngine::~QuickJSScriptEngine() {
         document_object_ = JS_UNDEFINED;
         JS_FreeValue(context_, window_object_);
         window_object_ = JS_UNDEFINED;
+        JS_FreeValue(context_, node_proto_);
+        node_proto_ = JS_UNDEFINED;
+        JS_FreeValue(context_, element_proto_);
+        element_proto_ = JS_UNDEFINED;
         JS_FreeContext(context_);
         context_ = nullptr;
     }
@@ -1638,6 +1642,13 @@ void QuickJSScriptEngine::reset_bindings() {
     document_object_ = JS_UNDEFINED;
     JS_FreeValue(context_, window_object_);
     window_object_ = JS_UNDEFINED;
+    // Per-context like everything else here: the next context builds its own
+    // interface prototypes, and keeping these would leak the old context's
+    // objects into it (T-JS-GLOBAL-ISOLATION-1's rule).
+    JS_FreeValue(context_, node_proto_);
+    node_proto_ = JS_UNDEFINED;
+    JS_FreeValue(context_, element_proto_);
+    element_proto_ = JS_UNDEFINED;
     JS_FreeContext(context_);
     context_ = nullptr;
     console_ready_ = false;
@@ -1682,54 +1693,107 @@ void QuickJSScriptEngine::release_document_state() {
     node_wrappers_.clear();
 }
 
+// A DOM interface constructor: `Node`, `Element`, `HTMLElement`.
+//
+// Not callable. `new HTMLElement()` throws "Illegal constructor" in every
+// browser, and a stub that returned an object instead would hand back something
+// that looks like an element and is not one.
+namespace {
+JSValue js_illegal_constructor(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/, JSValueConst* /*argv*/) {
+    return JS_ThrowTypeError(ctx, "Illegal constructor");
+}
+}  // namespace
+
+void QuickJSScriptEngine::install_dom_interface(const char* name, JSValueConst proto) {
+    JSValue global = JS_GetGlobalObject(context_);
+    JSValue ctor = JS_NewCFunction2(context_, js_illegal_constructor, name, 0, JS_CFUNC_constructor, 0);
+    // `instanceof` walks the object's prototype chain looking for this exact
+    // object, which is the whole reason the constructor has to carry the real
+    // prototype rather than a fresh one.
+    JS_SetConstructor(context_, ctor, proto);
+    JS_SetPropertyStr(context_, global, name, ctor);
+    JS_FreeValue(context_, global);
+}
+
 void QuickJSScriptEngine::install_node_prototype() {
     if (!context_) {
         return;
     }
-    JSValue proto = JS_NewObject(context_);
+    // Three prototypes in a real chain, rather than one object carrying
+    // everything (T-JS-DOM-INTERFACES-1). Pages do not only call these members,
+    // they ASK about them — `x instanceof HTMLElement`, `Element.prototype.foo =
+    // …` — and a single flat prototype cannot answer those correctly: a text
+    // node would come out as an HTMLElement. The split follows the DOM spec's
+    // own division so the answers are right, not merely non-throwing.
+    JSValue node_proto = JS_NewObject(context_);
+    JSValue element_proto = JS_NewObjectProto(context_, node_proto);
+    JSValue html_proto = JS_NewObjectProto(context_, element_proto);
 
-    define_getter(proto, "nodeType", js_node_get_node_type);
-    define_getter(proto, "nodeName", js_node_get_node_name);
-    define_getter(proto, "tagName", js_node_get_tag_name);
-    define_accessor(proto, "textContent", js_node_get_text_content, js_node_set_text_content);
-    define_getter(proto, "parentNode", js_node_get_parent_node);
-    define_getter(proto, "firstChild", js_node_get_first_child);
-    define_getter(proto, "lastChild", js_node_get_last_child);
-    define_getter(proto, "nextSibling", js_node_get_next_sibling);
-    define_getter(proto, "previousSibling", js_node_get_previous_sibling);
-    define_getter(proto, "nextElementSibling", js_node_get_next_element_sibling);
-    define_getter(proto, "previousElementSibling", js_node_get_previous_element_sibling);
-    define_getter(proto, "childNodes", js_node_get_child_nodes);
-    define_getter(proto, "children", js_node_get_children);
-    define_accessor(proto, "className", js_node_get_class_name, js_node_set_class_name);
-    define_accessor(proto, "innerHTML", js_node_get_inner_html, js_node_set_inner_html);
-    define_accessor(proto, "value", js_node_get_value, js_node_set_value);
-    define_accessor(proto, "checked", js_node_get_checked, js_node_set_checked);
-    define_accessor(proto, "disabled", js_node_get_disabled, js_node_set_disabled);
-    define_getter(proto, "classList", js_node_get_class_list);
-    define_getter(proto, "dataset", js_node_get_dataset);
+    // --- Node: structure, text, and events (EventTarget folded in) -----------
+    // EventTarget is deliberately not a fourth level. It would be one more
+    // object for one more name nothing has asked for; the members live at the
+    // lowest level anything can reach them from, which is what matters.
+    define_getter(node_proto, "nodeType", js_node_get_node_type);
+    define_getter(node_proto, "nodeName", js_node_get_node_name);
+    define_accessor(node_proto, "textContent", js_node_get_text_content, js_node_set_text_content);
+    define_getter(node_proto, "parentNode", js_node_get_parent_node);
+    define_getter(node_proto, "firstChild", js_node_get_first_child);
+    define_getter(node_proto, "lastChild", js_node_get_last_child);
+    define_getter(node_proto, "nextSibling", js_node_get_next_sibling);
+    define_getter(node_proto, "previousSibling", js_node_get_previous_sibling);
+    define_getter(node_proto, "childNodes", js_node_get_child_nodes);
+    define_method(node_proto, "appendChild", js_node_append_child, 1);
+    define_method(node_proto, "insertBefore", js_node_insert_before, 2);
+    define_method(node_proto, "removeChild", js_node_remove_child, 1);
+    define_method(node_proto, "replaceChild", js_node_replace_child, 2);
+    define_method(node_proto, "addEventListener", js_node_add_event_listener, 3);
+    define_method(node_proto, "removeEventListener", js_node_remove_event_listener, 3);
+    define_method(node_proto, "dispatchEvent", js_node_dispatch_event, 1);
 
-    define_method(proto, "appendChild", js_node_append_child, 1);
-    define_method(proto, "insertBefore", js_node_insert_before, 2);
-    define_method(proto, "removeChild", js_node_remove_child, 1);
-    define_method(proto, "replaceChild", js_node_replace_child, 2);
-    define_method(proto, "setAttribute", js_element_set_attribute, 2);
-    define_method(proto, "getAttribute", js_element_get_attribute, 1);
-    define_method(proto, "removeAttribute", js_element_remove_attribute, 1);
-    define_method(proto, "querySelector", js_query_selector, 1);
-    define_method(proto, "querySelectorAll", js_query_selector_all, 1);
-    define_method(proto, "matches", js_element_matches, 1);
-    define_method(proto, "closest", js_element_closest, 1);
-    define_method(proto, "getElementsByClassName", js_get_elements_by_class_name, 1);
-    define_method(proto, "getElementsByTagName", js_get_elements_by_tag_name, 1);
-    define_method(proto, "focus", js_node_focus, 0);
-    define_method(proto, "blur", js_node_blur, 0);
-    define_method(proto, "addEventListener", js_node_add_event_listener, 3);
-    define_method(proto, "removeEventListener", js_node_remove_event_listener, 3);
-    define_method(proto, "dispatchEvent", js_node_dispatch_event, 1);
+    // --- Element: attributes, selectors, element-only traversal --------------
+    define_getter(element_proto, "tagName", js_node_get_tag_name);
+    define_getter(element_proto, "nextElementSibling", js_node_get_next_element_sibling);
+    define_getter(element_proto, "previousElementSibling", js_node_get_previous_element_sibling);
+    define_getter(element_proto, "children", js_node_get_children);
+    define_accessor(element_proto, "className", js_node_get_class_name, js_node_set_class_name);
+    define_accessor(element_proto, "innerHTML", js_node_get_inner_html, js_node_set_inner_html);
+    define_getter(element_proto, "classList", js_node_get_class_list);
+    define_method(element_proto, "setAttribute", js_element_set_attribute, 2);
+    define_method(element_proto, "getAttribute", js_element_get_attribute, 1);
+    define_method(element_proto, "removeAttribute", js_element_remove_attribute, 1);
+    define_method(element_proto, "querySelector", js_query_selector, 1);
+    define_method(element_proto, "querySelectorAll", js_query_selector_all, 1);
+    define_method(element_proto, "matches", js_element_matches, 1);
+    define_method(element_proto, "closest", js_element_closest, 1);
+    define_method(element_proto, "getElementsByClassName", js_get_elements_by_class_name, 1);
+    define_method(element_proto, "getElementsByTagName", js_get_elements_by_tag_name, 1);
 
-    // Consumes the proto reference and makes it the prototype for every wrapper.
-    JS_SetClassProto(context_, node_class_id_, proto);
+    // --- HTMLElement: the HTML-only surface ---------------------------------
+    // `value`/`checked`/`disabled` really belong to HTMLInputElement and its
+    // siblings. Putting them here is a deliberate simplification — one level
+    // too low, but far closer than Element and much closer than Node, and it
+    // avoids inventing a per-tag interface hierarchy nothing has asked for.
+    define_accessor(html_proto, "value", js_node_get_value, js_node_set_value);
+    define_accessor(html_proto, "checked", js_node_get_checked, js_node_set_checked);
+    define_accessor(html_proto, "disabled", js_node_get_disabled, js_node_set_disabled);
+    define_getter(html_proto, "dataset", js_node_get_dataset);
+    define_method(html_proto, "focus", js_node_focus, 0);
+    define_method(html_proto, "blur", js_node_blur, 0);
+
+    install_dom_interface("Node", node_proto);
+    install_dom_interface("Element", element_proto);
+    install_dom_interface("HTMLElement", html_proto);
+
+    // Kept so wrap_node can pick a prototype per node kind.
+    node_proto_ = JS_DupValue(context_, node_proto);
+    element_proto_ = JS_DupValue(context_, element_proto);
+    JS_FreeValue(context_, node_proto);
+    JS_FreeValue(context_, element_proto);
+
+    // Consumes the reference. HTMLElement.prototype is the DEFAULT for the
+    // class, so anything wrapped without an explicit prototype is treated as an
+    // element — which is what the overwhelming majority of wrapped nodes are.
+    JS_SetClassProto(context_, node_class_id_, html_proto);
 }
 
 void QuickJSScriptEngine::install_token_list_prototype() {
@@ -1922,6 +1986,13 @@ void QuickJSScriptEngine::install_window_bindings() {
     // way script expects. The global->window->global cycle is what browsers have
     // too; quickjs's GC collects cycles.
     JS_SetPropertyStr(context_, global, "window", JS_DupValue(context_, global));
+    // `self` is the same object again. It exists because worker scopes have no
+    // `window`, so library code that must run in both writes `self` — which is
+    // most bundled/UMD script, and is why this was a ReferenceError on
+    // seznam.cz on every single load in the live sweep. Free to provide now
+    // that the global self-reference is real; before that it would have been a
+    // third object to keep in sync.
+    JS_SetPropertyStr(context_, global, "self", JS_DupValue(context_, global));
     window_object_ = JS_DupValue(context_, global);
 
     // window is an EventTarget (hashchange fires here). On the global, so both
@@ -2817,7 +2888,17 @@ JSValue QuickJSScriptEngine::wrap_node(DOM::Node* node) {
     if (auto it = node_wrappers_.find(node); it != node_wrappers_.end()) {
         return JS_DupValue(context_, it->second);
     }
-    JSValue obj = JS_NewObjectClass(context_, node_class_id_);
+    // A text node is not an HTMLElement, so it must not inherit from one
+    // (T-JS-DOM-INTERFACES-1). Getting this wrong would make `instanceof`
+    // answer confidently and wrongly, which is worse than the ReferenceError
+    // these interfaces replaced: a page branching on it takes the wrong path
+    // silently.
+    JSValue obj;
+    if (host_ && host_->node_kind(node) != NodeKind::Element && !JS_IsUndefined(node_proto_)) {
+        obj = JS_NewObjectProtoClass(context_, node_proto_, node_class_id_);
+    } else {
+        obj = JS_NewObjectClass(context_, node_class_id_);
+    }
     if (JS_IsException(obj)) {
         return obj;
     }

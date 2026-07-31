@@ -1105,7 +1105,7 @@ P0: Guardrails
       `en.wikipedia.org`, which stays the `example.dev/m9` demo card.)*
 
 P0: Reopened 2026-07-30 by a crash found in manual browsing
-- [ ] T-RESOURCE-REF-1: downstream layers hold resource *references*, not payload
+- [x] T-RESOURCE-REF-1: downstream layers hold resource *references*, not payload
       pointers *(the fix for `T-CRASH-IMAGE-HEAVY-PAGE-1`, a proven
       use-after-free that killed the browser on seznam.cz. The render tree and
       the retained display list both cache `const ImageBitmap*` into

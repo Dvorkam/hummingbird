@@ -1158,16 +1158,20 @@ TEST(ScriptEngineTest, ReferenceErrorsAreHarvestedAsMissingApis) {
     ASSERT_NE(engine, nullptr);
     engine->bind_host(&host);
 
-    // The exact failure wikipedia.org's bundle hit. `Element` is a DOM interface
-    // object this engine does not expose, and it was NOT on the stub list.
-    EXPECT_FALSE(engine->eval("Element.prototype.matches = function () {};", "index.js").ok);
+    // This originally used `Element`, which is the exact failure wikipedia.org's
+    // bundle hit — and it now EXISTS (T-JS-DOM-INTERFACES-1), so the example had
+    // to move to an interface that is still genuinely absent. That is the test
+    // working: it pins the harvesting MECHANISM, and the mechanism must keep
+    // being demonstrated against something real rather than against a name we
+    // have since implemented.
+    EXPECT_FALSE(engine->eval("HTMLInputElement.prototype.foo = function () {};", "index.js").ok);
 
     const auto reported = engine->missing_apis();
     ASSERT_EQ(reported.size(), 1u);
     // The suffix matters: a stub hit means the page carried on without the
     // feature, this means the script DIED and nothing after it ran. A triage
     // that merged the two would rank a fatal gap alongside a handled one.
-    EXPECT_EQ(reported[0], "Element (ReferenceError)");
+    EXPECT_EQ(reported[0], "HTMLInputElement (ReferenceError)");
 }
 
 // Minified bundles throw on their own mangled locals. `aa is not defined` was
@@ -1216,6 +1220,83 @@ TEST(ScriptEngineTest, NavigatorStubFieldsAreStringsNotUndefined) {
     EXPECT_TRUE(engine->eval("if (globalThis.probed !== 1) throw new Error('died');", "inline").ok);
 }
 
+// T-JS-DOM-INTERFACES-1. `HTMLElement` and `Element` were ReferenceErrors —
+// seznam.cz hit `HTMLElement` on every single load of the live sweep, and
+// wikipedia.org's portal hit `Element`. A ReferenceError kills the rest of the
+// script, so these were fatal rather than merely absent.
+//
+// The bar is not "the name resolves". It is that the answers are RIGHT: pages
+// do not only call these, they ask questions of them, and a wrong `instanceof`
+// sends a page silently down the wrong branch — worse than the error it
+// replaced.
+TEST(ScriptEngineTest, DomInterfacesExistAndInstanceofAnswersCorrectly) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var el = document.createElement('p');"
+        // An element is all three, because the prototypes form a real chain.
+        "check('el-is-HTMLElement', el instanceof HTMLElement);"
+        "check('el-is-Element', el instanceof Element);"
+        "check('el-is-Node', el instanceof Node);"
+        // The chain is genuinely nested, not three aliases for one object.
+        "check('chain', HTMLElement.prototype !== Element.prototype);"
+        "check('chain2', Element.prototype !== Node.prototype);"
+        "check('proto-of', Object.getPrototypeOf(HTMLElement.prototype) === Element.prototype);"
+        "check('proto-of2', Object.getPrototypeOf(Element.prototype) === Node.prototype);"
+        // Members resolve through the chain from wherever they were defined.
+        "check('node-member', typeof el.appendChild === 'function');"
+        "check('element-member', typeof el.setAttribute === 'function');"
+        "check('html-member', typeof el.focus === 'function');"
+        // Prototype patching, which is what the failing pages were doing.
+        "Element.prototype.hbPatched = function () { return 'patched'; };"
+        "check('patch', el.hbPatched() === 'patched');"
+        // Browsers throw here; a stub returning an object would hand back
+        // something that looks like an element and is not one.
+        "var threw = false;"
+        "try { new HTMLElement(); } catch (e) { threw = true; }"
+        "check('illegal-constructor', threw);"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
+// The half that makes `instanceof` worth having: it must also say NO.
+TEST(ScriptEngineTest, ATextNodeIsANodeButNotAnElement) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var host = document.createElement('div');"
+        "host.textContent = 'hello';"
+        "var text = host.firstChild;"
+        "check('have-text-node', text !== null && text.nodeType === 3);"
+        "check('text-is-Node', text instanceof Node);"
+        // If every wrapper shared one prototype these two would be true, and a
+        // page filtering childNodes by `instanceof Element` would pick up text.
+        "check('text-is-not-Element', !(text instanceof Element));"
+        "check('text-is-not-HTMLElement', !(text instanceof HTMLElement));"
+        // A text node still gets its own interface's members.
+        "check('text-has-node-members', typeof text.textContent === 'string');"
+        // And must NOT get the element-only ones.
+        "check('text-has-no-setAttribute', typeof text.setAttribute === 'undefined');"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
 // T-JS-WINDOW-IS-GLOBAL-1. `window` used to be a separate object with a
 // hand-mirrored subset of globals, so anything not on that list was missing from
 // it. A browser has one object: window === globalThis.
@@ -1230,8 +1311,15 @@ TEST(ScriptEngineTest, WindowIsTheGlobalObjectSoEveryGlobalIsReachableBothWays) 
 
     const auto result = engine->eval(
         "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
-        "check('self', window === globalThis);"
+        "check('window-is-global', window === globalThis);"
         "check('window.window', window.window === window);"
+        // `self` names the same object. Library code that must also run in a
+        // worker (where there is no `window`) writes `self`, which is most
+        // bundled script — it was a ReferenceError on seznam.cz on every load
+        // of the live sweep, killing the script that touched it.
+        "check('self', self === globalThis);"
+        "check('self-is-window', self === window);"
+        "check('window.self', window.self === window);"
         // The ones that were missing, and the reason this story exists. Identity
         // rather than typeof: a mirrored copy would pass a typeof check.
         "check('console', window.console === console);"

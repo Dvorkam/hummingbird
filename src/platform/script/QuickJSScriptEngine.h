@@ -207,6 +207,9 @@ private:
     void release_document_state();
 
     void install_node_prototype();
+    // Exposes a DOM interface constructor carrying `proto`, so `instanceof`
+    // resolves against the same object wrappers actually inherit from.
+    void install_dom_interface(const char* name, JSValueConst proto);
     void install_token_list_prototype();
     void install_console_bindings();
     void install_document_bindings();
@@ -307,6 +310,13 @@ private:
     JSValue document_object_ = JS_UNDEFINED;
     // Retained reference to the `window` object (EventTarget for hashchange etc.).
     JSValue window_object_ = JS_UNDEFINED;
+    // The DOM interface prototypes (T-JS-DOM-INTERFACES-1). Held so `wrap_node`
+    // can pick the right one per node kind: a text node must NOT inherit from
+    // HTMLElement, or `instanceof` would answer a question wrongly rather than
+    // not at all. HTMLElement.prototype is owned by the class (JS_SetClassProto)
+    // so it is not stored here; these two are the levels above it.
+    JSValue node_proto_ = JS_UNDEFINED;
+    JSValue element_proto_ = JS_UNDEFINED;
     // Unique listeners_ keys for document- and window-level listeners.
     char document_target_marker_ = 0;
     char window_target_marker_ = 0;
