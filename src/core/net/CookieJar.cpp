@@ -27,6 +27,38 @@ bool CookieJar::store_from_header(std::string_view request_url, std::string_view
         return false;
     }
 
+    // Cookie name prefixes (RFC 6265bis §5.5). `__Secure-` and `__Host-` are a
+    // promise the NAME makes about the cookie, which a server relies on: seeing
+    // `__Host-session` back is supposed to guarantee it was set over https, by
+    // this exact host, for the whole origin — so a subdomain, or a
+    // man-in-the-middle on http, cannot have planted it.
+    //
+    // Accepting a prefixed cookie that does not meet the conditions turns that
+    // guarantee into a lie, which is worse than not supporting prefixes at all:
+    // a site can defend itself against an engine it knows ignores them, not
+    // against one that says yes and means no.
+    //
+    // Found by the T-COOKIE-CONFORMANCE-VECTORS-1 table on its first run.
+    // Prefix matching is case-insensitive per the spec, so `__HOST-` carries the
+    // same promise and must face the same conditions — otherwise the check is
+    // bypassed by changing the case.
+    const auto has_prefix = [](std::string_view name, std::string_view prefix) {
+        return name.size() >= prefix.size() && Utils::equals_ignore_case(name.substr(0, prefix.size()), prefix);
+    };
+    if (has_prefix(parsed->name, "__Host-")) {
+        const bool root_path = parsed->path == "/";
+        if (!parsed->secure || !parsed->host_only || !root_path) {
+            HB_LOG_DEBUG(
+                "[cookies] refusing __Host- cookie that does not meet the prefix conditions: " << parsed->name);
+            return false;
+        }
+    } else if (has_prefix(parsed->name, "__Secure-")) {
+        if (!parsed->secure) {
+            HB_LOG_DEBUG("[cookies] refusing __Secure- cookie without the Secure attribute: " << parsed->name);
+            return false;
+        }
+    }
+
     // §6.1: refuse an oversized cookie outright rather than store it and evict
     // something real to make room. Applies to a replacement too — a cookie may
     // not grow past the cap by being re-set.

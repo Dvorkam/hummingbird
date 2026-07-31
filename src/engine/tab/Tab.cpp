@@ -661,7 +661,10 @@ bool Tab::all_external_scripts_resolved() const {
 bool Tab::run_document_scripts_now() {
     // Point window.location at the document URL before any script reads it (7.2.5).
     document_pipeline_->set_location(navigation_lifecycle_.requested_url());
-    return document_pipeline_->run_scripts([this](std::string_view src) -> ExternalScriptSource {
+    // Anything the document's own scripts fetch is part of the load the user
+    // asked for, so it inherits the navigation's cache policy; the window
+    // closes below, once they have run (T-NET-RELOAD-FETCH-POLICY-1).
+    const bool mutated = document_pipeline_->run_scripts([this](std::string_view src) -> ExternalScriptSource {
         ExternalScriptSource source;
         auto resolved = ResourceRequestPlanning::resolve_request_url(navigation_lifecycle_.requested_url(), src);
         if (resolved.key.empty()) return source;
@@ -675,6 +678,11 @@ bool Tab::run_document_scripts_now() {
         source.body = std::string_view(entry->body);
         return source;
     });
+    // The load is over as far as cache policy is concerned. A fetch fired later
+    // — from a timer, a promise continuation, a click — is not part of what the
+    // user reloaded, so a reload must not still be governing it.
+    resource_loader_->end_navigation_script_phase();
+    return mutated;
 }
 
 void Tab::sync_extension_styles_before_stylesheet_update() {

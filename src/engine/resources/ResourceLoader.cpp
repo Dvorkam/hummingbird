@@ -199,6 +199,10 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
     chain.cors.origin = origin_header;
     chain.cors.credentials = request.credentials;
     chain.destination = Core::RequestDestination::Fetch;
+    // Without this a script fetch always ran at Default, so a hard reload
+    // refreshed the document and its subresources and then served the page's
+    // data from cache — the shape of every SPA, including M9's proof target.
+    chain.cache_policy = script_fetch_policy_.load(std::memory_order_acquire);
 
     std::optional<std::string> body;
     if (request.has_body) {
@@ -760,6 +764,13 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
     // Bypass does propagate.
     nav_cache_policy_.store(request.cache_policy == CachePolicy::Bypass ? CachePolicy::Bypass : CachePolicy::Default,
                             std::memory_order_release);
+    // Armed for this navigation's script phase, and reduced the same way
+    // subresources are: a NORMAL reload revalidates the document only, so it
+    // must not force every API call the page makes to re-fetch. A HARD reload
+    // is the gesture that means "get everything again", and it now reaches the
+    // page's own fetches too (T-NET-RELOAD-FETCH-POLICY-1).
+    script_fetch_policy_.store(request.cache_policy == CachePolicy::Bypass ? CachePolicy::Bypass : CachePolicy::Default,
+                               std::memory_order_release);
     std::string url_copy(url);
 
     // False just means the URL is already tracked as Loading or Ready — i.e. a
@@ -932,6 +943,10 @@ void ResourceLoader::request_fonts(const std::vector<std::string>& links, std::s
 
 void ResourceLoader::request_scripts(const std::vector<std::string>& links, std::string_view base_url) {
     request_resources(links, base_url, ResourceRequestPlanning::request_options_for(ResourceType::Script));
+}
+
+void ResourceLoader::end_navigation_script_phase() {
+    script_fetch_policy_.store(CachePolicy::Default, std::memory_order_release);
 }
 
 ResourceLoader::BatchResult ResourceLoader::consume_pending_updates() {

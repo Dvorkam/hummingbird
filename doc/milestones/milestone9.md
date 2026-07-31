@@ -1283,10 +1283,22 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       that had to be pinned explicitly. 990 green.
       Demo: an m9 card checking ten identities, because a mirrored copy would pass
       a `typeof` check and still be the wrong object.)*
-- [ ] T-COOKIE-CONFORMANCE-VECTORS-1: cookie conformance number *(cheap filler,
-      precondition now met)*
-- [ ] T-NET-IDENTITY-UI-1 (+ T-NET-IDENTITY-AUTOOFFER-1 behind it) *(if appetite
-      remains: a shipped feature whose only route is a secret shortcut)*
+- [x] T-COOKIE-CONFORMANCE-VECTORS-1: cookie conformance number *(**36/36**,
+      printed every CI run as `[cookie-conformance] N/M vectors passing`. Found a
+      real gap on its first run: the `__Secure-`/`__Host-` name prefixes were not
+      enforced at all, so a cookie could claim a guarantee it did not meet —
+      fixed alongside. That is the argument for the whole exercise: prose said
+      the module conformed, and the first number disagreed.)*
+- [>] T-NET-IDENTITY-UI-1 (+ T-NET-IDENTITY-AUTOOFFER-1 behind it) — **moved to
+      M11**. Chrome/UI work rather than fetch work; it was in M9 only because M9
+      was the open milestone when it was filed. The gap is real and stays P1.
+- [x] T-NET-RELOAD-FETCH-POLICY-1: a hard reload now reaches the data a page
+      fetches while loading *(a script fetch always ran at CachePolicy::Default,
+      so Ctrl+Shift+R refreshed the document and its subresources and then served
+      the page's DATA from cache — on an API-driven page, the only thing the user
+      came for. Scoped to a window that closes when the document's own scripts
+      have run, because a reload has no business governing a fetch fired a minute
+      later. Corrects a call recorded as deliberate during 9.3.2.)*
 - [ ] 9.1.2: XHR Compatibility Wrapper *(**blocked, not scheduled** — its trigger
       is 9.5.2's count)*
 

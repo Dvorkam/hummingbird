@@ -151,6 +151,12 @@ public:
     void fetch_for_script(const ScriptFetchRequest& request, std::string_view document_url,
                           std::function<void(ScriptFetchResponse)> callback);
 
+    // Ends the window in which a script fetch inherits the navigation's cache
+    // policy (T-NET-RELOAD-FETCH-POLICY-1). Called by the Tab once the
+    // document's own scripts have run: a fetch issued from a timer or a promise
+    // continuation afterwards is not part of the load the user reloaded.
+    void end_navigation_script_phase();
+
     BatchResult consume_pending_updates();
 
     std::optional<ResourceView> view(std::string_view url, ResourceType type) const;
@@ -302,6 +308,19 @@ private:
     // document only, which is what browsers settled on after finding that
     // re-checking every subresource made reload slow enough to be avoided.
     std::atomic<CachePolicy> nav_cache_policy_{CachePolicy::Default};
+
+    // The policy a script-initiated fetch inherits while the navigation's own
+    // scripts are still running (T-NET-RELOAD-FETCH-POLICY-1).
+    //
+    // Separate from `nav_cache_policy_` because it is armed and DISARMED at a
+    // different moment. A page whose script fetches its data on load — every
+    // SPA, and M9's own proof target — otherwise served that data from cache on
+    // a hard reload, i.e. the one gesture that is supposed to guarantee
+    // freshness refreshed the document and not the content the user came for.
+    //
+    // Reset to Default by `end_navigation_script_phase`, because a reload has no
+    // business governing a fetch the page fires a minute later.
+    std::atomic<CachePolicy> script_fetch_policy_{CachePolicy::Default};
 
     RequestDeadlines deadlines_;
     // Null means the real steady clock; see set_deadline_clock.

@@ -2,9 +2,22 @@
 
 **Module:** `src/core/net/{Cookie,CookieJar}.{h,cpp}`, wired at
 `src/engine/resources/ResourceLoader.cpp`.
-**Status as of:** 2026-07-21 (M8 stories 8.1.0–8.1.2 + T-COOKIE-NAV-INITIATOR-1).
-**Measured by:** nothing yet — `T-COOKIE-CONFORMANCE-VECTORS-1` adds the vector
-table that turns this page from a claim into a number.
+**Status as of:** 2026-07-31 (M8 stories 8.1.0–8.1.2 + T-COOKIE-NAV-INITIATOR-1,
+plus cookie name prefixes).
+**Measured by:** `tests/fixtures/cookies/rfc6265_vectors.txt`, run by
+`CookieConformanceTest` — currently **36/36 vectors passing**. The count is
+printed on every CI run as `[cookie-conformance] N/M vectors passing` and may
+only rise; a vector that fails must be marked `xfail` and name the ticket that
+would fix it, so no failure sits here unexplained.
+
+*The table earned its keep on its first run: it found that the `__Secure-` and
+`__Host-` name prefixes were **not enforced at all**. That gap matters more than
+its size suggests — the prefix is a promise the cookie's NAME makes to the
+server (`__Host-session` means "set over https, by this exact host, for the whole
+origin"), so accepting one that does not meet the conditions turns the guarantee
+into a lie. A site can defend itself against an engine known to ignore prefixes;
+it cannot defend against one that says yes and means no. Fixed in `CookieJar`,
+case-insensitively, at the same time.*
 
 Read `README.md` in this folder first: this file owns the *adherence picture*,
 `doc/TODOs.md` owns the *work items*, and neither repeats the other.

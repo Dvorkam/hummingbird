@@ -315,6 +315,68 @@ TEST(HttpCacheIntegrationTest, NormalReloadSparesSubresourcesButHardReloadDoesNo
         << "and unconditionally: a hard reload distrusts what it holds";
 }
 
+// T-NET-RELOAD-FETCH-POLICY-1. A script fetch always ran at Default, so a hard
+// reload refreshed the document and its subresources and then served the page's
+// DATA from cache — on an API-driven page, the only thing the user came for.
+//
+// This corrects an earlier call: during 9.3.2 the omission was recorded as
+// deliberate, on the strength of the demo card's "not for a fetch you fire a
+// minute later". That is true of a LATE fetch and says nothing about one the
+// document fires as it loads, which is the case that matters.
+TEST(HttpCacheIntegrationTest, AHardReloadReachesTheDataThePageFetchesWhileLoading) {
+    CacheFixture fx;
+    fx.net->set_reply({200, R"({"v":1})", cacheable("max-age=3600")});
+
+    const auto navigate_and_fetch_data = [&](ResourceLoader::CachePolicy policy) {
+        fx.loader->reset();
+        ResourceLoader::DocumentRequest request;
+        request.cache_policy = policy;
+        fx.loader->navigate("https://api.test/app", request);
+        const size_t after_document = fx.net->calls.size();
+        // Stands in for the page's own `fetch()` during load: the script phase
+        // has been opened by navigate() and is not closed until the Tab says so.
+        fx.fetch("https://api.test/data.json");
+        return fx.net->calls.size() - after_document;
+    };
+
+    EXPECT_EQ(navigate_and_fetch_data(ResourceLoader::CachePolicy::Default), 1u) << "first visit must fetch the data";
+
+    // A normal reload leaves it alone, for the same reason it leaves a fresh
+    // stylesheet alone: re-checking everything is what made reload slow enough
+    // that browsers stopped doing it.
+    EXPECT_EQ(navigate_and_fetch_data(ResourceLoader::CachePolicy::Revalidate), 0u)
+        << "a normal reload serves fresh API data from cache";
+
+    // The bug, and the fix: Ctrl+Shift+R is the gesture that means "get
+    // everything again", and on an SPA the data IS the page.
+    EXPECT_EQ(navigate_and_fetch_data(ResourceLoader::CachePolicy::Bypass), 1u)
+        << "a hard reload must re-request the data the page loads with";
+    EXPECT_TRUE(fx.net->calls.back().headers.get("If-None-Match").empty())
+        << "and unconditionally, like every other hard-reload request";
+}
+
+// The other half, and the reason this is scoped to a window rather than to the
+// whole session: a reload has no business governing a request the page makes
+// afterwards.
+TEST(HttpCacheIntegrationTest, AFetchAfterTheLoadIsOverStillUsesTheCache) {
+    CacheFixture fx;
+    fx.net->set_reply({200, R"({"v":1})", cacheable("max-age=3600")});
+
+    fx.loader->reset();
+    ResourceLoader::DocumentRequest hard;
+    hard.cache_policy = ResourceLoader::CachePolicy::Bypass;
+    fx.loader->navigate("https://api.test/app", hard);
+    fx.fetch("https://api.test/data.json");  // during load: goes to the network
+
+    // What the Tab calls once the document's own scripts have run.
+    fx.loader->end_navigation_script_phase();
+
+    const size_t before = fx.net->calls.size();
+    fx.fetch("https://api.test/data.json");
+    EXPECT_EQ(fx.net->calls.size(), before)
+        << "a fetch fired from a timer or a click is not part of what the user reloaded";
+}
+
 // A cached permanent redirect saves the whole chain, which is why the cache
 // belongs INSIDE the redirect loop rather than wrapped around it.
 TEST(HttpCacheIntegrationTest, CachesIndividualHopsSoARedirectIsNotRepeated) {

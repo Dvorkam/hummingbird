@@ -1,0 +1,174 @@
+# Cookie conformance vectors (T-COOKIE-CONFORMANCE-VECTORS-1).
+#
+# A pinned table of "what was set" -> "what is sent back", so the cookie
+# module's adherence is a NUMBER rather than a claim. The prose lives in
+# doc/conformance/rfc6265_cookies.md; this file is the ratchet that keeps it
+# honest, per that register's own anti-rot rule.
+#
+# Seeded from RFC 6265bis's normative examples and the shape of the `http-state`
+# vectors. Not a copy of either: those suites assume an HTTP client harness we
+# do not have, and several of their cases turn on parsing quirks we deliberately
+# reject. Every vector here is one this engine can be held to.
+#
+# FORMAT — blank line separates cases, each case gets a FRESH jar:
+#   # comment
+#   case <name>
+#   set  <url> | <Set-Cookie value>
+#   get  <url> | <expected Cookie header, or nothing for "send none">
+#   xfail <T-TICKET-ID> <why>      (optional; must precede `get`)
+#
+# A vector that does not pass must be marked `xfail` and NAME THE TICKET that
+# would fix it. An unexplained failure is not allowed to sit here going amber.
+
+case basic set and get
+set https://example.com/ | a=1
+get https://example.com/ | a=1
+
+case a cookie is not sent to a different host
+set https://example.com/ | a=1
+get https://other.com/ |
+
+case host-only by default, so no subdomain
+set https://example.com/ | a=1
+get https://sub.example.com/ |
+
+case an explicit Domain covers subdomains
+set https://example.com/ | a=1; Domain=example.com
+get https://sub.example.com/ | a=1
+
+case a leading dot on Domain is ignored
+set https://example.com/ | a=1; Domain=.example.com
+get https://sub.example.com/ | a=1
+
+case Domain may not widen to a different site
+set https://example.com/ | a=1; Domain=other.com
+get https://other.com/ |
+
+case Domain may not be a public suffix
+set https://example.co.uk/ | a=1; Domain=co.uk
+get https://other.co.uk/ |
+
+case a cookie set on a subdomain is not sent to the parent
+set https://sub.example.com/ | a=1
+get https://example.com/ |
+
+case default path is the directory of the request
+set https://example.com/dir/page.html | a=1
+get https://example.com/dir/other.html | a=1
+
+case default path does not leak to the parent directory
+set https://example.com/dir/page.html | a=1
+get https://example.com/ |
+
+case an explicit path is honoured
+set https://example.com/ | a=1; Path=/dir
+get https://example.com/dir | a=1
+
+case a path prefix must end at a boundary
+set https://example.com/ | a=1; Path=/dir
+get https://example.com/dirty |
+
+case Secure cookies are withheld from http
+set https://example.com/ | a=1; Secure
+get http://example.com/ |
+
+case Secure cookies are sent over https
+set https://example.com/ | a=1; Secure
+get https://example.com/ | a=1
+
+case a later Set-Cookie replaces the same name
+set https://example.com/ | a=1
+set https://example.com/ | a=2
+get https://example.com/ | a=2
+
+case name and path together identify a cookie
+set https://example.com/ | a=1
+set https://example.com/ | a=2; Path=/dir
+get https://example.com/dir | a=2; a=1
+
+case Max-Age=0 deletes
+set https://example.com/ | a=1
+set https://example.com/ | a=1; Max-Age=0
+get https://example.com/ |
+
+case a negative Max-Age deletes
+set https://example.com/ | a=1
+set https://example.com/ | a=1; Max-Age=-1
+get https://example.com/ |
+
+case an expired Expires deletes
+set https://example.com/ | a=1
+set https://example.com/ | a=1; Expires=Wed, 01 Jan 2020 00:00:00 GMT
+get https://example.com/ |
+
+case Max-Age wins over Expires
+set https://example.com/ | a=1; Expires=Wed, 01 Jan 2020 00:00:00 GMT; Max-Age=3600
+get https://example.com/ | a=1
+
+case a cookie with no value is kept
+set https://example.com/ | a=
+get https://example.com/ | a=
+
+case a valueless cookie with no equals sign is rejected
+set https://example.com/ | novalue
+get https://example.com/ |
+
+case whitespace around the value is trimmed
+set https://example.com/ | a=  1
+get https://example.com/ | a=1
+
+case a quoted value keeps its quotes
+set https://example.com/ | a="1"
+get https://example.com/ | a="1"
+
+case several cookies are all returned
+set https://example.com/ | a=1
+set https://example.com/ | b=2
+get https://example.com/ | a=1; b=2
+
+case longer paths sort first
+set https://example.com/ | a=1
+set https://example.com/ | b=2; Path=/dir/sub
+set https://example.com/ | c=3; Path=/dir
+get https://example.com/dir/sub/page | b=2; c=3; a=1
+
+case __Secure- requires Secure
+set https://example.com/ | __Secure-a=1
+get https://example.com/ |
+
+case __Secure- is accepted with Secure
+set https://example.com/ | __Secure-a=1; Secure
+get https://example.com/ | __Secure-a=1
+
+case __Host- requires Secure, host-only and path slash
+set https://example.com/ | __Host-a=1; Secure; Path=/
+get https://example.com/ | __Host-a=1
+
+case __Host- rejects an explicit Domain
+set https://example.com/ | __Host-a=1; Secure; Domain=example.com; Path=/
+get https://example.com/ |
+
+case __Host- rejects a non-root path
+set https://example.com/ | __Host-a=1; Secure; Path=/dir
+get https://example.com/dir |
+
+case an unknown attribute is ignored
+set https://example.com/ | a=1; Fictional=yes
+get https://example.com/ | a=1
+
+case attribute names are case-insensitive
+set https://example.com/ | a=1; SECURE
+get http://example.com/ |
+
+case a cookie name is case-sensitive
+set https://example.com/ | A=1
+set https://example.com/ | a=2
+get https://example.com/ | A=1; a=2
+
+case the port is not part of cookie scope
+set https://example.com:8443/ | a=1
+get https://example.com/ | a=1
+
+case an empty Set-Cookie is ignored
+set https://example.com/ |
+get https://example.com/ |
