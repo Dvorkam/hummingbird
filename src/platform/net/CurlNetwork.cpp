@@ -45,8 +45,23 @@ size_t header_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
 constexpr long kDefaultConnectTimeoutMs = 5000;
 constexpr long kDefaultTotalTimeoutMs = 15000;
 
+// Lets a transfer in progress be abandoned when the browser is closing.
+//
+// curl calls this periodically; returning non-zero aborts with
+// CURLE_ABORTED_BY_CALLBACK. Without it a transfer is uninterruptible once
+// started, and since `NetworkThreadPool::shutdown` JOINS its workers, closing
+// the browser blocked until the slowest request hit its own timeout — up to the
+// full 15s request budget. Observed on a page whose nine webfonts were pointed
+// at an unreachable host: the window hung, then every request reported at once
+// as the deadlines expired together, and only then did the process exit.
+int abort_when_stopping(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
+    const auto* stopping = static_cast<const std::atomic<bool>*>(clientp);
+    return (stopping && stopping->load(std::memory_order_relaxed)) ? 1 : 0;
+}
+
 void apply_common_curl_options(CURL* curl, const std::string& url, std::string& body_buffer,
-                               Core::HttpHeaders& header_buffer, const NetworkRequestOptions& options) {
+                               Core::HttpHeaders& header_buffer, const NetworkRequestOptions& options,
+                               const std::atomic<bool>* stopping) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     // The ENGINE follows redirects, not curl (story 8.3.1). Letting curl do it
     // hides intermediate hops, so their Set-Cookie headers never reach the jar
@@ -84,6 +99,15 @@ void apply_common_curl_options(CURL* curl, const std::string& url, std::string& 
     const long total_ms = options.total_timeout_ms > 0 ? options.total_timeout_ms : kDefaultTotalTimeoutMs;
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, connect_ms);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, total_ms);
+
+    // A deadline bounds how long a request may take; this bounds how long a
+    // SHUTDOWN may take. They are different problems and both are needed: the
+    // deadline still has to be generous enough for a slow page to load.
+    if (stopping) {
+        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, abort_when_stopping);
+        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, stopping);
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    }
 }
 
 // A deadline that expired is not the same failure as a host that will not
@@ -93,6 +117,26 @@ NetworkError classify_curl_error(CURLcode res) {
     if (is_tls_verification_error(res)) return NetworkError::TlsVerificationFailed;
     if (res == CURLE_OPERATION_TIMEDOUT) return NetworkError::Timeout;
     return NetworkError::CurlError;
+}
+
+// Reports a transfer that did not complete.
+//
+// Shared by the GET and POST paths, which previously carried the same log line
+// twice and would have needed the shutdown case added to each.
+//
+// A transfer abandoned because the browser is closing is NOT a failure and must
+// not read as one: every in-flight request aborts at once during shutdown, so
+// warning here turned an ordinary close into a wall of alarming output about
+// requests nobody was waiting for any more.
+void log_transfer_failure(std::string_view url, CURLcode res, const CurlResponseMeta& meta, size_t bytes) {
+    if (res == CURLE_ABORTED_BY_CALLBACK) {
+        HB_LOG_DEBUG("[network] request abandoned at shutdown: " << url);
+        return;
+    }
+    HB_LOG_WARN("[network] curl failed: url=" << url << " code=" << res << " err=" << curl_easy_strerror(res)
+                                              << " status=" << meta.status << " ssl_verify=" << meta.ssl_verify_result
+                                              << " effective=" << meta.effective_url
+                                              << " content_type=" << meta.content_type << " bytes=" << bytes);
 }
 
 // Appends the caller's request headers to `list`, which the caller owns and must
@@ -198,7 +242,7 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
             return;
         }
 
-        apply_common_curl_options(curl, url, body, response.headers, call_options);
+        apply_common_curl_options(curl, url, body, response.headers, call_options, thread_pool_.stopping_flag());
         struct curl_slist* headers = append_request_headers(nullptr, request_headers);
         if (headers) {
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -212,10 +256,7 @@ void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse
 
         if (res != CURLE_OK) {
             response.error = classify_curl_error(res);
-            HB_LOG_WARN("[network] curl failed: url="
-                        << url << " code=" << res << " err=" << curl_easy_strerror(res) << " status=" << meta.status
-                        << " ssl_verify=" << meta.ssl_verify_result << " effective=" << meta.effective_url
-                        << " content_type=" << meta.content_type << " bytes=" << body.size());
+            log_transfer_failure(url, res, meta, body.size());
         } else if (meta.status >= 400) {
             HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
                                                      << meta.effective_url << " content_type=" << meta.content_type
@@ -260,7 +301,8 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
             return;
         }
 
-        apply_common_curl_options(curl, url, response_body, response.headers, call_options);
+        apply_common_curl_options(curl, url, response_body, response.headers, call_options,
+                                  thread_pool_.stopping_flag());
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_copy.c_str());
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body_copy.size()));
@@ -280,10 +322,7 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
 
         if (res != CURLE_OK) {
             response.error = classify_curl_error(res);
-            HB_LOG_WARN("[network] curl failed: url="
-                        << url << " code=" << res << " err=" << curl_easy_strerror(res) << " status=" << meta.status
-                        << " ssl_verify=" << meta.ssl_verify_result << " effective=" << meta.effective_url
-                        << " content_type=" << meta.content_type << " bytes=" << response_body.size());
+            log_transfer_failure(url, res, meta, response_body.size());
         } else if (meta.status >= 400) {
             HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
                                                      << meta.effective_url << " content_type=" << meta.content_type
