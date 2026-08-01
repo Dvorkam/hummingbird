@@ -9,6 +9,9 @@ This folder contains implementation workflow guides for recurring engineering ta
 - `dom_arena_ownership.md`: who owns arena-backed DOM nodes once JS can create/move/remove them, and how wrappers survive navigation (M7).
 - `spec_conformance_strategy.md`: why we build demo-driven now vs. conformance-first later, and the disciplines (deviation register, per-module conformance slices, WPT) that make the eventual turn cheap.
 - `form_control_workflow.md`: how to add a small native form control without silently pulling later Forms v2 semantics forward.
+- `pre_pr_checklist.md`: what to check before opening a PR. Every item is tied to
+  an incident that got through without it — including the portability class the
+  local MSVC build cannot catch.
 
 The per-spec adherence registers those disciplines produce live one level up in
 `doc/conformance/` — start at its `README.md`.

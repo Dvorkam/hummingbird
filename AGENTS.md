@@ -73,6 +73,21 @@ Note for Windows: raw `cmake --preset` requires an MSVC dev environment
 (`cl` on PATH); the scripts exist precisely so you never need to set that up
 manually.
 
+**A green local build is weaker evidence than it looks.** CI also builds on
+Ubuntu (GCC) and runs a clang fuzzer, and **MSVC is the permissive one of the
+three** — it accepts code the other two reject. Three classes have reached CI
+this way so far: a `std::` name used without its own `#include` (MSVC's headers
+supply far more transitively), a raw control byte inside a character literal
+(`'\r'` written as a literal CR), and a default argument naming a nested
+aggregate's default member initializer. There is no Linux toolchain in the
+sandbox, so these are found by reading, before pushing.
+
+**Before opening a PR, work through `doc/dev_guide/pre_pr_checklist.md`** — it
+carries the full list, each item tied to the incident that motivated it. Note
+its rule when CI does fail: a build stops at the first error, so one red round
+routinely hides several independent problems; audit the whole changed set rather
+than only the file the log named.
+
 ## Include audits (when asked, or when includes look bloated)
 
 - Use include-what-you-use if available: `iwyu_tool.py -p build`, apply suggestions
