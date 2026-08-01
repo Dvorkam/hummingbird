@@ -3,6 +3,10 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+// `std::unique_lock` lives here, not in <shared_mutex> (which supplies the
+// mutex and `std::shared_lock`). MSVC's headers pull it in transitively so a
+// Windows build never noticed; libstdc++ and libc++ do not.
+#include <mutex>
 
 #include "core/net/PublicSuffix.h"
 

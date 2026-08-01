@@ -3,6 +3,8 @@
 #include <cctype>
 #include <cstdlib>
 #include <optional>
+#include <string>
+#include <utility>
 
 namespace Hummingbird::Engine {
 namespace {
