@@ -125,7 +125,7 @@ TEST(LogTest, AMultiPartLineIsEmittedWhole) {
     while (std::getline(lines, line)) {
         // The file is opened in text mode, so std::endl became CRLF on Windows
         // and getline leaves the CR behind.
-        if (!line.empty() && line.back() == '') line.pop_back();
+        if (!line.empty() && line.back() == '\r') line.pop_back();
         if (line.empty()) continue;
         ++counted;
         EXPECT_EQ(line.rfind("[error] thread=", 0), 0u) << "spliced line: " << line;
