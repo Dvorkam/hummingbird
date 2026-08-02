@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 
+#include "core/utils/Log.h"
 #include "platform/decoders/ImageDecodeUtils.h"
 
 namespace Hummingbird::Platform {
@@ -116,13 +117,32 @@ int resolve_dimension(float primary, float fallback, int default_value) {
 }
 }  // namespace
 
+bool SvgImageDecoder::sniff(std::string_view bytes) {
+    return looks_like_svg(bytes);
+}
+
 std::optional<ImageBitmap> SvgImageDecoder::decode(std::string_view bytes) {
     if (!looks_like_svg(bytes)) {
         return std::nullopt;
     }
 
+    // The sniffer looks PAST a UTF-8 BOM, so the bytes handed to lunasvg have
+    // to skip it too — otherwise we recognise a file as SVG and then give the
+    // renderer something it cannot parse. This was masked until the raster
+    // fallback was removed: SDL_image tolerates the BOM, so a BOM-prefixed SVG
+    // used to be rendered by the wrong decoder and looked like it worked.
+    if (bytes.size() >= 3 && static_cast<unsigned char>(bytes[0]) == 0xEF &&
+        static_cast<unsigned char>(bytes[1]) == 0xBB && static_cast<unsigned char>(bytes[2]) == 0xBF) {
+        bytes.remove_prefix(3);
+    }
+
     auto document = lunasvg::Document::loadFromData(bytes.data(), bytes.size());
     if (!document) {
+        // Say which stage gave up. Previously all three failure paths here
+        // returned nullopt silently and the only visible message came from
+        // SDL_image afterwards, which named the wrong component — a sweep could
+        // not tell "not SVG" from "SVG this renderer cannot handle".
+        HB_LOG_DEBUG("[image] lunasvg could not load svg (" << bytes.size() << " bytes): " << bytes.substr(0, 120));
         return std::nullopt;
     }
 

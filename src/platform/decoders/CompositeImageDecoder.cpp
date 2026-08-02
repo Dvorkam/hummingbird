@@ -46,8 +46,13 @@ std::optional<ImageBitmap> CompositeImageDecoder::decode(std::string_view bytes)
     if (looks_like_html_document(bytes)) {
         return std::nullopt;
     }
-    if (auto svg = svg_decoder_.decode(bytes)) {
-        return svg;
+    if (SvgImageDecoder::sniff(bytes)) {
+        // These bytes ARE svg. Whether lunasvg rendered them or not, the raster
+        // decoder cannot help — and asking it anyway is where the misleading
+        // "IMG_Load_RW failed: Couldn't parse SVG image" came from, a message
+        // that names SDL_image's parser for a file our own renderer had already
+        // declined. The real reason is logged by SvgImageDecoder::decode.
+        return svg_decoder_.decode(bytes);
     }
     return raster_decoder_.decode(bytes);
 }
