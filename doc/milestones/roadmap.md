@@ -208,7 +208,7 @@ Detailed doc: [milestone8.md](milestone8.md) · Archive: [milestone8_done.md](..
 
 ---
 
-## Milestone 9: The Fetcher (Fetch + CORS + Cache) — Active (final signoff)
+## Milestone 9: The Fetcher (Fetch + CORS + Cache) — Complete
 
 Detailed doc: [milestone9.md](milestone9.md) *(scope revalidated at kickoff 2026-07-26)*
 

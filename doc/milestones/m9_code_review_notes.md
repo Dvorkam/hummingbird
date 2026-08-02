@@ -27,9 +27,9 @@ into self-contained commits so final signoff can inspect or bisect each boundary
 - `a6f2427`, `24a3114`: complete cache accounting and portability hygiene.
 - `dd1833b`, `10a15f8`: final acceptance regressions and test formatting.
 
-Current recommendation: **ready for final manual signoff.** Keep both milestone
-status documents at Active until the one remaining unchecked gate—the post-fix
-live `example.dev/m9` proof run—passes; then move both to Complete together.
+Final recommendation: **Milestone 9 is complete and ready for release.** The
+post-fix live `example.dev/m9` proof was user-confirmed on 2026-08-02: both the
+Hacker News and Wikipedia cards rendered successfully.
 
 ## Release-blocking stories
 
@@ -219,6 +219,8 @@ live `example.dev/m9` proof run—passes; then move both to Complete together.
 - [x] `git diff --check master...HEAD` is clean.
 - [x] `doc/dev_guide/pre_pr_checklist.md` is completed against the whole changed
       set, not only the files named by the first failure.
-- [ ] The M9 manual live proof targets and demo page are re-run after the fixes.
+- [x] The M9 manual live proof targets and demo page were re-run after the fixes;
+      the user confirmed that the live Hacker News and Wikipedia cards rendered
+      successfully on 2026-08-02.
 - [x] Roadmap, milestone status, and release notes describe the same shipped
       scope.

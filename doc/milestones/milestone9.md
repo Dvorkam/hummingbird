@@ -1,6 +1,6 @@
-> **Status: Active — code review complete; final manual signoff pending.** Kickoff
-> scope validation completed 2026-07-26 (see below). Branch `milestone/9-fetch`,
-> opened from `v0.8.0`.
+> **Status: Complete — implementation, automated verification, and post-fix live
+> proof gates passed 2026-08-02.** Kickoff scope validation completed 2026-07-26
+> (see below). Branch `milestone/9-fetch`, opened from `v0.8.0`.
 
 ## Kickoff Scope Validation (2026-07-26)
 
