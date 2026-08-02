@@ -1,5 +1,6 @@
-> **Status: Active** — kickoff scope validation done 2026-07-26 (see below). Branch
-> `milestone/9`, opened from `v0.8.0`.
+> **Status: Active — code review complete; final manual signoff pending.** Kickoff
+> scope validation completed 2026-07-26 (see below). Branch `milestone/9-fetch`,
+> opened from `v0.8.0`.
 
 ## Kickoff Scope Validation (2026-07-26)
 
@@ -57,8 +58,10 @@ implementation. Five findings change the story list.
 
 **After (Milestone 9 done):**
 
-* **fetch() v1** (Promise-based, headers, redirects, JSON round-trips, deadlines)
-  and a minimal **XHR** compatibility wrapper.
+* **fetch() v1** (Promise-based, headers, redirects, JSON round-trips, deadlines).
+  The optional XHR wrapper was not needed by either proof target and is explicitly
+  deferred beyond M9; revisit it during M12 compatibility triage when a specific
+  target requires it.
 * **CORS v1**, strict by default, enforced per redirect hop, relaxations only behind
   feature flags.
 * **HTTP cache v1**: in-memory, `Cache-Control`/`ETag` revalidation, with a correct
@@ -127,11 +130,11 @@ directly.
   the proof targets hammer the same endpoints.
 * The API-render harness (9.5.1) against a mock API server.
 
-**Nice-to-have (if schedule allows)**
+**Deferred or optional**
 
-* XHR wrapper (9.1.2) — only if a proof target actually uses it. The existing
-  missing-API telemetry stub already reports `XMLHttpRequest` when a page touches
-  it, so this is a data-driven decision, not a guess.
+* XHR wrapper (9.1.2) — **deferred beyond M9** because neither proof target uses
+  it. Revisit during M12 compatibility triage when a specific target requires it;
+  the existing missing-API telemetry stub still reports `XMLHttpRequest`.
 * Declarative request filtering + ad-block-lite (9.4.1, 9.4.2).
 * Preflight result caching (9.2.2).
 * SPA routing MVP (9.6.1) — required for "browse a thread and come back," optional
@@ -253,7 +256,7 @@ milestone. They run **first** because 9.1–9.3 build directly on them.
 number, but it is a separate pass over conformance vectors, not part of these
 three fixes.)*
 
-### 9.1 - fetch/XHR v1
+### 9.1 - fetch v1
 
 * **Story 9.1.1: fetch() Core**
 * **Goal:** `fetch(url, {method, headers, body})` returning a Promise of a Response
@@ -267,16 +270,16 @@ three fixes.)*
   cancelled on document teardown without callbacks firing into a dead page.
 * **Tests:** binding + engine integration tests (mock server).
 
-* **Story 9.1.2: XHR Compatibility Wrapper**
+* **Story 9.1.2: XHR Compatibility Wrapper — deferred beyond M9**
 * **Goal:** minimal `XMLHttpRequest` (open/send/onreadystatechange/responseText/
   status) implemented over the fetch path.
 * **Scope:** JS-side wrapper; no separate native path. Replaces the current
   reporting stub.
 * **Acceptance:** an XHR-based page works.
 * **Tests:** wrapper tests.
-* **Pull-in trigger:** the missing-API telemetry already reports `XMLHttpRequest`
-  on any page that touches it. Build this when a proof target reports it, not
-  speculatively.
+* **Pull-in trigger:** revisit during M12 compatibility triage when a specific
+  proof target requires it. The missing-API telemetry already reports
+  `XMLHttpRequest`; build it from demonstrated demand, not speculatively.
 
 * **Story 9.1.3: Request Deadlines (gap found in the M8 pre-merge review)**
 * **Goal:** no request can hang forever, and a request that gives up produces a
@@ -1313,8 +1316,9 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       came for. Scoped to a window that closes when the document's own scripts
       have run, because a reload has no business governing a fetch fired a minute
       later. Corrects a call recorded as deliberate during 9.3.2.)*
-- [ ] 9.1.2: XHR Compatibility Wrapper *(**blocked, not scheduled** — its trigger
-      is 9.5.2's count)*
+- [>] 9.1.2: XHR Compatibility Wrapper *(**deferred beyond M9** — neither M9
+      proof target required it; revisit during M12 compatibility triage when a
+      specific target does)*
 
 Deferred out of M9 at the same re-triage — see the Carried Backlog table for the
 reasoning: `T-HTML-PRESENTATIONAL-TAGS-1` → M10, `T-NET-CLIENT-HINTS-1` → M10,

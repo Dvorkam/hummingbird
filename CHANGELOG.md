@@ -129,7 +129,26 @@ Milestone 9, "The Fetcher": the page gets its own voice on the network.
   wall of warnings about requests nobody was waiting for.
 - **Cookie name prefixes are enforced** (`__Secure-`, `__Host-`). These are a
   promise the cookie's name makes to the server about how it was set; accepting
-  one that does not meet the conditions turned that guarantee into a lie.
+  one that does not meet the conditions turned that guarantee into a lie. Exact-
+  case prefixes now require a secure origin as well as the `Secure` attribute;
+  insecure origins cannot plant any Secure cookie.
+- **Fetch preserves the requested HTTP method end to end.** Preflights are real
+  `OPTIONS` requests, bodyless custom methods no longer degrade to `GET`, empty
+  `POST` remains `POST`, and redirect rewrites preserve or replace methods under
+  the HTTP status-specific rules.
+- **Fetch response and credential boundaries are now complete.** The public
+  wrapper forwards `credentials`, and scripts cannot read `Set-Cookie` or
+  `Set-Cookie2` from same-origin, cross-origin, cached, or revalidated responses.
+- **History state changes cannot cross origins or overwrite one another.** A
+  cross-origin `pushState`/`replaceState` throws `SecurityError` without changing
+  the tab's authority, and multiple synchronous state changes reach session
+  history in order.
+- **Request-chain policy remains stable across preflight and redirects.** A
+  preflight and its approved request share one absolute deadline, while
+  third-party filtering stays relative to the document that initiated the chain.
+- **HTTP cache limits include complete `Vary` keys.** Large selecting request
+  headers now count toward both per-entry and total memory caps and can trigger
+  normal LRU eviction.
 - **Links and resource URLs containing `&amp;` now resolve correctly.** Character
   references in attribute values were not decoded, so any URL with an escaped
   ampersand — most query strings — was requested wrongly and 404ed.

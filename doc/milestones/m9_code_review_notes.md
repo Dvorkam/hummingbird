@@ -16,9 +16,24 @@ Verification baseline:
   `doc/TODOs.md` lines 41 and 60.
 - The review changed no production files.
 
+Remediation completed through `10a15f8` (2026-08-02). The review fixes are split
+into self-contained commits so final signoff can inspect or bisect each boundary:
+
+- `cee8d45`, `7916a11`: History API origin guard and synchronous mutation queue.
+- `4d6d11a`: explicit HTTP methods through the network port and adapters.
+- `1f2ca66`: fetch credentials and forbidden response-header boundaries.
+- `2023559`: secure-origin and exact-case cookie-prefix guarantees.
+- `db97c6d`: shared preflight deadline and immutable filter initiator.
+- `a6f2427`, `24a3114`: complete cache accounting and portability hygiene.
+- `dd1833b`, `10a15f8`: final acceptance regressions and test formatting.
+
+Current recommendation: **ready for final manual signoff.** Keep both milestone
+status documents at Active until the one remaining unchecked gate—the post-fix
+live `example.dev/m9` proof run—passes; then move both to Complete together.
+
 ## Release-blocking stories
 
-- [ ] **[M9 P0] T-M9-REVIEW-HISTORY-ORIGIN-1: Enforce pushState same-origin
+- [x] **[M9 P0] T-M9-REVIEW-HISTORY-ORIGIN-1: Enforce pushState same-origin
       URLs**
   - **Goal:** a document must never acquire another origin's authority through
     `history.pushState` or `history.replaceState`.
@@ -38,7 +53,7 @@ Verification baseline:
     read origin-B cookie/storage or make a request classified as same-origin to
     B.
 
-- [ ] **[M9 P0] T-M9-REVIEW-NETWORK-METHOD-1: Carry the HTTP method through the
+- [x] **[M9 P0] T-M9-REVIEW-NETWORK-METHOD-1: Carry the HTTP method through the
       network port**
   - **Goal:** OPTIONS, GET, HEAD, POST, PUT, DELETE, and other accepted fetch
     methods reach the server with the method the page requested, independently
@@ -58,7 +73,7 @@ Verification baseline:
     rejected live-adapter preflight integration tests. Mocks must record the
     method passed through the port rather than infer it from headers.
 
-- [ ] **[M9 P0] T-M9-REVIEW-FETCH-SET-COOKIE-1: Never expose Set-Cookie to
+- [x] **[M9 P0] T-M9-REVIEW-FETCH-SET-COOKIE-1: Never expose Set-Cookie to
       script**
   - **Goal:** `Set-Cookie` and `Set-Cookie2`, including HttpOnly session tokens,
     are never readable through a fetch `Response`.
@@ -76,7 +91,7 @@ Verification baseline:
   - **Tests:** same-origin HttpOnly regression, cross-origin regression, cached
     response regression, and 304 revalidation regression.
 
-- [ ] **[M9 P1] T-M9-REVIEW-FETCH-CREDENTIALS-1: Forward fetch credentials from
+- [x] **[M9 P1] T-M9-REVIEW-FETCH-CREDENTIALS-1: Forward fetch credentials from
       the public wrapper**
   - **Goal:** `credentials: "omit"`, `"same-origin"`, and `"include"` reach the
     native binding unchanged.
@@ -88,7 +103,7 @@ Verification baseline:
   - **Tests:** public-JavaScript binding tests that inspect the resulting
     `ScriptFetchRequest`, plus end-to-end cookie behavior through the wrapper.
 
-- [ ] **[M9 P1] T-M9-REVIEW-COOKIE-PREFIX-1: Complete secure cookie-prefix
+- [x] **[M9 P1] T-M9-REVIEW-COOKIE-PREFIX-1: Complete secure cookie-prefix
       enforcement**
   - **Goal:** `__Secure-` and `__Host-` names provide the guarantees their names
     claim.
@@ -108,7 +123,7 @@ Verification baseline:
   - **Tests:** add conformance vectors for insecure origin, exact-case prefixes,
     and differently cased non-prefix names.
 
-- [ ] **[M9 P1] T-M9-REVIEW-PREFLIGHT-DEADLINE-1: Give preflight and request one
+- [x] **[M9 P1] T-M9-REVIEW-PREFLIGHT-DEADLINE-1: Give preflight and request one
       deadline**
   - **Goal:** the configured total timeout bounds the entire fetch, including
     preflight and the real request.
@@ -123,7 +138,7 @@ Verification baseline:
     and observes only the remainder on the real request; exhausted preflight
     budget prevents the real request entirely.
 
-- [ ] **[M9 P1] T-M9-REVIEW-FILTER-REDIRECT-1: Keep filter attribution bound to
+- [x] **[M9 P1] T-M9-REVIEW-FILTER-REDIRECT-1: Keep filter attribution bound to
       the initiating document**
   - **Goal:** `thirdPartyOnly` filtering remains relative to the document across
     every redirect hop.
@@ -141,7 +156,7 @@ Verification baseline:
 
 ## Follow-up stories
 
-- [ ] **[M9 P2] T-M9-REVIEW-HISTORY-QUEUE-1: Preserve every synchronous history
+- [x] **[M9 P2] T-M9-REVIEW-HISTORY-QUEUE-1: Preserve every synchronous history
       mutation**
   - **Goal:** multiple `pushState`/`replaceState` calls made before the Tab ticks
     have browser-equivalent history semantics.
@@ -153,7 +168,7 @@ Verification baseline:
   - **Tests:** binding queue test and full-Tab push/push/back and push/replace/back
     cases.
 
-- [ ] **[M9 P2] T-M9-REVIEW-CACHE-FOOTPRINT-1: Count the complete Vary key in
+- [x] **[M9 P2] T-M9-REVIEW-CACHE-FOOTPRINT-1: Count the complete Vary key in
       cache limits**
   - **Goal:** per-entry and total cache byte caps reflect all owned dynamic
     memory that can be controlled through a request/response.
@@ -166,7 +181,7 @@ Verification baseline:
   - **Tests:** oversized selecting-value rejection and total-cap eviction with
     several Vary variants.
 
-- [ ] **[M9 P2] T-M9-REVIEW-PORTABILITY-1: Close pre-PR include and whitespace
+- [x] **[M9 P2] T-M9-REVIEW-PORTABILITY-1: Close pre-PR include and whitespace
       failures**
   - **Goal:** the changed set passes the repository's portability checklist and
     `git diff --check` without relying on MSVC transitive includes.
@@ -181,7 +196,7 @@ Verification baseline:
 
 ## Release-document decision
 
-- [ ] **[M9 P1 docs] Reconcile the roadmap, milestone status, and XHR scope**
+- [x] **[M9 P1 docs] Reconcile the roadmap, milestone status, and XHR scope**
   - `doc/milestones/roadmap.md` still labels M9 `Next` and promises “Fetch/XHR
     v1”; `doc/milestones/milestone9.md` remains `Active` and deliberately leaves
     9.1.2 XHR unscheduled.
@@ -193,14 +208,16 @@ Verification baseline:
 
 ## Final verification gate
 
-- [ ] Every P0 and P1 story above is complete with load-bearing regression tests.
-- [ ] Every P2 story is complete or moved to `doc/TODOs.md` in normal `T-*`
+- [x] Every P0 and P1 story above is complete with load-bearing regression tests.
+- [x] Every P2 story is complete or moved to `doc/TODOs.md` in normal `T-*`
       format with an explicit target milestone.
-- [ ] `scripts/build.ps1` performs a real rebuild and passes.
-- [ ] `scripts/test.ps1` passes; every skip is understood and recorded.
-- [ ] `git diff --check master...HEAD` is clean.
-- [ ] `doc/dev_guide/pre_pr_checklist.md` is completed against the whole changed
+- [x] `scripts/build.ps1` performs a real rebuild and passes (83 objects rebuilt
+      during the changed-header audit; final test-format build rebuilt 8 objects).
+- [x] `scripts/test.ps1` passes: 1,092 passed, zero failed, one understood GUI
+      smoke skip (`SmokeMainTest.StartsAndTicks`).
+- [x] `git diff --check master...HEAD` is clean.
+- [x] `doc/dev_guide/pre_pr_checklist.md` is completed against the whole changed
       set, not only the files named by the first failure.
 - [ ] The M9 manual live proof targets and demo page are re-run after the fixes.
-- [ ] Roadmap, milestone status, and release notes describe the same shipped
+- [x] Roadmap, milestone status, and release notes describe the same shipped
       scope.
