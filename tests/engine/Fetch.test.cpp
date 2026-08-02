@@ -407,8 +407,7 @@ public:
              const Hummingbird::NetworkRequestOptions& options = {}) override {
         request(url, "GET", {}, std::move(callback), options);
     }
-    void post(const std::string& url, std::string_view body,
-              std::function<void(Hummingbird::NetworkResponse)> callback,
+    void post(const std::string& url, std::string_view body, std::function<void(Hummingbird::NetworkResponse)> callback,
               const Hummingbird::NetworkRequestOptions& options = {}) override {
         request(url, "POST", body, std::move(callback), options);
     }

@@ -1083,7 +1083,8 @@ TEST(ScriptEngineTest, WidenedFailSoftStubsReportAndSurviveRealisticUse) {
         << "navigator.userAgent stays empty: M8 owns identity, and a second answer here would contradict it";
     EXPECT_TRUE(engine->eval("if (globalThis.confirmed !== false) throw new Error('confirm said yes');", "inline").ok)
         << "no dialog surface exists, so the user cannot have agreed to anything";
-    EXPECT_TRUE(engine->eval("if (globalThis.prompted !== null) throw new Error('prompt invented input');", "inline").ok);
+    EXPECT_TRUE(
+        engine->eval("if (globalThis.prompted !== null) throw new Error('prompt invented input');", "inline").ok);
     EXPECT_TRUE(engine->eval("if (globalThis.cloned !== 2) throw new Error('structuredClone lost data');", "inline").ok)
         << "a JSON-shaped clone must actually deep-copy";
 
@@ -1091,9 +1092,9 @@ TEST(ScriptEngineTest, WidenedFailSoftStubsReportAndSurviveRealisticUse) {
     const auto reported_has = [&](const char* name) {
         return std::find(reported.begin(), reported.end(), name) != reported.end();
     };
-    for (const char* name : {"IntersectionObserver", "MutationObserver", "ResizeObserver", "customElements",
-                             "WebSocket", "getComputedStyle", "navigator.userAgent", "alert", "confirm", "prompt",
-                             "structuredClone"}) {
+    for (const char* name :
+         {"IntersectionObserver", "MutationObserver", "ResizeObserver", "customElements", "WebSocket",
+          "getComputedStyle", "navigator.userAgent", "alert", "confirm", "prompt", "structuredClone"}) {
         EXPECT_TRUE(reported_has(name)) << name << " was used but never reported";
     }
     // Deduped per document even though customElements was touched twice.
@@ -1112,11 +1113,12 @@ TEST(ScriptEngineTest, RequestIdleCallbackStubStillRunsTheCallback) {
     ASSERT_NE(engine, nullptr);
     engine->bind_host(&host);
 
-    ASSERT_TRUE(engine->eval("globalThis.idle = 0;"
-                             "requestIdleCallback(function (deadline) {"
-                             "  globalThis.idle = deadline.timeRemaining() === 0 ? 2 : 1;"
-                             "});",
-                             "inline")
+    ASSERT_TRUE(engine
+                    ->eval("globalThis.idle = 0;"
+                           "requestIdleCallback(function (deadline) {"
+                           "  globalThis.idle = deadline.timeRemaining() === 0 ? 2 : 1;"
+                           "});",
+                           "inline")
                     .ok);
     EXPECT_TRUE(engine->eval("if (globalThis.idle !== 0) throw new Error('ran synchronously');", "inline").ok)
         << "an idle callback must not run inside the call that scheduled it";
@@ -1696,7 +1698,8 @@ TEST(ScriptEngineTest, ApplyPopstateRestoresStateAndFiresTheEvent) {
     ASSERT_NE(view, nullptr);
     EXPECT_EQ(host.get_text_content(view), "route:list at https://example.dev/app/list")
         << "the listener must see both the restored state and the new location";
-    EXPECT_TRUE(engine->eval("if (history.state.route !== 'list') throw new Error('state not restored');", "inline").ok);
+    EXPECT_TRUE(
+        engine->eval("if (history.state.route !== 'list') throw new Error('state not restored');", "inline").ok);
     // A traversal is app-driven, so it must NOT report back as a script change —
     // otherwise the Tab would re-push the entry it just moved to.
     EXPECT_FALSE(engine->consume_history_change().has_value());

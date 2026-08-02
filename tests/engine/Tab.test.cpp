@@ -1515,9 +1515,8 @@ try {
     EXPECT_EQ(harness.tab().requested_url(), "https://page.test/app");
     EXPECT_EQ(harness.tab().security_state(), Hummingbird::SecurityState::Secure);
     EXPECT_FALSE(harness.tab().can_go_back()) << "a rejected push must not add a history entry";
-    EXPECT_EQ(std::count(network_ptr->requested().begin(), network_ptr->requested().end(),
-                         "https://victim.test/private"),
-              0);
+    EXPECT_EQ(
+        std::count(network_ptr->requested().begin(), network_ptr->requested().end(), "https://victim.test/private"), 0);
     EXPECT_NE(std::find(harness.context().drawn_texts.begin(), harness.context().drawn_texts.end(), "SecurityError"),
               harness.context().drawn_texts.end());
 }

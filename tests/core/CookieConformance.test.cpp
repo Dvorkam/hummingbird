@@ -181,7 +181,5 @@ TEST(CookieConformanceTest, PinnedVectorsReportAnAdherenceCount) {
     // understates adherence and the ticket it names looks unfixed forever.
     std::string passes;
     for (const auto& line : unexpected_passes) passes += "  " + line + "\n";
-    EXPECT_TRUE(unexpected_passes.empty())
-        << "vector(s) now pass and must have their xfail removed:\n"
-        << passes;
+    EXPECT_TRUE(unexpected_passes.empty()) << "vector(s) now pass and must have their xfail removed:\n" << passes;
 }

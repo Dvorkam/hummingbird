@@ -19,8 +19,12 @@ using Hummingbird::Core::HttpHeaders;
 using Hummingbird::Core::Storability;
 using Outcome = HttpCache::Outcome;
 
-CacheTime epoch() { return CacheTime{}; }
-CacheTime plus(long seconds) { return CacheTime{} + std::chrono::seconds(seconds); }
+CacheTime epoch() {
+    return CacheTime{};
+}
+CacheTime plus(long seconds) {
+    return CacheTime{} + std::chrono::seconds(seconds);
+}
 
 HttpHeaders headers_of(std::initializer_list<std::pair<const char*, const char*>> fields) {
     HttpHeaders headers;
@@ -33,9 +37,9 @@ HttpHeaders headers_of(std::initializer_list<std::pair<const char*, const char*>
 
 TEST(HttpCacheTest, ServesAFreshEntryWithoutAskingTheNetwork) {
     HttpCache cache;
-    ASSERT_EQ(cache.store("GET", "https://a.test/x", 200, {}, headers_of({{"Cache-Control", "max-age=60"}}),
-                          "BODY", epoch()),
-              Storability::Storable);
+    ASSERT_EQ(
+        cache.store("GET", "https://a.test/x", 200, {}, headers_of({{"Cache-Control", "max-age=60"}}), "BODY", epoch()),
+        Storability::Storable);
 
     const auto hit = cache.lookup("GET", "https://a.test/x", {}, plus(30));
     EXPECT_EQ(hit.outcome, Outcome::Fresh);
@@ -49,8 +53,8 @@ TEST(HttpCacheTest, ServesAFreshEntryWithoutAskingTheNetwork) {
 // its lifetime. It does not vanish — it becomes something to confirm.
 TEST(HttpCacheTest, AnExpiredEntryBecomesARevalidationRatherThanAMiss) {
     HttpCache cache;
-    cache.store("GET", "https://a.test/x", 200, {},
-                headers_of({{"Cache-Control", "max-age=60"}, {"ETag", "\"v1\""}}), "BODY", epoch());
+    cache.store("GET", "https://a.test/x", 200, {}, headers_of({{"Cache-Control", "max-age=60"}, {"ETag", "\"v1\""}}),
+                "BODY", epoch());
 
     EXPECT_EQ(cache.lookup("GET", "https://a.test/x", {}, plus(59)).outcome, Outcome::Fresh);
 
@@ -65,18 +69,18 @@ TEST(HttpCacheTest, AnExpiredEntryBecomesARevalidationRatherThanAMiss) {
 // revalidation's savings.
 TEST(HttpCacheTest, NoCacheIsStoredButNeverServedFresh) {
     HttpCache cache;
-    ASSERT_EQ(cache.store("GET", "https://a.test/x", 200, {},
-                          headers_of({{"Cache-Control", "no-cache, max-age=600"}, {"ETag", "\"v1\""}}), "BODY",
-                          epoch()),
-              Storability::Storable);
+    ASSERT_EQ(
+        cache.store("GET", "https://a.test/x", 200, {},
+                    headers_of({{"Cache-Control", "no-cache, max-age=600"}, {"ETag", "\"v1\""}}), "BODY", epoch()),
+        Storability::Storable);
     EXPECT_EQ(cache.lookup("GET", "https://a.test/x", {}, epoch()).outcome, Outcome::MustRevalidate);
 }
 
 TEST(HttpCacheTest, NoStoreIsNeverStored) {
     HttpCache cache;
-    EXPECT_EQ(cache.store("GET", "https://a.test/x", 200, {}, headers_of({{"Cache-Control", "no-store"}}),
-                          "BODY", epoch()),
-              Storability::NoStore);
+    EXPECT_EQ(
+        cache.store("GET", "https://a.test/x", 200, {}, headers_of({{"Cache-Control", "no-store"}}), "BODY", epoch()),
+        Storability::NoStore);
     EXPECT_EQ(cache.lookup("GET", "https://a.test/x", {}, epoch()).outcome, Outcome::Miss);
     EXPECT_EQ(cache.stats().entries, 0u);
 }
@@ -85,13 +89,13 @@ TEST(HttpCacheTest, NoStoreIsNeverStored) {
 // revalidation: the round trip still happened, but the bytes did not.
 TEST(HttpCacheTest, A304RevivesTheStoredBodyAndExtendsFreshness) {
     HttpCache cache;
-    cache.store("GET", "https://a.test/x", 200, {},
-                headers_of({{"Cache-Control", "max-age=60"}, {"ETag", "\"v1\""}}), "ORIGINAL", epoch());
+    cache.store("GET", "https://a.test/x", 200, {}, headers_of({{"Cache-Control", "max-age=60"}, {"ETag", "\"v1\""}}),
+                "ORIGINAL", epoch());
     ASSERT_EQ(cache.lookup("GET", "https://a.test/x", {}, plus(120)).outcome, Outcome::MustRevalidate);
 
     // The server says "still good, and good for another minute".
-    const auto revived = cache.refresh_from_not_modified(
-        "GET", "https://a.test/x", {}, headers_of({{"Cache-Control", "max-age=60"}}), plus(120));
+    const auto revived = cache.refresh_from_not_modified("GET", "https://a.test/x", {},
+                                                         headers_of({{"Cache-Control", "max-age=60"}}), plus(120));
     ASSERT_TRUE(revived.has_value());
     EXPECT_EQ(revived->status, 200);
     EXPECT_EQ(revived->body, "ORIGINAL");
@@ -107,12 +111,12 @@ TEST(HttpCacheTest, A304RevivesTheStoredBodyAndExtendsFreshness) {
 TEST(HttpCacheTest, A304DoesNotOverwriteTheStoredBodyHeaders) {
     HttpCache cache;
     cache.store("GET", "https://a.test/x", 200, {},
-                headers_of({{"Cache-Control", "max-age=1"}, {"ETag", "\"v1\""}, {"Content-Length", "8"}}),
-                "ORIGINAL", epoch());
+                headers_of({{"Cache-Control", "max-age=1"}, {"ETag", "\"v1\""}, {"Content-Length", "8"}}), "ORIGINAL",
+                epoch());
 
     const auto revived = cache.refresh_from_not_modified(
-        "GET", "https://a.test/x", {},
-        headers_of({{"Cache-Control", "max-age=60"}, {"Content-Length", "0"}}), plus(10));
+        "GET", "https://a.test/x", {}, headers_of({{"Cache-Control", "max-age=60"}, {"Content-Length", "0"}}),
+        plus(10));
     ASSERT_TRUE(revived.has_value());
     EXPECT_EQ(revived->body, "ORIGINAL");
     EXPECT_EQ(revived->headers.get("Content-Length"), "8") << "the 304's own length is not the resource's";
@@ -135,9 +139,9 @@ TEST(HttpCacheTest, A304WithNothingStoredReportsFailureRatherThanAnEmptyBody) {
 // would be memory spent on something that can never be used.
 TEST(HttpCacheTest, DoesNotStoreWhatCouldNeverBeReused) {
     HttpCache cache;
-    EXPECT_EQ(cache.store("GET", "https://a.test/x", 200, {}, headers_of({{"Content-Type", "text/html"}}), "BODY",
-                          epoch()),
-              Storability::NothingToReuse);
+    EXPECT_EQ(
+        cache.store("GET", "https://a.test/x", 200, {}, headers_of({{"Content-Type", "text/html"}}), "BODY", epoch()),
+        Storability::NothingToReuse);
     EXPECT_EQ(cache.stats().entries, 0u);
 
     // With a validator and no lifetime it IS worth keeping: stale on arrival,
@@ -189,9 +193,9 @@ TEST(HttpCacheTest, EvictsTheLeastRecentlyUsedEntryWhenFull) {
 TEST(HttpCacheTest, RefusesAnEntryLargerThanThePerEntryCap) {
     HttpCache cache;
     const std::string huge(HttpCache::kMaxEntryBytes + 1, 'x');
-    EXPECT_EQ(cache.store("GET", "https://a.test/big", 200, {}, headers_of({{"Cache-Control", "max-age=60"}}),
-                          huge, epoch()),
-              Storability::TooLarge);
+    EXPECT_EQ(
+        cache.store("GET", "https://a.test/big", 200, {}, headers_of({{"Cache-Control", "max-age=60"}}), huge, epoch()),
+        Storability::TooLarge);
     EXPECT_EQ(cache.stats().entries, 0u);
 }
 
@@ -287,8 +291,7 @@ TEST(HttpCacheTest, ACredentialedResponseIsNeverServedToAnAnonymousRequest) {
 TEST(HttpCacheTest, SetCookieIsNeverWrittenIntoAnEntry) {
     HttpCache cache;
     ASSERT_EQ(cache.store("GET", "https://a.test/login", 200, {},
-                          headers_of({{"Cache-Control", "max-age=60"}, {"Set-Cookie", "sid=secret"}}), "PAGE",
-                          epoch()),
+                          headers_of({{"Cache-Control", "max-age=60"}, {"Set-Cookie", "sid=secret"}}), "PAGE", epoch()),
               Storability::Storable);
     const auto hit = cache.lookup("GET", "https://a.test/login", {}, epoch());
     ASSERT_EQ(hit.outcome, Outcome::Fresh);
@@ -313,9 +316,9 @@ TEST(HttpCacheTest, VariantsOfOneUrlAreCappedAndEvictLocally) {
     EXPECT_EQ(cache.lookup("GET", "https://a.test/other", {}, plus(1000)).outcome, Outcome::Fresh)
         << "an unrelated URL must survive one URL's variant churn";
     // The newest variant is present; the oldest was the victim.
-    EXPECT_EQ(cache.lookup("GET", "https://a.test/x",
-                           headers_of({{"X-N", std::to_string(HttpCache::kMaxVariantsPerUrl + 3).c_str()}}),
-                           plus(1000))
+    EXPECT_EQ(cache
+                  .lookup("GET", "https://a.test/x",
+                          headers_of({{"X-N", std::to_string(HttpCache::kMaxVariantsPerUrl + 3).c_str()}}), plus(1000))
                   .outcome,
               Outcome::Fresh);
     EXPECT_EQ(cache.lookup("GET", "https://a.test/x", headers_of({{"X-N", "0"}}), plus(1000)).outcome, Outcome::Miss);
@@ -342,12 +345,12 @@ TEST(HttpCacheTest, RevalidationRefreshesOnlyTheMatchingVariant) {
 
 TEST(HttpCacheTest, RevalidationNeverStoresASetCookieHeader) {
     HttpCache cache;
-    cache.store("GET", "https://a.test/x", 200, {},
-                headers_of({{"Cache-Control", "max-age=0"}, {"ETag", "\"v1\""}}), "BODY", epoch());
+    cache.store("GET", "https://a.test/x", 200, {}, headers_of({{"Cache-Control", "max-age=0"}, {"ETag", "\"v1\""}}),
+                "BODY", epoch());
 
     const auto revived = cache.refresh_from_not_modified(
-        "GET", "https://a.test/x", {},
-        headers_of({{"Cache-Control", "max-age=60"}, {"Set-Cookie", "session=secret"}}), plus(1));
+        "GET", "https://a.test/x", {}, headers_of({{"Cache-Control", "max-age=60"}, {"Set-Cookie", "session=secret"}}),
+        plus(1));
 
     ASSERT_TRUE(revived.has_value());
     EXPECT_TRUE(revived->headers.get("Set-Cookie").empty()) << "a 304 must not smuggle a cookie into the cache";

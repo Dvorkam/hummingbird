@@ -102,8 +102,7 @@ public:
         request(url, "POST", body, std::move(callback), options);
     }
     void request(const std::string& url, std::string_view method, std::string_view,
-                 std::function<void(NetworkResponse)> callback,
-                 const NetworkRequestOptions& options = {}) override {
+                 std::function<void(NetworkResponse)> callback, const NetworkRequestOptions& options = {}) override {
         methods.emplace_back(method);
         total_timeout_ms.push_back(options.total_timeout_ms);
         NetworkResponse response;
