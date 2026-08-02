@@ -214,7 +214,8 @@ live `example.dev/m9` proof run—passes; then move both to Complete together.
 - [x] `scripts/build.ps1` performs a real rebuild and passes (83 objects rebuilt
       during the changed-header audit; final test-format build rebuilt 8 objects).
 - [x] `scripts/test.ps1` passes: 1,092 passed, zero failed, one understood GUI
-      smoke skip (`SmokeMainTest.StartsAndTicks`).
+      smoke skip (`SmokeMainTest.StartsAndTicks`), which also passes when enabled
+      explicitly with `HB_RUN_SMOKE_TEST=1`.
 - [x] `git diff --check master...HEAD` is clean.
 - [x] `doc/dev_guide/pre_pr_checklist.md` is completed against the whole changed
       set, not only the files named by the first failure.
