@@ -107,6 +107,24 @@ to break the thing on purpose.
       with the "Added in MN" note updated (`AGENTS.md` workflow rule)
 - [ ] Code smells noticed along the way are filed, not just noticed
 
+### 6a. The docs that go stale silently
+
+These carry no test and nothing fails when they drift, so they rot until a user
+notices. Check them at every release, and whenever the thing they describe moves.
+
+- [ ] **`assets/stub/example.dev.html` — third-party library list and dev
+      version.** Versions there are hand-written and drift from `vcpkg.json`
+      every time a dependency moves.
+- [ ] **`assets/stub/example.dev.html` — keyboard shortcut list.** Shortcuts get
+      added in the chrome without anyone editing the page that documents them.
+      A wrong shortcut list is worse than none: it teaches the wrong thing.
+- [ ] **`README.md` — supported features and closed gaps.** Keep it *brief* and
+      user-visible: what someone can actually do with the browser now, not the
+      story list. Internal refactors do not belong here.
+- [ ] **`CHANGELOG.md` — detailed, and naming the correct current version.**
+      This is the opposite audience from the README: full detail, and the
+      version number must match what is actually being released.
+
 ## 7. What you could not verify
 
 - [ ] State it explicitly, in the PR body and the commit message. The sandbox

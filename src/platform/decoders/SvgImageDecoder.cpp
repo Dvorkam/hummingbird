@@ -63,7 +63,25 @@ bool looks_like_svg(std::string_view bytes) {
         return true;
     }
 
-    if (!starts_with_ci(bytes, "<?xml")) {
+    // An SVG file does not have to open with its root element. Three prologues
+    // are ordinary and all of them were being rejected here, which sent real
+    // SVG icons on to SDL_image's much weaker parser — 830 "Couldn't parse SVG
+    // image" warnings in one browsing sweep, i.e. missing icons across most of
+    // the modern web.
+    //
+    // `<!DOCTYPE svg` is matched rather than any doctype ON PURPOSE: an HTML
+    // page beginning `<!DOCTYPE html>` very often contains an inline `<svg>`
+    // icon, and accepting that would make us decode a whole document as an
+    // image. The doctype has to name svg itself.
+    const bool xml_declaration = starts_with_ci(bytes, "<?xml");
+    const bool comment = starts_with_ci(bytes, "<!--");
+    bool svg_doctype = false;
+    if (starts_with_ci(bytes, "<!DOCTYPE")) {
+        std::string_view after = bytes.substr(std::string_view("<!DOCTYPE").size());
+        skip_whitespace(after);
+        svg_doctype = starts_with_ci(after, "svg");
+    }
+    if (!xml_declaration && !comment && !svg_doctype) {
         return false;
     }
 
