@@ -829,7 +829,7 @@ TEST(FetchTest, ASameOriginResponseStillHidesForbiddenHeaders) {
     Hummingbird::Core::HttpHeaders server;
     server.set("ETag", "\"v1\"");
     server.set("X-Anything", "yes");
-    server.add("Set-Cookie", "session=secret");
+    server.add("Set-Cookie", "session=secret; HttpOnly");
 
     CorsFixture fx{server};
     ScriptFetchRequest request;

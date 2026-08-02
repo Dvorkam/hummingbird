@@ -230,6 +230,25 @@ TEST(RequestDeadlineTest, PreflightAndApprovedRequestShareOneDeadline) {
         << "the real request must inherit time spent obtaining preflight approval";
 }
 
+TEST(RequestDeadlineTest, ExhaustedPreflightBudgetPreventsTheApprovedRequest) {
+    auto network = std::make_unique<PreflightDeadlineNetwork>();
+    auto* net = network.get();
+    ResourceLoader loader(std::move(network), nullptr, nullptr, nullptr, nullptr);
+    loader.set_request_deadlines({/*connect_ms*/ 5000, /*total_ms*/ 15000});
+    loader.set_deadline_clock(SteppingClock(std::chrono::milliseconds(8000)));
+
+    ScriptFetchRequest request;
+    request.url = "https://api.other.test/item";
+    request.method = "DELETE";
+    ScriptFetchFailure failure = ScriptFetchFailure::NetworkError;
+    loader.fetch_for_script(request, "https://page.test/index.html",
+                            [&](auto response) { failure = response.failure; });
+
+    EXPECT_EQ(failure, ScriptFetchFailure::Timeout);
+    EXPECT_EQ(net->methods, (std::vector<std::string>{"OPTIONS"}))
+        << "preflight approval cannot extend an already exhausted request budget";
+}
+
 // The deadlines are configuration, not a constant buried in the transport: this
 // is what lets the tests above run without sleeping, and what a future
 // per-request fetch timeout will set.
