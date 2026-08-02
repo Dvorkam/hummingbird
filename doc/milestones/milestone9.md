@@ -153,7 +153,11 @@ directly.
   failure.
 * With ad-block-lite enabled, filtered requests never reach the network, the page
   still renders, and the run reports **requests and bytes avoided** (if 9.4 lands).
-* Missing-API telemetry from the proof-target runs is triaged into the M12 backlog.
+* ~~Missing-API telemetry from the proof-target runs is triaged into the M12
+  backlog.~~ **Met 2026-08-02.** Four live sweeps; every observed name either
+  fixed or filed — see 9.5.2 for the list and `T-JS-INTL-1`, `T-JS-XPATH-1`
+  (M12), `T-JS-UNDEFINED-PROPERTY-SWEEP-1` (M10), `T-CSS-UI-LONGHANDS-1` (M11),
+  `T-SVG-INLINE-RENDER-1` (M10) for the results.
 
 ---
 
@@ -1154,8 +1158,18 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       comes from the telemetry" until `T-JS-MISSING-API-COVERAGE-1` widens it,
       and it re-frames 9.1.2: XHR's trigger selects for **visibility, not
       demand**, since XHR is one of the only two things that can ever fire it.
-      **Outstanding and needs the app** (the sandbox blocks SDL exes): the live
-      sweep over real pages that turns the instrument into numbers.)*
+      **The live sweep ran, 2026-07-31 to 2026-08-02** — four sessions over
+      seznam.cz, novinky.cz, wikipedia, MDN, python.org docs, HNPWA framework
+      builds, Le Monde, news.de, foxnews, reddit, DuckDuckGo and assorted blogs.
+      It turned the instrument into numbers and then into work: `self`,
+      `HTMLElement`, `Element`, `EventTarget`, `Event` and `CustomEvent` were all
+      fatal `ReferenceError`s on real pages and were **fixed**; `Intl`,
+      `XPathEvaluator`, a repeated `undefined` property access and a batch of
+      cosmetic CSS longhands were **filed**. The sweep also confirmed the
+      instrument's own blind spot: a fatal error hides every API the script would
+      have touched afterwards, so `XMLHttpRequest` only appeared once the
+      ReferenceErrors were cleared. Any single sweep measures through whatever is
+      currently fatal.)*
 - [x] 9.6.1: History API MVP *(`history.pushState`/`replaceState`/`state`/
       `length`/`back`/`forward`/`go` plus the `popstate` event, wired to the tab's
       existing back/forward stack. **Stage A** (hash routing) was already working
