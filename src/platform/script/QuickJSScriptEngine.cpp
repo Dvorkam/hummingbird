@@ -8,6 +8,7 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
+#include "core/net/Origin.h"
 #include "core/utils/Log.h"
 #include "core/utils/Url.h"
 
@@ -2320,6 +2321,17 @@ JSValue QuickJSScriptEngine::js_history_push_state(JSContext* ctx, JSValueConst 
                 // Tab drains); and it keeps the API working with no resolver
                 // wired, which a location operation should not depend on.
                 url = Core::resolve_url(engine->location_url_, requested);
+                const auto document_origin = Core::Origin::parse(engine->location_url_);
+                const auto target_origin = Core::Origin::parse(url);
+                if (!document_origin || !target_origin || *document_origin != *target_origin) {
+                    JSValue error = JS_NewError(ctx);
+                    JS_SetPropertyStr(ctx, error, "name", JS_NewString(ctx, "SecurityError"));
+                    JS_SetPropertyStr(
+                        ctx, error, "message",
+                        JS_NewString(ctx,
+                                     "Failed to execute 'pushState' on 'History': the URL has a different origin."));
+                    return JS_Throw(ctx, error);
+                }
             }
         }
     }

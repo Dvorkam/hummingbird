@@ -1589,6 +1589,32 @@ TEST(ScriptEngineTest, ReplaceStateIsReportedAsAReplacement) {
     EXPECT_EQ(change->url, "https://example.dev/app/list?page=2");
 }
 
+// A same-document history operation may change path/query/fragment, but never
+// origin. Otherwise the old document keeps running while location, storage,
+// cookies and fetch all start identifying it as the target origin.
+TEST(ScriptEngineTest, PushStateRejectsACrossOriginUrlWithoutChangingState) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    const auto result = engine->eval(
+        "var caught = null;"
+        "try { history.pushState({ stolen: true }, '', 'https://victim.test/private'); }"
+        "catch (error) { caught = error; }"
+        "if (!caught || caught.name !== 'SecurityError') throw new Error('missing SecurityError');"
+        "if (location.href !== 'https://example.dev/app/list') throw new Error('location changed');"
+        "if (history.state !== null) throw new Error('history state changed');",
+        "inline");
+
+    EXPECT_TRUE(result.ok) << result.error;
+    EXPECT_FALSE(engine->consume_history_change().has_value()) << "a rejected URL must not reach the Tab";
+}
+
 // An omitted url means "keep the current one", and null/undefined state is null
 // rather than the string "null" — a page can legitimately store that string.
 TEST(ScriptEngineTest, PushStateDefaultsUrlAndDistinguishesNullState) {
