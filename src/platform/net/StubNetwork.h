@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <string_view>
 
 #include "core/platform_api/INetwork.h"
 #include "platform/net/NetworkThreadPool.h"

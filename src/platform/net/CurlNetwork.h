@@ -4,6 +4,7 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 #include "core/platform_api/INetwork.h"
 #include "platform/net/NetworkThreadPool.h"

@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include <memory>
+#include <vector>
 
 #include "core/ResourceRef.h"
 #include "core/dom/Element.h"

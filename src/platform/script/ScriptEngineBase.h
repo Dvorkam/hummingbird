@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "core/platform_api/IScriptEngine.h"
