@@ -51,16 +51,36 @@ bool CookieJar::store_from_header(std::string_view request_url, std::string_view
     // against one that says yes and means no.
     //
     // Found by the T-COOKIE-CONFORMANCE-VECTORS-1 table on its first run.
-    // Cookie names, including these prefixes, are case-sensitive. A name such
-    // as `__host-id` is therefore an ordinary cookie and makes no prefix claim.
-    if (parsed->name.starts_with("__Host-")) {
+    //
+    // **Matched CASE-INSENSITIVELY, and the spec is asymmetric about this in a
+    // way that is easy to read the wrong way round.** RFC 6265bis §4.1.3 tells
+    // SERVERS to use a case-sensitive match when producing a prefixed cookie;
+    // §5.4 tells USER AGENTS the opposite — "UAs MUST match the prefix string
+    // case-insensitively". We are a user agent, so §5.4 is the rule that binds
+    // us, and it is a MUST.
+    //
+    // The reason is a real bypass (httpwg/http-extensions#2231, closed by
+    // #2236): cookie NAMES are case-sensitive, but plenty of server frameworks
+    // compare them case-insensitively. An attacker who can set an insecure
+    // `__secure-session` on a site whose backend lowercases names gets it
+    // treated as the protected `__Secure-session` — the guarantee laundered
+    // through a case difference. Matching case-insensitively here closes that,
+    // and costs only that a page cannot store an unprotected cookie whose name
+    // happens to look like a prefix.
+    //
+    // Note what this does NOT do: the cookies stay distinct. `__Secure-a` and
+    // `__secure-a` both face the conditions and remain two different cookies.
+    const auto has_prefix = [](std::string_view name, std::string_view prefix) {
+        return name.size() >= prefix.size() && Utils::equals_ignore_case(name.substr(0, prefix.size()), prefix);
+    };
+    if (has_prefix(parsed->name, "__Host-")) {
         const bool root_path = parsed->path == "/";
         if (!parsed->secure || !parsed->host_only || !root_path) {
             HB_LOG_DEBUG(
                 "[cookies] refusing __Host- cookie that does not meet the prefix conditions: " << parsed->name);
             return false;
         }
-    } else if (parsed->name.starts_with("__Secure-")) {
+    } else if (has_prefix(parsed->name, "__Secure-")) {
         if (!parsed->secure) {
             HB_LOG_DEBUG("[cookies] refusing __Secure- cookie without the Secure attribute: " << parsed->name);
             return false;

@@ -5,7 +5,7 @@
 **Status as of:** 2026-08-02 (M8 stories 8.1.0–8.1.2 + T-COOKIE-NAV-INITIATOR-1,
 plus cookie name prefixes).
 **Measured by:** `tests/fixtures/cookies/rfc6265_vectors.txt`, run by
-`CookieConformanceTest` — currently **41/41 vectors passing**. The count is
+`CookieConformanceTest` — currently **44/44 vectors passing**. The count is
 printed on every CI run as `[cookie-conformance] N/M vectors passing` and may
 only rise; a vector that fails must be marked `xfail` and name the ticket that
 would fix it, so no failure sits here unexplained.
@@ -17,7 +17,19 @@ server (`__Host-session` means "set over https, by this exact host, for the whol
 origin"), so accepting one that does not meet the conditions turns the guarantee
 into a lie. A site can defend itself against an engine known to ignore prefixes;
 it cannot defend against one that says yes and means no. Fixed in `CookieJar`
-with the specified case-sensitive name match and secure-origin requirement.*
+with a case-insensitive prefix match and a secure-origin requirement.*
+
+*On the case question specifically — RFC 6265bis is **asymmetric** and is easy to
+read the wrong way round. §4.1.3 tells **servers** to use a case-sensitive match
+when producing a prefixed cookie; §5.4 tells **user agents** they "MUST match the
+prefix string case-insensitively" when consuming one. We are a user agent, so
+§5.4 binds, and it is a MUST. The reason is a concrete bypass
+([httpwg/http-extensions#2231](https://github.com/httpwg/http-extensions/issues/2231),
+closed by #2236): cookie names are case-sensitive, but many server frameworks
+compare them case-insensitively, so an attacker-set insecure `__secure-session`
+would be read as the protected `__Secure-session`. Matching case-insensitively
+does not merge the cookies — `__Secure-a` and `__secure-a` remain distinct names,
+which the vector table pins.*
 
 Read `README.md` in this folder first: this file owns the *adherence picture*,
 `doc/TODOs.md` owns the *work items*, and neither repeats the other.
@@ -54,7 +66,7 @@ header→header vector and stays on targeted engine tests
 | §5.3 storage model | Yes | Host-only when no Domain; Max-Age overrides Expires; a Domain the request host is not within is rejected; same `(name, domain, path)` replaces in place, preserving creation time; an already-expired update deletes. |
 | §5.4 retrieval + send order | Yes | Longer paths first, then earlier creation time. |
 | `Secure` | Yes | Rejected when received from a non-HTTPS origin and withheld from non-HTTPS transports. |
-| `__Secure-` / `__Host-` prefixes | Yes | Exact-case prefix matching; secure-origin and Secure-attribute checks, plus host-only and root-path checks for `__Host-`. |
+| `__Secure-` / `__Host-` prefixes | Yes | Case-insensitive prefix matching per §5.4; secure-origin and Secure-attribute checks, plus host-only and root-path checks for `__Host-`. |
 | `HttpOnly` | Yes | Withheld from the script view (`script_visible_cookies`) while still riding HTTP requests. |
 | SameSite `Lax` / `Strict` / `None` | Yes | Enforced for both subresources and navigations. `SameSite=None` without `Secure` is rejected at parse rather than downgraded. Lax default when absent or unrecognized. |
 | 6265bis §5.4 None-requires-Secure | Yes | Rejected outright — a silent downgrade would look like it had worked. |

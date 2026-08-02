@@ -144,9 +144,27 @@ case __Secure- cannot be planted over http
 set http://example.com/ | __Secure-a=1; Secure
 get https://example.com/ |
 
-case differently cased secure prefix is an ordinary cookie name
+# RFC 6265bis is asymmetric here and it is easy to read the wrong way round:
+# SS4.1.3 tells servers to match case-SENSITIVELY when producing a prefixed
+# cookie; SS5.4 tells user agents they MUST match case-INSENSITIVELY when
+# consuming one. We are a user agent. The reason is a real bypass
+# (httpwg/http-extensions#2231): server frameworks that compare cookie names
+# case-insensitively would treat an attacker's insecure `__secure-session` as
+# the protected `__Secure-session`.
+case a differently cased secure prefix still faces the prefix conditions
 set http://example.com/ | __secure-a=1
-get http://example.com/ | __secure-a=1
+get http://example.com/ |
+
+case a differently cased secure prefix is accepted when it meets them
+set https://example.com/ | __sECuRe-a=1; Secure
+get https://example.com/ | __sECuRe-a=1
+
+# Matching the prefix case-insensitively does NOT merge the cookies: the names
+# are still distinct, so both are stored and both are sent.
+case prefixed cookies differing only in case remain distinct cookies
+set https://example.com/ | __Secure-a=1; Secure
+set https://example.com/ | __secure-a=2; Secure
+get https://example.com/ | __Secure-a=1; __secure-a=2
 
 case __Host- requires Secure, host-only and path slash
 set https://example.com/ | __Host-a=1; Secure; Path=/
@@ -164,9 +182,13 @@ case __Host- cannot be planted over http
 set http://example.com/ | __Host-a=1; Secure; Path=/
 get https://example.com/ |
 
-case differently cased host prefix is an ordinary cookie name
+case a differently cased host prefix still faces the prefix conditions
 set http://example.com/ | __host-a=1
-get http://example.com/ | __host-a=1
+get http://example.com/ |
+
+case a differently cased host prefix is accepted when it meets them
+set https://example.com/ | __hOsT-a=1; Secure; Path=/
+get https://example.com/ | __hOsT-a=1
 
 case an ordinary Secure cookie cannot be planted over http
 set http://example.com/ | a=1; Secure
