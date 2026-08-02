@@ -112,9 +112,11 @@ to break the thing on purpose.
 These carry no test and nothing fails when they drift, so they rot until a user
 notices. Check them at every release, and whenever the thing they describe moves.
 
-- [ ] **`assets/stub/example.dev.html` — third-party library list and dev
-      version.** Versions there are hand-written and drift from `vcpkg.json`
-      every time a dependency moves.
+- [ ] **`assets/stub/example.dev.html` — third-party library list and version
+      chip.** Both are hand-written. The library list drifts from `vcpkg.json`
+      every time a dependency moves, and the chip must match
+      `project(Hummingbird VERSION ...)` in `CMakeLists.txt` — a released build
+      that calls itself `-dev` is a small lie to whoever is running it.
 - [ ] **`assets/stub/example.dev.html` — keyboard shortcut list.** Shortcuts get
       added in the chrome without anyone editing the page that documents them.
       A wrong shortcut list is worse than none: it teaches the wrong thing.

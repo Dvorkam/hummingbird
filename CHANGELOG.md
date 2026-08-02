@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.9.0] - unreleased
+## [0.9.0] - 2026-08-02
 
 Milestone 9, "The Fetcher": the page gets its own voice on the network.
 
