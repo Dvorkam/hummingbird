@@ -2241,7 +2241,8 @@ void QuickJSScriptEngine::install_fetch_prelude() {
     var request = {
       method: options.method,
       body: options.body,
-      headers: normalizeHeaders(options.headers)
+      headers: normalizeHeaders(options.headers),
+      credentials: options.credentials
     };
     return g.__hb_nativeFetch(String(input), request).then(function (raw) {
       return new Response(raw);

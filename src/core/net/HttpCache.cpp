@@ -189,7 +189,7 @@ std::optional<HttpCache::Lookup> HttpCache::refresh_from_not_modified(std::strin
     // without resending it, so skipping it would make every later use revalidate
     // again immediately.
     for (const auto& field : not_modified_headers.fields()) {
-        if (is_hop_or_body_header(field.name)) continue;
+        if (is_hop_or_body_header(field.name) || is_uncacheable_response_header(field.name)) continue;
         entry->headers.set(field.name, field.value);
     }
 

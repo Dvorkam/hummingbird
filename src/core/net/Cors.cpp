@@ -186,6 +186,16 @@ bool is_forbidden_response_header(std::string_view name) {
     return lower == "set-cookie" || lower == "set-cookie2";
 }
 
+HttpHeaders filter_forbidden_response_headers(const HttpHeaders& response_headers) {
+    HttpHeaders out;
+    for (const auto& field : response_headers.fields()) {
+        if (!is_forbidden_response_header(field.name)) {
+            out.add(field.name, field.value);
+        }
+    }
+    return out;
+}
+
 HttpHeaders filter_exposed_headers(const HttpHeaders& response_headers, Credentials credentials) {
     const std::string exposed = Utils::to_lower(response_headers.get("Access-Control-Expose-Headers"));
     const auto named = split_tokens(exposed);

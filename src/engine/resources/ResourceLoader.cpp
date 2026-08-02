@@ -625,6 +625,10 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
             if (response.effective_url.empty()) {
                 response.effective_url = url;
             }
+            // Fetch never exposes cookie-setting response fields to script,
+            // even for a same-origin response. The jar and cache have already
+            // consumed the unfiltered headers above.
+            response.headers = Core::Cors::filter_forbidden_response_headers(response.headers);
             if (chain.cors.active) {
                 // Story 9.2.4: a permitted response still does not expose
                 // everything it carries. Filtering happens HERE, after the jar

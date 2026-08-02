@@ -164,7 +164,7 @@ TEST(FetchTest, NetworkFailureRejectsAndATimeoutIsNamed) {
 TEST(FetchTest, SendsMethodBodyAndHeaders) {
     FetchFixture fx;
     ASSERT_TRUE(fx.engine
-                    ->eval("fetch('/submit', { method: 'post',"
+                    ->eval("fetch('/submit', { method: 'post', credentials: 'include',"
                            "  headers: { 'X-Test': 'yes', 'Content-Type': 'application/json' },"
                            "  body: '{\"a\":1}' });",
                            "inline")
@@ -177,6 +177,7 @@ TEST(FetchTest, SendsMethodBodyAndHeaders) {
     EXPECT_EQ(request.body, "{\"a\":1}");
     EXPECT_EQ(request.headers.get("X-Test"), "yes");
     EXPECT_EQ(request.headers.get("Content-Type"), "application/json");
+    EXPECT_EQ(request.credentials, Hummingbird::Core::Cors::Credentials::Include);
 }
 
 TEST(FetchTest, JsonParsesAndHeadersAreCaseInsensitive) {
@@ -821,12 +822,14 @@ TEST(FetchTest, ACrossOriginResponseExposesOnlyPermittedHeaders) {
     EXPECT_TRUE(got.headers.get("Set-Cookie").empty()) << "Set-Cookie reached script";
 }
 
-// ...while a same-origin response is not filtered at all: there is nothing to
-// protect the page from itself.
-TEST(FetchTest, ASameOriginResponseExposesEveryHeader) {
+// ...while a same-origin response exposes ordinary headers but still withholds
+// cookie-setting fields. Fetch forbids scripts from reading Set-Cookie even
+// when the response came from their own origin.
+TEST(FetchTest, ASameOriginResponseStillHidesForbiddenHeaders) {
     Hummingbird::Core::HttpHeaders server;
     server.set("ETag", "\"v1\"");
     server.set("X-Anything", "yes");
+    server.add("Set-Cookie", "session=secret");
 
     CorsFixture fx{server};
     ScriptFetchRequest request;
@@ -836,6 +839,7 @@ TEST(FetchTest, ASameOriginResponseExposesEveryHeader) {
     ASSERT_EQ(got.failure, ScriptFetchFailure::None);
     EXPECT_EQ(got.headers.get("ETag"), "\"v1\"");
     EXPECT_EQ(got.headers.get("X-Anything"), "yes");
+    EXPECT_TRUE(got.headers.get("Set-Cookie").empty()) << "Set-Cookie reached same-origin script";
 }
 
 // With no fetch sink wired up (most unit tests, and any document without a

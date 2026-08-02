@@ -100,10 +100,14 @@ bool is_safelisted_response_header(std::string_view name);
 // this category exists: reading it would hand a page another origin's session.
 bool is_forbidden_response_header(std::string_view name);
 
+// Removes fields that Fetch never exposes to script, including for a
+// same-origin response. Cookie processing must happen before this boundary.
+HttpHeaders filter_forbidden_response_headers(const HttpHeaders& response_headers);
+
 // The subset of `response_headers` a cross-origin page may read: the safelist,
 // plus anything Access-Control-Expose-Headers names, minus the forbidden set.
-// Only call this for cross-origin responses — a same-origin page reads
-// everything.
+// Only call this for cross-origin responses. Same-origin responses need only
+// `filter_forbidden_response_headers`.
 HttpHeaders filter_exposed_headers(const HttpHeaders& response_headers, Credentials credentials);
 
 // A short, log-friendly reason. NEVER shown to the page: per spec a blocked

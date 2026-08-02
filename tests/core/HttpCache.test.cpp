@@ -309,6 +309,22 @@ TEST(HttpCacheTest, RevalidationRefreshesOnlyTheMatchingVariant) {
     EXPECT_EQ(cache.lookup("GET", "https://a.test/x", chocolate, plus(150)).outcome, Outcome::Fresh);
 }
 
+TEST(HttpCacheTest, RevalidationNeverStoresASetCookieHeader) {
+    HttpCache cache;
+    cache.store("GET", "https://a.test/x", 200, {},
+                headers_of({{"Cache-Control", "max-age=0"}, {"ETag", "\"v1\""}}), "BODY", epoch());
+
+    const auto revived = cache.refresh_from_not_modified(
+        "GET", "https://a.test/x", {},
+        headers_of({{"Cache-Control", "max-age=60"}, {"Set-Cookie", "session=secret"}}), plus(1));
+
+    ASSERT_TRUE(revived.has_value());
+    EXPECT_TRUE(revived->headers.get("Set-Cookie").empty()) << "a 304 must not smuggle a cookie into the cache";
+    const auto hit = cache.lookup("GET", "https://a.test/x", {}, plus(2));
+    ASSERT_EQ(hit.outcome, Outcome::Fresh);
+    EXPECT_TRUE(hit.headers.get("Set-Cookie").empty());
+}
+
 TEST(HttpCacheTest, KeysOnMethodAndUrlTogether) {
     HttpCache cache;
     const auto response = headers_of({{"Cache-Control", "max-age=60"}});
