@@ -20,7 +20,10 @@ public:
     void begin_navigation_from_input(std::string_view url);
     // Same-document URL change (fragment navigation): updates the requested URL
     // in place without resetting document/security state (7.2.5 / 7.7.3).
-    void update_fragment_url(std::string_view url) { state_.update_requested_url(url); }
+    // Moves the tab's requested URL without a navigation. Used by fragment
+    // routing (7.7.3) and by history.pushState (9.6.1) — despite the old name
+    // this was never fragment-specific, and pushState changes the path.
+    void update_same_document_url(std::string_view url) { state_.update_requested_url(url); }
     void update_from_document_ready(const ResourceLoader& loader, std::string_view effective_url,
                                     NetworkError document_error);
     void set_pending_commit_url();

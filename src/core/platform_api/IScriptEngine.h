@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string>
@@ -36,7 +37,10 @@ public:
     virtual ~IScriptEngine() = default;
 
     virtual void bind_host(IScriptHost* host) = 0;
-    virtual void bind_extension_host(IExtensionApiHost* host) = 0;
+    // `extension_id` names the extension this context belongs to, so the host
+    // can tell who is calling and enforce `permissions` (story 9.4.1). One
+    // context per extension makes this identity unforgeable from script.
+    virtual void bind_extension_host(IExtensionApiHost* host, std::string_view extension_id) = 0;
     virtual ScriptEvalResult eval(std::string_view source, std::string_view filename = "inline") = 0;
 
     // Drops any per-document state the engine caches across evals (e.g. DOM node
@@ -64,6 +68,31 @@ public:
     // NOT report here. Default: nothing.
     virtual std::optional<std::string> consume_location_change() { return std::nullopt; }
 
+    // --- History API MVP (9.6.1) ---------------------------------------------
+    // What a script asked the session history to do via
+    // `history.pushState`/`replaceState`. Reported the same way as a location
+    // change: queued by the binding, drained by the Tab, which owns the history
+    // stack and the URL bar.
+    struct HistoryChange {
+        std::string url;    // already resolved against the document's base
+        std::string state;  // serialized state as JSON; empty means "no state"
+        bool replace = false;
+    };
+    virtual std::optional<HistoryChange> consume_history_change() { return std::nullopt; }
+    // A pending `history.back()`/`forward()`/`go(n)` delta. Traversal is the
+    // Tab's job (it owns the stack and the graphics context a re-render needs),
+    // so the binding only records the request. Default: nothing.
+    virtual std::optional<int> consume_history_delta() { return std::nullopt; }
+    // A traversal the page did NOT initiate: back/forward landing on a
+    // same-document entry. Sets `location` and `history.state` without a reload,
+    // then fires `popstate`. Returns true when the event was dispatched; whether
+    // a listener mutated the DOM is reported by the caller that owns the host's
+    // mutation epoch, as with hashchange. `state` empty means null.
+    virtual bool apply_popstate(std::string_view /*url*/, std::string_view /*state*/) { return false; }
+    // How many entries deep the session history is, for `history.length`. The Tab
+    // owns the stack, so it has to tell the engine.
+    virtual void set_history_length(size_t /*length*/) {}
+
     // Timer scheduling (7.3.1). `run_due_timers` fires every setTimeout/setInterval
     // callback whose deadline has passed at `now_ms` — a monotonically
     // non-decreasing, document-relative clock in milliseconds — in deadline then
@@ -88,6 +117,18 @@ public:
     // an API logs once and no-ops rather than throwing, so the rest of the script
     // still runs. Reset per document. Empty by default.
     virtual std::vector<std::string> missing_apis() const { return {}; }
+
+    // fetch (9.1.1). The binding hands JS a Promise and remembers how to settle
+    // it; `settle_fetch` is how the answer gets back in. It MUST be called on the
+    // engine's own thread — the driver queues transport results and drains them
+    // during its ordinary tick — and never after reset_bindings, which drops
+    // every pending request so nothing settles into a torn-down document.
+    // Returns false if the id is unknown (already settled, or cancelled by a
+    // navigation that raced the response). Default: no-op.
+    virtual bool settle_fetch(const ScriptFetchResponse& /*response*/) { return false; }
+    // How many requests are still waiting, so a driver can keep ticking while
+    // any are outstanding. Default: none.
+    virtual size_t pending_fetch_count() const { return 0; }
 };
 
 using ScriptEnginePtr = std::unique_ptr<IScriptEngine>;

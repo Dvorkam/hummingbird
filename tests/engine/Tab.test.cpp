@@ -1463,6 +1463,64 @@ TEST(EngineTabTest, BackForwardWalksFragmentRoutes) {
     EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/#/active");
 }
 
+TEST(EngineTabTest, BackVisitsEverySynchronousPushStateEntry) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html><body><script>
+history.pushState({ step: 1 }, "", "/one");
+history.pushState({ step: 2 }, "", "/two");
+</script><p>App</p></body></html>
+)HTML";
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://spa.test/app", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+
+    harness.navigate("https://spa.test/app");
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/two");
+
+    ASSERT_TRUE(harness.go_back());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/one");
+    ASSERT_TRUE(harness.go_back());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/app");
+}
+
+TEST(EngineTabTest, CrossOriginPushStateCannotChangeTheTabsAuthority) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html><body><p id="result">unset</p><script>
+try {
+  history.pushState({ stolen: true }, "", "https://victim.test/private");
+  document.getElementById("result").textContent = "missing exception";
+} catch (error) {
+  document.getElementById("result").textContent = error.name;
+}
+</script></body></html>
+)HTML";
+
+    auto network = std::make_unique<RoutingNetwork>();
+    auto* network_ptr = network.get();
+    network->set_response("https://page.test/app", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+
+    harness.navigate("https://page.test/app");
+    ASSERT_TRUE(harness.tick());
+    harness.paint();
+
+    EXPECT_EQ(harness.tab().requested_url(), "https://page.test/app");
+    EXPECT_EQ(harness.tab().security_state(), Hummingbird::SecurityState::Secure);
+    EXPECT_FALSE(harness.tab().can_go_back()) << "a rejected push must not add a history entry";
+    EXPECT_EQ(
+        std::count(network_ptr->requested().begin(), network_ptr->requested().end(), "https://victim.test/private"), 0);
+    EXPECT_NE(std::find(harness.context().drawn_texts.begin(), harness.context().drawn_texts.end(), "SecurityError"),
+              harness.context().drawn_texts.end());
+}
+
 TEST(EngineTabTest, ScriptLocationHashSyncsTabUrlAndQueuesUrlBarUpdate) {
     // 7.7.3: a script assigning location.hash must update the tab's requested URL
     // in place and queue a URL-bar update for the app (no reload).

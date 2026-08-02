@@ -58,10 +58,11 @@ Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_n
          std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
          std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar,
          std::shared_ptr<Core::StorageManager> storage_manager,
-         std::shared_ptr<Core::IdentityPolicyStore> identity_store)
-    : resource_loader_(std::make_unique<ResourceLoader>(std::move(network), std::move(fallback_network),
-                                                        std::move(resource_provider), std::move(image_decoder),
-                                                        std::move(cookie_jar), std::move(identity_store))),
+         std::shared_ptr<Core::IdentityPolicyStore> identity_store, std::shared_ptr<Core::HttpCache> http_cache,
+         std::shared_ptr<Core::RequestFilter> request_filter)
+    : resource_loader_(std::make_unique<ResourceLoader>(
+          std::move(network), std::move(fallback_network), std::move(resource_provider), std::move(image_decoder),
+          std::move(cookie_jar), std::move(identity_store), std::move(http_cache), std::move(request_filter))),
       storage_manager_(std::move(storage_manager)),
       document_pipeline_(
           std::make_unique<DocumentPipeline>(&resource_loader_->store(), resource_loader_->resource_provider(),
@@ -102,6 +103,54 @@ Tab::Tab(std::unique_ptr<INetwork> network, std::unique_ptr<INetwork> fallback_n
         if (!origin) return nullptr;  // opaque origin: no store, per spec
         return &session_storage_[origin->key()];
     });
+
+    // fetch (9.1.1). The transport answers on its own thread, so the result is
+    // QUEUED here and settled on the main thread in tick() — the script engine's
+    // context is single-threaded, and settling from the network thread would be
+    // a data race on the JS heap. This is the same shape as document and
+    // subresource loads, deliberately: one async pattern, not two.
+    document_pipeline_->set_url_resolver([this](std::string_view relative) {
+        return Core::resolve_url(navigation_lifecycle_.requested_url(), relative);
+    });
+    document_pipeline_->set_fetch_sink([this](const ScriptFetchRequest& request) -> std::uint64_t {
+        if (shutting_down_.load(std::memory_order_relaxed)) return 0;
+        const std::uint64_t id = ++next_fetch_id_;
+        // The generation stamps which document asked. A response that arrives
+        // after a navigation is dropped rather than settled: its promise belongs
+        // to a page that no longer exists (see 9.0.2).
+        const std::uint64_t generation = fetch_generation_;
+        resource_loader_->fetch_for_script(request, navigation_lifecycle_.requested_url(),
+                                           [this, id, generation](ScriptFetchResponse response) {
+                                               response.id = id;
+                                               std::lock_guard<std::mutex> lock(fetch_mutex_);
+                                               if (generation != fetch_generation_) return;
+                                               settled_fetches_.push_back(std::move(response));
+                                           });
+        return id;
+    });
+}
+
+void Tab::process_settled_fetches(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    std::vector<ScriptFetchResponse> ready;
+    {
+        std::lock_guard<std::mutex> lock(fetch_mutex_);
+        ready.swap(settled_fetches_);
+    }
+    if (ready.empty()) return;
+
+    bool mutated = false;
+    for (auto& response : ready) {
+        // Settling runs page JS, which may mutate the DOM.
+        mutated |= document_pipeline_->settle_fetch(response);
+    }
+    if (mutated) {
+        // Rebuild before marking dirty, exactly as the timer path does. Marking
+        // the tab dirty only schedules a REPAINT; without this the repaint draws
+        // the render tree built before the continuation ran, so the DOM changes
+        // and the screen does not.
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "tick:fetch_settled");
+        mark_dirty("fetch_settled");
+    }
 }
 
 Tab::~Tab() {
@@ -136,15 +185,42 @@ std::string Tab::initiator_url_for(NavigationSource source) const {
 }
 
 void Tab::navigate(std::string_view url, NavigationSource source) {
+    navigate_with_cache_policy(url, source, ResourceLoader::CachePolicy::Default);
+}
+
+void Tab::reload() {
+    // Read before begin_navigation_session, which is about to overwrite it.
+    const std::string url(navigation_lifecycle_.requested_url());
+    if (url.empty()) return;
+    // What makes F5 keep meaning something once there is a cache (9.3.1): the
+    // document is confirmed with the server before being reused. Conditional, so
+    // an unchanged page costs a 304 rather than a full refetch. Subresources are
+    // NOT revalidated — see ResourceLoader::navigate for why browsers stopped
+    // doing that; `hard_reload` is the one that reaches them.
+    navigate_with_cache_policy(url, NavigationSource::User, ResourceLoader::CachePolicy::Revalidate);
+}
+
+void Tab::hard_reload() {
+    const std::string url(navigation_lifecycle_.requested_url());
+    if (url.empty()) return;
+    // Ctrl+Shift+R: ignore what is cached for the document and everything on it.
+    // This is the answer to "I edited the stylesheet and the page has not
+    // changed" — a normal reload would still serve that stylesheet from cache.
+    navigate_with_cache_policy(url, NavigationSource::User, ResourceLoader::CachePolicy::Bypass);
+}
+
+void Tab::navigate_with_cache_policy(std::string_view url, NavigationSource source,
+                                     ResourceLoader::CachePolicy cache_policy) {
     if (shutting_down_.load(std::memory_order_relaxed)) return;
 
     ResourceLoader::DocumentRequest request{};
     request.initiator_host = initiator_host_for(source);
     request.initiator_url = initiator_url_for(source);
+    request.cache_policy = cache_policy;
 
     begin_navigation_session(url);
     if (!in_history_navigation_) {
-        history_.push(std::string(navigation_lifecycle_.requested_url()));
+        history_.push(std::string(navigation_lifecycle_.requested_url()), document_generation_);
     }
     resource_loader_->navigate(navigation_lifecycle_.requested_url(), request);
 }
@@ -161,17 +237,41 @@ bool Tab::go_forward(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     return true;
 }
 
-void Tab::navigate_history_entry(const std::string& url, IGraphicsContext& graphics, const Layout::Rect& viewport) {
+void Tab::navigate_history_entry(const NavigationHistory::Entry& entry, IGraphicsContext& graphics,
+                                 const Layout::Rect& viewport) {
     in_history_navigation_ = true;
+    const std::string& url = entry.url;
     const std::string_view current = navigation_lifecycle_.requested_url();
-    if (Core::url_without_fragment(url) == Core::url_without_fragment(current) &&
-        Core::url_fragment(url) != Core::url_fragment(current)) {
-        // Same document, only the fragment differs: navigate in place (no reload).
+    if (entry.document_id != document_generation_) {
+        navigate(url);  // a different document: full (re)load
+    } else if (!entry.same_document && Core::url_without_fragment(url) == Core::url_without_fragment(current) &&
+               Core::url_fragment(url) != Core::url_fragment(current)) {
+        // Same document, only the fragment differs: navigate in place (no
+        // reload). Kept ahead of the popstate path so hash routing behaves
+        // exactly as it did before 9.6.1.
         (void)navigate_fragment(url, graphics, viewport);
     } else {
-        navigate(url);  // different document (or exact reload): full (re)load
+        // Same document, any other difference — including back onto the
+        // document's own entry from a pushed one. No reload: the page's popstate
+        // listener is what re-renders.
+        apply_history_state(entry, graphics, viewport);
     }
     in_history_navigation_ = false;
+}
+
+// Traversal onto a same-document entry: move the tab's URL, hand the state to
+// the page, and repaint whatever its popstate listener changed. No document is
+// built, which is the observable contract of the History API.
+void Tab::apply_history_state(const NavigationHistory::Entry& entry, IGraphicsContext& graphics,
+                              const Layout::Rect& viewport) {
+    navigation_lifecycle_.update_same_document_url(entry.url);
+    document_pipeline_->set_history_length(history_.size());
+    auto result = document_pipeline_->apply_popstate(entry.url, entry.state);
+    if (result.mutated) {
+        (void)rebuild_document_and_sync_layout(graphics, viewport, "history:popstate_mutation");
+    }
+    pending_url_bar_update_ = entry.url;
+    mark_dirty("history_traversal");
 }
 
 void Tab::navigate(const FormSubmission& submission) {
@@ -185,7 +285,7 @@ void Tab::navigate(const FormSubmission& submission) {
 
     begin_navigation_session(submission.url);
     if (!in_history_navigation_) {
-        history_.push(std::string(navigation_lifecycle_.requested_url()));
+        history_.push(std::string(navigation_lifecycle_.requested_url()), document_generation_);
     }
 
     if (submission.method == FormSubmitMethod::Post) {
@@ -200,6 +300,9 @@ bool Tab::tick(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     if (shutting_down_.load(std::memory_order_relaxed)) return false;
 
     consume_pending_resources(graphics, viewport);
+    process_settled_fetches(graphics, viewport);
+    process_script_history_change();
+    process_script_history_traversal(graphics, viewport);
     apply_extension_css_if_needed(graphics, viewport);
     relayout_if_viewport_changed(graphics, viewport);
     process_animation_updates();
@@ -248,11 +351,12 @@ bool Tab::advance_animation_tick() {
         return false;
     }
 
-    bool updated = false;
-    if (resource_loader_->store().tick_animations(*ready_delta_ms) && document_pipeline_->has_render_tree()) {
-        updated = document_pipeline_->update_image_resources(navigation_lifecycle_.requested_url());
-    }
-    return updated;
+    // An animation advancing needs a REPAINT, nothing more: the render tree holds
+    // a handle, and resolving it at paint time already yields the current frame.
+    // This used to re-point every image in the tree on every tick, which is both
+    // the work this refactor deletes and the window the use-after-free lived in
+    // (T-RESOURCE-REF-1).
+    return resource_loader_->store().tick_animations(*ready_delta_ms) && document_pipeline_->has_render_tree();
 }
 
 void Tab::process_scheduled_scripts(IGraphicsContext& graphics, const Layout::Rect& viewport) {
@@ -280,17 +384,54 @@ void Tab::process_scheduled_scripts(IGraphicsContext& graphics, const Layout::Re
     }
 }
 
+const Layout::RenderObject* Tab::render_root() const {
+    return document_pipeline_->render_root();
+}
+
 size_t Tab::style_layout_pass_count() const {
     return document_pipeline_->style_layout_pass_count();
+}
+
+// history.pushState / replaceState (9.6.1): record the entry and move the URL
+// bar, without touching the document. Drained next to the location-change path
+// because they are the same kind of event — a script changing the address of a
+// document that stays loaded.
+void Tab::process_script_history_change() {
+    while (auto change = document_pipeline_->consume_history_change()) {
+        navigation_lifecycle_.update_same_document_url(change->url);
+        if (change->replace) {
+            history_.replace_current(change->url, change->state, document_generation_);
+        } else {
+            history_.push_same_document(change->url, change->state, document_generation_);
+        }
+        document_pipeline_->set_history_length(history_.size());
+        pending_url_bar_update_ = change->url;
+        mark_dirty("script_history_change");
+    }
+}
+
+// history.back()/forward()/go(n). The binding only records the delta; traversal
+// belongs here, where the stack and the graphics context both live. Applied one
+// step at a time through the same path the chrome buttons use, so a script
+// traversal and a user traversal cannot diverge.
+void Tab::process_script_history_traversal(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    auto delta = document_pipeline_->consume_history_delta();
+    if (!delta) return;
+    for (int i = 0; i < *delta; ++i) {
+        if (!go_forward(graphics, viewport)) break;
+    }
+    for (int i = 0; i > *delta; --i) {
+        if (!go_back(graphics, viewport)) break;
+    }
 }
 
 void Tab::process_script_url_change() {
     // A script assigned location.hash (7.7.3): reflect it in the tab's requested
     // URL in place (no reload) and queue the URL-bar text for the app.
     if (auto url = document_pipeline_->consume_location_change()) {
-        navigation_lifecycle_.update_fragment_url(*url);
+        navigation_lifecycle_.update_same_document_url(*url);
         if (!in_history_navigation_) {
-            history_.push(*url);  // JS hash routing is a history entry too (7.6.1)
+            history_.push(*url, document_generation_);  // JS hash routing is an entry too (7.6.1)
         }
         pending_url_bar_update_ = std::move(url);
         mark_dirty("script_location_change");
@@ -404,9 +545,9 @@ Tab::FragmentResult Tab::navigate_fragment(std::string_view url, IGraphicsContex
         // Same-document fragment nav: keep the tab's requested URL in sync so
         // back/forward history and the URL bar reflect it (7.7.3 mirror of the
         // click path's URL-bar update).
-        navigation_lifecycle_.update_fragment_url(url);
+        navigation_lifecycle_.update_same_document_url(url);
         if (!in_history_navigation_) {
-            history_.push(std::string(url));  // fragment routes are history entries (7.6.1)
+            history_.push(std::string(url), document_generation_);  // fragment routes are entries too (7.6.1)
         }
     }
     if (result.mutated) {
@@ -520,13 +661,28 @@ bool Tab::all_external_scripts_resolved() const {
 bool Tab::run_document_scripts_now() {
     // Point window.location at the document URL before any script reads it (7.2.5).
     document_pipeline_->set_location(navigation_lifecycle_.requested_url());
-    return document_pipeline_->run_scripts([this](std::string_view src) -> std::optional<std::string_view> {
+    // Anything the document's own scripts fetch is part of the load the user
+    // asked for, so it inherits the navigation's cache policy; the window
+    // closes below, once they have run (T-NET-RELOAD-FETCH-POLICY-1).
+    const bool mutated = document_pipeline_->run_scripts([this](std::string_view src) -> ExternalScriptSource {
+        ExternalScriptSource source;
         auto resolved = ResourceRequestPlanning::resolve_request_url(navigation_lifecycle_.requested_url(), src);
-        if (resolved.key.empty()) return std::nullopt;
+        if (resolved.key.empty()) return source;
         const auto* entry = resource_loader_->find(resolved.key, ResourceType::Script);
-        if (!entry || entry->state != ResourceState::Ready) return std::nullopt;
-        return std::string_view(entry->body);
+        if (!entry) return source;
+        if (entry->state == ResourceState::Blocked) {
+            source.blocked_by_filter = true;
+            return source;
+        }
+        if (entry->state != ResourceState::Ready) return source;
+        source.body = std::string_view(entry->body);
+        return source;
     });
+    // The load is over as far as cache policy is concerned. A fetch fired later
+    // — from a timer, a promise continuation, a click — is not part of what the
+    // user reloaded, so a reload must not still be governing it.
+    resource_loader_->end_navigation_script_phase();
+    return mutated;
 }
 
 void Tab::sync_extension_styles_before_stylesheet_update() {
@@ -609,15 +765,17 @@ void Tab::handle_stylesheet_ready(IGraphicsContext& graphics, const Layout::Rect
 
 void Tab::handle_image_ready(IGraphicsContext& graphics, const Layout::Rect& viewport) {
     const auto image_update_start = Core::Clock::now();
-    bool updated = document_pipeline_->update_image_resources(navigation_lifecycle_.requested_url());
-    if (updated) {
-        document_pipeline_->relayout(graphics, viewport);
-        update_layout_state(viewport, "handle_image_ready:relayout");
-    }
+    // Newly decoded pixels give a replaced element its intrinsic size, so the
+    // arrival itself is the relayout trigger. It no longer depends on a pointer
+    // having changed — the handle was bound when the tree was built and did not
+    // move, which is the point of it.
+    const bool updated = document_pipeline_->update_image_resources(navigation_lifecycle_.requested_url());
+    document_pipeline_->relayout(graphics, viewport);
+    update_layout_state(viewport, "handle_image_ready:relayout");
     const auto image_update_end = Core::Clock::now();
     HB_LOG_INFO("[perf] image update ms=" << Core::duration_ms(image_update_start, image_update_end)
                                           << " updated=" << updated);
-    mark_dirty(updated ? "image_ready_updated" : "image_ready_noop");
+    mark_dirty("image_ready");
 }
 
 bool Tab::prepare_document_from_response(std::string_view html) {
@@ -694,11 +852,26 @@ bool Tab::rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Lay
 }
 
 void Tab::begin_navigation_session(std::string_view url) {
+    // A new document is loading, so every history entry recorded from here on
+    // belongs to it. Traversal compares against this to decide reload vs
+    // popstate (9.6.1), which is the same question the fetch generation answers
+    // for in-flight responses.
+    ++document_generation_;
     navigation_lifecycle_.begin_navigation_from_input(url);
     reset_document_state();
 }
 
 void Tab::reset_document_state() {
+    {
+        // Retire every in-flight fetch (9.1.1). Bumping the generation makes any
+        // response still in transit unroutable, and clearing the queue drops any
+        // that already landed but were not settled before the navigation. The
+        // script engine drops its side in reset_bindings; both halves are needed,
+        // because a response can be sitting in either place.
+        std::lock_guard<std::mutex> lock(fetch_mutex_);
+        ++fetch_generation_;
+        settled_fetches_.clear();
+    }
     document_pipeline_->reset();
     resource_loader_->reset();
     layout_state_.reset();

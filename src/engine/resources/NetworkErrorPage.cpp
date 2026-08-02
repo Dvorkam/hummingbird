@@ -51,6 +51,13 @@ Reason reason_for(NetworkError error) {
                     "The site got stuck redirecting to itself, so the request could not complete."};
         case NetworkError::TlsVerificationFailed:
             return {"Secure connection failed", "Hummingbird could not verify this site&rsquo;s security certificate."};
+        case NetworkError::Timeout:
+            // Worth its own wording (story 9.1.3): "took too long" tells you to
+            // retry, while the generic "didn't respond" reads as "wrong address"
+            // and sends you checking the URL instead.
+            return {"This page took too long",
+                    "The server started responding but did not finish in time, so Hummingbird stopped waiting. It may "
+                    "be overloaded &mdash; trying again often works."};
         case NetworkError::CurlError:
         case NetworkError::None:
         default:

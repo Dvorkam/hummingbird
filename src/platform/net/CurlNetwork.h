@@ -4,6 +4,7 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <string_view>
 
 #include "core/platform_api/INetwork.h"
 #include "platform/net/NetworkThreadPool.h"
@@ -19,6 +20,8 @@ public:
              const NetworkRequestOptions& options = {}) override;
     void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
               const NetworkRequestOptions& options = {}) override;
+    void request(const std::string& url, std::string_view method, std::string_view body,
+                 std::function<void(NetworkResponse)> callback, const NetworkRequestOptions& options = {}) override;
 
     void shutdown() override;
 

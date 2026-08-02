@@ -17,6 +17,7 @@ public:
     void clear(const Hummingbird::Color& /*color*/) override { ++clear_calls; }
     void present() override { ++present_calls; }
     void fill_rect(const Hummingbird::Layout::Rect& /*rect*/, const Hummingbird::Color& /*color*/) override {}
+    void draw_image(Hummingbird::ResourceRef /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
     void draw_image(const Hummingbird::ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override {}
     Hummingbird::TextMetrics measure_text(const std::string& text, const Hummingbird::TextStyle& style) override {
         Hummingbird::TextMetrics metrics;

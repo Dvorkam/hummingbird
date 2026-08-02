@@ -1,0 +1,77 @@
+[
+  {
+    "id": 1,
+    "condition": { "requestDomains": ["ads.example.net"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 2,
+    "condition": { "requestDomains": ["doubleclick.net"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 3,
+    "condition": { "requestDomains": ["googlesyndication.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 4,
+    "condition": { "requestDomains": ["google-analytics.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 5,
+    "condition": { "requestDomains": ["googletagmanager.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 6,
+    "condition": { "requestDomains": ["scorecardresearch.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 7,
+    "condition": { "requestDomains": ["connect.facebook.net"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 8,
+    "condition": { "requestDomains": ["adservice.google.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 9,
+    "condition": { "requestDomains": ["amazon-adsystem.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 10,
+    "condition": { "requestDomains": ["criteo.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 11,
+    "condition": { "requestDomains": ["taboola.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 12,
+    "condition": { "requestDomains": ["outbrain.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 13,
+    "condition": { "requestDomains": ["hotjar.com"], "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 14,
+    "condition": { "requestDomains": ["seznam.cz"], "urlFilter": "/rc/", "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  },
+  {
+    "id": 15,
+    "condition": { "urlFilter": "/pagead/", "domainType": "thirdParty" },
+    "action": { "type": "block" }
+  }
+]

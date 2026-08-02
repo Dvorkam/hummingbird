@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <string>
@@ -7,6 +9,7 @@
 #include <vector>
 
 #include "core/platform_api/IScriptEngine.h"
+#include "core/platform_api/ScriptFetch.h"
 #include "engine/script/DocumentScriptHost.h"
 #include "layout/geometry/Geometry.h"
 
@@ -48,6 +51,11 @@ public:
     void set_focus_sink(std::function<void(DOM::Element*, bool)> sink);
     void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
     void set_storage_accessor(std::function<Core::StorageArea*()> accessor);
+    // fetch (9.1.1): supplied by the Tab, which owns the loader and the URL.
+    void set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink);
+    void set_url_resolver(std::function<std::string(std::string_view)> resolver);
+    // Settles one fetch and reports whether its continuation mutated the DOM.
+    bool settle_fetch(DOM::Node* dom_root, Core::ArenaAllocator* arena, const ScriptFetchResponse& response);
     void set_session_storage_accessor(std::function<Core::StorageArea*()> accessor);
 
     bool run_scripts(const std::vector<ScriptSource>& scripts, DOM::Node* dom_root, Core::ArenaAllocator* arena);
@@ -73,6 +81,19 @@ public:
     // Returns/clears a script-initiated location.hash change to reflect in the
     // chrome + tab history (7.7.3).
     std::optional<std::string> consume_location_change();
+    // History API MVP (9.6.1): pass-throughs plus the popstate dispatch, which
+    // reports DOM mutation the same way navigate_fragment does.
+    std::optional<IScriptEngine::HistoryChange> consume_history_change();
+    std::optional<int> consume_history_delta();
+    void set_history_length(size_t length);
+    ScriptDispatchResult apply_popstate(DOM::Node* dom_root, Core::ArenaAllocator* arena, std::string_view url,
+                                        std::string_view state);
+
+    // Unimplemented APIs this document's scripts touched (7.5.2 telemetry).
+    // Read at document end, before reset() clears it.
+    std::vector<std::string> missing_apis() const {
+        return script_engine_ ? script_engine_->missing_apis() : std::vector<std::string>{};
+    }
 
 private:
     bool bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena);

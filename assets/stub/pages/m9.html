@@ -25,13 +25,99 @@
       code { background-color: #e8ecf4; border-radius: 3px; padding: 1px 4px; }
       a { color: #1b5fbf; }
     </style>
+    <!-- A cacheable subresource fetched by the ENGINE, not by script. This is what
+         makes the two reload levels observable: F5 leaves it alone while it is
+         fresh, Ctrl+Shift+R refetches it. The counters in the cache card below
+         report which happened. -->
+    <link rel="stylesheet" href="/api/cache-demo/style.css">
   </head>
   <body>
     <div class="page">
       <p class="eyebrow">M9 &mdash; THE FETCHER</p>
       <h1>Asking the network for itself</h1>
       <p class="intro">Milestone 9 gives the page its own voice on the network: <code>fetch()</code>, a CORS model,
-      and an HTTP cache. It starts with the two event-loop guarantees everything promise-based rests on.</p>
+      and an HTTP cache &mdash; the three things that separate &ldquo;the browser fetched it&rdquo; from
+      &ldquo;something fetched it.&rdquo; It rests on two event-loop guarantees everything promise-based needs.</p>
+
+      <div class="card">
+        <h2>fetch()</h2>
+        <p class="card-lead">The page asks for data the HTML never mentioned, and renders it. Until now every request
+        this browser made was the engine&rsquo;s idea &mdash; a stylesheet, an image, a script it found while parsing.
+        This one is JavaScript&rsquo;s.</p>
+        <p><button id="load">Load stories from the API</button></p>
+        <p class="out" id="stories">Nothing fetched yet.</p>
+        <p class="note">Calls <code>fetch('/api/news')</code>, reads <code>response.json()</code>, and builds the list
+        from the result. The request really goes through the network layer &mdash; same cookies, redirects and time
+        budget as any other. A failure is reported rather than hanging, which is what the old stub did: it returned a
+        promise that never settled, so a page using fetch froze its own logic in silence. Added in M9 (story 9.1.1).</p>
+      </div>
+
+      <div class="card">
+        <h2>Live data from the real internet</h2>
+        <p class="card-lead">The same <code>fetch()</code>, pointed at public APIs that are not part of this demo and
+        know nothing about Hummingbird. This needs a working connection &mdash; the rest of this page does not.</p>
+        <p><button id="hn">Hacker News front page</button>
+        <button id="wiki">Wikipedia summary of</button>
+        <input id="topic" type="text" value="Hummingbird"></p>
+        <p class="out" id="live">Nothing fetched yet.</p>
+        <p class="note">Both requests are <strong>cross-origin</strong>: this page is
+        <code>example.dev</code>, the data is not. Since M9 the browser checks that those servers permit it &mdash;
+        both answer <code>Access-Control-Allow-Origin: *</code>, so this card is the proof that CORS
+        <em>allows what it should</em> (story 9.2.1). The Wikipedia result also prints which response headers the page
+        is allowed to read: <code>etag</code> only because the server names it in
+        <code>Access-Control-Expose-Headers</code>, <code>content-type</code> because it is on the CORS safelist, and
+        <code>age</code> not at all &mdash; the server sends it, but no page may see it (story 9.2.4). This is also
+        Milestone&nbsp;9&rsquo;s North Star target: <em>a page that renders live data the browser fetched
+        itself.</em></p>
+      </div>
+
+      <div class="card">
+        <h2>The HTTP cache</h2>
+        <p class="card-lead">A cache is invisible by nature, which is exactly what makes it hard to trust &mdash;
+        &ldquo;that felt fast&rdquo; is not evidence. So this endpoint counts how many times the <em>server</em> was
+        actually reached, and the page shows you that number.</p>
+        <p><button id="cache-get">Fetch the cached resource</button>
+        <button id="cache-nostore">Fetch a no-store resource</button></p>
+        <p class="out" id="cache-out">Nothing fetched yet.</p>
+        <p class="out cache-styled" id="cache-server">Reading server counters&hellip;</p>
+        <p class="note">The cached resource is sent with <code>Cache-Control: max-age=10</code> and an
+        <code>ETag</code>. Click it several times quickly: the body keeps saying <strong>served #1</strong> and the
+        server's <code>full</code> count stays at 1 &mdash; the later clicks never left the browser. The
+        <code>age</code> line climbs, which is the response telling you how old it is. Now wait ten seconds and click
+        again: <code>full</code> is <em>still</em> 1 but <code>revalidated</code> becomes 1. That is
+        <code>If-None-Match</code> earning a <code>304</code> &mdash; the round trip happened, the payload did not, and
+        the body you see was reused from memory. The <code>no-store</code> button is the control: its counter climbs
+        every single time, because a response that says &ldquo;never store this&rdquo; is never stored. Added in M9
+        (story 9.3.1).</p>
+        <p class="note">Reload works at the two levels a browser gives you, and this page has a cacheable stylesheet
+        to show it with: <code>/api/cache-demo/style.css</code>, <code>max-age=15</code>, the orange bar beside the
+        counters. Watch the <strong>stylesheet</strong> numbers and try all three:</p>
+        <p class="note"><strong>F5 within 15s</strong> &mdash; neither stylesheet counter moves. A normal reload
+        re-checks the <em>document</em> and leaves a fresh subresource alone. (Browsers used to re-check every
+        subresource on F5 and stopped, because fifty assets meant fifty extra requests per keystroke.)<br>
+        <strong>Wait 15s, then F5</strong> &mdash; <code>stylesheet: revalidated</code> +1. The entry went stale, so it
+        was confirmed with <code>If-None-Match</code> and a 304 reused it.<br>
+        <strong>Ctrl+Shift+R</strong> &mdash; <code>stylesheet: full</code> +1, at any time. A hard reload ignores the
+        cache for the page and everything on it: the answer to &ldquo;I changed the stylesheet and nothing
+        happened.&rdquo;</p>
+        <p class="note">Note which counter the hard reload moves, because it is the opposite of the intuitive guess:
+        <strong>full</strong>, never <strong>revalidated</strong>. Revalidating means asking &ldquo;is the copy I hold
+        still good?&rdquo;, and refusing to ask that is the entire point of a hard reload &mdash; so it can never earn
+        a 304.</p>
+        <p class="note">The API buttons above are unaffected by either reload, which is also correct: they fetch on
+        <em>click</em>, long after the navigation ended. A reload sets the cache policy for the document and the
+        subresources that load with it, not for a <code>fetch()</code> you fire a minute later &mdash; and it does not
+        erase the cache. (Chrome is the same; its devtools &ldquo;Empty cache and hard reload&rdquo; is the one that
+        discards entries.) Once the API entry exists, its ETag never changes, so every later fetch is either a hit or a
+        304 and <code>API: full</code> stays at 1 forever &mdash; a body fetched once and reused indefinitely, which is
+        the cache paying for itself.</p>
+        <p class="note">Being precise about one edge this card cannot show: a hard reload reaches the document and its
+        subresources, but <em>not</em> a <code>fetch()</code> the page fires while it is still loading &mdash; that one
+        is still answered from cache. Browsers do reach it, so this is a real if narrow gap
+        (<code>T-NET-RELOAD-FETCH-POLICY-1</code>), not a design choice.</p>
+        <p class="note">Responses are keyed on <code>Vary</code> and on whether the request carried credentials, so one
+        URL can hold several variants and none is ever served to a request it was not negotiated for (story 9.3.2).</p>
+      </div>
 
       <div class="card">
         <h2>Event-loop ordering</h2>
@@ -57,10 +143,237 @@
         Added in M9 (story 9.0.2).</p>
       </div>
 
+      <div class="card">
+        <h2>document.body, head and documentElement</h2>
+        <p class="card-lead">The three entry points every page assumes exist. Until now they were simply
+        <code>undefined</code>, so <code>document.body.appendChild(el)</code> &mdash; the most common way there is to
+        put something on a page &mdash; threw a <code>TypeError</code>.</p>
+        <p><button id="parts">Report the parts, then append to body</button></p>
+        <p class="out" id="parts-out">Not run yet.</p>
+        <p class="note">The appended line is a real element attached to the end of <code>&lt;body&gt;</code> &mdash;
+        it appears <em>below the back-link</em>, outside this card, because that is genuinely where
+        <code>document.body.appendChild</code> puts it. Click twice and you get two. The identity check matters too:
+        reading <code>document.body</code> twice yields the same object, which is what makes
+        <code>el.parentNode === document.body</code> work. Found while writing M9's CI harness, whose fixture page hit
+        exactly this. Added in M9 (T-DOM-DOCUMENT-BODY-1).</p>
+      </div>
+
+      <div class="card">
+        <h2>Declarative request filtering (ad blocking)</h2>
+        <p class="card-lead">An extension can declare, up front, which requests the engine should refuse. The rules
+        are matched natively in C++ at the single choke point every request passes through, so
+        <em>no extension JavaScript runs on the request path</em> &mdash; a blocker cannot slow a request down or
+        hang one, and the matching is the same on every redirect hop, which is how a tracker network would otherwise
+        launder a blocked URL through a single redirect.</p>
+        <p class="card-link"><a href="https://example.dev/m9-adblock">Open the ad-block demo &raquo;</a></p>
+        <p class="note">Blocking is the absence of something, so it cannot be shown with pixels &mdash; the demo page
+        states what should be missing and the log says whether it was. The bundled <code>ad-block-lite</code>
+        extension is toggleable like Dark Mode, and its rules live in a plain JSON file rather than in code: a
+        correct blocker needs no script at all. Added in M9 (stories 9.4.1, 9.4.2).</p>
+      </div>
+
+      <div class="card">
+        <h2>Fail-soft stubs for APIs that do not exist yet</h2>
+        <p class="card-lead">A browser this young is missing a lot. The question is what happens when a page reaches
+        for something absent: a <code>ReferenceError</code> kills the rest of that script, so one unimplemented API
+        takes down every feature below it. Instead each known gap gets a stub that does nothing, reports itself, and
+        above all <em>returns</em>.</p>
+        <p><button id="stubs">Use eight APIs this engine does not implement</button></p>
+        <p class="out" id="stubs-out">Not run yet.</p>
+        <p class="note">Every line below runs, and the counter proves the script reached the end rather than dying
+        part-way. Note what the stubs refuse to invent: the socket reports <code>CLOSED</code> rather than pretending
+        to be connected, <code>confirm()</code> returns false because no user agreed to anything, and
+        <code>navigator.userAgent</code> is empty rather than a plausible-looking lie &mdash; this engine has a real
+        per-site identity policy (Ctrl+Shift+U), and a second answer here would contradict it.</p>
+        <p class="note">The reporting is the point: each name is recorded once per document and written to the log as
+        <code>[missing-api]</code>, which is how the next milestone's scope gets chosen from what pages actually ask
+        for instead of from guesswork. Added in M9 (T-JS-MISSING-API-COVERAGE-1, story 9.5.2).</p>
+      </div>
+
+      <div class="card">
+        <h2>Inline <code>data:</code> URLs</h2>
+        <p class="card-lead">A <code>data:</code> URL carries its own bytes, so nothing should go to the network for
+        one. Until now the loader handed them to curl anyway, which failed them as network errors &mdash; so every
+        inline icon on a modern site cost a wasted request <em>and</em> rendered nothing.</p>
+        <p>
+          <img alt="percent-encoded inline SVG" width="48" height="48"
+               src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Ccircle cx='24' cy='24' r='22' fill='%23e679a6'/%3E%3C/svg%3E">
+          <img alt="base64 inline SVG" width="48" height="48"
+               src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0OCA0OCI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiByeD0iOCIgZmlsbD0iIzRhOWVmZiIvPjwvc3ZnPg==">
+        </p>
+        <p class="note">A pink circle and a blue rounded square, both drawn from bytes written into this page's HTML:
+        the first percent-encoded, the second base64. Neither is a file and neither is a request &mdash; with the log at
+        <code>INFO</code> you will see no <code>[network]</code> line for either. Found in a live browsing log, where
+        <code>curl failed: url=data:image/svg+xml…</code> repeated on every icon of a real site. Added in M9
+        (T-NET-DATA-URL-1).</p>
+      </div>
+
+      <div class="card">
+        <h2><code>window</code> is the global object</h2>
+        <p class="card-lead">In a browser <code>window === globalThis</code> &mdash; one object, not two. This engine
+        used to build a separate <code>window</code> and copy a hand-picked list of globals onto it, so everything not
+        on that list was missing: <code>window.console</code>, <code>window.document</code>,
+        <code>window.fetch</code>. Real pages died on it.</p>
+        <p><button id="winglobal">Check the identities</button></p>
+        <p class="out" id="winglobal-out">Not run yet.</p>
+        <p class="note">Identity, not merely presence: a mirrored copy would satisfy a <code>typeof</code> check and
+        still be the wrong object. Because the self-reference is real, everything added to the engine later is reachable
+        both ways for free &mdash; the old list could only ever fall behind again. A bare
+        <code>addEventListener</code> now works too, and <code>console</code> gained the fifteen methods pages
+        actually call (it had exactly one: <code>log</code>).</p>
+        <p class="note">Found by a live log: MediaWiki's startup script died on
+        <code>cannot read property 'warn' of undefined</code> &mdash; the shape of
+        <code>window.console.warn</code>. Added in M9 (T-JS-WINDOW-IS-GLOBAL-1).</p>
+      </div>
+
+      <div class="card">
+        <h2>Routing without reloading &mdash; the History API</h2>
+        <p class="card-lead">An API-driven page changes what it shows without fetching a new document. That needs the
+        URL to move anyway, or Back stops working and the address bar starts lying. <code>history.pushState</code> adds
+        a session-history entry; Back and Forward then fire <code>popstate</code> and hand the page its state back,
+        with no reload.</p>
+        <p><button id="route-list">List view</button>
+        <button id="route-detail">Detail view (pushState)</button>
+        <button id="route-back">history.back()</button></p>
+        <p class="out" id="route-view">Waiting for script&hellip;</p>
+        <p class="out" id="route-log">No route changes yet.</p>
+        <p class="note">Watch the <strong>URL bar</strong> as you click: it moves to <code>/m9/detail/…</code> and back,
+        while this page is never rebuilt &mdash; the counter below only ever counts <em>route</em> changes, because a
+        reload would reset it to zero. That counter is the whole demonstration: it is the piece a page cannot fake.</p>
+        <p class="note">Back and Forward in the browser chrome drive the same entries, and so does the
+        <code>history.back()</code> button, which routes through exactly the path the chrome buttons use so the two
+        cannot diverge. Added in M9 (story 9.6.1). Full SPA navigation &mdash; scroll restoration, navigation
+        interception, structured-clone state &mdash; stays M12.</p>
+        <p class="note">Now walk <em>off</em> this page and come back: go Back until you reach example.dev, then Forward
+        again to <code>/m9/detail/42</code>. The counter restarts at 1, because that is a genuine
+        <strong>document load</strong> &mdash; and this is the part people are surprised by. A pushState URL is a
+        <em>real</em> URL: once you leave the document that invented it, the address has to be served by the server like
+        any other. Every SPA needs its host to answer sub-paths with the app&rsquo;s own document (the &ldquo;SPA
+        fallback&rdquo;), and the page has to read its route back out of <code>location</code> rather than trusting
+        <code>history.state</code>, which is null on a fresh load. Both are done here, which is why the deep link shows
+        the detail view instead of the list.</p>
+      </div>
+
       <p><a href="https://example.dev">&laquo; back to example.dev</a></p>
     </div>
 
     <script>
+      var stories = document.getElementById("stories");
+      document.getElementById("load").addEventListener("click", function () {
+        stories.textContent = "Fetching…";
+        fetch("/api/news").then(function (response) {
+          if (!response.ok) { throw new Error("server said " + response.status); }
+          return response.json();
+        }).then(function (items) {
+          var text = "";
+          items.forEach(function (item, index) {
+            text += (index + 1) + ". " + item.title + " — " + item.points + " points, "
+                 + item.comments_count + " comments   ";
+          });
+          stories.textContent = text;
+        }).catch(function (error) {
+          // A failure is reported, never swallowed and never left hanging.
+          stories.textContent = "Could not load: " + error.message;
+        });
+      });
+
+      // --- live, cross-origin data -------------------------------------------
+      var live = document.getElementById("live");
+
+      function reportFailure(error) {
+        // A timeout is named separately from other failures (story 9.1.3), so
+        // say which one happened rather than "something went wrong".
+        var kind = error.name === "TimeoutError" ? "timed out" : "failed";
+        live.textContent = "Request " + kind + ": " + error.message
+          + "   (a connection is needed for this card; the rest of the page works offline)";
+      }
+
+      document.getElementById("hn").addEventListener("click", function () {
+        live.textContent = "Fetching news.ycombinator.com via api.hnpwa.com…";
+        fetch("https://api.hnpwa.com/v0/news/1.json").then(function (response) {
+          if (!response.ok) { throw new Error("server said " + response.status); }
+          return response.json();
+        }).then(function (items) {
+          var text = "Hacker News, fetched live — " + items.length + " stories:   ";
+          items.slice(0, 10).forEach(function (item, index) {
+            text += (index + 1) + ". " + item.title
+                 + " (" + item.points + " points, " + item.comments_count + " comments)   ";
+          });
+          live.textContent = text;
+        }).catch(reportFailure);
+      });
+
+      document.getElementById("wiki").addEventListener("click", function () {
+        var topic = document.getElementById("topic").value || "Hummingbird";
+        live.textContent = "Fetching the Wikipedia summary of " + topic + "…";
+        fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" + encodeURIComponent(topic))
+          .then(function (response) {
+            if (response.status === 404) { throw new Error("no article called " + topic); }
+            if (!response.ok) { throw new Error("server said " + response.status); }
+            // Which headers this page may read is decided by CORS (9.2.4).
+            // Wikipedia sends `Access-Control-Expose-Headers: etag`, so ETag is
+            // readable; Content-Type is readable without being named because it
+            // is on the safelist; anything else the server sent is invisible.
+            var readable = "   [readable headers] content-type: "
+                         + (response.headers.get("content-type") || "(hidden)")
+                         + " | etag: " + (response.headers.get("etag") || "(hidden)")
+                         + " | age: " + (response.headers.get("age") || "(hidden)");
+            return response.json().then(function (page) { return { page: page, readable: readable }; });
+          }).then(function (result) {
+            live.textContent = result.page.title + " — " + result.page.extract + result.readable;
+          }).catch(reportFailure);
+      });
+
+      // --- the HTTP cache (story 9.3.1) --------------------------------------
+      var cacheOut = document.getElementById("cache-out");
+      var cacheServer = document.getElementById("cache-server");
+
+      function showServerCounters() {
+        // This endpoint is no-store, so what it reports is always current — a
+        // cached answer here would be worse than useless.
+        fetch("/api/cache-demo/stats").then(function (response) {
+          return response.json();
+        }).then(function (stats) {
+          cacheServer.textContent = "Server saw — API: " + stats.full + " full, "
+            + stats.revalidated + " revalidated (304), " + stats.nostore + " no-store"
+            + "   ||   stylesheet: " + stats.cssFull + " full, " + stats.cssRevalidated + " revalidated (304)";
+        }).catch(function (error) {
+          cacheServer.textContent = "Could not read the counters: " + error.message;
+        });
+      }
+
+      // Read on load, not only on click: after a reload this is what shows which
+      // kind of reload it was, before you touch anything.
+      showServerCounters();
+
+      document.getElementById("cache-get").addEventListener("click", function () {
+        cacheOut.textContent = "Fetching /api/cache-demo…";
+        fetch("/api/cache-demo").then(function (response) {
+          if (!response.ok) { throw new Error("server said " + response.status); }
+          // Same-origin, so Age is readable. Cross-origin it would be hidden —
+          // see the Wikipedia card above.
+          var age = response.headers.get("age");
+          return response.json().then(function (data) {
+            cacheOut.textContent = "Body says: served #" + data.served
+              + "   [age] " + (age === null ? "(fresh from the network)" : age + "s old, from cache");
+          });
+        }).then(showServerCounters).catch(function (error) {
+          cacheOut.textContent = "Could not load: " + error.message;
+        });
+      });
+
+      document.getElementById("cache-nostore").addEventListener("click", function () {
+        cacheOut.textContent = "Fetching /api/cache-demo/nostore…";
+        fetch("/api/cache-demo/nostore").then(function (response) {
+          return response.json();
+        }).then(function (data) {
+          cacheOut.textContent = "no-store body says: served #" + data.served
+            + "   (this number climbs every click — nothing was stored)";
+        }).then(showServerCounters).catch(function (error) {
+          cacheOut.textContent = "Could not load: " + error.message;
+        });
+      });
+
       var order = document.getElementById("order");
       function log(msg) { order.textContent = order.textContent + msg; }
 
@@ -80,6 +393,127 @@
         ? "globalThis.hbMarker is undefined here — nothing leaked in from the previous page."
         : "LEAKED: globalThis.hbMarker = " + globalThis.hbMarker;
       globalThis.hbMarker = "set-by-m9";
+
+      // --- document.body / head / documentElement (T-DOM-DOCUMENT-BODY-1) ------
+      document.getElementById("parts").addEventListener("click", function () {
+        var out = document.getElementById("parts-out");
+        var body = document.body;
+        if (!body) {
+          // Honest failure rather than a crash: a document whose markup omits
+          // <body> genuinely has none until T-HTML-TREE-SKELETON-1 lands.
+          out.textContent = "document.body is null — this document has no <body> element.";
+          return;
+        }
+        var line = document.createElement("p");
+        line.textContent = "Appended to document.body — a real element, built by script and attached to the "
+          + "end of the page body. Look below the back-link.";
+        body.appendChild(line);
+
+        out.textContent = "documentElement: " + document.documentElement.tagName
+          + "   |   head: " + (document.head ? document.head.tagName : "null")
+          + "   |   body: " + body.tagName
+          // The identity check: reading document.body twice gives the same
+          // object, so the element we just appended reports it as its parent.
+          + "   |   appended element's parentNode === document.body? "
+          + (line.parentNode === document.body);
+      });
+
+      // --- fail-soft stubs (T-JS-MISSING-API-COVERAGE-1) ----------------------
+      document.getElementById("stubs").addEventListener("click", function () {
+        var out = document.getElementById("stubs-out");
+        var steps = 0;
+        // Each of these would have been a ReferenceError before this story, and
+        // the first one would have stopped this handler dead.
+        var io = new IntersectionObserver(function () {}); io.observe({}); io.disconnect(); steps++;
+        var mo = new MutationObserver(function () {}); mo.observe({}, {}); mo.disconnect(); steps++;
+        var ro = new ResizeObserver(function () {}); ro.observe({}); ro.disconnect(); steps++;
+        customElements.define("x-demo", function () {}); steps++;
+        var ws = new WebSocket("wss://example.dev/socket"); ws.send("hello"); steps++;
+        var width = getComputedStyle(document.body).getPropertyValue("width"); steps++;
+        var agreed = confirm("Does this dialog exist?"); steps++;
+        var copy = structuredClone({ nested: [1, 2, 3] }); steps++;
+
+        out.textContent = steps + " of 8 calls completed, script still alive."
+          + "   socket.readyState = " + ws.readyState + " (3 = CLOSED, never a fake connection)"
+          + "   |   getComputedStyle width = '" + width + "' (empty, never a made-up length)"
+          + "   |   confirm() = " + agreed
+          + "   |   navigator.userAgent = '" + navigator.userAgent + "'"
+          + "   |   structuredClone deep-copied: " + (copy.nested[2] === 3);
+      });
+
+      // --- window === globalThis (T-JS-WINDOW-IS-GLOBAL-1) --------------------
+      document.getElementById("winglobal").addEventListener("click", function () {
+        var checks = [
+          ["window === globalThis", window === globalThis],
+          ["window.window === window", window.window === window],
+          ["window.console === console", window.console === console],
+          ["window.document === document", window.document === document],
+          ["window.fetch === fetch", window.fetch === fetch],
+          ["window.navigator === navigator", window.navigator === navigator],
+          ["window.localStorage === localStorage", window.localStorage === localStorage],
+          ["window.IntersectionObserver === IntersectionObserver",
+            window.IntersectionObserver === IntersectionObserver],
+          ["typeof console.warn === 'function'", typeof console.warn === "function"]
+        ];
+        // A global assigned through window is a bare global, and vice versa.
+        window.hbAliasProbe = "set-via-window";
+        checks.push(["window.x assignment creates a global", hbAliasProbe === "set-via-window"]);
+
+        var failed = [];
+        for (var i = 0; i < checks.length; i++) {
+          if (!checks[i][1]) { failed.push(checks[i][0]); }
+        }
+        document.getElementById("winglobal-out").textContent = failed.length === 0
+          ? checks.length + " of " + checks.length + " identities hold. console.warn is callable, and window.x "
+            + "assignment creates a bare global."
+          : "FAILED: " + failed.join("; ");
+      });
+
+      // --- History API MVP (story 9.6.1) -------------------------------------
+      var routeView = document.getElementById("route-view");
+      var routeLog = document.getElementById("route-log");
+      // Lives in this document's script. A reload would reset it to zero, which
+      // is exactly why it is the honest way to show that no reload happened.
+      var routeChanges = 0;
+
+      // The route comes from the URL when there is no state — which is the case
+      // on a fresh load of a pushed address. A pushState URL is a real URL, so it
+      // can be reloaded, shared, or walked forward onto from another document;
+      // if the page only ever trusted history.state it would render the wrong
+      // view every one of those times.
+      function routeFromLocation() {
+        var match = location.pathname.split("/detail/")[1];
+        return match ? { view: "detail", id: match } : { view: "list" };
+      }
+
+      function renderRoute(state) {
+        routeChanges++;
+        var route = state || routeFromLocation();
+        var where = (route.view === "detail")
+          ? "Detail view for story #" + route.id + "."
+          : "List view.";
+        routeView.textContent = where + "   URL is now " + location.href;
+        routeLog.textContent = routeChanges + " route change(s) in THIS document, never reloaded."
+          + "   history.length = " + history.length
+          + "   history.state = " + (history.state ? JSON.stringify(history.state) : "null");
+      }
+
+      document.getElementById("route-detail").addEventListener("click", function () {
+        history.pushState({ view: "detail", id: 42 }, "", "/m9/detail/42");
+        renderRoute(history.state);
+      });
+      document.getElementById("route-list").addEventListener("click", function () {
+        history.pushState({ view: "list" }, "", "/m9");
+        renderRoute(history.state);
+      });
+      document.getElementById("route-back").addEventListener("click", function () {
+        history.back();
+      });
+      // Back/Forward — chrome buttons or history.back() — arrive here.
+      addEventListener("popstate", function (e) { renderRoute(e.state); });
+      // And render whatever address this document was actually loaded at, so a
+      // deep link to /m9/detail/42 shows the detail view rather than the list.
+      renderRoute(null);
     </script>
   </body>
 </html>

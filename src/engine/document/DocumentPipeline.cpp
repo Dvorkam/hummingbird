@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <memory>
 #include <ostream>
+#include <string>
+#include <string_view>
 #include <utility>
 
 #include "core/dom/Element.h"
@@ -17,6 +19,7 @@
 #include "engine/document/DocumentResources.h"
 #include "engine/document/DocumentScripting.h"
 #include "engine/document/DocumentStyleCoordinator.h"
+#include "engine/resources/ResourceStore.h"
 
 namespace Hummingbird::Engine {
 
@@ -103,7 +106,8 @@ KeyFields key_fields(const InputEvent& event) {
 
 DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvider* resource_provider,
                                    IImageDecoder* image_decoder, std::unique_ptr<IScriptEngine> script_engine)
-    : resources_(std::make_unique<DocumentResources>(resource_store, resource_provider, image_decoder)),
+    : resource_store_(resource_store),
+      resources_(std::make_unique<DocumentResources>(resource_store, resource_provider, image_decoder)),
       model_(std::make_unique<DocumentModel>()),
       interaction_(std::make_unique<DocumentInteraction>(*model_)),
       renderer_(std::make_unique<DocumentRenderer>(*model_, *interaction_)),
@@ -125,11 +129,47 @@ DocumentPipeline::DocumentPipeline(ResourceStore* resource_store, IResourceProvi
     });
 }
 
+// Story 9.5.2. The per-document missing-API list was recorded and then read by
+// nobody: `IScriptEngine::missing_apis()` had no caller in src/, and the list is
+// cleared on every navigation, so the telemetry M12's scope is meant to be
+// derived from was write-only. Emitting it here, next to the compatibility
+// summary and at the same document-end moment, makes a triage run a matter of
+// grepping one prefix.
+//
+// Unlike the compat summary this reports even a single occurrence: a page
+// touching an unimplemented API ONCE is the whole signal, whereas that summary
+// exists to collapse repeats.
+std::vector<std::string> DocumentPipeline::missing_apis() const {
+    return scripting_->missing_apis();
+}
+
+void DocumentPipeline::bind_resource_resolver(IGraphicsContext& graphics) const {
+    graphics.set_resource_resolver(resource_store_);
+}
+
+void DocumentPipeline::flush_missing_api_telemetry() {
+    const auto missing = missing_apis();
+    if (missing.empty()) {
+        return;
+    }
+    const std::string_view label = current_document_url_.empty() ? std::string_view{"<unknown document>"}
+                                                                 : std::string_view{current_document_url_};
+    std::string names;
+    for (const auto& name : missing) {
+        if (!names.empty()) names += ", ";
+        names += name;
+    }
+    HB_LOG_WARN("[missing-api] " << label << ": " << missing.size() << " unimplemented API(s) touched: " << names);
+}
+
 DocumentPipeline::~DocumentPipeline() {
+    flush_missing_api_telemetry();
     model_->flush_compatibility_warnings(current_document_url_);
 }
 
 void DocumentPipeline::reset() {
+    // Before scripting_->reset(), which clears the engine's per-document list.
+    flush_missing_api_telemetry();
     model_->flush_compatibility_warnings(current_document_url_);
     current_document_url_.clear();
     // Scripting teardown must run while the DOM arena is still alive: it
@@ -199,6 +239,7 @@ void DocumentPipeline::mark_url_visited(std::string_view url) {
 
 void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                                std::string_view base_url) {
+    bind_resource_resolver(graphics);
     current_document_url_ = base_url;
     const Css::MediaContext media{viewport.width, viewport.height};
     // Flag anchors whose target has been visited before styling, so `:visited`
@@ -217,6 +258,7 @@ void DocumentPipeline::apply_styles_and_layout(IGraphicsContext& graphics, const
 
 bool DocumentPipeline::rebuild_and_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view base_url) {
+    bind_resource_resolver(graphics);
     apply_styles_and_layout(graphics, viewport, base_url);
     return model_->has_render_tree();
 }
@@ -230,6 +272,7 @@ bool DocumentPipeline::needs_restyle_for_viewport(const Layout::Rect& viewport) 
 }
 
 void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& viewport) {
+    bind_resource_resolver(graphics);
     renderer_->relayout(graphics, viewport);
     if (relayout_debug_enabled()) {
         HB_LOG_WARN("[layout-debug] relayout content_h=" << renderer_->content_height());
@@ -237,11 +280,13 @@ void DocumentPipeline::relayout(IGraphicsContext& graphics, const Layout::Rect& 
 }
 
 void DocumentPipeline::paint(IGraphicsContext& graphics, const PaintContext& context) {
+    bind_resource_resolver(graphics);
     renderer_->paint(graphics, {context.viewport, context.debug_outlines, context.scroll_y});
 }
 
 void DocumentPipeline::paint_controls(IGraphicsContext& graphics, const PaintContext& context,
                                       bool repaint_background) {
+    bind_resource_resolver(graphics);
     renderer_->paint_controls(graphics, {context.viewport, context.debug_outlines, context.scroll_y},
                               repaint_background);
 }
@@ -408,6 +453,23 @@ std::optional<std::string> DocumentPipeline::consume_location_change() {
     return scripting_->consume_location_change();
 }
 
+std::optional<IScriptEngine::HistoryChange> DocumentPipeline::consume_history_change() {
+    return scripting_->consume_history_change();
+}
+
+std::optional<int> DocumentPipeline::consume_history_delta() {
+    return scripting_->consume_history_delta();
+}
+
+void DocumentPipeline::set_history_length(size_t length) {
+    scripting_->set_history_length(length);
+}
+
+DocumentPipeline::ScriptDispatchResult DocumentPipeline::apply_popstate(std::string_view url, std::string_view state) {
+    auto result = scripting_->apply_popstate(*model_, url, state);
+    return {result.handled, result.mutated, result.default_prevented};
+}
+
 DocumentPipeline::SubmitDispatchResult DocumentPipeline::dispatch_submit(const DOM::Element* form) {
     if (!form) {
         return {};
@@ -455,6 +517,19 @@ const std::vector<std::string>& DocumentPipeline::background_image_links() const
 
 const std::vector<std::string>& DocumentPipeline::font_requests() const {
     return model_->font_requests();
+}
+
+void DocumentPipeline::set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink) {
+    scripting_->set_fetch_sink(std::move(sink));
+}
+
+void DocumentPipeline::set_url_resolver(std::function<std::string(std::string_view)> resolver) {
+    scripting_->set_url_resolver(std::move(resolver));
+}
+
+bool DocumentPipeline::settle_fetch(const ScriptFetchResponse& response) {
+    if (!model_ || !model_->dom_root()) return false;
+    return scripting_->settle_fetch(*model_, response);
 }
 
 }  // namespace Hummingbird::Engine

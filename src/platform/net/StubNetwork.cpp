@@ -1,7 +1,9 @@
 #include "platform/net/StubNetwork.h"
 
+#include <atomic>
 #include <functional>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "core/net/HttpHeaders.h"
@@ -37,6 +39,95 @@ std::optional<std::string> try_load_example_asset(const std::string& url) {
     return Hummingbird::Core::Utils::load_asset_bytes(rest, false);
 }
 
+// A JSON endpoint for the fetch demo (story 9.1.1). The stub otherwise only
+// serves HTML pages, and fetch needs something shaped like a real API to be
+// demonstrable offline. Deliberately mirrors api.hnpwa.com's story-list shape,
+// which is M9's proof target, so the demo page's rendering code is the same code
+// the live gate exercises.
+std::optional<std::string> try_stub_api(const std::string& url) {
+    if (url != "http://example.dev/api/news" && url != "https://example.dev/api/news") {
+        return std::nullopt;
+    }
+    return std::string(R"JSON([
+  {"id":1,"title":"Hummingbird can fetch its own data now","points":128,"user":"engine","comments_count":12},
+  {"id":2,"title":"A promise that settles is better than one that does not","points":95,"user":"quickjs","comments_count":7},
+  {"id":3,"title":"One time budget for the whole redirect chain","points":74,"user":"loader","comments_count":3},
+  {"id":4,"title":"Every document gets a fresh global","points":61,"user":"teardown","comments_count":5}
+])JSON");
+}
+
+// A second stub origin, for the ad-block demo (story 9.4.2).
+//
+// This exists because a blocker cannot be demonstrated or tested against a
+// single host: everything on `example.dev` is FIRST-party to the demo page, and
+// first-party is exactly what a blocker must not block. Without a second origin
+// there is no `domainType: thirdParty` rule to exercise and no honest before /
+// after to measure.
+//
+// The three resources are chosen to make 9.4.2's acceptance criteria measurable
+// rather than merely plausible — one per criterion.
+constexpr std::string_view kTrackerHost = "ads.example.net";
+
+// Ad/analytics script. Deliberately does two things beyond existing:
+//   1. appends nodes, so blocking it is visible as a DOM NODE COUNT difference;
+//   2. touches unimplemented APIs, so blocking it is visible as a drop in
+//      missing-API telemetry — which is the real-world observation that
+//      third-party ad code is precisely what hits the gaps in a young engine.
+constexpr std::string_view kTrackerScript = R"JS(
+(function () {
+  var host = document.getElementById('tracker-slot');
+  if (host) {
+    for (var i = 0; i < 25; i++) {
+      var node = document.createElement('span');
+      node.textContent = 'tracker node ' + i;
+      host.appendChild(node);
+    }
+  }
+  // The kind of thing real analytics bundles reach for on load.
+  try { new IntersectionObserver(function () {}); } catch (e) {}
+  try { new WebSocket('wss://ads.example.net/live'); } catch (e) {}
+  try { new PerformanceObserver(function () {}); } catch (e) {}
+  try { navigator.sendBeacon('https://ads.example.net/beacon'); } catch (e) {}
+})();
+)JS";
+
+constexpr std::string_view kTrackerStylesheet = R"CSS(
+.ad-slot { display: block; background: #ffe9b0; border: 1px solid #d8a800; }
+.ad-slot__label { color: #7a5c00; font-weight: bold; }
+)CSS";
+
+// The canonical 1x1 PNG, so the `image` destination is exercised by something
+// the decoder genuinely accepts — a tracking pixel that fails to decode would
+// prove nothing about blocking, since it would not have rendered either way.
+std::string tracker_pixel_png() {
+    static constexpr unsigned char kBytes[] = {
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00,
+        0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00,
+        0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01,
+        0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82};
+    return std::string(reinterpret_cast<const char*>(kBytes), sizeof(kBytes));
+}
+
+// True for a URL on the tracker origin, either scheme.
+std::optional<std::string_view> tracker_path(const std::string& url) {
+    for (std::string_view prefix : {"http://ads.example.net", "https://ads.example.net"}) {
+        if (url.rfind(prefix, 0) != 0) continue;
+        std::string_view rest = std::string_view(url).substr(prefix.size());
+        if (auto query = rest.find('?'); query != std::string_view::npos) rest = rest.substr(0, query);
+        return rest;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::string> try_tracker_resource(const std::string& url) {
+    auto path = tracker_path(url);
+    if (!path) return std::nullopt;
+    if (*path == "/analytics.js") return std::string(kTrackerScript);
+    if (*path == "/ads.css") return std::string(kTrackerStylesheet);
+    if (*path == "/pixel.png") return tracker_pixel_png();
+    return std::nullopt;
+}
+
 std::string build_stub_body(const std::string& url, std::string_view post_body = {}) {
     if (url.rfind("http://example.dev/search", 0) == 0 || url.rfind("https://example.dev/search", 0) == 0) {
         std::string query;
@@ -63,6 +154,14 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
 )HTML";
     }
 
+    if (auto api = try_stub_api(url)) {
+        return *api;
+    }
+
+    if (auto tracker = try_tracker_resource(url)) {
+        return *tracker;
+    }
+
     if (url == "http://example.dev" || url == "https://example.dev") {
         if (auto html = Hummingbird::Core::Utils::load_asset_text("assets/stub/example.dev.html", false)) {
             return *html;
@@ -82,8 +181,17 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
     if (auto query_pos = page.find('?'); query_pos != std::string_view::npos) {
         page = page.substr(0, query_pos);
     }
-    if (!page.empty() && page.find('/') == std::string_view::npos && page.find("..") == std::string_view::npos) {
-        std::string page_path = "assets/stub/pages/" + std::string(page) + ".html";
+    if (!page.empty() && page.find("..") == std::string_view::npos) {
+        // The first path segment names the page; anything after it is a
+        // client-side route. Serving the same document for `m9/detail/42` as for
+        // `m9` is the "SPA fallback" every real server hosting a pushState app
+        // has to implement — a pushState URL is a REAL url, so the moment the
+        // user reloads it, shares it, or walks forward onto it from another
+        // document, the server is asked for it directly. Without this the demo
+        // would show "failed to load" for an address the browser handled
+        // perfectly (story 9.6.1).
+        std::string_view first_segment = page.substr(0, page.find('/'));
+        std::string page_path = "assets/stub/pages/" + std::string(first_segment) + ".html";
         if (auto html = Hummingbird::Core::Utils::load_asset_text(page_path, false)) {
             return *html;
         }
@@ -95,6 +203,9 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
     // example.dev subpages keep the demo "failed to load" note.
     const bool is_example_dev = url.rfind("http://example.dev", 0) == 0 || url.rfind("https://example.dev", 0) == 0;
     if (!is_example_dev) {
+        // Includes unknown paths on the tracker origin, which must answer with
+        // nothing rather than with a demo page: a "not found" that renders as
+        // HTML would make an unblocked tracker look like it worked.
         return {};
     }
     return "<html><body><p>Failed to load, try to refresh?: " + url + "</p></body></html>";
@@ -106,6 +217,97 @@ std::string build_stub_body(const std::string& url, std::string_view post_body =
 // through the real jar rather than through a test fake.
 constexpr std::string_view kCookieDemoPath = "/cookies";
 constexpr std::string_view kCookieScopedPath = "/cookies/private";
+
+// The cache demo (story 9.3.1). A cache is invisible by nature, which is exactly
+// what makes it hard to trust: "it was fast" is not evidence. These endpoints
+// count how many times the SERVER was actually reached, so the demo page can
+// show the one number a cache exists to hold down — and show it climbing when
+// `no-store` says it must.
+constexpr std::string_view kCacheDemoPrefix = "/api/cache-demo";
+constexpr std::string_view kCacheDemoPath = "/api/cache-demo";
+constexpr std::string_view kCacheStatsPath = "/api/cache-demo/stats";
+constexpr std::string_view kCacheNoStorePath = "/api/cache-demo/nostore";
+// A cacheable SUBRESOURCE, which is the only way the reload levels become
+// visible: a normal reload leaves a fresh stylesheet alone and a hard reload
+// refetches it. Nothing else on the demo site is cacheable, so without this the
+// two reloads are indistinguishable and the demo card would be claiming a
+// difference it cannot show.
+constexpr std::string_view kCacheStylePath = "/api/cache-demo/style.css";
+constexpr std::string_view kCacheStyleEtag = "\"cache-demo-css-v1\"";
+// Deliberately constant, so a revalidation always earns a 304 — the case worth
+// demonstrating, because it is the one where the round trip happens and the
+// payload does not.
+constexpr std::string_view kCacheDemoEtag = "\"cache-demo-v1\"";
+
+// Atomic because the stub answers on a thread pool. Process-lifetime, like the
+// cache they are reporting on.
+std::atomic<int> g_cache_full{0};
+std::atomic<int> g_cache_revalidated{0};
+std::atomic<int> g_cache_nostore{0};
+std::atomic<int> g_cache_css_full{0};
+std::atomic<int> g_cache_css_revalidated{0};
+
+bool build_cache_demo(std::string_view path, const Hummingbird::Core::HttpHeaders& request_headers,
+                      NetworkResponse& response) {
+    if (path == kCacheStatsPath) {
+        // Never cached, or it could not report on the cache.
+        response.status = 200;
+        response.headers.add("Cache-Control", "no-store");
+        response.headers.add("Content-Type", "application/json");
+        response.body = "{\"full\":" + std::to_string(g_cache_full.load()) +
+                        ",\"revalidated\":" + std::to_string(g_cache_revalidated.load()) +
+                        ",\"nostore\":" + std::to_string(g_cache_nostore.load()) +
+                        ",\"cssFull\":" + std::to_string(g_cache_css_full.load()) +
+                        ",\"cssRevalidated\":" + std::to_string(g_cache_css_revalidated.load()) + "}";
+        return true;
+    }
+    if (path == kCacheStylePath) {
+        // Requested by the demo page's <link>, so the ENGINE fetches it rather
+        // than script — which is the point: this is the subresource the two
+        // reload levels treat differently.
+        // 15s, not the 300s this first shipped with. A five-minute lifetime made
+        // the subresource REVALIDATION case unreachable in a demo session: you
+        // would have to wait it out before F5 could produce a 304, so the only
+        // observable transition was the hard reload. Short enough that all three
+        // states — hit, revalidate, bypass — are reachable in under a minute.
+        response.headers.add("Cache-Control", "max-age=15");
+        response.headers.add("ETag", std::string(kCacheStyleEtag));
+        response.headers.add("Content-Type", "text/css");
+        if (request_headers.get("If-None-Match") == kCacheStyleEtag) {
+            ++g_cache_css_revalidated;
+            response.status = 304;
+            return true;
+        }
+        ++g_cache_css_full;
+        response.status = 200;
+        // Visible, so "did the stylesheet arrive at all" is answerable by looking.
+        response.body = ".cache-styled { border-left: 6px solid #b25e00; padding-left: 10px; }\n";
+        return true;
+    }
+    if (path == kCacheNoStorePath) {
+        response.status = 200;
+        response.headers.add("Cache-Control", "no-store");
+        response.headers.add("Content-Type", "application/json");
+        response.body = "{\"served\":" + std::to_string(++g_cache_nostore) + "}";
+        return true;
+    }
+    if (path != kCacheDemoPath) return false;
+
+    response.headers.add("Cache-Control", "max-age=10");
+    response.headers.add("ETag", std::string(kCacheDemoEtag));
+    if (request_headers.get("If-None-Match") == kCacheDemoEtag) {
+        ++g_cache_revalidated;
+        response.status = 304;
+        return true;
+    }
+    response.status = 200;
+    response.headers.add("Content-Type", "application/json");
+    // The body records WHICH server response this is. A page still showing
+    // "served #1" after five clicks is the proof: the server would have said
+    // "#5" if it had been asked.
+    response.body = "{\"served\":" + std::to_string(++g_cache_full) + "}";
+    return true;
+}
 
 std::string_view stub_url_path(std::string_view url) {
     for (std::string_view prefix : {"https://example.dev", "http://example.dev"}) {
@@ -304,6 +506,13 @@ void build_cookie_demo(std::string_view path, const Hummingbird::Core::HttpHeade
 void run_stub_request(const std::string& url, std::function<void(NetworkResponse)> cb,
                       const Hummingbird::Core::HttpHeaders& request_headers, std::string_view post_body = {}) {
     const std::string_view path = stub_url_path(url);
+    if (path.rfind(kCacheDemoPrefix, 0) == 0) {
+        NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
+        if (build_cache_demo(path, request_headers, response)) {
+            if (cb) cb(std::move(response));
+            return;
+        }
+    }
     if (path == kCookieDemoPath || path == kCookieScopedPath) {
         NetworkResponse response = Hummingbird::Platform::make_response_with_effective_url(url);
         response.status = 200;
@@ -334,19 +543,17 @@ void StubNetwork::shutdown() {
 
 void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback,
                       const NetworkRequestOptions& options) {
-    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
-
-    auto cb = std::move(callback);
-    Core::HttpHeaders request_headers = options.headers;
-
-    thread_pool_.submit([url, cb = std::move(cb), this, request_headers = std::move(request_headers)]() mutable {
-        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
-        run_stub_request(url, std::move(cb), request_headers);
-    });
+    request(url, "GET", {}, std::move(callback), options);
 }
 
 void StubNetwork::post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
                        const NetworkRequestOptions& options) {
+    request(url, "POST", body, std::move(callback), options);
+}
+
+void StubNetwork::request(const std::string& url, std::string_view method, std::string_view body,
+                          std::function<void(NetworkResponse)> callback, const NetworkRequestOptions& options) {
+    (void)method;
     if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     auto cb = std::move(callback);

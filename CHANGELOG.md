@@ -2,7 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.9.0] - unreleased
+
+Milestone 9, "The Fetcher": the page gets its own voice on the network.
 
 ### Changed
 
@@ -17,6 +19,45 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- **`fetch()`**: a page's JavaScript can now request data on its own and render
+  it, rather than only receiving what the engine decided to load. Returns a real
+  Promise with `Response`/`Headers`, `text()` and `json()`; supports methods,
+  request headers and bodies; and rides the same cookie, redirect and timeout
+  handling as every other request. Previously `fetch` was a stub returning a
+  promise that never settled, so a page that used it silently froze its own
+  logic.
+- **CORS enforcement**: a page can only read a cross-origin response the server
+  explicitly permitted. A refused response is discarded whole — status, headers
+  and body — so nothing about it leaks. Requests that a plain form could not have
+  made ask permission first with a preflight, and are never sent if it is
+  refused. Cookies do not ride along on a cross-origin request unless the page
+  asks and the server agrees. The check is applied to **every hop** of a redirect
+  chain, so a permissive server cannot be used as a stepping stone into one that
+  is not. A page can only read the response headers CORS permits, and never
+  `Set-Cookie`.
+- **HTTP cache**: responses are now reused instead of refetched, so revisiting a
+  page or fetching the same data twice no longer goes to the network every time.
+  Honors `max-age`, `Expires`, `Age`, `no-store` and `no-cache`, and revalidates a
+  stale entry with `If-None-Match`/`If-Modified-Since` — a `304` reuses the stored
+  body, which saves the payload even when it cannot save the round trip. Memory
+  only and dropped at exit; bounded at 8 MB with least-recently-used eviction.
+- **The cache key honors `Vary` and credentials.** A server that says its response
+  depends on a request header gets one cache entry per variant, so the browser can
+  never serve you the wrong one — the failure that would otherwise show up as an
+  unreproducible rendering bug rather than as a cache bug. A response fetched while
+  you were logged in is never handed to a request that carried no session, and
+  `Vary: *` — a server admitting it varies on something it will not name — is never
+  cached at all. Flipping a site's identity mode (Ctrl+Shift+U) now forces a hard
+  reload, so the toggle cannot be answered from the other mode's cached page.
+- **Reload now forces revalidation, at two levels.** F5 / Ctrl+R re-checks the
+  *document* with the server rather than serving it from cache, leaving fresh
+  subresources alone (browsers used to re-check everything on a reload and moved
+  away from it, because a page with fifty assets turned one keystroke into fifty
+  requests). **Ctrl+Shift+R / Ctrl+F5** is a hard reload: it ignores the cache for
+  the page and every subresource, which is what you want after editing a
+  stylesheet the server told us to keep for an hour. Without these a page with a
+  long `max-age` would have been unrefreshable — a cache that made reload
+  meaningless would be a worse trade than no cache.
 - **Cookie storage limits** (RFC 6265 §6.1): 4096 bytes per cookie, 50 per domain,
   3000 in total, with least-recently-used eviction. Previously the jar was
   unbounded, which a page could exploit to grow a file the browser writes to disk.
@@ -37,6 +78,92 @@ All notable changes to this project will be documented in this file.
   in the same tab.
 - **Correct microtask ordering**: promise continuations now run when the JavaScript
   stack empties rather than when a nested event dispatch returns.
+- **Ad blocking, built in.** A bundled `ad-block-lite` extension blocks a curated
+  list of third-party tracker domains. Rules are matched natively inside the
+  engine, so no extension code runs while a request is in flight — a blocker
+  cannot slow a page down or hang it, and the matching is re-applied on every
+  redirect hop, which is how a tracker would otherwise sidestep it with a single
+  redirect. Toggle it like Dark Mode in `assets/config/browser.ini`. The
+  extension itself is three files, one of which does nothing: the rules live in
+  a JSON list, because a correct blocker needs no code.
+- **Extensions must now declare what they use.** The `permissions` field in an
+  extension manifest is enforced rather than merely parsed, so an extension that
+  has not asked for a capability cannot use it. This closes a gap where the field
+  read like a boundary and was not one.
+- **Client-side routing works** (`history.pushState`, `replaceState`, `popstate`).
+  A single-page app can change the URL and the view without a reload, and Back
+  returns to the previous view instead of refetching the document.
+- **The DOM interfaces pages check against** — `EventTarget`, `Node`, `Element`,
+  `HTMLElement` — plus constructible `Event` and `CustomEvent`. Scripts using
+  `instanceof`, patching a prototype, or dispatching their own events used to die
+  outright on the missing name; a text node is correctly *not* an `HTMLElement`.
+- **`self`, `window.console` and the rest of `window`.** `window` is now the
+  global object itself rather than a hand-maintained copy of part of it, so every
+  global is reachable both ways and the list can no longer fall behind. `console`
+  gained the fifteen methods pages actually call.
+- **`document.body`, `document.head`, `document.documentElement`**, and the
+  `location` URL components (`pathname`, `search`, `host`, …).
+- **Inline `data:` URLs** are decoded directly instead of being handed to the
+  network stack, so inline SVG icons and embedded images load.
+- **Fail-soft stubs for 14 unimplemented APIs**, up from 2, each reporting itself
+  once per document to a `[missing-api]` log line. The rule they follow is never
+  to fabricate a value a page can branch on.
+
+### Fixed
+
+- **Fixed a crash on image-heavy pages.** The browser could terminate with no
+  message while browsing sites with many images. The render tree and the retained
+  display list both cached pointers into image memory that the engine frees as
+  pages navigate and images are replaced, so painting in the wrong moment drew
+  freed memory. Resources are now referred to by identity and resolved at the
+  point of use, which makes the whole class of bug impossible rather than
+  unlikely. The same fix removed the flickering glyphs seen on animated images.
+- **SVG images render far more often.** Files opening with a doctype or a licence
+  comment — most of what real sites serve — were not recognised as SVG at all and
+  silently failed, which is a missing icon everywhere they are used.
+- **A page served in place of an image no longer renders as garbage.** When a
+  server answers an image request with an error page or a consent wall, that is
+  now treated as a failed image rather than decoded into a meaningless picture.
+- **Closing the browser is immediate.** Quitting while requests were in flight
+  would hang until each one timed out — up to fifteen seconds — and then print a
+  wall of warnings about requests nobody was waiting for.
+- **Cookie name prefixes are enforced** (`__Secure-`, `__Host-`). These are a
+  promise the cookie's name makes to the server about how it was set; accepting
+  one that does not meet the conditions turned that guarantee into a lie. Exact-
+  case prefixes now require a secure origin as well as the `Secure` attribute;
+  insecure origins cannot plant any Secure cookie.
+- **Fetch preserves the requested HTTP method end to end.** Preflights are real
+  `OPTIONS` requests, bodyless custom methods no longer degrade to `GET`, empty
+  `POST` remains `POST`, and redirect rewrites preserve or replace methods under
+  the HTTP status-specific rules.
+- **Fetch response and credential boundaries are now complete.** The public
+  wrapper forwards `credentials`, and scripts cannot read `Set-Cookie` or
+  `Set-Cookie2` from same-origin, cross-origin, cached, or revalidated responses.
+- **History state changes cannot cross origins or overwrite one another.** A
+  cross-origin `pushState`/`replaceState` throws `SecurityError` without changing
+  the tab's authority, and multiple synchronous state changes reach session
+  history in order.
+- **Request-chain policy remains stable across preflight and redirects.** A
+  preflight and its approved request share one absolute deadline, while
+  third-party filtering stays relative to the document that initiated the chain.
+- **HTTP cache limits include complete `Vary` keys.** Large selecting request
+  headers now count toward both per-entry and total memory caps and can trigger
+  normal LRU eviction.
+- **Links and resource URLs containing `&amp;` now resolve correctly.** Character
+  references in attribute values were not decoded, so any URL with an escaped
+  ampersand — most query strings — was requested wrongly and 404ed.
+- **A hard reload now refreshes the data a page loads with**, not just its
+  document and stylesheets. On an API-driven page the data is the page, and it
+  was still being served from cache.
+- **Blocked and filtered requests are no longer reported as failures** in the log,
+  so turning the ad blocker on does not fill the log with warnings about the
+  requests it was installed to prevent.
+- **A slow site can no longer stall a tab for minutes.** A request's time budget
+  now covers the whole request including every redirect it follows, instead of
+  restarting on each hop — a page that redirected repeatedly could previously keep
+  a tab waiting for several minutes before giving up. A request that runs out of
+  time now says so, with its own "took too long" page, rather than reporting the
+  site as unreachable.
 
 ## [0.8.0] - 2026-07-26
 

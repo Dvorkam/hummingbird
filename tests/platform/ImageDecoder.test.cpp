@@ -105,3 +105,51 @@ TEST(ImageDecoderTest, DecodesJpegFixture) {
 TEST(ImageDecoderTest, DecodesSvgFixture) {
     expect_decodes(reinterpret_cast<const unsigned char*>(kSvgData), sizeof(kSvgData) - 1);
 }
+
+// An SVG file does not have to open with its root element, and every prologue
+// below was being rejected — the sniffer only scanned for `<svg` when the file
+// started with `<?xml`. Everything else went to SDL_image's much weaker parser
+// and failed, which is 830 "Couldn't parse SVG image" warnings in a single
+// browsing sweep and a missing icon for each one.
+TEST(ImageDecoderTest, DecodesSvgBehindTheUsualPrologues) {
+    const char* prologues[] = {
+        // Inkscape and most editors emit this pair.
+        R"(<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="red"/></svg>)",
+        // A doctype with no XML declaration in front of it.
+        R"(<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="red"/></svg>)",
+        // A licence header, which optimisers routinely leave in place.
+        R"(<!-- Generator: some tool. Licensed under MIT. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="red"/></svg>)",
+        // Leading whitespace and a BOM are both already handled; assert it.
+        "\xEF\xBB\xBF\n  <svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\">"
+        "<rect width=\"1\" height=\"1\" fill=\"red\"/></svg>",
+    };
+
+    auto decoder = Hummingbird::create_image_decoder();
+    ASSERT_NE(decoder, nullptr);
+    for (const char* svg : prologues) {
+        const auto decoded = decoder->decode(std::string_view(svg));
+        ASSERT_TRUE(decoded.has_value()) << "not recognised as SVG:\n" << svg;
+        EXPECT_GT(decoded->width, 0);
+        EXPECT_GT(decoded->height, 0);
+    }
+}
+
+// The trap the widened sniffing has to avoid. An HTML page routinely opens with
+// `<!DOCTYPE html>` and contains an inline `<svg>` icon somewhere below; a
+// sniffer that scanned after ANY doctype would decode a whole document as an
+// image. The doctype has to name svg itself.
+TEST(ImageDecoderTest, AnHtmlPageContainingInlineSvgIsNotDecodedAsAnImage) {
+    const char* html =
+        "<!DOCTYPE html>\n<html><body><p>Not an image.</p>"
+        "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1\" height=\"1\"><rect width=\"1\" height=\"1\"/></svg>"
+        "</body></html>";
+
+    auto decoder = Hummingbird::create_image_decoder();
+    ASSERT_NE(decoder, nullptr);
+    EXPECT_FALSE(decoder->decode(std::string_view(html)).has_value())
+        << "an HTML document must not be decoded as an SVG image";
+}

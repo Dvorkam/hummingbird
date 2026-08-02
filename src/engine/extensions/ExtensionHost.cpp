@@ -7,10 +7,22 @@
 #include <utility>
 
 #include "core/utils/Log.h"
+#include "engine/extensions/FilterRuleSet.h"
 
 namespace Hummingbird::Engine {
 
 namespace {
+// The permission an extension must declare to register block rules, whether
+// statically in its manifest or dynamically from its background script.
+constexpr std::string_view kDeclarativeRequestPermission = "declarativeRequest";
+
+// Dynamic rules occupy their own filter source, separate from the extension's
+// manifest ruleset. Sharing one key would mean a background script calling
+// updateRules silently wiped its own static list — which for ad-block-lite is
+// the entire curated list, replaced by whatever one call happened to pass.
+std::string dynamic_rules_source(std::string_view id) {
+    return std::string(id) + "#dynamic";
+}
 std::optional<std::string> read_file_to_string(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::in | std::ios::binary);
     if (!file) return std::nullopt;
@@ -86,6 +98,24 @@ constexpr std::string_view kExtensionBootstrap = R"JS(
     return { id: hb.tabs.activeTabId };
   };
 
+  if (!browser.declarativeRequest) browser.declarativeRequest = {};
+
+  // Replaces this extension's dynamic rules with `args.rules`. Session-scoped:
+  // dynamic rules are NOT persisted, and rules that must survive a restart
+  // belong in the manifest's declarative_net_request.rule_resources, which is
+  // read again on every run.
+  //
+  // The rules are stringified here and parsed by the host, so a rule written in
+  // JS and a rule written in a ruleset file go through exactly the same
+  // validation and are accepted or rejected for the same reasons.
+  browser.declarativeRequest.updateRules = function(args) {
+    if (!args || !Array.isArray(args.rules)) return false;
+    if (typeof globalThis.__hb_nativeSetFilterRules !== "function") return false;
+    let json;
+    try { json = JSON.stringify(args.rules); } catch (e) { return false; }
+    return !!globalThis.__hb_nativeSetFilterRules(json);
+  };
+
   browser.scripting.insertCSS = function(args) {
     if (!args || typeof args.cssText !== "string") return false;
     const id = Number(args.tabId);
@@ -136,7 +166,12 @@ bool ExtensionHost::start_background_script(Runtime& runtime) {
         return false;
     }
 
-    runtime.engine->bind_extension_host(this);
+    // Before the script, deliberately: a manifest-declared ruleset is in force
+    // for the first request of the session, rather than from whenever the
+    // background script happens to finish starting.
+    load_static_rules(runtime);
+
+    runtime.engine->bind_extension_host(this, extension_id(runtime.extension));
 
     auto bootstrap = runtime.engine->eval(kExtensionBootstrap, "hb-extension-bootstrap");
     if (!bootstrap.ok) {
@@ -203,6 +238,13 @@ bool ExtensionHost::set_extension_enabled(std::string_view id, bool enabled) {
         if (!enabled) {
             runtime.engine.reset();
             runtime.started = false;
+            // Tearing down the runtime is not enough: rules live in the shared
+            // filter, which outlives it. Leaving them there would let a disabled
+            // ad-blocker go on blocking, with no UI anywhere admitting it.
+            if (request_filter_) {
+                request_filter_->remove_source(id_str);
+                request_filter_->remove_source(dynamic_rules_source(id_str));
+            }
         } else if (started_) {
             (void)start_background_script(runtime);
         }
@@ -212,6 +254,50 @@ bool ExtensionHost::set_extension_enabled(std::string_view id, bool enabled) {
 
 void ExtensionHost::set_insert_css_handler(InsertCssHandler handler) {
     insert_css_handler_ = std::move(handler);
+}
+
+void ExtensionHost::set_request_filter(std::shared_ptr<Core::RequestFilter> filter) {
+    request_filter_ = std::move(filter);
+}
+
+void ExtensionHost::load_static_rules(const Runtime& runtime) {
+    if (!request_filter_) return;
+    const auto id = extension_id(runtime.extension);
+    if (runtime.extension.manifest.rule_resources.empty()) return;
+
+    // Same permission the JS rules API needs. Declaring rules in the manifest
+    // is not a way around asking for the capability.
+    if (!manifest_has_permission(runtime.extension.manifest, kDeclarativeRequestPermission)) {
+        HB_LOG_WARN("[ext] " << id << " declares rule_resources but not the \"" << kDeclarativeRequestPermission
+                             << "\" permission; its rules are ignored");
+        return;
+    }
+
+    std::vector<Core::FilterRule> rules;
+    for (const auto& relative : runtime.extension.manifest.rule_resources) {
+        const auto path = runtime.extension.root_dir / relative;
+        auto source = read_file_to_string(path);
+        if (!source) {
+            HB_LOG_WARN("[ext] " << id << " ruleset not readable: " << path.string());
+            continue;
+        }
+        auto parsed = parse_filter_rule_set(*source);
+        if (!parsed.ok()) {
+            HB_LOG_WARN("[ext] " << id << " ruleset " << relative << " rejected: " << parsed.fatal_error);
+            continue;
+        }
+        // Rejected rules are reported individually. A rule that fails to load is
+        // a rule that does not block, and that difference is invisible from the
+        // outside unless it is said out loud.
+        for (const auto& warning : parsed.warnings) {
+            HB_LOG_WARN("[ext] " << id << " ruleset " << relative << ": " << warning);
+        }
+        rules.insert(rules.end(), std::make_move_iterator(parsed.rules.begin()),
+                     std::make_move_iterator(parsed.rules.end()));
+    }
+
+    HB_LOG_INFO("[ext] " << id << " loaded " << rules.size() << " static filter rules");
+    request_filter_->set_rules(id, std::move(rules));
 }
 
 void ExtensionHost::eval_all_started(std::string_view source, std::string_view filename) {
@@ -241,15 +327,83 @@ void ExtensionHost::notify_tab_navigated(TabId id, std::string_view url) {
     eval_all_started(ss.str(), "hb-tab-navigated");
 }
 
-bool ExtensionHost::insert_css(std::uint32_t tab_id, std::string_view css_text) {
+const ExtensionHost::Runtime* ExtensionHost::find_runtime(std::string_view id) const {
+    for (const auto& runtime : runtimes_) {
+        if (extension_id(runtime.extension) == id) return &runtime;
+    }
+    return nullptr;
+}
+
+bool ExtensionHost::has_permission(std::string_view extension_id_value, std::string_view permission) const {
+    const Runtime* runtime = find_runtime(extension_id_value);
+    if (!runtime) {
+        // An unknown caller. Refuse rather than default-allow: an id that names
+        // no loaded extension means the identity plumbing has broken, and the
+        // safe reading of "I don't know who this is" is not "let them".
+        HB_LOG_WARN("[ext] api call from unknown extension id: " << extension_id_value);
+        return false;
+    }
+    // A disabled extension keeps its runtime around but must not act (M5).
+    if (!is_extension_enabled(settings_, runtime->extension)) {
+        return false;
+    }
+    if (!manifest_has_permission(runtime->extension.manifest, permission)) {
+        HB_LOG_WARN("[ext] " << extension_id_value << " called an API needing the \"" << permission
+                             << "\" permission, which its manifest does not declare");
+        return false;
+    }
+    return true;
+}
+
+bool ExtensionHost::insert_css(std::string_view extension_id_value, std::uint32_t tab_id, std::string_view css_text) {
+    // Gated as of 9.4.1. This API shipped ungated in M5 — not by choice, but
+    // because the host could not tell who was calling. Now that it can, the
+    // check belongs here as much as on the new rules API: shipping a
+    // permission-gated API alongside an ungated one would leave the manifest
+    // field meaning something in one place and nothing in the other.
+    if (!has_permission(extension_id_value, "scripting")) {
+        return false;
+    }
     if (!insert_css_handler_) {
         return false;
     }
     return insert_css_handler_(tab_id, css_text);
 }
 
+bool ExtensionHost::set_filter_rules(std::string_view extension_id_value, std::string_view rules_json) {
+    if (!has_permission(extension_id_value, kDeclarativeRequestPermission)) {
+        return false;
+    }
+    if (!request_filter_) {
+        return false;
+    }
+
+    auto parsed = parse_filter_rule_set(rules_json);
+    if (!parsed.ok()) {
+        HB_LOG_WARN("[ext] " << extension_id_value << " updateRules rejected: " << parsed.fatal_error);
+        // The previous dynamic rules stay in force. Wiping them because the new
+        // set failed to parse would turn a typo into an unblocking event, which
+        // is the opposite of what the caller was reaching for.
+        return false;
+    }
+    for (const auto& warning : parsed.warnings) {
+        HB_LOG_WARN("[ext] " << extension_id_value << " updateRules: " << warning);
+    }
+
+    HB_LOG_INFO("[ext] " << extension_id_value << " set " << parsed.rules.size() << " dynamic filter rules");
+    request_filter_->set_rules(dynamic_rules_source(extension_id_value), std::move(parsed.rules));
+    return true;
+}
+
 void ExtensionHost::shutdown() {
     for (auto& runtime : runtimes_) {
+        // Same reasoning as disabling: the filter is shared and outlives these
+        // runtimes, so rules have to be withdrawn explicitly.
+        if (request_filter_) {
+            const auto id = extension_id(runtime.extension);
+            request_filter_->remove_source(id);
+            request_filter_->remove_source(dynamic_rules_source(id));
+        }
         runtime.engine.reset();
         runtime.started = false;
     }

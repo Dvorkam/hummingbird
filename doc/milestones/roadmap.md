@@ -18,9 +18,10 @@ Platform).
 * `doc/TODOs.md` tracks the live backlog; completed items are archived in
   `doc/todo_archive/`.
 * Status legend: **Done** (shipped, tag noted) / **Complete** (implementation and
-  proof gates finished; release pending) / **Next** (detailed doc exists, work queued)
-  / **Planned** (themed, target chosen, not yet broken into stories) / **Aspirational**
-  (direction is committed, expect re-scoping before work starts).
+  proof gates finished; release pending) / **Active** (implementation or final
+  signoff in progress) / **Next** (detailed doc exists, work queued) / **Planned**
+  (themed, target chosen, not yet broken into stories) / **Aspirational** (direction
+  is committed, expect re-scoping before work starts).
 
 > **Renumbering note (2026-07):** Milestones 6+ were restructured twice-over. First,
 > "The Layouter" was pulled forward to M6 and "The Speedster" was merged into the
@@ -43,7 +44,7 @@ not when its subsystem "looks finished."
 | M6 Layouter | DDG HTML homepage (visual parity) | flexbox + CSS compat + CI harness |
 | M7 Programmable Document | TodoMVC (pinned snapshot) | DOM mutation + events + timers/microtasks |
 | M8 Session Keeper | Hacker News: log in, post a comment *(explicit compatibility mode required)* | cookies + storage + session persistence |
-| M9 Fetcher | Live HN + Wikipedia REST APIs rendered from `fetch` | fetch/XHR + CORS + HTTP cache |
+| M9 Fetcher | Live HN + Wikipedia REST APIs rendered from `fetch` | fetch + CORS + HTTP cache |
 | M10 Layouter II | Wikipedia desktop + old.reddit | fixed/sticky + scroll containers + z-index |
 | M11 Inputter | Real login + rich text forms | focus, selection, clipboard, forms v2 |
 | M12 Framework Gauntlet | m.youtube.com app shell (no video) | observers + History API + SPA navigation |
@@ -207,14 +208,16 @@ Detailed doc: [milestone8.md](milestone8.md) · Archive: [milestone8_done.md](..
 
 ---
 
-## Milestone 9: The Fetcher (Fetch/XHR + CORS + Cache) — Next
+## Milestone 9: The Fetcher (Fetch + CORS + Cache) — Complete
 
 Detailed doc: [milestone9.md](milestone9.md) *(scope revalidated at kickoff 2026-07-26)*
 
 **Theme:** *Pages That Talk to APIs*
 **Goal:** JS-driven networking, done strictly.
 
-* **Fetch/XHR v1:** request/response headers, redirects, buffering (streaming later); JSON round-trips.
+* **Fetch v1:** request/response headers, redirects, buffering (streaming later); JSON round-trips.
+  The optional XHR wrapper was not required by either proof target and is deferred
+  beyond M9; revisit it during M12 compatibility triage when a specific target needs it.
 * **CORS v1:** strict first; expand behind feature flags.
 * **HTTP Cache v1:** ETag / If-None-Match, Cache-Control baseline, in-memory first.
 * **Extension follow-through:** **declarative** request-filtering rules in `browser.*` + a built-in **ad-block-lite** extension — the API's second real consumer. Reshaped at kickoff from a synchronous JS callback, which would have put script on the network hot path. Supporting story, *not* a North Star: an ad-blocker cannot be demonstrated visually by an engine that cannot yet render ad-heavy pages, so its acceptance is stated in requests/bytes/nodes avoided.

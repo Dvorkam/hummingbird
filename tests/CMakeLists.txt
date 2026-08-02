@@ -23,17 +23,28 @@ add_executable(HummingbirdTests
     engine/RedirectPolicy.test.cpp
     engine/RedirectChain.test.cpp
     engine/DocumentCookie.test.cpp
+    engine/RequestDeadline.test.cpp
+    engine/Fetch.test.cpp
+    engine/HttpCacheIntegration.test.cpp
+    engine/RequestFilterIntegration.test.cpp
+    engine/FilterRuleSet.test.cpp
+    engine/AdBlockLite.test.cpp
     engine/LocalStorage.test.cpp
     engine/FontFaceResolver.test.cpp
     core/ArenaAllocator.test.cpp
     core/BookmarkStore.test.cpp
     core/HttpHeaders.test.cpp
     core/CookieJar.test.cpp
+    core/CookieConformance.test.cpp
     core/PublicSuffix.test.cpp
+    core/Cors.test.cpp
+    core/CacheControl.test.cpp
+    core/HttpCache.test.cpp
     core/BrowserIdentity.test.cpp
     core/IdentityPolicyStore.test.cpp
     core/Origin.test.cpp
     core/Referrer.test.cpp
+    core/RequestFilter.test.cpp
     core/StorageArea.test.cpp
     core/StorageManager.test.cpp
     core/AssetPath.test.cpp
@@ -42,6 +53,8 @@ add_executable(HummingbirdTests
     core/Url.test.cpp
     core/UrlEncoding.test.cpp
     core/Timing.test.cpp
+    core/DataUrl.test.cpp
+    core/Log.test.cpp
     core/WarnOnce.test.cpp
     core/CompatibilityWarnings.test.cpp
     core/ElementSemanticRole.test.cpp
@@ -76,6 +89,7 @@ add_executable(HummingbirdTests
     engine/ScriptController.test.cpp
     engine/TodoMvc.test.cpp
     engine/LoginFlow.test.cpp
+    engine/ApiRenderFlow.test.cpp
     engine/SessionStorage.test.cpp
     platform/ResourceProvider.test.cpp
     platform/ImageDecoder.test.cpp

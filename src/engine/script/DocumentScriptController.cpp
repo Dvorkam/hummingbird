@@ -276,6 +276,32 @@ std::optional<std::string> DocumentScriptController::consume_location_change() {
     return script_engine_ ? script_engine_->consume_location_change() : std::nullopt;
 }
 
+std::optional<IScriptEngine::HistoryChange> DocumentScriptController::consume_history_change() {
+    return script_engine_ ? script_engine_->consume_history_change() : std::nullopt;
+}
+
+std::optional<int> DocumentScriptController::consume_history_delta() {
+    return script_engine_ ? script_engine_->consume_history_delta() : std::nullopt;
+}
+
+void DocumentScriptController::set_history_length(size_t length) {
+    if (script_engine_) script_engine_->set_history_length(length);
+}
+
+DocumentScriptController::ScriptDispatchResult DocumentScriptController::apply_popstate(DOM::Node* dom_root,
+                                                                                        Core::ArenaAllocator* arena,
+                                                                                        std::string_view url,
+                                                                                        std::string_view state) {
+    DispatchScope scope(script_host_);
+    // Bind the host so a popstate listener's DOM mutations are captured — the
+    // whole point of the API is that the listener re-renders the view.
+    if (!bind_host(dom_root, arena) || !script_engine_) {
+        return {};
+    }
+    const bool dispatched = script_engine_->apply_popstate(url, state);
+    return {dispatched, script_host_.consume_mutations(), false};
+}
+
 bool DocumentScriptController::bind_host(DOM::Node* dom_root, Core::ArenaAllocator* arena) {
     if (!script_engine_) {
         return false;
@@ -303,6 +329,26 @@ DocumentScriptController::ScriptDispatchResult DocumentScriptController::eval_in
         HB_LOG_WARN("[script] eval failed: " << result.error);
     }
     return {true, script_host_.consume_mutations()};
+}
+
+void DocumentScriptController::set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink) {
+    script_host_.set_fetch_sink(std::move(sink));
+}
+
+void DocumentScriptController::set_url_resolver(std::function<std::string(std::string_view)> resolver) {
+    script_host_.set_url_resolver(std::move(resolver));
+}
+
+bool DocumentScriptController::settle_fetch(DOM::Node* dom_root, Core::ArenaAllocator* arena,
+                                            const ScriptFetchResponse& response) {
+    if (!script_engine_) return false;
+    // A fetch continuation is a script dispatch like any other: bind the host so
+    // its DOM mutations are captured, and bracket it so a nested dispatch shares
+    // this one's mutation epoch (7.7.1).
+    DispatchScope scope(script_host_);
+    if (!bind_host(dom_root, arena)) return false;
+    if (!script_engine_->settle_fetch(response)) return false;
+    return script_host_.consume_mutations();
 }
 
 }  // namespace Hummingbird::Engine

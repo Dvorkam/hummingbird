@@ -4,6 +4,7 @@
 #include <string>
 
 #include "core/GraphicsTypes.h"
+#include "core/ResourceRef.h"
 #include "core/geometry/Geometry.h"
 
 namespace Hummingbird {
@@ -19,7 +20,28 @@ public:
     virtual void clear(const Color& color) = 0;
     virtual void present() = 0;
     virtual void fill_rect(const Hummingbird::Geometry::Rect& rect, const Color& color) = 0;
+    // Two ways to draw an image, for two genuinely different lifetimes
+    // (T-RESOURCE-REF-1).
+    //
+    // By REFERENCE, for a resource the engine's store owns: the pixels are
+    // resolved here, at the last possible moment, so nothing upstream — not the
+    // render tree, not a retained display list — holds a pointer that the store
+    // can free underneath it. A ref that no longer resolves draws nothing.
+    virtual void draw_image(ResourceRef image, const Hummingbird::Geometry::Rect& dest) = 0;
+    // By VALUE, for a bitmap whose owner provably outlives the call: an inline
+    // <svg> rasterized into the render object itself, or a chrome icon owned by
+    // the app. These were never at risk and routing them through the store would
+    // be generality for its own sake.
     virtual void draw_image(const ImageBitmap& image, const Hummingbird::Geometry::Rect& dest) = 0;
+
+    // Supplies the resolver used by the reference overload. The engine owns the
+    // store and injects it; contexts that never draw resource images (tests,
+    // recorders that only forward the ref) can ignore it.
+    virtual void set_resource_resolver(const IResourceResolver* /*resolver*/) {}
+    // Layout needs it too: a replaced element's intrinsic size comes from the
+    // pixels, so sizing resolves the same handle painting does. The pointer is
+    // read and dropped within the call, never stored.
+    virtual const IResourceResolver* resource_resolver() const { return nullptr; }
     virtual TextMetrics measure_text(const std::string& text, const TextStyle& style) = 0;
     virtual void draw_text(const std::string& text, float x, float y, const TextStyle& style) = 0;
     virtual void draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,

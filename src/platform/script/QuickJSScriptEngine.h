@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <deque>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -25,23 +28,31 @@ public:
     ~QuickJSScriptEngine() override;
 
     void bind_host(IScriptHost* host) override;
-    void bind_extension_host(IExtensionApiHost* host) override;
+    void bind_extension_host(IExtensionApiHost* host, std::string_view extension_id) override;
     ScriptEvalResult eval(std::string_view source, std::string_view filename) override;
     void reset_bindings() override;
     bool dispatch_dom_event(DOM::Node* target, const ScriptDomEvent& event) override;
     void set_location(std::string_view url) override;
     bool navigate_fragment(std::string_view url) override;
     std::optional<std::string> consume_location_change() override;
+    std::optional<HistoryChange> consume_history_change() override;
+    std::optional<int> consume_history_delta() override;
+    bool apply_popstate(std::string_view url, std::string_view state) override;
+    void set_history_length(size_t length) override;
     bool run_due_timers(double now_ms) override;
     bool has_pending_timers() const override { return !timers_.empty(); }
     bool run_animation_frames(double now_ms) override;
     bool has_pending_animation_frames() const override { return !animation_frames_.empty(); }
     std::vector<std::string> missing_apis() const override { return missing_apis_; }
+    bool settle_fetch(const ScriptFetchResponse& response) override;
+    size_t pending_fetch_count() const override { return pending_fetches_.size(); }
 
 private:
     static QuickJSScriptEngine* engine_from_context(JSContext* ctx);
 
-    static JSValue js_console_log(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    // Severity for the console methods, carried as the quickjs `magic` value.
+    enum class ConsoleLevel { Info = 0, Warn = 1, Error = 2 };
+    static JSValue js_console_log(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
 
     // document.*
     static JSValue js_document_get_element_by_id(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
@@ -131,9 +142,21 @@ private:
     static JSValue js_storage_clear(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
     static JSValue js_storage_key(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
     static JSValue js_storage_get_length(JSContext* ctx, JSValueConst this_val, int magic);
+    // document.documentElement / body / head (T-DOM-DOCUMENT-BODY-1); magic is
+    // an IScriptHost::DocumentPart.
+    static JSValue js_document_get_part(JSContext* ctx, JSValueConst this_val, int magic);
+    // The URL components read off `location`; magic selects which.
+    enum class LocationPart { Protocol = 0, Host, Hostname, Port, Pathname, Search, Origin };
+    static JSValue js_location_get_part(JSContext* ctx, JSValueConst this_val, int magic);
     static JSValue js_location_get_href(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_get_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
     static JSValue js_location_set_hash(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    // history.pushState / replaceState (9.6.1); magic selects which.
+    static JSValue js_history_push_state(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv,
+                                         int magic);
+    static JSValue js_history_get_state(JSContext* ctx, JSValueConst this_val, int magic);
+    static JSValue js_history_get_length(JSContext* ctx, JSValueConst this_val, int magic);
+    static JSValue js_history_go(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv, int magic);
 
     // Event object methods (7.2.2). The Event is a plain object; these set flags
     // the C++ dispatch loop reads back (defaultPrevented / propagation state).
@@ -143,6 +166,19 @@ private:
                                                        JSValueConst* argv);
 
     static JSValue js_native_insert_css(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    static JSValue js_native_set_filter_rules(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+
+    // fetch (9.1.1): starts the request through the host and returns a Promise
+    // that settle_fetch resolves later. The `fetch` a page sees is the prelude
+    // wrapper around this, which shapes the raw payload into a Response.
+    static JSValue js_native_fetch(JSContext* ctx, JSValueConst this_val, int argc, JSValueConst* argv);
+    // Builds the plain object the promise resolves with: status, url, headers,
+    // and the buffered body. Response/Headers ergonomics live in the prelude,
+    // so the binding stays a data hand-off.
+    JSValue make_fetch_payload(const ScriptFetchResponse& response);
+    // Rejects every in-flight fetch and forgets it. Called on teardown, so a
+    // request outstanding across a navigation cannot settle into a dead page.
+    void reject_pending_fetches();
 
     // Timers (7.3.1): window.setTimeout/setInterval/clearTimeout/clearInterval.
     // clearTimeout and clearInterval share one trampoline (both just cancel by id).
@@ -173,6 +209,11 @@ private:
     void release_document_state();
 
     void install_node_prototype();
+    // Exposes a DOM interface constructor carrying `proto`, so `instanceof`
+    // resolves against the same object wrappers actually inherit from.
+    void install_dom_interface(const char* name, JSValueConst proto);
+    // `Event` / `CustomEvent`, which pages construct and dispatch themselves.
+    void install_event_constructors();
     void install_token_list_prototype();
     void install_console_bindings();
     void install_document_bindings();
@@ -182,8 +223,14 @@ private:
     // (fetch, XMLHttpRequest, localStorage, ...) so a page that touches one logs
     // once via js_report_missing_api and no-ops instead of throwing (7.5.2).
     void install_failsoft_stubs();
+    // The JS half of fetch (9.1.1): Response/Headers over the native binding.
+    void install_fetch_prelude();
     // Records a deduped missing-API name (first-touch order) and logs it once.
     void record_missing_api(std::string name);
+    // Harvests `ReferenceError: X is not defined` out of a failed eval and
+    // records X as a missing API (9.5.2 follow-up). The stub list only finds
+    // gaps somebody predicted; this finds the ones that killed a script.
+    void record_missing_api_from_error(std::string_view error);
 
     // Registers a timer (repeating for setInterval) and returns its numeric id;
     // reads the callback, delay (ms, clamped to >= 0), and any trailing args from
@@ -210,7 +257,14 @@ private:
     // Points location at `url` and fires `hashchange` when the fragment changed.
     bool update_location(std::string_view url);
 
+    // Signature of a quickjs magic getter: (ctx, this, magic). Named so the
+    // reinterpret_cast in define_getter_magic has something honest to cast from.
+    using JSCFunctionMagicGetter = JSValue(JSContext*, JSValueConst, int);
+
     void define_getter(JSValueConst proto, const char* name, JSCFunction* getter);
+    // A read-only property whose getter carries `magic`, so several related
+    // properties can share one callback.
+    void define_getter_magic(JSValueConst target, const char* name, JSCFunctionMagicGetter* getter, int magic);
     void define_accessor(JSValueConst proto, const char* name, JSCFunction* getter, JSCFunction* setter);
     // Builds a Web Storage object (localStorage/sessionStorage) whose six members
     // carry `magic` so they route to the right area. Caller owns the returned ref.
@@ -260,6 +314,16 @@ private:
     JSValue document_object_ = JS_UNDEFINED;
     // Retained reference to the `window` object (EventTarget for hashchange etc.).
     JSValue window_object_ = JS_UNDEFINED;
+    // The DOM interface prototypes (T-JS-DOM-INTERFACES-1). Held so `wrap_node`
+    // can pick the right one per node kind: a text node must NOT inherit from
+    // HTMLElement, or `instanceof` would answer a question wrongly rather than
+    // not at all. HTMLElement.prototype is owned by the class (JS_SetClassProto)
+    // so it is not stored here; these two are the levels above it.
+    JSValue node_proto_ = JS_UNDEFINED;
+    JSValue element_proto_ = JS_UNDEFINED;
+    // Event.prototype, shared by page-constructed and engine-dispatched events
+    // so `instanceof Event` cannot depend on which of the two made it.
+    JSValue event_proto_ = JS_UNDEFINED;
     // Unique listeners_ keys for document- and window-level listeners.
     char document_target_marker_ = 0;
     char window_target_marker_ = 0;
@@ -268,6 +332,14 @@ private:
     // Set when a script assigns location.hash; consumed by the app to sync the
     // URL bar + tab history (7.7.3). Not set by app-initiated navigation.
     std::optional<std::string> script_location_change_;
+    // History API MVP (9.6.1). `history_state_` is the serialized state of the
+    // CURRENT entry — empty means null. It is per-document and dropped with the
+    // context, like every other per-document value.
+    std::string history_state_;
+    std::deque<HistoryChange> script_history_changes_;
+    size_t history_length_ = 1;
+    // A pending history.back()/forward()/go(n) delta the Tab has yet to apply.
+    std::optional<int> script_history_delta_;
     // Nesting depth of JS entry points (eval, event dispatch, timer/rAF
     // callback). A host callback can re-enter the engine while script is still
     // on the stack — JS element.focus() routes through IScriptHost and comes
@@ -325,6 +397,16 @@ private:
     // in first-touch order. Cleared per document by reset_bindings.
     std::vector<std::string> missing_apis_;
     bool failsoft_ready_ = false;
+
+    // In-flight fetches (9.1.1), keyed by the id the host handed back. Each owns
+    // the promise's resolve/reject functions, so the entry IS the only thing
+    // keeping the continuation alive. Dropped by reset_bindings, which is what
+    // makes "no callbacks fire into a dead page" true rather than hoped for.
+    struct PendingFetch {
+        JSValue resolve = JS_UNDEFINED;
+        JSValue reject = JS_UNDEFINED;
+    };
+    std::unordered_map<std::uint64_t, PendingFetch> pending_fetches_;
 };
 
 }  // namespace Hummingbird::Platform

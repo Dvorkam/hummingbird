@@ -33,6 +33,7 @@ public:
     void clear(const Hummingbird::Color&) override {}
     void present() override {}
     void fill_rect(const Rect&, const Hummingbird::Color&) override {}
+    void draw_image(Hummingbird::ResourceRef, const Rect&) override {}
     void draw_image(const Hummingbird::ImageBitmap&, const Rect&) override {}
     Hummingbird::TextMetrics measure_text(const std::string& text, const Hummingbird::TextStyle& style) override {
         const float font_size = style.font_size > 0.0f ? style.font_size : 16.0f;
@@ -113,9 +114,10 @@ TEST(TodoMvcTest, FullFlowDrivesThePinnedFixture) {
     ASSERT_TRUE(pipeline.parse_html(html));
     pipeline.set_location(base);
     pipeline.apply_styles_and_layout(graphics, viewport, base);
-    pipeline.run_scripts([&](std::string_view src) -> std::optional<std::string_view> {
-        if (src == "todomvc.js") return std::string_view(js);
-        return std::nullopt;
+    pipeline.run_scripts([&](std::string_view src) -> Hummingbird::Engine::ExternalScriptSource {
+        Hummingbird::Engine::ExternalScriptSource source;
+        if (src == "todomvc.js") source.body = std::string_view(js);
+        return source;
     });
 
     // Rebuilds layout, repaints, and reports whether `needle` appears in the

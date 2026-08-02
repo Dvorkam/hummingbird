@@ -8,6 +8,13 @@ void DisplayList::add_fill_rect(const Hummingbird::Layout::Rect& rect, const Col
     commands_.push_back(RenderCommandUtils::make_fill_rect(rect, color));
 }
 
+void DisplayList::add_draw_image(ResourceRef image, const Hummingbird::Layout::Rect& dest) {
+    if (!image.valid()) {
+        return;
+    }
+    commands_.push_back(RenderCommandUtils::make_draw_image(image, dest));
+}
+
 void DisplayList::add_draw_image(const ImageBitmap* image, const Hummingbird::Layout::Rect& dest) {
     if (!image) {
         return;

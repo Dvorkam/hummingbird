@@ -95,6 +95,13 @@ struct CookieRequestContext {
 
     // Set for `document.cookie` reads: HttpOnly cookies are withheld from JS.
     bool script_access = false;
+
+    // False for a request the Fetch standard says carries no credentials — a
+    // cross-origin fetch() at the default credentials mode (story 9.2.1). Such a
+    // request must neither SEND cookies nor STORE the response's Set-Cookie:
+    // storing would let a cross-origin request the page cannot even read still
+    // plant a cookie, which is the tracking hole "no credentials" exists to shut.
+    bool credentials_allowed = true;
 };
 
 // True when `request_host` and `initiator_host` are same-site: same registrable

@@ -292,6 +292,15 @@ P1: If Schedule Allows
 *(Added 2026-07-23, after the seznam.cz investigation. Filed in `doc/TODOs.md`
 under "Modern-portal CSS/layout gaps".)*
 
+> **The Hacker News reply arrived, 2026-08-02: they now allow non-mainstream user
+> agents.** HN was the reason browser identity and Compatibility mode were built
+> at all, and the whole M8 North Star — login, comment, restart-safe session —
+> now works under Hummingbird's **own** identity, with no escape hatch. That is
+> the outcome asking for it was aiming at, and it is worth recording that the
+> honest route was the one that eventually paid: the engine was never taught to
+> impersonate Chrome by default, and did not have to be. Compatibility mode
+> stays for the next server that behaves the way HN used to.
+
 **Why this exists.** While the v0.8.0 release waits on the Hacker News team's reply,
 seznam.cz was the first *modern flex+grid+absolute portal* pointed at the engine.
 It is a full compatibility-ladder target (M10 positioning/scroll + M12 SPA) — this

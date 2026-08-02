@@ -44,15 +44,21 @@ bool DocumentScripting::run_document_scripts(DocumentModel& model, const Externa
             sources.push_back({script.text, "inline"});
             continue;
         }
-        std::optional<std::string_view> body;
+        ExternalScriptSource source;
         if (external_lookup) {
-            body = external_lookup(script.src);
+            source = external_lookup(script.src);
         }
-        if (!body) {
-            HB_LOG_WARN("[script] external script skipped (not loaded): " << script.src);
+        if (!source.body) {
+            if (source.blocked_by_filter) {
+                // Not a warning: a filter rule refused this on purpose, and the
+                // `[filter] blocked` line already named the rule that did it.
+                HB_LOG_INFO("[script] external script blocked by filter: " << script.src);
+            } else {
+                HB_LOG_WARN("[script] external script skipped (not loaded): " << script.src);
+            }
             continue;
         }
-        sources.push_back({*body, script.src});
+        sources.push_back({*source.body, script.src});
     }
     return controller_->run_scripts(sources, model.dom_root(), model.dom_arena());
 }
@@ -105,6 +111,40 @@ bool DocumentScripting::has_pending_animation_frames() const {
 
 std::optional<std::string> DocumentScripting::consume_location_change() {
     return controller_->consume_location_change();
+}
+
+std::optional<IScriptEngine::HistoryChange> DocumentScripting::consume_history_change() {
+    return controller_->consume_history_change();
+}
+
+std::optional<int> DocumentScripting::consume_history_delta() {
+    return controller_->consume_history_delta();
+}
+
+void DocumentScripting::set_history_length(size_t length) {
+    controller_->set_history_length(length);
+}
+
+DocumentScripting::DispatchResult DocumentScripting::apply_popstate(DocumentModel& model, std::string_view url,
+                                                                    std::string_view state) {
+    auto result = controller_->apply_popstate(model.dom_root(), model.dom_arena(), url, state);
+    return {result.handled, result.mutated, result.default_prevented};
+}
+
+std::vector<std::string> DocumentScripting::missing_apis() const {
+    return controller_->missing_apis();
+}
+
+void DocumentScripting::set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink) {
+    controller_->set_fetch_sink(std::move(sink));
+}
+
+void DocumentScripting::set_url_resolver(std::function<std::string(std::string_view)> resolver) {
+    controller_->set_url_resolver(std::move(resolver));
+}
+
+bool DocumentScripting::settle_fetch(DocumentModel& model, const ScriptFetchResponse& response) {
+    return controller_->settle_fetch(model.dom_root(), model.dom_arena(), response);
 }
 
 }  // namespace Hummingbird::Engine

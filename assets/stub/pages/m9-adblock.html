@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+  <head>
+    <title>M9 - Ad Block Lite</title>
+    <link rel="stylesheet" href="https://ads.example.net/ads.css">
+    <style>
+      body { font-family: sans-serif; margin: 24px; max-width: 46em; color: #222; }
+      h1 { font-size: 22px; margin-bottom: 4px; }
+      h2 { font-size: 16px; margin-top: 28px; }
+      .lede { color: #555; }
+      .panel { border: 1px solid #ccc; padding: 12px 16px; margin: 16px 0; }
+      .panel--first { border-left: 4px solid #2a7; }
+      .panel--third { border-left: 4px solid #d84; }
+      code { background: #f2f2f2; padding: 1px 4px; }
+      #tracker-slot span { display: inline-block; margin-right: 6px; color: #999; font-size: 11px; }
+      table { border-collapse: collapse; margin-top: 8px; }
+      td, th { border: 1px solid #ddd; padding: 4px 8px; text-align: left; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <h1>Ad Block Lite</h1>
+    <p class="lede">
+      Added in M9 (stories 9.4.1 / 9.4.2). Requests are matched against declarative
+      rules natively, before anything is sent. No extension JavaScript runs on the
+      request path.
+    </p>
+
+    <p><strong>An ad blocker cannot be shown with pixels.</strong> Blocking is the
+    absence of something, so this page tells you what should be missing and the log
+    tells you whether it was. Read this page next to the log.</p>
+
+    <div class="panel panel--first">
+      <h2>First-party content (must always render)</h2>
+      <p id="first-party">
+        This paragraph comes from <code>example.dev</code>. It must look identical
+        whether the blocker is on or off &mdash; a blocker that changes the page it
+        is protecting has failed.
+      </p>
+    </div>
+
+    <div class="panel panel--third">
+      <h2>Third-party content (blocked when the extension is on)</h2>
+      <p>Three resources are requested from <code>ads.example.net</code>, which is a
+      different site from this one and therefore third-party:</p>
+      <table>
+        <tr><th>Resource</th><th>Type</th><th>What it proves</th></tr>
+        <tr><td><code>/ads.css</code></td><td>stylesheet</td><td>the panel border above stays plain</td></tr>
+        <tr><td><code>/analytics.js</code></td><td>script</td><td>the nodes below never appear</td></tr>
+        <tr><td><code>/pixel.png</code></td><td>image</td><td>the tracking pixel is never fetched</td></tr>
+      </table>
+
+      <p>Nodes appended by the third-party script:</p>
+      <div id="tracker-slot"></div>
+      <p><img id="tracking-pixel" src="https://ads.example.net/pixel.png" width="1" height="1" alt=""></p>
+    </div>
+
+    <h2>How to check it</h2>
+    <p>The extension is enabled by default. To compare, disable it in
+    <code>assets/config/browser.ini</code>:</p>
+    <pre><code>[extensions]
+ad-block-lite = disabled</code></pre>
+
+    <table>
+      <tr><th>What to look for</th><th>Blocker ON</th><th>Blocker OFF</th></tr>
+      <tr><td><code>[filter] blocked</code> in the log</td><td>3 or more</td><td>absent</td></tr>
+      <tr><td>Nodes under &ldquo;appended by the third-party script&rdquo;</td><td>none</td><td>25</td></tr>
+      <tr><td>Third-party panel background</td><td>white</td><td>yellow</td></tr>
+      <tr><td>Missing-API warnings in the log</td><td>fewer</td><td>more</td></tr>
+      <tr><td>First-party paragraph above</td><td colspan="2">identical in both</td></tr>
+    </table>
+
+    <p class="lede">The last row is the one that matters most: the measurable win is
+    real only if the page it protects is unharmed.</p>
+
+    <p><a href="https://example.dev">Back to example.dev</a></p>
+
+    <script src="https://ads.example.net/analytics.js"></script>
+  </body>
+</html>

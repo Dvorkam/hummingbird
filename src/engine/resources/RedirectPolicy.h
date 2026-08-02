@@ -16,9 +16,9 @@ inline constexpr int kMaxHops = 20;
 struct Decision {
     // Absolute URL of the next hop, resolved against the current one.
     std::string url;
-    // Whether the next hop stays a POST carrying the same body. When false the
-    // request is rewritten to GET and the body dropped.
-    bool keep_post = false;
+    // Method for the next hop. The caller preserves the body exactly when this
+    // equals the current method; a rewrite to GET drops it.
+    std::string method;
 };
 
 inline bool is_redirect_status(long status) {
@@ -29,13 +29,12 @@ inline bool is_redirect_status(long status) {
 // the rewrite to GET; 301/302 are specified as method-preserving but every
 // browser rewrites POST to GET for them, and sites depend on that, so we match
 // browsers rather than the letter of the spec. This is a deliberate deviation.
-inline bool preserves_method(long status) {
-    return status == 307 || status == 308;
-}
+std::string redirect_method(long status, std::string_view current_method);
 
 // Returns the next hop, or nullopt when this response is not a followable
 // redirect (not a 3xx we handle, or no usable Location — in which case the
 // response is delivered to the caller as-is, like a browser would).
-std::optional<Decision> decide(long status, std::string_view location, std::string_view current_url, bool was_post);
+std::optional<Decision> decide(long status, std::string_view location, std::string_view current_url,
+                               std::string_view current_method);
 
 }  // namespace Hummingbird::Engine::RedirectPolicy

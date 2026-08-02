@@ -913,18 +913,20 @@ TEST(ScriptEngineTest, MissingApiTelemetryIsFailSoftAndDeduped) {
 
     auto result = engine->eval(
         "globalThis.ran = 0;"
-        "fetch('/a'); fetch('/b');"                                     // reported once
-        "matchMedia('(min-width:0)'); matchMedia('(max-width:0)');"     // reported once (still a stub)
-        "var x = new XMLHttpRequest(); x.open('GET', '/'); x.send();"   // reported once
-        "globalThis.ran = 1;",                                          // proves no abort
+        "fetch('/a'); fetch('/b');"                                    // real since 9.1.1: NOT reported
+        "matchMedia('(min-width:0)'); matchMedia('(max-width:0)');"    // reported once (still a stub)
+        "var x = new XMLHttpRequest(); x.open('GET', '/'); x.send();"  // reported once
+        "globalThis.ran = 1;",                                         // proves no abort
         "inline");
     EXPECT_TRUE(result.ok) << result.error;
     ASSERT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
 
-    // Deduped, in first-touch order. localStorage AND sessionStorage are NOT here:
-    // both became real (if inert, with no store) APIs in 8.2.2 / 8.2.3, so they no
-    // longer report missing. matchMedia stays a fail-soft stub.
-    EXPECT_EQ(engine->missing_apis(), (std::vector<std::string>{"fetch", "matchMedia", "XMLHttpRequest"}));
+    // Deduped, in first-touch order. localStorage and sessionStorage are NOT here:
+    // both became real (if inert, with no store) APIs in 8.2.2 / 8.2.3. `fetch`
+    // left this list in 9.1.1 for the same reason — and note the calls above do
+    // not hang: with no fetch sink wired up, the binding REJECTS rather than
+    // returning the never-settling promise the old stub handed back.
+    EXPECT_EQ(engine->missing_apis(), (std::vector<std::string>{"matchMedia", "XMLHttpRequest"}));
 
     // Telemetry is per-document: navigation teardown clears it.
     engine->reset_bindings();
@@ -1033,4 +1035,814 @@ TEST(ScriptEngineTest, AnimationFramesCanceledOnNavigationTeardown) {
     fx.engine->reset_bindings();
     EXPECT_FALSE(fx.engine->has_pending_animation_frames());
     EXPECT_FALSE(fx.engine->run_animation_frames(16.0));
+}
+
+// T-JS-MISSING-API-COVERAGE-1: the widened reporting surface. Before this the
+// prelude reported four names, two of which (localStorage/sessionStorage) cover
+// features implemented in 8.2.2/8.2.3 and so never fire — leaving exactly two
+// observable APIs to derive M12's scope from.
+//
+// The critical property is not that each reports, it is that each is USED the
+// way a page uses it and still does not throw. A stub that reports and then
+// dies on the next line is worse than no stub: the page fails anyway, and the
+// telemetry claims it was handled.
+TEST(ScriptEngineTest, WidenedFailSoftStubsReportAndSurviveRealisticUse) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "globalThis.ran = 0;"
+        // Observers: construct, then call the methods a page calls on them.
+        "var io = new IntersectionObserver(function () {});"
+        "io.observe({}); io.unobserve({}); io.takeRecords(); io.disconnect();"
+        "var mo = new MutationObserver(function () {}); mo.observe({}, {}); mo.disconnect();"
+        "var ro = new ResizeObserver(function () {}); ro.observe({}); ro.disconnect();"
+        // Custom elements: define + get, the two a page actually reaches for.
+        "customElements.define('x-thing', function () {}); customElements.get('x-thing');"
+        // WebSocket: construct and use, including the state a page branches on.
+        "var ws = new WebSocket('wss://example.test/s'); ws.send('hi'); ws.close();"
+        "globalThis.wsClosed = (ws.readyState === WebSocket.CLOSED);"
+        "getComputedStyle({}).getPropertyValue('width');"
+        "globalThis.ua = navigator.userAgent;"
+        "alert('x'); globalThis.confirmed = confirm('y'); globalThis.prompted = prompt('z');"
+        "globalThis.cloned = structuredClone({ a: [1, 2] }).a[1];"
+        "globalThis.ran = 1;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+    ASSERT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
+
+    // The values pages branch on must be honest, not merely present.
+    EXPECT_TRUE(engine->eval("if (!globalThis.wsClosed) throw new Error('socket claimed to be open');", "inline").ok)
+        << "a stub socket must report CLOSED, never pretend a connection exists";
+    EXPECT_TRUE(engine->eval("if (globalThis.ua !== '') throw new Error('fabricated a user agent');", "inline").ok)
+        << "navigator.userAgent stays empty: M8 owns identity, and a second answer here would contradict it";
+    EXPECT_TRUE(engine->eval("if (globalThis.confirmed !== false) throw new Error('confirm said yes');", "inline").ok)
+        << "no dialog surface exists, so the user cannot have agreed to anything";
+    EXPECT_TRUE(
+        engine->eval("if (globalThis.prompted !== null) throw new Error('prompt invented input');", "inline").ok);
+    EXPECT_TRUE(engine->eval("if (globalThis.cloned !== 2) throw new Error('structuredClone lost data');", "inline").ok)
+        << "a JSON-shaped clone must actually deep-copy";
+
+    const auto reported = engine->missing_apis();
+    const auto reported_has = [&](const char* name) {
+        return std::find(reported.begin(), reported.end(), name) != reported.end();
+    };
+    for (const char* name :
+         {"IntersectionObserver", "MutationObserver", "ResizeObserver", "customElements", "WebSocket",
+          "getComputedStyle", "navigator.userAgent", "alert", "confirm", "prompt", "structuredClone"}) {
+        EXPECT_TRUE(reported_has(name)) << name << " was used but never reported";
+    }
+    // Deduped per document even though customElements was touched twice.
+    EXPECT_EQ(std::count(reported.begin(), reported.end(), std::string("customElements")), 1);
+}
+
+// requestIdleCallback is the one stub that must actually RUN its callback.
+// Pages defer real initialization into it; dropping the callback leaves the
+// page half-built with no error to explain why.
+TEST(ScriptEngineTest, RequestIdleCallbackStubStillRunsTheCallback) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    ASSERT_TRUE(engine
+                    ->eval("globalThis.idle = 0;"
+                           "requestIdleCallback(function (deadline) {"
+                           "  globalThis.idle = deadline.timeRemaining() === 0 ? 2 : 1;"
+                           "});",
+                           "inline")
+                    .ok);
+    EXPECT_TRUE(engine->eval("if (globalThis.idle !== 0) throw new Error('ran synchronously');", "inline").ok)
+        << "an idle callback must not run inside the call that scheduled it";
+
+    EXPECT_TRUE(engine->run_due_timers(1000.0));
+    EXPECT_TRUE(engine->eval("if (globalThis.idle !== 2) throw new Error('callback never ran');", "inline").ok);
+}
+
+// A real implementation landing later must win over its stub. The `typeof`
+// guard is what makes that true, and it is the reason a stub can be added
+// without scheduling its own removal.
+TEST(ScriptEngineTest, FailSoftStubsNeverOverwriteARealImplementation) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    // `fetch` is real since 9.1.1 and installed before the prelude runs, so it
+    // is the live proof that the guard holds rather than a synthetic one.
+    ASSERT_TRUE(engine->eval("globalThis.kind = typeof fetch;", "inline").ok);
+    EXPECT_TRUE(engine->eval("if (globalThis.kind !== 'function') throw new Error('fetch missing');", "inline").ok);
+    EXPECT_TRUE(engine->missing_apis().empty()) << "a real API must not be reported as missing";
+}
+
+// Story 9.5.2 follow-up, driven by a real log rather than a guess. A live sweep
+// over wikipedia.org / hn.algolia.com produced only TWO `[missing-api]` lines
+// from the 14-name stub list, while the same run showed scripts dying on
+// `ReferenceError: Element is not defined`. The stub list can only report gaps
+// somebody predicted; the ReferenceErrors name the ones nobody did.
+TEST(ScriptEngineTest, ReferenceErrorsAreHarvestedAsMissingApis) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    // This originally used `Element`, which is the exact failure wikipedia.org's
+    // bundle hit — and it now EXISTS (T-JS-DOM-INTERFACES-1), so the example had
+    // to move to an interface that is still genuinely absent. That is the test
+    // working: it pins the harvesting MECHANISM, and the mechanism must keep
+    // being demonstrated against something real rather than against a name we
+    // have since implemented.
+    EXPECT_FALSE(engine->eval("HTMLInputElement.prototype.foo = function () {};", "index.js").ok);
+
+    const auto reported = engine->missing_apis();
+    ASSERT_EQ(reported.size(), 1u);
+    // The suffix matters: a stub hit means the page carried on without the
+    // feature, this means the script DIED and nothing after it ran. A triage
+    // that merged the two would rank a fatal gap alongside a handled one.
+    EXPECT_EQ(reported[0], "HTMLInputElement (ReferenceError)");
+}
+
+// Minified bundles throw on their own mangled locals. `aa is not defined` was
+// in the same live log and says nothing about this engine, so it must not
+// pollute the count the next milestone's scope is chosen from.
+TEST(ScriptEngineTest, MinifiedLocalsAreNotMistakenForMissingApis) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    EXPECT_FALSE(engine->eval("aa.b = 1;", "inline").ok);
+    EXPECT_FALSE(engine->eval("x();", "inline").ok);
+    EXPECT_TRUE(engine->missing_apis().empty()) << "short mangled locals are noise, not findings";
+
+    // A non-ReferenceError failure is not a missing API either — the same log
+    // had `Error: Invariant failed` from a framework's own assertion.
+    EXPECT_FALSE(engine->eval("throw new Error('Invariant failed');", "main.js").ok);
+    EXPECT_TRUE(engine->missing_apis().empty());
+}
+
+// `navigator` existing is not enough if its shape is wrong: the live sweep
+// caught Google Tag Manager doing `.indexOf` on a navigator field and dying on
+// `undefined`. The string-typed fields must be strings.
+TEST(ScriptEngineTest, NavigatorStubFieldsAreStringsNotUndefined) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "globalThis.probed = 0;"
+        "var n = navigator;"
+        "n.userAgent.indexOf('x'); n.appVersion.indexOf('x'); n.platform.indexOf('x');"
+        "n.vendor.indexOf('x'); n.product.indexOf('x'); n.appName.indexOf('x');"
+        "n.language.indexOf('x');"
+        "globalThis.probed = 1;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+    EXPECT_TRUE(engine->eval("if (globalThis.probed !== 1) throw new Error('died');", "inline").ok);
+}
+
+// T-JS-DOM-INTERFACES-1. `HTMLElement` and `Element` were ReferenceErrors —
+// seznam.cz hit `HTMLElement` on every single load of the live sweep, and
+// wikipedia.org's portal hit `Element`. A ReferenceError kills the rest of the
+// script, so these were fatal rather than merely absent.
+//
+// The bar is not "the name resolves". It is that the answers are RIGHT: pages
+// do not only call these, they ask questions of them, and a wrong `instanceof`
+// sends a page silently down the wrong branch — worse than the error it
+// replaced.
+TEST(ScriptEngineTest, DomInterfacesExistAndInstanceofAnswersCorrectly) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var el = document.createElement('p');"
+        // An element is all three, because the prototypes form a real chain.
+        "check('el-is-HTMLElement', el instanceof HTMLElement);"
+        "check('el-is-Element', el instanceof Element);"
+        "check('el-is-Node', el instanceof Node);"
+        // The chain is genuinely nested, not three aliases for one object.
+        "check('chain', HTMLElement.prototype !== Element.prototype);"
+        "check('chain2', Element.prototype !== Node.prototype);"
+        "check('proto-of', Object.getPrototypeOf(HTMLElement.prototype) === Element.prototype);"
+        "check('proto-of2', Object.getPrototypeOf(Element.prototype) === Node.prototype);"
+        // Members resolve through the chain from wherever they were defined.
+        "check('node-member', typeof el.appendChild === 'function');"
+        "check('element-member', typeof el.setAttribute === 'function');"
+        "check('html-member', typeof el.focus === 'function');"
+        // Prototype patching, which is what the failing pages were doing.
+        "Element.prototype.hbPatched = function () { return 'patched'; };"
+        "check('patch', el.hbPatched() === 'patched');"
+        // Browsers throw here; a stub returning an object would hand back
+        // something that looks like an element and is not one.
+        "var threw = false;"
+        "try { new HTMLElement(); } catch (e) { threw = true; }"
+        "check('illegal-constructor', threw);"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
+// EventTarget was deliberately left out of the first chain, on the reasoning
+// that nothing had asked for it. seznam.cz asked in the next sweep, about an
+// hour later.
+TEST(ScriptEngineTest, EventTargetIsTheBaseOfTheNodeChain) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var el = document.createElement('p');"
+        "check('el-is-EventTarget', el instanceof EventTarget);"
+        "check('chain', Object.getPrototypeOf(Node.prototype) === EventTarget.prototype);"
+        // The listener methods moved down a level; they must still resolve.
+        "check('addEventListener', typeof el.addEventListener === 'function');"
+        "check('on-prototype', EventTarget.prototype.hasOwnProperty('addEventListener'));"
+        "check('not-on-node', !Node.prototype.hasOwnProperty('addEventListener'));"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
+// `new CustomEvent('x', { detail })` then `dispatchEvent` is how one component
+// signals another. Both constructors were ReferenceErrors, so a page doing it
+// died on the spot.
+TEST(ScriptEngineTest, PagesCanConstructAndDispatchTheirOwnEvents) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var e = new CustomEvent('hb:ping', { detail: { n: 42 }, bubbles: true });"
+        "check('type', e.type === 'hb:ping');"
+        "check('detail', e.detail.n === 42);"
+        "check('bubbles', e.bubbles === true);"
+        "check('is-CustomEvent', e instanceof CustomEvent);"
+        "check('is-Event', e instanceof Event);"
+        "var plain = new Event('hb:plain');"
+        "check('plain-not-custom', !(plain instanceof CustomEvent));"
+        "check('plain-detail-absent', plain.detail === undefined);"
+        // Browsers throw without the operator and without a type.
+        "var threw = false; try { CustomEvent('x'); } catch (err) { threw = true; }"
+        "check('needs-new', threw);"
+        "var threw2 = false; try { new Event(); } catch (err) { threw2 = true; }"
+        "check('needs-type', threw2);"
+        // The round trip: a listener must receive the detail the sender put in,
+        // which is the only reason CustomEvent exists.
+        "var seen = null;"
+        "var el = document.createElement('div');"
+        "el.addEventListener('hb:ping', function (ev) { seen = ev; });"
+        "el.dispatchEvent(new CustomEvent('hb:ping', { detail: { n: 7 } }));"
+        "check('listener-ran', seen !== null);"
+        "check('detail-survived', seen.detail && seen.detail.n === 7);"
+        // An engine-dispatched event must answer instanceof the same way a
+        // page-made one does, or a listener cannot trust the check at all.
+        "check('dispatched-is-Event', seen instanceof Event);"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
+// The half that makes `instanceof` worth having: it must also say NO.
+TEST(ScriptEngineTest, ATextNodeIsANodeButNotAnElement) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "var host = document.createElement('div');"
+        "host.textContent = 'hello';"
+        "var text = host.firstChild;"
+        "check('have-text-node', text !== null && text.nodeType === 3);"
+        "check('text-is-Node', text instanceof Node);"
+        // If every wrapper shared one prototype these two would be true, and a
+        // page filtering childNodes by `instanceof Element` would pick up text.
+        "check('text-is-not-Element', !(text instanceof Element));"
+        "check('text-is-not-HTMLElement', !(text instanceof HTMLElement));"
+        // A text node still gets its own interface's members.
+        "check('text-has-node-members', typeof text.textContent === 'string');"
+        // And must NOT get the element-only ones.
+        "check('text-has-no-setAttribute', typeof text.setAttribute === 'undefined');"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
+// T-JS-WINDOW-IS-GLOBAL-1. `window` used to be a separate object with a
+// hand-mirrored subset of globals, so anything not on that list was missing from
+// it. A browser has one object: window === globalThis.
+TEST(ScriptEngineTest, WindowIsTheGlobalObjectSoEveryGlobalIsReachableBothWays) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "function check(n, c) { if (!c) throw new Error('failed: ' + n); }"
+        "check('window-is-global', window === globalThis);"
+        "check('window.window', window.window === window);"
+        // `self` names the same object. Library code that must also run in a
+        // worker (where there is no `window`) writes `self`, which is most
+        // bundled script — it was a ReferenceError on seznam.cz on every load
+        // of the live sweep, killing the script that touched it.
+        "check('self', self === globalThis);"
+        "check('self-is-window', self === window);"
+        "check('window.self', window.self === window);"
+        // The ones that were missing, and the reason this story exists. Identity
+        // rather than typeof: a mirrored copy would pass a typeof check.
+        "check('console', window.console === console);"
+        "check('document', window.document === document);"
+        "check('location', window.location === location);"
+        "check('fetch', window.fetch === fetch);"
+        "check('navigator', window.navigator === navigator);"
+        "check('matchMedia', window.matchMedia === matchMedia);"
+        "check('setTimeout', window.setTimeout === setTimeout);"
+        "check('localStorage', window.localStorage === localStorage);"
+        // Everything T-JS-MISSING-API-COVERAGE-1 added comes along for free,
+        // which is the point: the mirror list can no longer fall behind.
+        "check('IntersectionObserver', window.IntersectionObserver === IntersectionObserver);"
+        "check('MutationObserver', window.MutationObserver === MutationObserver);"
+        "check('customElements', window.customElements === customElements);"
+        "check('WebSocket', window.WebSocket === WebSocket);"
+        "check('structuredClone', window.structuredClone === structuredClone);"
+        "check('URL', window.URL === URL);"
+        // A global assigned through `window` is a bare global, and the reverse.
+        "window.hbViaWindow = 'w'; check('alias-out', hbViaWindow === 'w');"
+        "globalThis.hbViaGlobal = 'g'; check('alias-in', window.hbViaGlobal === 'g');"
+        "true;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+}
+
+// The exact live failure this fixes: MediaWiki's startup module died with
+// "TypeError: cannot read property 'warn' of undefined" on
+// /w/load.php?...modules=startup, which is the shape of window.console.warn.
+TEST(ScriptEngineTest, WindowConsoleIsUsableLikeAPageExpects) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    const auto result = engine->eval(
+        "globalThis.ran = 0;"
+        "window.console.warn('from window.console');"
+        "window.console.log('and log');"
+        "var con = window.console || {};"
+        "if (typeof con.warn !== 'function') { throw new Error('no warn'); }"
+        "globalThis.ran = 1;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+    EXPECT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
+    // And it is not reported as a missing API, because it is really there.
+    EXPECT_TRUE(engine->missing_apis().empty());
+}
+
+// A bare `addEventListener` is window.addEventListener. It used to be a
+// ReferenceError, because the trio lived only on the separate window object.
+TEST(ScriptEngineTest, BareAddEventListenerRegistersOnWindow) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/page#one");
+
+    ASSERT_TRUE(engine
+                    ->eval("globalThis.seen = [];"
+                           // Bare call — no `window.` prefix.
+                           "addEventListener('hashchange', function (e) { globalThis.seen.push(e.newURL); });",
+                           "inline")
+                    .ok);
+
+    EXPECT_TRUE(engine->navigate_fragment("https://example.dev/page#two"));
+    const auto check = engine->eval(
+        "if (globalThis.seen.length !== 1) throw new Error('listener never fired');"
+        "if (globalThis.seen[0] !== 'https://example.dev/page#two') throw new Error('wrong url');"
+        "true;",
+        "inline");
+    EXPECT_TRUE(check.ok) << check.error;
+}
+
+// window is now the isolation surface too: since it IS the global, 9.0.2's
+// per-document teardown must wipe it. Worth asserting explicitly — the identity
+// change would otherwise be a quiet way to reintroduce cross-document leakage.
+TEST(ScriptEngineTest, WindowPropertiesDoNotSurviveIntoTheNextDocument) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    ASSERT_TRUE(engine->eval("window.hbLeak = 'from page A';", "inline").ok);
+    ASSERT_TRUE(engine->eval("if (window.hbLeak !== 'from page A') throw new Error('not set');", "inline").ok);
+
+    engine->reset_bindings();  // navigation teardown
+    engine->bind_host(&host);
+
+    const auto after = engine->eval(
+        "if (typeof window.hbLeak !== 'undefined') throw new Error('leaked: ' + window.hbLeak);"
+        "if (window !== globalThis) throw new Error('window lost its self-reference');"
+        "true;",
+        "inline");
+    EXPECT_TRUE(after.ok) << after.error;
+}
+
+// `console` had exactly one method. An object existing is not the same as it
+// being usable: console.warn -- which MediaWiki's startup module calls -- was
+// "not a function", so fixing window.console alone would have moved the same
+// page's death one line later.
+TEST(ScriptEngineTest, ConsoleExposesTheMethodsPagesActuallyCall) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    // Every method is called the way a page calls it, not merely typeof-checked:
+    // a missing one must fail here rather than on somebody's real page.
+    const auto result = engine->eval(
+        "globalThis.ran = 0;"
+        "var names = ['log','info','debug','warn','error','trace','dir','table',"
+        "             'group','groupCollapsed','groupEnd','time','timeEnd','timeLog','count','assert'];"
+        "for (var i = 0; i < names.length; i++) {"
+        "  if (typeof console[names[i]] !== 'function') { throw new Error('missing console.' + names[i]); }"
+        "  console[names[i]]('probe ' + names[i]);"
+        "}"
+        // Multiple arguments and non-strings must not throw either.
+        "console.log('a', 1, true, null, undefined, { k: 'v' }, [1, 2]);"
+        "console.warn();"
+        "globalThis.ran = 1;",
+        "inline");
+    ASSERT_TRUE(result.ok) << result.error;
+    EXPECT_TRUE(engine->eval("if (globalThis.ran !== 1) throw new Error('script aborted');", "inline").ok);
+    EXPECT_TRUE(engine->missing_apis().empty()) << "console is real, so nothing should be reported missing";
+}
+
+// --- History API MVP (story 9.6.1) -----------------------------------------
+
+// pushState is a session-history operation, not a navigation: it must move
+// `location` immediately, report itself for the Tab to record, and fire NO
+// hashchange even when the fragment differs.
+TEST(ScriptEngineTest, PushStateMovesLocationAndReportsTheEntry) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    ASSERT_TRUE(engine
+                    ->eval("globalThis.hashFired = 0;"
+                           "addEventListener('hashchange', function () { globalThis.hashFired++; });"
+                           "history.pushState({ id: 7, tag: 'detail' }, '', '/app/detail/7#frag');",
+                           "inline")
+                    .ok);
+
+    // location is updated in place, synchronously, before the Tab hears anything.
+    const auto check = engine->eval(
+        "if (location.href !== 'https://example.dev/app/detail/7#frag') throw new Error('href: ' + location.href);"
+        "if (history.state.id !== 7) throw new Error('state.id');"
+        "if (history.state.tag !== 'detail') throw new Error('state.tag');"
+        // A pushState is not a fragment navigation, so hashchange must stay quiet
+        // even though the fragment went from nothing to '#frag'.
+        "if (globalThis.hashFired !== 0) throw new Error('hashchange fired for a pushState');"
+        "true;",
+        "inline");
+    EXPECT_TRUE(check.ok) << check.error;
+
+    const auto change = engine->consume_history_change();
+    ASSERT_TRUE(change.has_value());
+    EXPECT_EQ(change->url, "https://example.dev/app/detail/7#frag") << "the URL must be resolved, not relative";
+    EXPECT_FALSE(change->replace);
+    EXPECT_NE(change->state.find("\"id\":7"), std::string::npos) << "state serialized as JSON: " << change->state;
+    // Drained once, like every other consume_* on this port.
+    EXPECT_FALSE(engine->consume_history_change().has_value());
+}
+
+TEST(ScriptEngineTest, ReplaceStateIsReportedAsAReplacement) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    ASSERT_TRUE(engine->eval("history.replaceState({ v: 1 }, '', '/app/list?page=2');", "inline").ok);
+    const auto change = engine->consume_history_change();
+    ASSERT_TRUE(change.has_value());
+    EXPECT_TRUE(change->replace);
+    EXPECT_EQ(change->url, "https://example.dev/app/list?page=2");
+}
+
+// A same-document history operation may change path/query/fragment, but never
+// origin. Otherwise the old document keeps running while location, storage,
+// cookies and fetch all start identifying it as the target origin.
+TEST(ScriptEngineTest, PushStateRejectsACrossOriginUrlWithoutChangingState) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    const auto result = engine->eval(
+        "var caught = null;"
+        "try { history.pushState({ stolen: true }, '', 'https://victim.test/private'); }"
+        "catch (error) { caught = error; }"
+        "if (!caught || caught.name !== 'SecurityError') throw new Error('missing SecurityError');"
+        "if (location.href !== 'https://example.dev/app/list') throw new Error('location changed');"
+        "if (history.state !== null) throw new Error('history state changed');",
+        "inline");
+
+    EXPECT_TRUE(result.ok) << result.error;
+    EXPECT_FALSE(engine->consume_history_change().has_value()) << "a rejected URL must not reach the Tab";
+}
+
+TEST(ScriptEngineTest, SynchronousPushStateCallsPreserveEveryEntryInOrder) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    ASSERT_TRUE(engine
+                    ->eval("history.pushState({ step: 1 }, '', 'one');"
+                           "history.pushState({ step: 2 }, '', 'two');",
+                           "inline")
+                    .ok);
+
+    const auto first = engine->consume_history_change();
+    ASSERT_TRUE(first.has_value());
+    EXPECT_EQ(first->url, "https://example.dev/app/one");
+    EXPECT_NE(first->state.find("\"step\":1"), std::string::npos);
+
+    const auto second = engine->consume_history_change();
+    ASSERT_TRUE(second.has_value());
+    EXPECT_EQ(second->url, "https://example.dev/app/two");
+    EXPECT_NE(second->state.find("\"step\":2"), std::string::npos);
+    EXPECT_FALSE(engine->consume_history_change().has_value());
+}
+
+// An omitted url means "keep the current one", and null/undefined state is null
+// rather than the string "null" — a page can legitimately store that string.
+TEST(ScriptEngineTest, PushStateDefaultsUrlAndDistinguishesNullState) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    ASSERT_TRUE(engine->eval("history.pushState(null, '');", "inline").ok);
+    auto change = engine->consume_history_change();
+    ASSERT_TRUE(change.has_value());
+    EXPECT_EQ(change->url, "https://example.dev/app/list") << "an omitted url keeps the current one";
+    EXPECT_TRUE(change->state.empty()) << "null state is stored as absent, not as the text null";
+    EXPECT_TRUE(engine->eval("if (history.state !== null) throw new Error('state should be null');", "inline").ok);
+
+    // A page that really stores the STRING gets it back as a string.
+    ASSERT_TRUE(engine->eval("history.pushState('null', '');", "inline").ok);
+    EXPECT_TRUE(engine->eval("if (history.state !== 'null') throw new Error('lost the string');", "inline").ok);
+}
+
+// popstate is the app telling the page it traversed: state comes back, location
+// moves, and the listener's DOM changes are visible to the caller.
+TEST(ScriptEngineTest, ApplyPopstateRestoresStateAndFiresTheEvent) {
+    Hummingbird::Core::ArenaAllocator arena(8192, 8);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    auto out_el = Hummingbird::DOM::Element::create(arena, "div");
+    out_el->set_attribute("id", "view");
+    root->append_child(std::move(out_el));
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/detail/7");
+
+    ASSERT_TRUE(engine
+                    ->eval("addEventListener('popstate', function (e) {"
+                           "  document.getElementById('view').textContent ="
+                           "    'route:' + (e.state ? e.state.route : 'none') + ' at ' + location.href;"
+                           "});",
+                           "inline")
+                    .ok);
+
+    EXPECT_TRUE(engine->apply_popstate("https://example.dev/app/list", "{\"route\":\"list\"}"));
+
+    auto* view = host.get_element_by_id("view");
+    ASSERT_NE(view, nullptr);
+    EXPECT_EQ(host.get_text_content(view), "route:list at https://example.dev/app/list")
+        << "the listener must see both the restored state and the new location";
+    EXPECT_TRUE(
+        engine->eval("if (history.state.route !== 'list') throw new Error('state not restored');", "inline").ok);
+    // A traversal is app-driven, so it must NOT report back as a script change —
+    // otherwise the Tab would re-push the entry it just moved to.
+    EXPECT_FALSE(engine->consume_history_change().has_value());
+}
+
+// back()/forward()/go() only record a delta; the Tab owns traversal.
+TEST(ScriptEngineTest, HistoryTraversalMethodsRecordADelta) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+
+    ASSERT_TRUE(engine->eval("history.back();", "inline").ok);
+    EXPECT_EQ(engine->consume_history_delta(), -1);
+    EXPECT_FALSE(engine->consume_history_delta().has_value()) << "drained once";
+
+    ASSERT_TRUE(engine->eval("history.forward();", "inline").ok);
+    EXPECT_EQ(engine->consume_history_delta(), 1);
+
+    ASSERT_TRUE(engine->eval("history.go(-3);", "inline").ok);
+    EXPECT_EQ(engine->consume_history_delta(), -3);
+
+    // go(0) reloads in a browser; the MVP declines rather than half-implementing it.
+    ASSERT_TRUE(engine->eval("history.go(0);", "inline").ok);
+    EXPECT_FALSE(engine->consume_history_delta().has_value());
+
+    engine->set_history_length(4);
+    EXPECT_TRUE(engine->eval("if (history.length !== 4) throw new Error('length: ' + history.length);", "inline").ok);
+}
+
+// A state object that cannot be serialized is a DataCloneError in the spec.
+// Reporting it beats silently storing something the page did not ask for.
+TEST(ScriptEngineTest, PushStateRejectsUnserializableState) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app");
+
+    // A cycle cannot be JSON-serialized.
+    const auto result = engine->eval("var a = {}; a.self = a; history.pushState(a, '', '/x');", "inline");
+    EXPECT_FALSE(result.ok) << "an unserializable state must throw, not store garbage";
+    EXPECT_FALSE(engine->consume_history_change().has_value()) << "and must not record an entry";
+}
+
+// `location` had only href and hash, so `location.pathname` was undefined and
+// routing code calling `.split()` on it threw. Found by manual testing of the
+// 9.6.1 demo: going Back onto the document's own entry fires popstate with null
+// state, the page falls back to reading the route out of the URL, and that is
+// where it died.
+TEST(ScriptEngineTest, LocationExposesTheUrlComponentsPagesRead) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://app.test:8443/m9/detail/42?sort=new&page=2#comments");
+
+    const auto result = engine->eval(
+        "function check(n, a, b) { if (a !== b) throw new Error(n + ': got ' + a + ' want ' + b); }"
+        "check('href', location.href, 'https://app.test:8443/m9/detail/42?sort=new&page=2#comments');"
+        "check('protocol', location.protocol, 'https:');"
+        "check('host', location.host, 'app.test:8443');"
+        "check('hostname', location.hostname, 'app.test');"
+        "check('port', location.port, '8443');"
+        // The one the demo actually needed: no query, no fragment.
+        "check('pathname', location.pathname, '/m9/detail/42');"
+        "check('search', location.search, '?sort=new&page=2');"
+        "check('hash', location.hash, '#comments');"
+        "check('origin', location.origin, 'https://app.test:8443');"
+        // The idiom that threw before this fix.
+        "check('split', location.pathname.split('/detail/')[1], '42');"
+        "check('toString', String(location), location.href);"
+        "true;",
+        "inline");
+    EXPECT_TRUE(result.ok) << result.error;
+}
+
+// A default port reports empty, which is what a browser does — a page comparing
+// location.port to '' must not see '443'.
+TEST(ScriptEngineTest, LocationOmitsADefaultPortAndHandlesABareRoot) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/m9");
+
+    ASSERT_TRUE(engine
+                    ->eval("function check(n, a, b) { if (a !== b) throw new Error(n + ': got ' + a); }"
+                           "check('port', location.port, '');"
+                           "check('host', location.host, 'example.dev');"
+                           "check('origin', location.origin, 'https://example.dev');"
+                           "check('pathname', location.pathname, '/m9');"
+                           "check('search', location.search, '');"
+                           "check('hash', location.hash, '');"
+                           "true;",
+                           "inline")
+                    .ok);
+
+    // A URL with no path at all still reports "/" rather than an empty string,
+    // so `location.pathname.split(...)` is safe on every page.
+    engine->set_location("https://example.dev");
+    EXPECT_TRUE(engine->eval("if (location.pathname !== '/') throw new Error(location.pathname);", "inline").ok);
+}
+
+// pathname must track pushState, since that is where routing code reads it.
+TEST(ScriptEngineTest, LocationComponentsFollowPushState) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/m9");
+
+    ASSERT_TRUE(engine->eval("history.pushState({ id: 42 }, '', '/m9/detail/42?from=list');", "inline").ok);
+    EXPECT_TRUE(engine
+                    ->eval("if (location.pathname !== '/m9/detail/42') throw new Error(location.pathname);"
+                           "if (location.search !== '?from=list') throw new Error(location.search);"
+                           "true;",
+                           "inline")
+                    .ok);
+
+    // And after a traversal back onto an entry with no state — the exact case
+    // that produced the reported TypeError.
+    EXPECT_TRUE(engine->apply_popstate("https://example.dev/m9", ""));
+    EXPECT_TRUE(engine
+                    ->eval("if (history.state !== null) throw new Error('state should be null here');"
+                           "if (location.pathname !== '/m9') throw new Error(location.pathname);"
+                           "if (location.pathname.split('/detail/')[1] !== undefined) throw new Error('route');"
+                           "true;",
+                           "inline")
+                    .ok);
 }

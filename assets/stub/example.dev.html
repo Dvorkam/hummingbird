@@ -65,11 +65,13 @@
         </div>
       </div>
       <div class="hero-chips">
-        <span class="chip">v0.8-dev</span>
+        <span class="chip">v0.9-dev</span>
         <span class="chip">C++20</span>
         <span class="chip">SDL2 + Blend2D</span>
-        <span class="chip">QuickJS</span>
+        <span class="chip">QuickJS-NG</span>
         <span class="chip">libcurl</span>
+        <span class="chip">lunasvg</span>
+        <span class="chip">libpng / jpeg-turbo / webp</span>
       </div>
     </div>
 
@@ -95,7 +97,9 @@
           <p class="card-new">New &mdash; in progress</p>
           <p class="card-title">The Fetcher &mdash; fetch(), CORS &amp; an HTTP cache</p>
           <p class="card-desc">The page gets its own voice on the network. First up, the two event-loop guarantees everything promise-based rests on: promise continuations run when the JavaScript stack empties, and every navigated document gets a fresh JavaScript global.</p>
-          <p class="card-link"><a href="https://example.dev/m9">All M9 demos &raquo;</a></p>
+          <p class="card-link"><a href="https://example.dev/m9">All M9 demos &raquo;</a>
+            &nbsp;&middot;&nbsp;
+            <a href="https://example.dev/m9-adblock">Ad Block Lite &raquo;</a></p>
         </div>
       </div>
 
@@ -176,8 +180,13 @@
       </div>
 
       <p class="footer">
-        Keyboard: <code>Ctrl+L</code> URL bar &middot; <code>Ctrl+T</code> new tab &middot; <code>Ctrl+W</code> close tab
-        &middot; <code>F1</code> debug outlines<br>
+        <strong>Keyboard</strong><br>
+        <code>Ctrl+L</code> URL bar &middot; <code>Alt+&larr;</code>/<code>Alt+&rarr;</code> back / forward
+        &middot; <code>F5</code> reload &middot; <code>Ctrl+Shift+R</code> hard reload<br>
+        <code>Ctrl+T</code>/<code>Ctrl+W</code> open / close tab &middot;
+        <code>Ctrl+&larr;</code>/<code>Ctrl+&rarr;</code> switch tabs<br>
+        <code>Ctrl+D</code> bookmark &middot; <code>Ctrl+Shift+O</code> bookmarks page &middot;
+        <code>Ctrl+Shift+U</code> compatibility mode &middot; <code>F1</code> debug outlines<br>
         JS quick check: <a href="https://example.dev/js">example.dev/js</a>
       </p>
     </div>

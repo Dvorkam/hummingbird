@@ -275,7 +275,9 @@ size_t SDLGraphicsContext::TextCacheKeyHash::operator()(const TextCacheKey& key)
 }
 
 size_t SDLGraphicsContext::ImageCacheKeyHash::operator()(const ImageCacheKey& key) const {
-    size_t hash = std::hash<const ImageBitmap*>{}(key.image);
+    size_t hash = std::hash<std::uint32_t>{}(key.ref.index);
+    hash ^= std::hash<std::uint32_t>{}(key.ref.generation) + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
+    hash ^= std::hash<const ImageBitmap*>{}(key.image) + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
     hash ^= std::hash<int>{}(key.width) + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
     hash ^= std::hash<int>{}(key.height) + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
     hash ^= std::hash<int>{}(static_cast<int>(key.format)) + 0x9e3779b97f4a7c15ULL + (hash << 6) + (hash >> 2);
@@ -373,7 +375,28 @@ void SDLGraphicsContext::clear_text_caches() {
     text_caches_.clear();
 }
 
+void SDLGraphicsContext::draw_image(ResourceRef image, const Hummingbird::Layout::Rect& dest) {
+    // The resolve happens here and nowhere earlier: this is the last moment
+    // before the pixels are handed to SDL, so the pointer cannot outlive the
+    // call. A reference that no longer resolves — freed, evicted, or minted for
+    // a previous document — simply draws nothing, which is the normal case for a
+    // resource that has not arrived yet.
+    if (!resource_resolver_) {
+        return;
+    }
+    const ImageBitmap* resolved = resource_resolver_->resolve_image(image);
+    if (!resolved) {
+        return;
+    }
+    draw_image_impl(*resolved, dest, image);
+}
+
 void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest) {
+    draw_image_impl(image, dest, ResourceRef{});
+}
+
+void SDLGraphicsContext::draw_image_impl(const ImageBitmap& image, const Hummingbird::Layout::Rect& dest,
+                                         ResourceRef ref) {
     if (!m_renderer) {
         return;
     }
@@ -399,7 +422,10 @@ void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird:
     ImageCacheKey key;
     if (cache_allowed) {
         cache = &current_image_cache();
-        key.image = &image;
+        key.ref = ref;
+        // Only key on the address for caller-owned bitmaps; a resource-backed
+        // one is identified by its ref, whose slot cannot be recycled.
+        key.image = ref.valid() ? nullptr : &image;
         key.width = image.width;
         key.height = image.height;
         key.format = image.format;
@@ -413,11 +439,48 @@ void SDLGraphicsContext::draw_image(const ImageBitmap& image, const Hummingbird:
     }
 
     if (!texture) {
+        // SDL reads exactly stride*height bytes out of the buffer we hand it and
+        // takes our word for the dimensions, so a bitmap whose declared size
+        // exceeds its pixel data is a silent heap OVERREAD — an access violation
+        // with no message, which is the hardest possible failure to trace back
+        // here. Nothing structurally guarantees the two agree: ImageBitmap is a
+        // port type any decoder can fill in. Check it at the boundary where the
+        // pointer is about to escape into C.
+        // No real image is anywhere near this large; a bitmap claiming to be is
+        // not an image at all. Checked FIRST and separately from the consistency
+        // test below, because when the object has been freed every field is
+        // garbage — `pixels.size()` included — so comparing them to each other
+        // can pass on nonsense. Catching it by plausibility is what turns a
+        // silent use-after-free into a line that says so
+        // (T-CRASH-IMAGE-HEAVY-PAGE-1).
+        constexpr int kMaxPlausibleDimension = 1 << 16;
+        if (image.width <= 0 || image.height <= 0 || image.stride <= 0 || image.width > kMaxPlausibleDimension ||
+            image.height > kMaxPlausibleDimension) {
+            HB_LOG_ERROR("[platform] implausible image bitmap "
+                         << image.width << "x" << image.height << " stride=" << image.stride
+                         << " — this is not an image; almost certainly a freed or uninitialised ImageBitmap");
+            return;
+        }
+        const size_t required = static_cast<size_t>(image.stride) * static_cast<size_t>(image.height);
+        if (image.pixels.size() < required) {
+            HB_LOG_ERROR("[platform] refusing an inconsistent image bitmap: "
+                         << image.width << "x" << image.height << " stride=" << image.stride << " needs=" << required
+                         << " has=" << image.pixels.size());
+            return;
+        }
+
         SDL_Surface* surface =
             SDL_CreateRGBSurfaceWithFormatFrom(const_cast<std::uint8_t*>(image.pixels.data()), image.width,
                                                image.height, 32, image.stride, SDL_PIXELFORMAT_BGRA32);
         if (!surface) {
-            HB_LOG_ERROR("[platform] Failed to create SDL_Surface from image");
+            // Report what SDL actually said rather than guessing at the cause. An
+            // earlier version of this line asserted "almost certainly out of
+            // memory", which was wrong and cost real debugging time: SDL was
+            // reporting an invalid pitch — a malformed bitmap, not an exhausted
+            // heap.
+            HB_LOG_ERROR("[platform] SDL_CreateRGBSurfaceWithFormatFrom failed for "
+                         << image.width << "x" << image.height << " stride=" << image.stride
+                         << " (SDL: " << SDL_GetError() << ")");
             return;
         }
 

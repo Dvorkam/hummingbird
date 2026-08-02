@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -10,6 +11,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "core/platform_api/IScriptEngine.h"
+#include "core/platform_api/ScriptFetch.h"
 #include "engine/document/ExternalScriptLookup.h"
 #include "engine/forms/FormSubmission.h"
 #include "layout/geometry/Geometry.h"
@@ -85,6 +88,10 @@ public:
 
     void reset();
 
+    // Unimplemented APIs this document's scripts touched (7.5.2 telemetry,
+    // surfaced by 9.5.2). Valid until the next reset() clears it.
+    std::vector<std::string> missing_apis() const;
+
     // --- document build + layout ---
     bool parse_html(std::string_view html);
     // Runs all <script>s in document order; external bodies come from the
@@ -96,6 +103,13 @@ public:
     // document.cookie accessors (8.1.5), forwarded to the script host.
     void set_cookie_accessors(std::function<std::string()> reader, std::function<void(std::string_view)> writer);
     void set_storage_accessor(std::function<Core::StorageArea*()> accessor);
+    // fetch (9.1.1): the Tab supplies both, because only it knows the resource
+    // loader and the URL of the document currently loaded.
+    void set_fetch_sink(std::function<std::uint64_t(const ScriptFetchRequest&)> sink);
+    void set_url_resolver(std::function<std::string(std::string_view)> resolver);
+    // Settles one fetch on the main thread; true when its continuation mutated
+    // the DOM, so the caller knows to rebuild.
+    bool settle_fetch(const ScriptFetchResponse& response);
     void set_session_storage_accessor(std::function<Core::StorageArea*()> accessor);
 
     void set_extension_style_blocks(const std::vector<std::string>& style_blocks);
@@ -156,6 +170,12 @@ public:
     FragmentNavResult navigate_fragment(std::string_view url);
     // Returns/clears a script-initiated location.hash change (7.7.3).
     std::optional<std::string> consume_location_change();
+    // History API MVP (9.6.1). pushState/replaceState are reported for the Tab
+    // to record; apply_popstate is the Tab telling the page it traversed.
+    std::optional<IScriptEngine::HistoryChange> consume_history_change();
+    std::optional<int> consume_history_delta();
+    void set_history_length(size_t length);
+    ScriptDispatchResult apply_popstate(std::string_view url, std::string_view state);
 
     // Count of completed style+layout passes (7.4.1 invalidation instrumentation).
     // Batching guarantee: a task making N DOM mutations advances this by exactly 1.
@@ -174,6 +194,16 @@ public:
     bool has_pending_animation_frames() const;
 
 private:
+    // Logs the unimplemented APIs this document's scripts touched (9.5.2).
+    // Called at document end, before scripting teardown clears the list.
+    // Points the graphics context at the resource store before anything sizes
+    // or paints through it (T-RESOURCE-REF-1). Lives here rather than in the
+    // Tab so every driver of a document — including tests that drive the
+    // pipeline directly — resolves image handles the same way.
+    void bind_resource_resolver(IGraphicsContext& graphics) const;
+
+    void flush_missing_api_telemetry();
+
     struct KeyDispatchResult {
         bool mutated = false;
         bool default_prevented = false;
@@ -189,6 +219,7 @@ private:
 
     std::string focus_snapshot_value_;  // focused input's value when it gained focus
 
+    ResourceStore* resource_store_ = nullptr;
     std::unique_ptr<DocumentResources> resources_;
     std::unique_ptr<DocumentModel> model_;
     std::unique_ptr<DocumentInteraction> interaction_;

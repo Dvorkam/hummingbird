@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <optional>
 #include <string_view>
@@ -61,6 +62,10 @@ public:
     void navigate_and_reflect_url(std::string_view url, Hummingbird::Engine::NavigationSource source =
                                                             Hummingbird::Engine::NavigationSource::User);
     void navigate_and_reflect_submission(const Hummingbird::Engine::FormSubmission& submission);
+    // F5 / Ctrl+R. Not the same as navigating to the current URL again: a reload
+    // makes the HTTP cache revalidate the document rather than serve it (9.3.1).
+    // `hard` (Ctrl+Shift+R) additionally ignores the cache for every subresource.
+    void reload_and_reflect_url(bool hard = false);
     // Back/forward over the active tab's history, reflecting the URL bar (7.6.1).
     void navigate_back();
     void navigate_forward();

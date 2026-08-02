@@ -40,10 +40,22 @@ using Hummingbird::Test::TestGraphicsContext;
 
 class RecordingGraphicsContext : public Hummingbird::IGraphicsContext {
 public:
+    void set_resource_resolver(const Hummingbird::IResourceResolver* resolver) override { resolver_ = resolver; }
+    const Hummingbird::IResourceResolver* resource_resolver() const override { return resolver_; }
+    const Hummingbird::IResourceResolver* resolver_ = nullptr;
+
     void set_viewport(const Hummingbird::Layout::Rect& /*viewport*/) override {}
     void clear(const Hummingbird::Color& /*color*/) override {}
     void present() override {}
     void fill_rect(const Hummingbird::Layout::Rect& /*rect*/, const Hummingbird::Color& /*color*/) override {}
+    // Resolves before counting, exactly as the real context does. Counting the
+    // COMMAND instead would report a draw for a handle that no longer resolves,
+    // which is precisely the distinction these tests exist to make.
+    void draw_image(Hummingbird::ResourceRef image, const Hummingbird::Layout::Rect& /*dest*/) override {
+        if (resolver_ && resolver_->resolve_image(image)) {
+            ++image_calls;
+        }
+    }
     void draw_image(const ImageBitmap& /*image*/, const Hummingbird::Layout::Rect& /*dest*/) override { ++image_calls; }
 
     Hummingbird::TextMetrics measure_text(const std::string& text, const Hummingbird::TextStyle& style) override {
@@ -759,9 +771,10 @@ TEST(DocumentPipelineTest, TodoDemoAssetsDriveTheFullFlow) {
     ASSERT_TRUE(pipeline.parse_html(html));
     pipeline.apply_styles_and_layout(graphics, viewport, base);
     // Provide the external todo.js body the way the resource pipeline would.
-    pipeline.run_scripts([&](std::string_view src) -> std::optional<std::string_view> {
-        if (src == "assets/stub/pages/todo.js") return std::string_view(js);
-        return std::nullopt;
+    pipeline.run_scripts([&](std::string_view src) -> Hummingbird::Engine::ExternalScriptSource {
+        Hummingbird::Engine::ExternalScriptSource source;
+        if (src == "assets/stub/pages/todo.js") source.body = std::string_view(js);
+        return source;
     });
 
     const auto painted_has = [&](const char* text) {
@@ -944,8 +957,7 @@ TEST(DocumentPipelineTest, PromiseContinuationRunsAfterAReentrantFocusDispatch) 
     graphics.drawn_texts.clear();
     pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
     pipeline.paint(graphics, {viewport, false, 0.0f});
-    EXPECT_NE(std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), "1234"),
-              graphics.drawn_texts.end());
+    EXPECT_NE(std::find(graphics.drawn_texts.begin(), graphics.drawn_texts.end(), "1234"), graphics.drawn_texts.end());
 }
 
 TEST(DocumentPipelineTest, FragmentNavigationFiresHashchangeWithoutTeardown) {
@@ -1440,7 +1452,9 @@ TEST(DocumentScriptingTest, RunsInlineAndExternalScriptsInDocumentOrder) {
     DocumentScripting scripting(Hummingbird::create_script_engine());
     const bool mutated = scripting.run_document_scripts(model, [&](std::string_view src) {
         looked_up.emplace_back(src);
-        return std::optional<std::string_view>("document.getElementById('out').textContent = 'external';");
+        Hummingbird::Engine::ExternalScriptSource source;
+        source.body = std::string_view("document.getElementById('out').textContent = 'external';");
+        return source;
     });
 
     EXPECT_TRUE(mutated);
@@ -1465,7 +1479,9 @@ TEST(DocumentScriptingTest, ExternalScriptRunsBetweenInlineScripts) {
 
     DocumentScripting scripting(Hummingbird::create_script_engine());
     (void)scripting.run_document_scripts(model, [&](std::string_view) {
-        return std::optional<std::string_view>("document.getElementById('out').textContent = 'external';");
+        Hummingbird::Engine::ExternalScriptSource source;
+        source.body = std::string_view("document.getElementById('out').textContent = 'external';");
+        return source;
     });
 
     // The external script is last in document order, so its write survives.
@@ -1487,8 +1503,8 @@ TEST(DocumentScriptingTest, MissingExternalScriptIsSkippedButInlineStillRuns) {
     ASSERT_TRUE(model.parse_html(html).ok);
 
     DocumentScripting scripting(Hummingbird::create_script_engine());
-    const bool mutated =
-        scripting.run_document_scripts(model, [&](std::string_view) { return std::optional<std::string_view>{}; });
+    const bool mutated = scripting.run_document_scripts(
+        model, [&](std::string_view) { return Hummingbird::Engine::ExternalScriptSource{}; });
 
     EXPECT_TRUE(mutated);
     EXPECT_EQ(element_text_by_id(model.dom_root(), "out"), "inline-ran");
@@ -1515,4 +1531,307 @@ TEST(DocumentModelTest, ScriptCollectionFiltersNonJsTypesAndPrefersSrc) {
     EXPECT_TRUE(scripts[0].text.empty());
     EXPECT_FALSE(scripts[1].is_external());
     EXPECT_NE(scripts[1].text.find("inline1"), std::string::npos);
+}
+
+// T-DOM-DOCUMENT-BODY-1, the JS-visible half: the idiom that was broken is
+// `document.body.appendChild(...)`, so the test is that idiom rendering — not
+// that the property is merely non-undefined.
+TEST(DocumentPipelineTest, DocumentBodyAppendChildRendersTheNewElement) {
+    const std::string html = R"HTML(
+<html>
+  <head><style>body { margin: 0; } p { display: block; }</style></head>
+  <body>
+    <p id="existing">before</p>
+    <script>
+      var added = document.createElement('p');
+      added.textContent = 'appended-to-body';
+      document.body.appendChild(added);
+      // The other two entry points, reported through the DOM so C++ can see them.
+      var report = document.createElement('p');
+      report.textContent = 'root:' + document.documentElement.tagName
+        + ' head:' + (document.head ? document.head.tagName : 'MISSING')
+        + ' same:' + (document.getElementById('existing').parentNode === document.body);
+      document.body.appendChild(report);
+    </script>
+  </body>
+</html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 400, 400};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    EXPECT_TRUE(pipeline.run_scripts()) << "appending to document.body is a DOM mutation";
+
+    graphics.drawn_texts.clear();
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://example.dev");
+    pipeline.paint(graphics, {viewport, false, 0.0f});
+    std::string joined;
+    for (const auto& text : graphics.drawn_texts) joined += text;
+
+    EXPECT_NE(joined.find("appended-to-body"), std::string::npos)
+        << "the appended element must reach the screen, not just the DOM";
+    EXPECT_NE(joined.find("before"), std::string::npos) << "and it must not replace what was already there";
+    // `same:true` is the identity check: document.body is the same object the
+    // rest of the DOM API hands out, not a fresh wrapper each read.
+    EXPECT_NE(joined.find("root:HTML head:HEAD same:true"), std::string::npos) << "painted: " << joined;
+}
+
+// Story 9.5.2: the missing-API telemetry must reach a consumer. Before this,
+// `IScriptEngine::missing_apis()` had no caller in src/ and the list was
+// cleared on every navigation, so the data M12's scope is meant to come from
+// was recorded and thrown away. The assertion is on the pipeline-level
+// accessor, which is what the document-end log reads.
+TEST(DocumentPipelineTest, MissingApiTelemetryIsReadableAtDocumentEnd) {
+    const std::string html = R"HTML(
+<html><body>
+  <script>
+    var x = new XMLHttpRequest();
+    matchMedia('(min-width: 100px)');
+    matchMedia('(min-width: 200px)');
+  </script>
+</body></html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    ASSERT_NE(provider, nullptr);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.set_location("https://telemetry.test/page");
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://telemetry.test/page");
+    pipeline.run_scripts();
+
+    auto touched = pipeline.missing_apis();
+    // Deduped per document: matchMedia was called twice and is reported once.
+    EXPECT_EQ(touched, (std::vector<std::string>{"XMLHttpRequest", "matchMedia"}));
+}
+
+// The counters' blind spot, pinned so it cannot be forgotten when M12 reads
+// them: the fail-soft prelude stubs GLOBALS THAT GET CALLED. A missing
+// *property* is invisible — it reads as undefined and throws at the use site
+// with nothing reported. `document.body` was exactly this shape, and a fixture
+// author found it while the telemetry did not. Any count these produce is a
+// lower bound (T-DOM-DOCUMENT-BODY-1, story 9.5.2).
+TEST(DocumentPipelineTest, MissingApiTelemetryCannotSeeAbsentProperties) {
+    const std::string html = R"HTML(
+<html><body>
+  <script>
+    // A property this engine does not implement. Nothing is reported, and the
+    // page silently takes the wrong branch instead.
+    if (typeof document.hbNotARealProperty === 'undefined') { var noted = true; }
+  </script>
+</body></html>
+)HTML";
+
+    ResourceStore store;
+    auto provider = Hummingbird::create_resource_provider();
+    auto engine = Hummingbird::create_script_engine();
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, "https://telemetry.test/props");
+    pipeline.run_scripts();
+
+    EXPECT_TRUE(pipeline.missing_apis().empty())
+        << "if this ever reports something, property-level telemetry has been added "
+           "and 9.5.2's 'lower bound' caveat can be relaxed";
+}
+
+// T-RESOURCE-REF-1 / T-CRASH-IMAGE-HEAVY-PAGE-1: the regression test for the
+// crash. The browser died on seznam.cz because the render tree and the retained
+// display list both cached raw pointers into ResourceStore memory, and the store
+// frees decoded payloads at four points with no invalidation. Any paint between
+// a free and the next re-point drew freed memory — which the log proved, by
+// printing "image dimensions" that decoded to the engine's own log strings.
+//
+// This mutates the store underneath a live document in every way that used to
+// free a payload, painting after each one. It cannot assert "no use-after-free"
+// directly; what it asserts is the property that makes one impossible — nothing
+// outside the store holds the pixels, so every path either draws current content
+// or draws nothing.
+TEST(DocumentPipelineTest, StoreMutationsUnderALiveDocumentNeverDrawFreedPixels) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>
+    body { margin: 0; }
+    #hero { width: 50px; height: 50px; background-image: url(bg.png); }
+    img { width: 40px; height: 40px; }
+  </style></head>
+  <body>
+    <div id="hero"></div>
+    <img src="photo.png">
+  </body>
+</html>
+)HTML";
+
+    const std::string page = "https://example.dev";
+    const std::string background_url = "https://example.dev/bg.png";
+    const std::string photo_url = "https://example.dev/photo.png";
+
+    const auto make_bitmap = [](std::uint8_t marker) {
+        Hummingbird::ImageBitmap bitmap;
+        bitmap.width = 4;
+        bitmap.height = 4;
+        bitmap.stride = 16;
+        bitmap.pixels.assign(static_cast<size_t>(bitmap.stride) * bitmap.height, marker);
+        return bitmap;
+    };
+
+    ResourceStore store;
+    for (const auto& url : {background_url, photo_url}) {
+        ASSERT_TRUE(store.begin_request(url, ResourceType::Image));
+        ASSERT_TRUE(store.mark_ready(url, ResourceType::Image, "PNGDATA"));
+        ASSERT_TRUE(store.set_image(url, ResourceType::Image, make_bitmap(1)));
+    }
+
+    auto provider = Hummingbird::create_resource_provider();
+    auto engine = Hummingbird::create_script_engine();
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 200, 200};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, page);
+
+    const auto paint_once = [&] {
+        graphics.image_calls = 0;
+        DocumentPipeline::PaintContext context{viewport, false, 0.0f};
+        pipeline.paint(graphics, context);
+        return graphics.image_calls;
+    };
+
+    // Baseline: both images draw, so the assertions below are about the payload
+    // changing rather than about nothing being there in the first place.
+    EXPECT_GT(paint_once(), 0) << "the document should draw its images to begin with";
+
+    // 1. Replacement. set_image frees the bitmap it supersedes — the case that
+    //    used to leave RenderImage::m_image pointing at freed memory.
+    ASSERT_TRUE(store.set_image(photo_url, ResourceType::Image, make_bitmap(2)));
+    EXPECT_GT(paint_once(), 0) << "a replaced payload must still paint, via the same handle";
+
+    // 2. Becoming animated. set_animation drops the still image outright.
+    Hummingbird::AnimatedImage animation;
+    animation.frames.push_back(make_bitmap(3));
+    animation.frames.push_back(make_bitmap(4));
+    animation.delays_ms = {40, 40};
+    ASSERT_TRUE(store.set_animation(photo_url, ResourceType::Image, std::move(animation)));
+    EXPECT_GT(paint_once(), 0);
+
+    // 3. The animation advancing, with nothing re-pointing the render tree. This
+    //    is the case the reporter hit ("animation glyphs which kept rotating"):
+    //    the tick used to re-point every image in the tree, and painting in the
+    //    window between a frame change and that re-point drew a freed frame.
+    ASSERT_TRUE(store.tick_animations(50));
+    EXPECT_GT(paint_once(), 0) << "an advanced frame paints without any re-point";
+
+    // 4. Failure. mark_failed drops both payloads.
+    ASSERT_TRUE(store.mark_failed(photo_url, ResourceType::Image));
+    EXPECT_NO_FATAL_FAILURE(paint_once()) << "a failed resource draws nothing, it does not fault";
+
+    // 5. Navigation, with the previous document's tree and display list still
+    //    alive. Every handle they hold is retired; none may resolve.
+    store.clear();
+    EXPECT_EQ(paint_once(), 0) << "after the store is cleared nothing resolves, so nothing is drawn";
+
+    // 6. And a new document reusing the same slot indices must not be visible
+    //    through the old tree's handles.
+    ASSERT_TRUE(store.begin_request(photo_url, ResourceType::Image));
+    ASSERT_TRUE(store.mark_ready(photo_url, ResourceType::Image, "PNGDATA"));
+    ASSERT_TRUE(store.set_image(photo_url, ResourceType::Image, make_bitmap(9)));
+    // The next document binding its own images is what REUSES the slot indices
+    // the old tree's handles refer to. Without this the old handles are merely
+    // out of range and the generation is never exercised — the step would pass
+    // while testing nothing.
+    const auto rebound = store.ref_for(photo_url, ResourceType::Image);
+    EXPECT_EQ(rebound.index, 1u) << "the slot really was reused, so this is a real test";
+    EXPECT_EQ(paint_once(), 0) << "a stale handle must not pick up the next document's image";
+}
+
+namespace {
+// First render object whose element carries `id`.
+const Hummingbird::Layout::RenderObject* find_render_by_id(const Hummingbird::Layout::RenderObject* node,
+                                                           std::string_view id) {
+    if (!node) return nullptr;
+    if (const auto* element = dynamic_cast<const Hummingbird::DOM::Element*>(node->get_dom_node())) {
+        if (const auto* value = element->find_attribute("id"); value && *value == id) {
+            return node;
+        }
+    }
+    for (const auto& child : node->get_children()) {
+        if (const auto* found = find_render_by_id(child.get(), id)) return found;
+    }
+    return nullptr;
+}
+}  // namespace
+
+// A replaced element takes its size from the pixels, and after T-RESOURCE-REF-1
+// those pixels are reached through a handle resolved during LAYOUT rather than
+// through a pointer the engine pushed in beforehand. If that resolve ever failed
+// the box would collapse, the image would reserve no vertical space, and the
+// content after it would ride up over where it is drawn — so this pins the size
+// the layout actually gives it.
+TEST(DocumentPipelineTest, AnImageReservesItsIntrinsicSizeDuringLayout) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html>
+  <head><style>body { margin: 0; } p { margin: 0; }</style></head>
+  <body>
+    <img id="hero" src="hero.png">
+    <p id="after">text below the image</p>
+  </body>
+</html>
+)HTML";
+
+    const std::string page = "https://example.dev";
+    const std::string image_url = "https://example.dev/hero.png";
+
+    Hummingbird::ImageBitmap bitmap;
+    bitmap.width = 120;
+    bitmap.height = 90;
+    bitmap.stride = 480;
+    bitmap.pixels.assign(static_cast<size_t>(bitmap.stride) * bitmap.height, 0);
+
+    ResourceStore store;
+    ASSERT_TRUE(store.begin_request(image_url, ResourceType::Image));
+    ASSERT_TRUE(store.mark_ready(image_url, ResourceType::Image, "PNGDATA"));
+    ASSERT_TRUE(store.set_image(image_url, ResourceType::Image, std::move(bitmap)));
+
+    auto provider = Hummingbird::create_resource_provider();
+    auto engine = Hummingbird::create_script_engine();
+    DocumentPipeline pipeline(&store, provider.get(), nullptr, std::move(engine));
+    RecordingGraphicsContext graphics;
+    Rect viewport{0, 0, 400, 400};
+
+    ASSERT_TRUE(pipeline.parse_html(html));
+    pipeline.apply_styles_and_layout(graphics, viewport, page);
+
+    const auto* hero = find_render_by_id(pipeline.render_root(), "hero");
+    ASSERT_NE(hero, nullptr) << "the image should be in the render tree";
+    EXPECT_FLOAT_EQ(hero->get_rect().width, 120.0f);
+    EXPECT_FLOAT_EQ(hero->get_rect().height, 90.0f) << "a collapsed height is what puts text over the image";
+
+    // The real symptom is about what comes AFTER: the paragraph must start below
+    // the image, not on top of it.
+    const auto* after = find_render_by_id(pipeline.render_root(), "after");
+    ASSERT_NE(after, nullptr);
+    EXPECT_GE(after->get_rect().y, hero->get_rect().y + hero->get_rect().height)
+        << "content after an image must clear it";
 }

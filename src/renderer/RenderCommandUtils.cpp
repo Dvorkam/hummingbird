@@ -13,6 +13,14 @@ DisplayCommand make_fill_rect(const Hummingbird::Layout::Rect& rect, const Color
     return command;
 }
 
+DisplayCommand make_draw_image(ResourceRef image, const Hummingbird::Layout::Rect& dest) {
+    DisplayCommand command;
+    command.type = DisplayCommand::Type::DrawImage;
+    command.rect = dest;
+    command.image_ref = image;
+    return command;
+}
+
 DisplayCommand make_draw_image(const ImageBitmap* image, const Hummingbird::Layout::Rect& dest) {
     DisplayCommand command;
     command.type = DisplayCommand::Type::DrawImage;
@@ -69,7 +77,11 @@ void replay_command(const DisplayCommand& command, IGraphicsContext& context) {
             context.fill_rect(command.rect, command.color);
             break;
         case DisplayCommand::Type::DrawImage:
-            if (command.image) {
+            // A reference is resolved by the context, at replay time, so a
+            // resource freed since this list was recorded simply draws nothing.
+            if (command.image_ref.valid()) {
+                context.draw_image(command.image_ref, command.rect);
+            } else if (command.image) {
                 context.draw_image(*command.image, command.rect);
             }
             break;

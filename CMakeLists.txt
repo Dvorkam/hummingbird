@@ -89,17 +89,23 @@ add_library(Core STATIC
     src/core/BookmarkStore.cpp
     src/core/dom/DomFactory.cpp
     src/core/net/BrowserIdentity.cpp
+    src/core/net/CacheControl.cpp
     src/core/net/Cookie.cpp
+    src/core/net/Cors.cpp
     src/core/net/CookieJar.cpp
+    src/core/net/HttpCache.cpp
     src/core/net/HttpHeaders.cpp
     src/core/net/IdentityPolicyStore.cpp
     src/core/net/Origin.cpp
     src/core/net/PublicSuffix.cpp
     src/core/net/Referrer.cpp
+    src/core/net/RequestFilter.cpp
     src/core/net/StorageArea.cpp
     src/core/net/StorageManager.cpp
     src/core/utils/AssetLoader.cpp
     src/core/utils/AssetPath.cpp
+    src/core/utils/DataUrl.cpp
+    src/core/utils/Log.cpp
     src/core/utils/TextEditBuffer.cpp
     src/core/utils/Url.cpp
 )
@@ -220,6 +226,7 @@ add_library(Engine STATIC
     src/engine/extensions/ExtensionLoader.cpp
     src/engine/extensions/ExtensionHost.cpp
     src/engine/extensions/ExtensionSettings.cpp
+    src/engine/extensions/FilterRuleSet.cpp
     src/engine/script/DocumentScriptController.cpp
     src/engine/script/DocumentScriptHost.cpp
     src/engine/resources/NetworkErrorPage.cpp

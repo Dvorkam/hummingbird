@@ -22,9 +22,69 @@ bool scheme_is_secure(std::string_view scheme) {
 }  // namespace
 
 bool CookieJar::store_from_header(std::string_view request_url, std::string_view set_cookie_value, CookieTime now) {
+    const auto request = parse_absolute_url(request_url);
+    if (!request) {
+        return false;
+    }
     auto parsed = parse_set_cookie(set_cookie_value, request_url, now);
     if (!parsed) {
         return false;
+    }
+
+    // RFC 6265bis storage algorithm: an insecure response cannot create any
+    // Secure cookie. Enforce this at the jar boundary shared by HTTP and
+    // document.cookie, before the more specific name-prefix guarantees below.
+    if (parsed->secure && !scheme_is_secure(request->scheme)) {
+        HB_LOG_DEBUG("[cookies] refusing Secure cookie from insecure origin: " << parsed->name);
+        return false;
+    }
+
+    // Cookie name prefixes (RFC 6265bis §5.5). `__Secure-` and `__Host-` are a
+    // promise the NAME makes about the cookie, which a server relies on: seeing
+    // `__Host-session` back is supposed to guarantee it was set over https, by
+    // this exact host, for the whole origin — so a subdomain, or a
+    // man-in-the-middle on http, cannot have planted it.
+    //
+    // Accepting a prefixed cookie that does not meet the conditions turns that
+    // guarantee into a lie, which is worse than not supporting prefixes at all:
+    // a site can defend itself against an engine it knows ignores them, not
+    // against one that says yes and means no.
+    //
+    // Found by the T-COOKIE-CONFORMANCE-VECTORS-1 table on its first run.
+    //
+    // **Matched CASE-INSENSITIVELY, and the spec is asymmetric about this in a
+    // way that is easy to read the wrong way round.** RFC 6265bis §4.1.3 tells
+    // SERVERS to use a case-sensitive match when producing a prefixed cookie;
+    // §5.4 tells USER AGENTS the opposite — "UAs MUST match the prefix string
+    // case-insensitively". We are a user agent, so §5.4 is the rule that binds
+    // us, and it is a MUST.
+    //
+    // The reason is a real bypass (httpwg/http-extensions#2231, closed by
+    // #2236): cookie NAMES are case-sensitive, but plenty of server frameworks
+    // compare them case-insensitively. An attacker who can set an insecure
+    // `__secure-session` on a site whose backend lowercases names gets it
+    // treated as the protected `__Secure-session` — the guarantee laundered
+    // through a case difference. Matching case-insensitively here closes that,
+    // and costs only that a page cannot store an unprotected cookie whose name
+    // happens to look like a prefix.
+    //
+    // Note what this does NOT do: the cookies stay distinct. `__Secure-a` and
+    // `__secure-a` both face the conditions and remain two different cookies.
+    const auto has_prefix = [](std::string_view name, std::string_view prefix) {
+        return name.size() >= prefix.size() && Utils::equals_ignore_case(name.substr(0, prefix.size()), prefix);
+    };
+    if (has_prefix(parsed->name, "__Host-")) {
+        const bool root_path = parsed->path == "/";
+        if (!parsed->secure || !parsed->host_only || !root_path) {
+            HB_LOG_DEBUG(
+                "[cookies] refusing __Host- cookie that does not meet the prefix conditions: " << parsed->name);
+            return false;
+        }
+    } else if (has_prefix(parsed->name, "__Secure-")) {
+        if (!parsed->secure) {
+            HB_LOG_DEBUG("[cookies] refusing __Secure- cookie without the Secure attribute: " << parsed->name);
+            return false;
+        }
     }
 
     // §6.1: refuse an oversized cookie outright rather than store it and evict

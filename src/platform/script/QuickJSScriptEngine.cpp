@@ -8,6 +8,7 @@
 
 #include "core/dom/Element.h"
 #include "core/dom/Node.h"
+#include "core/net/Origin.h"
 #include "core/utils/Log.h"
 #include "core/utils/Url.h"
 
@@ -66,6 +67,14 @@ DOM::Node* QuickJSScriptEngine::resolve_event_target(JSValueConst this_val) {
     if (JS_IsStrictEqual(context_, this_val, window_object_)) {
         return window_target();
     }
+    // An unqualified call — `addEventListener(...)` with no base object — arrives
+    // with `this` undefined, because quickjs does not substitute the global for a
+    // C function the way sloppy-mode JS does for a script function. A bare
+    // addEventListener IS window.addEventListener, so it must not fall through to
+    // the document (where its listener would never see a window event).
+    if (JS_IsUndefined(this_val) || JS_IsNull(this_val)) {
+        return window_target();
+    }
     return document_target();
 }
 
@@ -79,7 +88,8 @@ JSValue QuickJSScriptEngine::event_target_value(DOM::Node* target) {
     return wrap_node(target);
 }
 
-JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv) {
+JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv,
+                                            int magic) {
     std::string message;
     for (int i = 0; i < argc; ++i) {
         const char* text = JS_ToCString(ctx, argv[i]);
@@ -91,7 +101,21 @@ JSValue QuickJSScriptEngine::js_console_log(JSContext* ctx, JSValueConst /*this_
             JS_FreeCString(ctx, text);
         }
     }
-    HB_LOG_INFO("[js] " << message);
+    // Severity is carried in `magic` so a page's own console.error survives a
+    // build that only logs errors — routing everything through INFO meant the
+    // most important half of a page's diagnostics vanished first.
+    switch (static_cast<ConsoleLevel>(magic)) {
+        case ConsoleLevel::Warn:
+            HB_LOG_WARN("[js] " << message);
+            break;
+        case ConsoleLevel::Error:
+            HB_LOG_ERROR("[js] " << message);
+            break;
+        case ConsoleLevel::Info:
+        default:
+            HB_LOG_INFO("[js] " << message);
+            break;
+    }
     return JS_UNDEFINED;
 }
 
@@ -110,6 +134,21 @@ JSValue QuickJSScriptEngine::js_document_get_element_by_id(JSContext* ctx, JSVal
     auto* element = engine->host_->get_element_by_id(id);
     JS_FreeCString(ctx, id);
     return engine->wrap_node(element);
+}
+
+// document.documentElement / body / head (T-DOM-DOCUMENT-BODY-1). `magic`
+// selects which, so all three share one callback.
+//
+// Returns null rather than throwing when the document has no such element —
+// which is what a browser does, and what lets a page's own `if (document.body)`
+// guard work. The throw pages actually hit is on the *use* of the null, at the
+// point the mistake is.
+JSValue QuickJSScriptEngine::js_document_get_part(JSContext* ctx, JSValueConst /*this_val*/, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->host_) {
+        return JS_NULL;
+    }
+    return engine->wrap_node(engine->host_->document_part(static_cast<IScriptHost::DocumentPart>(magic)));
 }
 
 JSValue QuickJSScriptEngine::js_document_create_element(JSContext* ctx, JSValueConst /*this_val*/, int argc,
@@ -265,6 +304,61 @@ JSValue QuickJSScriptEngine::js_location_get_href(JSContext* ctx, JSValueConst /
                                                   JSValueConst* /*argv*/) {
     auto* engine = engine_from_context(ctx);
     return JS_NewString(ctx, engine ? engine->location_url_.c_str() : "");
+}
+
+// The URL components a page reads off `location`. Only `href` and `hash` were
+// bound, so `location.pathname` — which routing code reaches for constantly —
+// was undefined, and calling `.split()` on it threw. Same shape of gap as
+// `document.body` and `window.console`: the object existed, the members did not.
+//
+// Read-only. Assigning to `location.href`/`pathname` NAVIGATES, which needs the
+// Tab, and is filed as T-JS-LOCATION-NAVIGATE-1 rather than half-done here.
+JSValue QuickJSScriptEngine::js_location_get_part(JSContext* ctx, JSValueConst /*this_val*/, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine) {
+        return JS_NewString(ctx, "");
+    }
+    const std::string& url = engine->location_url_;
+    auto parts = Core::parse_absolute_url(url);
+    if (!parts) {
+        return JS_NewString(ctx, "");
+    }
+
+    // `UrlParts::path` runs from the first '/' to the end, so it still carries
+    // the query and fragment; pathname and search are cut out of it here.
+    std::string_view path = parts->path;
+    const size_t fragment_pos = path.find('#');
+    if (fragment_pos != std::string_view::npos) {
+        path = path.substr(0, fragment_pos);
+    }
+    std::string_view pathname = path;
+    std::string_view search;
+    if (const size_t query_pos = path.find('?'); query_pos != std::string_view::npos) {
+        pathname = path.substr(0, query_pos);
+        search = path.substr(query_pos);
+    }
+
+    const std::string port = parts->port ? std::to_string(*parts->port) : std::string();
+    const std::string host_with_port = port.empty() ? parts->host : parts->host + ":" + port;
+
+    switch (static_cast<LocationPart>(magic)) {
+        case LocationPart::Protocol:
+            return JS_NewString(ctx, (parts->scheme + ":").c_str());  // includes the colon, per spec
+        case LocationPart::Host:
+            return JS_NewString(ctx, host_with_port.c_str());
+        case LocationPart::Hostname:
+            return JS_NewString(ctx, parts->host.c_str());
+        case LocationPart::Port:
+            // Empty for a default port, which is what a browser reports.
+            return JS_NewString(ctx, port.c_str());
+        case LocationPart::Pathname:
+            return JS_NewStringLen(ctx, pathname.data(), pathname.size());
+        case LocationPart::Search:
+            return JS_NewStringLen(ctx, search.data(), search.size());
+        case LocationPart::Origin:
+            return JS_NewString(ctx, (parts->scheme + "://" + host_with_port).c_str());
+    }
+    return JS_NewString(ctx, "");
 }
 
 JSValue QuickJSScriptEngine::js_location_get_hash(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/,
@@ -943,7 +1037,10 @@ bool QuickJSScriptEngine::event_flag(JSValueConst event, const char* name) const
 }
 
 JSValue QuickJSScriptEngine::make_event(const std::string& type, DOM::Node* target) {
-    JSValue event = JS_NewObject(context_);
+    // On Event.prototype, so an engine-dispatched event and a page-constructed
+    // one answer `instanceof Event` the same way. Two sources of events that
+    // disagree about their own type would be worse than having no constructor.
+    JSValue event = JS_IsUndefined(event_proto_) ? JS_NewObject(context_) : JS_NewObjectProto(context_, event_proto_);
     JS_SetPropertyStr(context_, event, "type", JS_NewString(context_, type.c_str()));
     JS_SetPropertyStr(context_, event, "target", event_target_value(target));
     JS_SetPropertyStr(context_, event, "currentTarget", JS_NULL);
@@ -1068,7 +1165,9 @@ JSValue QuickJSScriptEngine::js_node_dispatch_event(JSContext* ctx, JSValueConst
 
     JSValue event = engine->make_event(type, target);
     if (JS_IsObject(init)) {
-        for (const char* field : {"key", "code", "bubbles", "cancelable"}) {
+        // `detail` is what a CustomEvent exists to carry — dropping it would
+        // deliver the event and lose the only thing the sender put in it.
+        for (const char* field : {"key", "code", "bubbles", "cancelable", "detail"}) {
             JSValue value = JS_GetPropertyStr(ctx, init, field);
             if (!JS_IsUndefined(value)) {
                 JS_SetPropertyStr(ctx, event, field, value);  // takes ownership
@@ -1121,9 +1220,243 @@ JSValue QuickJSScriptEngine::js_native_insert_css(JSContext* ctx, JSValueConst /
         return JS_NewBool(ctx, 0);
     }
 
-    const bool ok = engine->extension_host_->insert_css(static_cast<std::uint32_t>(tab_id), css_text);
+    // The identity comes from the ENGINE, not from an argument: script inside
+    // the context cannot name a different extension than the one it belongs to.
+    const bool ok =
+        engine->extension_host_->insert_css(engine->extension_id_, static_cast<std::uint32_t>(tab_id), css_text);
     JS_FreeCString(ctx, css_text);
     return JS_NewBool(ctx, ok ? 1 : 0);
+}
+
+// Declarative request filtering (9.4.1). The rules arrive as a JSON STRING
+// rather than as a JS object graph, so the host parses exactly the same text a
+// manifest ruleset contains — one format, one parser, one set of rejection
+// rules. Walking a QuickJS object here would be a second implementation that
+// could disagree with the file one about what a valid rule is.
+JSValue QuickJSScriptEngine::js_native_set_filter_rules(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                        JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || !engine->extension_host_ || argc < 1) {
+        return JS_NewBool(ctx, 0);
+    }
+    const char* rules_json = JS_ToCString(ctx, argv[0]);
+    if (!rules_json) {
+        return JS_NewBool(ctx, 0);
+    }
+    const bool ok = engine->extension_host_->set_filter_rules(engine->extension_id_, rules_json);
+    JS_FreeCString(ctx, rules_json);
+    return JS_NewBool(ctx, ok ? 1 : 0);
+}
+
+// --- fetch (9.1.1) ---------------------------------------------------------
+
+JSValue QuickJSScriptEngine::js_native_fetch(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv) {
+    auto* engine = engine_from_context(ctx);
+    // A promise capability is created up front in every path, so even a rejection
+    // is delivered asynchronously — fetch must never throw synchronously at its
+    // caller for a bad argument or a missing host.
+    JSValue functions[2];
+    JSValue promise = JS_NewPromiseCapability(ctx, functions);
+    if (JS_IsException(promise)) {
+        return promise;
+    }
+    const auto settle_now = [&](bool resolve, JSValue value) {
+        JSValue ret = JS_Call(ctx, functions[resolve ? 0 : 1], JS_UNDEFINED, 1, &value);
+        JS_FreeValue(ctx, ret);
+        JS_FreeValue(ctx, value);
+        JS_FreeValue(ctx, functions[0]);
+        JS_FreeValue(ctx, functions[1]);
+        return promise;
+    };
+    const auto reject_with = [&](const char* message) {
+        JSValue error = JS_NewError(ctx);
+        JS_SetPropertyStr(ctx, error, "message", JS_NewString(ctx, message));
+        return settle_now(/*resolve=*/false, error);
+    };
+
+    if (!engine || !engine->host_) {
+        return reject_with("fetch is unavailable: no network for this document");
+    }
+    if (argc < 1) {
+        return reject_with("fetch requires a URL");
+    }
+
+    ScriptFetchRequest request;
+    if (const char* url = JS_ToCString(ctx, argv[0]); url) {
+        // Relative URLs are resolved by the host: only the engine knows the
+        // document's base.
+        request.url = engine->host_->resolve_url(url);
+        JS_FreeCString(ctx, url);
+    }
+    if (request.url.empty()) {
+        return reject_with("fetch requires a URL");
+    }
+
+    if (argc >= 2 && JS_IsObject(argv[1])) {
+        JSValue method = JS_GetPropertyStr(ctx, argv[1], "method");
+        if (JS_IsString(method)) {
+            if (const char* text = JS_ToCString(ctx, method); text) {
+                request.method = Core::Utils::to_upper(text);
+                JS_FreeCString(ctx, text);
+            }
+        }
+        JS_FreeValue(ctx, method);
+
+        JSValue body = JS_GetPropertyStr(ctx, argv[1], "body");
+        if (!JS_IsUndefined(body) && !JS_IsNull(body)) {
+            if (const char* text = JS_ToCString(ctx, body); text) {
+                request.body = text;
+                request.has_body = true;
+                JS_FreeCString(ctx, text);
+            }
+        }
+        JS_FreeValue(ctx, body);
+
+        // Headers as a plain object; the prelude normalizes a Headers instance
+        // or an array of pairs into one before calling in.
+        // credentials: 'omit' | 'same-origin' (default) | 'include' (9.2.1).
+        JSValue credentials = JS_GetPropertyStr(ctx, argv[1], "credentials");
+        if (JS_IsString(credentials)) {
+            if (const char* text = JS_ToCString(ctx, credentials); text) {
+                const std::string mode = Core::Utils::to_lower(text);
+                if (mode == "omit") {
+                    request.credentials = Core::Cors::Credentials::Omit;
+                } else if (mode == "include") {
+                    request.credentials = Core::Cors::Credentials::Include;
+                }
+                JS_FreeCString(ctx, text);
+            }
+        }
+        JS_FreeValue(ctx, credentials);
+
+        JSValue headers = JS_GetPropertyStr(ctx, argv[1], "headers");
+        if (JS_IsObject(headers)) {
+            JSPropertyEnum* props = nullptr;
+            uint32_t count = 0;
+            if (JS_GetOwnPropertyNames(ctx, &props, &count, headers, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == 0) {
+                for (uint32_t i = 0; i < count; ++i) {
+                    JSValue value = JS_GetProperty(ctx, headers, props[i].atom);
+                    const char* name = JS_AtomToCString(ctx, props[i].atom);
+                    const char* text = JS_ToCString(ctx, value);
+                    if (name && text) {
+                        request.headers.set(name, text);
+                    }
+                    if (name) JS_FreeCString(ctx, name);
+                    if (text) JS_FreeCString(ctx, text);
+                    JS_FreeValue(ctx, value);
+                    JS_FreeAtom(ctx, props[i].atom);
+                }
+                js_free(ctx, props);
+            }
+        }
+        JS_FreeValue(ctx, headers);
+    }
+
+    const std::uint64_t id = engine->host_->start_fetch(request);
+    if (id == 0) {
+        return reject_with("fetch failed: the request could not be started");
+    }
+    // The entry owns both functions; settle_fetch (or teardown) frees them.
+    engine->pending_fetches_.emplace(id, PendingFetch{functions[0], functions[1]});
+    return promise;
+}
+
+JSValue QuickJSScriptEngine::make_fetch_payload(const ScriptFetchResponse& response) {
+    JSValue payload = JS_NewObject(context_);
+    JS_SetPropertyStr(context_, payload, "status", JS_NewInt32(context_, static_cast<int32_t>(response.status)));
+    JS_SetPropertyStr(context_, payload, "ok", JS_NewBool(context_, response.ok() ? 1 : 0));
+    JS_SetPropertyStr(context_, payload, "url", JS_NewString(context_, response.url.c_str()));
+    JS_SetPropertyStr(context_, payload, "body", JS_NewString(context_, response.body.c_str()));
+
+    // Headers as an array of [name, value] pairs, not an object: a response can
+    // repeat a field (Set-Cookie), and an object would silently drop all but one.
+    JSValue headers = JS_NewArray(context_);
+    uint32_t index = 0;
+    for (const auto& field : response.headers.fields()) {
+        JSValue pair = JS_NewArray(context_);
+        JS_SetPropertyUint32(context_, pair, 0, JS_NewString(context_, field.name.c_str()));
+        JS_SetPropertyUint32(context_, pair, 1, JS_NewString(context_, field.value.c_str()));
+        JS_SetPropertyUint32(context_, headers, index++, pair);
+    }
+    JS_SetPropertyStr(context_, payload, "headers", headers);
+    return payload;
+}
+
+bool QuickJSScriptEngine::settle_fetch(const ScriptFetchResponse& response) {
+    if (!context_) return false;
+    auto it = pending_fetches_.find(response.id);
+    if (it == pending_fetches_.end()) {
+        // Unknown id: already settled, or cancelled by a navigation that raced
+        // the transport. Dropping it is the point — see reject_pending_fetches.
+        return false;
+    }
+    PendingFetch pending = it->second;
+    pending_fetches_.erase(it);
+
+    JSValue argument;
+    bool resolve = true;
+    if (response.failure == ScriptFetchFailure::None) {
+        // Per the Fetch standard only a NETWORK error rejects: a 404 or a 500 is
+        // a perfectly good response with ok == false, and a page that treats it
+        // as a throw is a page that would break on a real server.
+        argument = make_fetch_payload(response);
+    } else {
+        resolve = false;
+        // A CORS block deliberately reads like any other failure. Telling the
+        // page WHY would hand it the cross-origin information CORS withheld —
+        // "blocked by CORS" already reveals that something answered. The engine
+        // logs the real reason for the developer; the page learns nothing.
+        const char* message = response.failure == ScriptFetchFailure::Timeout ? "fetch timed out"
+                              : response.failure == ScriptFetchFailure::BadUrl
+                                  ? "fetch failed: unsupported or malformed URL"
+                                  : "fetch failed: the network request could not be completed";
+        argument = JS_NewError(context_);
+        JS_SetPropertyStr(context_, argument, "message", JS_NewString(context_, message));
+        // Distinguishable in JS, so a page can retry a timeout without retrying
+        // a bad URL (the surfaced half of story 9.1.3).
+        JS_SetPropertyStr(
+            context_, argument, "name",
+            JS_NewString(context_, response.failure == ScriptFetchFailure::Timeout ? "TimeoutError" : "TypeError"));
+    }
+
+    {
+        // Settling runs the promise's reaction machinery; treat it as a script
+        // entry so a nested dispatch cannot steal the microtask checkpoint
+        // (9.0.1), and so the drain below is the outermost one.
+        ScriptEntryScope entry(script_entry_depth_);
+        JSValue ret = JS_Call(context_, resolve ? pending.resolve : pending.reject, JS_UNDEFINED, 1, &argument);
+        if (JS_IsException(ret)) {
+            JSValue exc = JS_GetException(context_);
+            const char* message = JS_ToCString(context_, exc);
+            HB_LOG_WARN("[js] fetch settle threw: " << (message ? message : "unknown"));
+            if (message) JS_FreeCString(context_, message);
+            JS_FreeValue(context_, exc);
+        }
+        JS_FreeValue(context_, ret);
+    }
+    JS_FreeValue(context_, argument);
+    JS_FreeValue(context_, pending.resolve);
+    JS_FreeValue(context_, pending.reject);
+    // The continuations the page attached with .then run here.
+    drain_microtasks();
+    return true;
+}
+
+void QuickJSScriptEngine::reject_pending_fetches() {
+    if (!context_) {
+        pending_fetches_.clear();
+        return;
+    }
+    // Free the callbacks WITHOUT calling them. A navigation has already replaced
+    // the document; running a continuation now would execute page A's code
+    // against page B's global, which is exactly what 9.0.2 exists to prevent.
+    // The promise simply never settles, and its context is freed moments later.
+    for (auto& [id, pending] : pending_fetches_) {
+        (void)id;
+        JS_FreeValue(context_, pending.resolve);
+        JS_FreeValue(context_, pending.reject);
+    }
+    pending_fetches_.clear();
 }
 
 // --- Lifecycle -------------------------------------------------------------
@@ -1148,6 +1481,12 @@ QuickJSScriptEngine::~QuickJSScriptEngine() {
         document_object_ = JS_UNDEFINED;
         JS_FreeValue(context_, window_object_);
         window_object_ = JS_UNDEFINED;
+        JS_FreeValue(context_, node_proto_);
+        node_proto_ = JS_UNDEFINED;
+        JS_FreeValue(context_, element_proto_);
+        element_proto_ = JS_UNDEFINED;
+        JS_FreeValue(context_, event_proto_);
+        event_proto_ = JS_UNDEFINED;
         JS_FreeContext(context_);
         context_ = nullptr;
     }
@@ -1222,8 +1561,8 @@ void QuickJSScriptEngine::bind_host(IScriptHost* host) {
     }
 }
 
-void QuickJSScriptEngine::bind_extension_host(IExtensionApiHost* host) {
-    ScriptEngineBase::bind_extension_host(host);
+void QuickJSScriptEngine::bind_extension_host(IExtensionApiHost* host, std::string_view extension_id) {
+    ScriptEngineBase::bind_extension_host(host, extension_id);
     if (!context_) {
         return;
     }
@@ -1258,6 +1597,7 @@ ScriptEvalResult QuickJSScriptEngine::eval(std::string_view source, std::string_
     // too: promise jobs the script queued before throwing still run.
     drain_microtasks();
     if (threw) {
+        record_missing_api_from_error(error);
         return error_result(std::move(error));
     }
     return ok_result();
@@ -1310,6 +1650,15 @@ void QuickJSScriptEngine::reset_bindings() {
     document_object_ = JS_UNDEFINED;
     JS_FreeValue(context_, window_object_);
     window_object_ = JS_UNDEFINED;
+    // Per-context like everything else here: the next context builds its own
+    // interface prototypes, and keeping these would leak the old context's
+    // objects into it (T-JS-GLOBAL-ISOLATION-1's rule).
+    JS_FreeValue(context_, node_proto_);
+    node_proto_ = JS_UNDEFINED;
+    JS_FreeValue(context_, element_proto_);
+    element_proto_ = JS_UNDEFINED;
+    JS_FreeValue(context_, event_proto_);
+    event_proto_ = JS_UNDEFINED;
     JS_FreeContext(context_);
     context_ = nullptr;
     console_ready_ = false;
@@ -1329,7 +1678,11 @@ void QuickJSScriptEngine::release_document_state() {
         HB_LOG_WARN("[script] microtask queue not empty at document teardown");
         drain_microtasks();
     }
-    // Drop event callbacks and timers first: neither may outlive the document,
+    // In-flight fetches go first: their continuations are the one kind of
+    // callback that can arrive from OUTSIDE the document's own timeline, so a
+    // response racing a navigation must find nothing left to settle (9.1.1).
+    reject_pending_fetches();
+    // Drop event callbacks and timers next: neither may outlive the document,
     // and their callbacks could otherwise still reference a wrapper we are about
     // to free.
     free_listeners();
@@ -1337,6 +1690,10 @@ void QuickJSScriptEngine::release_document_state() {
     free_animation_frames();
     missing_apis_.clear();            // telemetry is per-document (7.5.2)
     script_location_change_.reset();  // per-document location state (7.7.3)
+    script_history_changes_.clear();  // pending History API mutations belong to the old document
+    script_history_delta_.reset();    // as does a traversal it requested
+    history_state_.clear();           // the next document starts with history.state === null
+    history_length_ = 1;              // replaced with the Tab's real count before its scripts run
     if (context_) {
         for (auto& [node, value] : node_wrappers_) {
             (void)node;
@@ -1350,54 +1707,194 @@ void QuickJSScriptEngine::release_document_state() {
     node_wrappers_.clear();
 }
 
+// A DOM interface constructor: `Node`, `Element`, `HTMLElement`.
+//
+// Not callable. `new HTMLElement()` throws "Illegal constructor" in every
+// browser, and a stub that returned an object instead would hand back something
+// that looks like an element and is not one.
+namespace {
+JSValue js_illegal_constructor(JSContext* ctx, JSValueConst /*this_val*/, int /*argc*/, JSValueConst* /*argv*/) {
+    return JS_ThrowTypeError(ctx, "Illegal constructor");
+}
+}  // namespace
+
+void QuickJSScriptEngine::install_dom_interface(const char* name, JSValueConst proto) {
+    JSValue global = JS_GetGlobalObject(context_);
+    JSValue ctor = JS_NewCFunction2(context_, js_illegal_constructor, name, 0, JS_CFUNC_constructor, 0);
+    // `instanceof` walks the object's prototype chain looking for this exact
+    // object, which is the whole reason the constructor has to carry the real
+    // prototype rather than a fresh one.
+    JS_SetConstructor(context_, ctor, proto);
+    JS_SetPropertyStr(context_, global, name, ctor);
+    JS_FreeValue(context_, global);
+}
+
 void QuickJSScriptEngine::install_node_prototype() {
     if (!context_) {
         return;
     }
-    JSValue proto = JS_NewObject(context_);
+    // Three prototypes in a real chain, rather than one object carrying
+    // everything (T-JS-DOM-INTERFACES-1). Pages do not only call these members,
+    // they ASK about them — `x instanceof HTMLElement`, `Element.prototype.foo =
+    // …` — and a single flat prototype cannot answer those correctly: a text
+    // node would come out as an HTMLElement. The split follows the DOM spec's
+    // own division so the answers are right, not merely non-throwing.
+    JSValue event_target_proto = JS_NewObject(context_);
+    JSValue node_proto = JS_NewObjectProto(context_, event_target_proto);
+    JSValue element_proto = JS_NewObjectProto(context_, node_proto);
+    JSValue html_proto = JS_NewObjectProto(context_, element_proto);
 
-    define_getter(proto, "nodeType", js_node_get_node_type);
-    define_getter(proto, "nodeName", js_node_get_node_name);
-    define_getter(proto, "tagName", js_node_get_tag_name);
-    define_accessor(proto, "textContent", js_node_get_text_content, js_node_set_text_content);
-    define_getter(proto, "parentNode", js_node_get_parent_node);
-    define_getter(proto, "firstChild", js_node_get_first_child);
-    define_getter(proto, "lastChild", js_node_get_last_child);
-    define_getter(proto, "nextSibling", js_node_get_next_sibling);
-    define_getter(proto, "previousSibling", js_node_get_previous_sibling);
-    define_getter(proto, "nextElementSibling", js_node_get_next_element_sibling);
-    define_getter(proto, "previousElementSibling", js_node_get_previous_element_sibling);
-    define_getter(proto, "childNodes", js_node_get_child_nodes);
-    define_getter(proto, "children", js_node_get_children);
-    define_accessor(proto, "className", js_node_get_class_name, js_node_set_class_name);
-    define_accessor(proto, "innerHTML", js_node_get_inner_html, js_node_set_inner_html);
-    define_accessor(proto, "value", js_node_get_value, js_node_set_value);
-    define_accessor(proto, "checked", js_node_get_checked, js_node_set_checked);
-    define_accessor(proto, "disabled", js_node_get_disabled, js_node_set_disabled);
-    define_getter(proto, "classList", js_node_get_class_list);
-    define_getter(proto, "dataset", js_node_get_dataset);
+    // --- EventTarget: the base of the chain ---------------------------------
+    // This level was left out when the chain was first built, on the reasoning
+    // that it would be "one more object for one more name nothing has asked
+    // for". seznam.cz asked for it in the next live sweep, roughly an hour
+    // later. Recorded because the reasoning was sound and still wrong: what a
+    // real page reaches for is not predictable from what looks load-bearing,
+    // which is the entire argument for having the telemetry.
+    define_method(event_target_proto, "addEventListener", js_node_add_event_listener, 3);
+    define_method(event_target_proto, "removeEventListener", js_node_remove_event_listener, 3);
+    define_method(event_target_proto, "dispatchEvent", js_node_dispatch_event, 1);
 
-    define_method(proto, "appendChild", js_node_append_child, 1);
-    define_method(proto, "insertBefore", js_node_insert_before, 2);
-    define_method(proto, "removeChild", js_node_remove_child, 1);
-    define_method(proto, "replaceChild", js_node_replace_child, 2);
-    define_method(proto, "setAttribute", js_element_set_attribute, 2);
-    define_method(proto, "getAttribute", js_element_get_attribute, 1);
-    define_method(proto, "removeAttribute", js_element_remove_attribute, 1);
-    define_method(proto, "querySelector", js_query_selector, 1);
-    define_method(proto, "querySelectorAll", js_query_selector_all, 1);
-    define_method(proto, "matches", js_element_matches, 1);
-    define_method(proto, "closest", js_element_closest, 1);
-    define_method(proto, "getElementsByClassName", js_get_elements_by_class_name, 1);
-    define_method(proto, "getElementsByTagName", js_get_elements_by_tag_name, 1);
-    define_method(proto, "focus", js_node_focus, 0);
-    define_method(proto, "blur", js_node_blur, 0);
-    define_method(proto, "addEventListener", js_node_add_event_listener, 3);
-    define_method(proto, "removeEventListener", js_node_remove_event_listener, 3);
-    define_method(proto, "dispatchEvent", js_node_dispatch_event, 1);
+    // --- Node: structure and text -------------------------------------------
+    define_getter(node_proto, "nodeType", js_node_get_node_type);
+    define_getter(node_proto, "nodeName", js_node_get_node_name);
+    define_accessor(node_proto, "textContent", js_node_get_text_content, js_node_set_text_content);
+    define_getter(node_proto, "parentNode", js_node_get_parent_node);
+    define_getter(node_proto, "firstChild", js_node_get_first_child);
+    define_getter(node_proto, "lastChild", js_node_get_last_child);
+    define_getter(node_proto, "nextSibling", js_node_get_next_sibling);
+    define_getter(node_proto, "previousSibling", js_node_get_previous_sibling);
+    define_getter(node_proto, "childNodes", js_node_get_child_nodes);
+    define_method(node_proto, "appendChild", js_node_append_child, 1);
+    define_method(node_proto, "insertBefore", js_node_insert_before, 2);
+    define_method(node_proto, "removeChild", js_node_remove_child, 1);
+    define_method(node_proto, "replaceChild", js_node_replace_child, 2);
 
-    // Consumes the proto reference and makes it the prototype for every wrapper.
-    JS_SetClassProto(context_, node_class_id_, proto);
+    // --- Element: attributes, selectors, element-only traversal --------------
+    define_getter(element_proto, "tagName", js_node_get_tag_name);
+    define_getter(element_proto, "nextElementSibling", js_node_get_next_element_sibling);
+    define_getter(element_proto, "previousElementSibling", js_node_get_previous_element_sibling);
+    define_getter(element_proto, "children", js_node_get_children);
+    define_accessor(element_proto, "className", js_node_get_class_name, js_node_set_class_name);
+    define_accessor(element_proto, "innerHTML", js_node_get_inner_html, js_node_set_inner_html);
+    define_getter(element_proto, "classList", js_node_get_class_list);
+    define_method(element_proto, "setAttribute", js_element_set_attribute, 2);
+    define_method(element_proto, "getAttribute", js_element_get_attribute, 1);
+    define_method(element_proto, "removeAttribute", js_element_remove_attribute, 1);
+    define_method(element_proto, "querySelector", js_query_selector, 1);
+    define_method(element_proto, "querySelectorAll", js_query_selector_all, 1);
+    define_method(element_proto, "matches", js_element_matches, 1);
+    define_method(element_proto, "closest", js_element_closest, 1);
+    define_method(element_proto, "getElementsByClassName", js_get_elements_by_class_name, 1);
+    define_method(element_proto, "getElementsByTagName", js_get_elements_by_tag_name, 1);
+
+    // --- HTMLElement: the HTML-only surface ---------------------------------
+    // `value`/`checked`/`disabled` really belong to HTMLInputElement and its
+    // siblings. Putting them here is a deliberate simplification — one level
+    // too low, but far closer than Element and much closer than Node, and it
+    // avoids inventing a per-tag interface hierarchy nothing has asked for.
+    define_accessor(html_proto, "value", js_node_get_value, js_node_set_value);
+    define_accessor(html_proto, "checked", js_node_get_checked, js_node_set_checked);
+    define_accessor(html_proto, "disabled", js_node_get_disabled, js_node_set_disabled);
+    define_getter(html_proto, "dataset", js_node_get_dataset);
+    define_method(html_proto, "focus", js_node_focus, 0);
+    define_method(html_proto, "blur", js_node_blur, 0);
+
+    install_dom_interface("EventTarget", event_target_proto);
+    install_dom_interface("Node", node_proto);
+    install_dom_interface("Element", element_proto);
+    install_dom_interface("HTMLElement", html_proto);
+
+    // Kept so wrap_node can pick a prototype per node kind.
+    node_proto_ = JS_DupValue(context_, node_proto);
+    element_proto_ = JS_DupValue(context_, element_proto);
+    JS_FreeValue(context_, event_target_proto);
+    JS_FreeValue(context_, node_proto);
+    JS_FreeValue(context_, element_proto);
+
+    install_event_constructors();
+
+    // Consumes the reference. HTMLElement.prototype is the DEFAULT for the
+    // class, so anything wrapped without an explicit prototype is treated as an
+    // element — which is what the overwhelming majority of wrapped nodes are.
+    JS_SetClassProto(context_, node_class_id_, html_proto);
+}
+
+// `Event` and `CustomEvent`, which pages CONSTRUCT — `new CustomEvent('x', {
+// detail })` then `el.dispatchEvent(e)` is the standard way one component
+// signals another. Both were ReferenceErrors, so a page doing that died there.
+//
+// Written in JS rather than as C constructors because that is all they are:
+// plain objects carrying a type and a few flags. The engine's own dispatch
+// still builds events natively (`make_event`), and the two are tied together by
+// sharing this prototype — otherwise a listener testing `e instanceof Event`
+// would get different answers depending on who created the event, which is the
+// kind of inconsistency that is worse than the absence.
+void QuickJSScriptEngine::install_event_constructors() {
+    if (!context_) {
+        return;
+    }
+    static constexpr char kEventJs[] = R"JS(
+(function (g) {
+  function applyInit(ev, type, init) {
+    ev.type = String(type);
+    ev.bubbles = !!(init && init.bubbles);
+    ev.cancelable = !!(init && init.cancelable);
+    ev.defaultPrevented = false;
+    ev.target = null;
+    ev.currentTarget = null;
+    ev.eventPhase = 0;
+  }
+  function Event(type, init) {
+    if (!(this instanceof Event)) {
+      throw new TypeError("Failed to construct 'Event': Please use the 'new' operator.");
+    }
+    if (arguments.length === 0) {
+      throw new TypeError("Failed to construct 'Event': 1 argument required.");
+    }
+    applyInit(this, type, init);
+  }
+  // These are the no-op-safe forms. An event the ENGINE dispatched carries its
+  // own native versions as own-properties, which shadow these and are what the
+  // dispatcher actually reads; these serve an event the page made itself.
+  Event.prototype.preventDefault = function () { if (this.cancelable) this.defaultPrevented = true; };
+  Event.prototype.stopPropagation = function () {};
+  Event.prototype.stopImmediatePropagation = function () {};
+
+  function CustomEvent(type, init) {
+    if (!(this instanceof CustomEvent)) {
+      throw new TypeError("Failed to construct 'CustomEvent': Please use the 'new' operator.");
+    }
+    if (arguments.length === 0) {
+      throw new TypeError("Failed to construct 'CustomEvent': 1 argument required.");
+    }
+    applyInit(this, type, init);
+    this.detail = init && 'detail' in init ? init.detail : null;
+  }
+  CustomEvent.prototype = Object.create(Event.prototype);
+  CustomEvent.prototype.constructor = CustomEvent;
+
+  g.Event = Event;
+  g.CustomEvent = CustomEvent;
+})(globalThis);
+)JS";
+    JSValue result =
+        JS_Eval(context_, kEventJs, std::char_traits<char>::length(kEventJs), "<dom-events>", JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(result)) {
+        JSValue exc = JS_GetException(context_);
+        const char* message = JS_ToCString(context_, exc);
+        HB_LOG_WARN("[js] event constructor install failed: " << (message ? message : "unknown"));
+        if (message) JS_FreeCString(context_, message);
+        JS_FreeValue(context_, exc);
+    }
+    JS_FreeValue(context_, result);
+
+    // Held so make_event can build engine events on the same prototype.
+    JSValue global = JS_GetGlobalObject(context_);
+    JSValue event_ctor = JS_GetPropertyStr(context_, global, "Event");
+    event_proto_ = JS_GetPropertyStr(context_, event_ctor, "prototype");
+    JS_FreeValue(context_, event_ctor);
+    JS_FreeValue(context_, global);
 }
 
 void QuickJSScriptEngine::install_token_list_prototype() {
@@ -1414,6 +1911,19 @@ void QuickJSScriptEngine::install_token_list_prototype() {
 
 void QuickJSScriptEngine::define_getter(JSValueConst proto, const char* name, JSCFunction* getter) {
     define_accessor(proto, name, getter, nullptr);
+}
+
+void QuickJSScriptEngine::define_getter_magic(JSValueConst target, const char* name, JSCFunctionMagicGetter* getter,
+                                              int magic) {
+    // Magic getters take (ctx, this, magic), a different call convention from
+    // the generic form, so they go through JS_CFUNC_getter_magic with quickjs's
+    // standard cast to the union function type — same shape as localStorage's
+    // `length`.
+    JSAtom atom = JS_NewAtom(context_, name);
+    JSValue getter_fn = JS_NewCFunctionMagic(context_, reinterpret_cast<JSCFunctionMagic*>(getter), name, 0,
+                                             JS_CFUNC_getter_magic, magic);
+    JS_DefinePropertyGetSet(context_, target, atom, getter_fn, JS_UNDEFINED, JS_PROP_CONFIGURABLE);
+    JS_FreeAtom(context_, atom);
 }
 
 void QuickJSScriptEngine::define_accessor(JSValueConst proto, const char* name, JSCFunction* getter,
@@ -1459,8 +1969,34 @@ void QuickJSScriptEngine::install_console_bindings() {
     }
     JSValue global = JS_GetGlobalObject(context_);
 
+    // `console` used to have exactly one method. A page calling console.warn --
+    // which MediaWiki's startup module does -- got "not a function" and died, so
+    // the object existing was not the same as the object being usable.
     JSValue console = JS_NewObject(context_);
-    JS_SetPropertyStr(context_, console, "log", JS_NewCFunction(context_, js_console_log, "log", 1));
+    const auto add = [&](const char* name, ConsoleLevel level) {
+        JS_SetPropertyStr(
+            context_, console, name,
+            JS_NewCFunctionMagic(context_, js_console_log, name, 1, JS_CFUNC_generic_magic, static_cast<int>(level)));
+    };
+    add("log", ConsoleLevel::Info);
+    add("info", ConsoleLevel::Info);
+    add("debug", ConsoleLevel::Info);
+    add("dir", ConsoleLevel::Info);
+    add("table", ConsoleLevel::Info);
+    add("trace", ConsoleLevel::Info);
+    add("warn", ConsoleLevel::Warn);
+    add("error", ConsoleLevel::Error);
+    // Grouping and timing: real methods that log rather than absent ones that
+    // throw. Indentation and elapsed times are not worth the state; a page uses
+    // these for its own readability, never for control flow.
+    add("group", ConsoleLevel::Info);
+    add("groupCollapsed", ConsoleLevel::Info);
+    add("groupEnd", ConsoleLevel::Info);
+    add("time", ConsoleLevel::Info);
+    add("timeEnd", ConsoleLevel::Info);
+    add("timeLog", ConsoleLevel::Info);
+    add("count", ConsoleLevel::Info);
+    add("assert", ConsoleLevel::Warn);
     JS_SetPropertyStr(context_, global, "console", console);
 
     JS_FreeValue(context_, global);
@@ -1476,6 +2012,13 @@ void QuickJSScriptEngine::install_document_bindings() {
     JSValue document = JS_NewObject(context_);
     JS_SetPropertyStr(context_, document, "getElementById",
                       JS_NewCFunction(context_, js_document_get_element_by_id, "getElementById", 1));
+    // The three document entry points every page assumes exist. Read-only for
+    // now: `document.body` is writable per spec, but replacing it wholesale is
+    // not something pages actually do, and reading is the gap that broke them.
+    define_getter_magic(document, "documentElement", js_document_get_part,
+                        static_cast<int>(IScriptHost::DocumentPart::DocumentElement));
+    define_getter_magic(document, "body", js_document_get_part, static_cast<int>(IScriptHost::DocumentPart::Body));
+    define_getter_magic(document, "head", js_document_get_part, static_cast<int>(IScriptHost::DocumentPart::Head));
     JS_SetPropertyStr(context_, document, "createElement",
                       JS_NewCFunction(context_, js_document_create_element, "createElement", 1));
     JS_SetPropertyStr(context_, document, "createTextNode",
@@ -1520,40 +2063,76 @@ void QuickJSScriptEngine::install_window_bindings() {
     JSValue location = JS_NewObject(context_);
     define_accessor(location, "href", js_location_get_href, nullptr);
     define_accessor(location, "hash", js_location_get_hash, js_location_set_hash);
+    define_getter_magic(location, "protocol", js_location_get_part, static_cast<int>(LocationPart::Protocol));
+    define_getter_magic(location, "host", js_location_get_part, static_cast<int>(LocationPart::Host));
+    define_getter_magic(location, "hostname", js_location_get_part, static_cast<int>(LocationPart::Hostname));
+    define_getter_magic(location, "port", js_location_get_part, static_cast<int>(LocationPart::Port));
+    define_getter_magic(location, "pathname", js_location_get_part, static_cast<int>(LocationPart::Pathname));
+    define_getter_magic(location, "search", js_location_get_part, static_cast<int>(LocationPart::Search));
+    define_getter_magic(location, "origin", js_location_get_part, static_cast<int>(LocationPart::Origin));
+    // `String(location)` and string concatenation both yield the full URL.
+    JS_SetPropertyStr(context_, location, "toString", JS_NewCFunction(context_, js_location_get_href, "toString", 0));
 
-    // window is an EventTarget (hashchange fires here) and owns location.
-    JSValue window = JS_NewObject(context_);
-    JS_SetPropertyStr(context_, window, "location", JS_DupValue(context_, location));
-    JS_SetPropertyStr(context_, window, "addEventListener",
+    // `window` IS the global object (T-JS-WINDOW-IS-GLOBAL-1). This used to be a
+    // separate JS_NewObject onto which a hand-picked subset of globals was
+    // mirrored, which meant everything NOT on that list was missing from
+    // `window` — `window.console`, `window.document`, `window.navigator`,
+    // `window.fetch`, every fail-soft stub — and the list had to grow by hand
+    // every time a global was added. It fell behind, and MediaWiki's startup
+    // module died on `window.console.warn`.
+    //
+    // A browser has exactly one object here: `window === globalThis`. Making the
+    // self-reference real means every global is reachable both ways for free,
+    // now and for anything added later, and `window.foo = 1; foo` aliases the
+    // way script expects. The global->window->global cycle is what browsers have
+    // too; quickjs's GC collects cycles.
+    JS_SetPropertyStr(context_, global, "window", JS_DupValue(context_, global));
+    // `self` is the same object again. It exists because worker scopes have no
+    // `window`, so library code that must run in both writes `self` — which is
+    // most bundled/UMD script, and is why this was a ReferenceError on
+    // seznam.cz on every single load in the live sweep. Free to provide now
+    // that the global self-reference is real; before that it would have been a
+    // third object to keep in sync.
+    JS_SetPropertyStr(context_, global, "self", JS_DupValue(context_, global));
+    window_object_ = JS_DupValue(context_, global);
+
+    // window is an EventTarget (hashchange fires here). On the global, so both
+    // `window.addEventListener` and a bare `addEventListener` — which was
+    // previously a ReferenceError — reach the window target.
+    JS_SetPropertyStr(context_, global, "addEventListener",
                       JS_NewCFunction(context_, js_node_add_event_listener, "addEventListener", 3));
-    JS_SetPropertyStr(context_, window, "removeEventListener",
+    JS_SetPropertyStr(context_, global, "removeEventListener",
                       JS_NewCFunction(context_, js_node_remove_event_listener, "removeEventListener", 3));
-    JS_SetPropertyStr(context_, window, "dispatchEvent",
+    JS_SetPropertyStr(context_, global, "dispatchEvent",
                       JS_NewCFunction(context_, js_node_dispatch_event, "dispatchEvent", 1));
-    // Timers (7.3.1): available as both window.* and bare globals.
-    JS_SetPropertyStr(context_, window, "setTimeout", JS_NewCFunction(context_, js_set_timeout, "setTimeout", 2));
-    JS_SetPropertyStr(context_, window, "setInterval", JS_NewCFunction(context_, js_set_interval, "setInterval", 2));
-    JS_SetPropertyStr(context_, window, "clearTimeout", JS_NewCFunction(context_, js_clear_timer, "clearTimeout", 1));
-    JS_SetPropertyStr(context_, window, "clearInterval", JS_NewCFunction(context_, js_clear_timer, "clearInterval", 1));
-    JS_SetPropertyStr(context_, window, "requestAnimationFrame",
-                      JS_NewCFunction(context_, js_request_animation_frame, "requestAnimationFrame", 1));
-    JS_SetPropertyStr(context_, window, "cancelAnimationFrame",
-                      JS_NewCFunction(context_, js_cancel_animation_frame, "cancelAnimationFrame", 1));
-    // window.localStorage (8.2.2) + window.sessionStorage (8.2.3). One object each
-    // per document; the methods route through the host to the right StorageArea
-    // (local = shared/persisted, session = per-tab), so no per-object opaque state
-    // is needed. Set unconditionally so they win over the 7.5.2 fail-soft stubs
-    // (whose typeof guards then skip).
+
+    // localStorage (8.2.2) + sessionStorage (8.2.3). One object each per
+    // document; the methods route through the host to the right StorageArea
+    // (local = shared/persisted, session = per-tab), so no per-object opaque
+    // state is needed. Set unconditionally so they win over the 7.5.2 fail-soft
+    // stubs (whose typeof guards then skip).
     JSValue local_storage = make_storage_object(/*magic=*/0);
     JSValue session_storage = make_storage_object(/*magic=*/1);
-    JS_SetPropertyStr(context_, window, "localStorage", JS_DupValue(context_, local_storage));
-    JS_SetPropertyStr(context_, window, "sessionStorage", JS_DupValue(context_, session_storage));
 
-    window_object_ = JS_DupValue(context_, window);
+    // history (9.6.1). pushState/replaceState share one callback via magic; the
+    // traversal trio does the same with its delta.
+    JSValue history = JS_NewObject(context_);
+    JS_SetPropertyStr(context_, history, "pushState",
+                      JS_NewCFunctionMagic(context_, js_history_push_state, "pushState", 3, JS_CFUNC_generic_magic, 0));
+    JS_SetPropertyStr(
+        context_, history, "replaceState",
+        JS_NewCFunctionMagic(context_, js_history_push_state, "replaceState", 3, JS_CFUNC_generic_magic, 1));
+    JS_SetPropertyStr(context_, history, "back",
+                      JS_NewCFunctionMagic(context_, js_history_go, "back", 0, JS_CFUNC_generic_magic, -1));
+    JS_SetPropertyStr(context_, history, "forward",
+                      JS_NewCFunctionMagic(context_, js_history_go, "forward", 0, JS_CFUNC_generic_magic, 1));
+    JS_SetPropertyStr(context_, history, "go",
+                      JS_NewCFunctionMagic(context_, js_history_go, "go", 1, JS_CFUNC_generic_magic, 0));
+    define_getter_magic(history, "state", js_history_get_state, 0);
+    define_getter_magic(history, "length", js_history_get_length, 0);
+    JS_SetPropertyStr(context_, global, "history", history);  // transfers the ref
 
-    // Both `window` and bare `location` are global (window.location === location).
     JS_SetPropertyStr(context_, global, "location", location);               // transfers the ref
-    JS_SetPropertyStr(context_, global, "window", window);                   // transfers the ref
     JS_SetPropertyStr(context_, global, "localStorage", local_storage);      // transfers the ref
     JS_SetPropertyStr(context_, global, "sessionStorage", session_storage);  // transfers the ref
     JS_SetPropertyStr(context_, global, "setTimeout", JS_NewCFunction(context_, js_set_timeout, "setTimeout", 2));
@@ -1564,9 +2143,123 @@ void QuickJSScriptEngine::install_window_bindings() {
                       JS_NewCFunction(context_, js_request_animation_frame, "requestAnimationFrame", 1));
     JS_SetPropertyStr(context_, global, "cancelAnimationFrame",
                       JS_NewCFunction(context_, js_cancel_animation_frame, "cancelAnimationFrame", 1));
+    JS_SetPropertyStr(context_, global, "__hb_nativeFetch",
+                      JS_NewCFunction(context_, js_native_fetch, "__hb_nativeFetch", 2));
     JS_FreeValue(context_, global);
 
     install_failsoft_stubs();  // fail-soft stubs for unimplemented APIs (7.5.2)
+    install_fetch_prelude();   // Response/Headers ergonomics over the binding (9.1.1)
+}
+
+// The JS half of fetch (9.1.1). The native binding is a data hand-off — a URL
+// and options in, a plain payload out — and this shapes that payload into the
+// Response/Headers surface a page expects. Keeping it here rather than in C++
+// keeps the binding small and the object ergonomics readable.
+//
+// Installed AFTER the fail-soft stubs so it wins: the stubs only define names
+// that are still undefined, and fetch is no longer among them.
+void QuickJSScriptEngine::install_fetch_prelude() {
+    if (!context_) {
+        return;
+    }
+    static constexpr char kPrelude[] = R"JS(
+(function (g) {
+  'use strict';
+  function Headers(pairs) {
+    // Field names are case-insensitive, so store lowercased and look up the
+    // same way. Repeated fields (Set-Cookie) join with ", " as the spec says.
+    var map = {};
+    var order = [];
+    (pairs || []).forEach(function (pair) {
+      var name = String(pair[0]).toLowerCase();
+      var value = String(pair[1]);
+      if (Object.prototype.hasOwnProperty.call(map, name)) {
+        map[name] = map[name] + ', ' + value;
+      } else {
+        map[name] = value;
+        order.push(name);
+      }
+    });
+    this.get = function (name) {
+      var key = String(name).toLowerCase();
+      return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : null;
+    };
+    this.has = function (name) {
+      return Object.prototype.hasOwnProperty.call(map, String(name).toLowerCase());
+    };
+    this.forEach = function (fn, thisArg) {
+      order.forEach(function (name) { fn.call(thisArg, map[name], name, this); }, this);
+    };
+    this.keys = function () { return order.slice(); };
+  }
+
+  function Response(raw) {
+    this.status = raw.status;
+    this.ok = raw.ok;
+    this.url = raw.url;
+    this.headers = new Headers(raw.headers);
+    this.redirected = false;
+    var body = raw.body;
+    var used = false;
+    function takeBody() {
+      // The spec makes a body single-use; enforcing it here catches the common
+      // "read it twice and get an empty string" bug at the point of the mistake.
+      if (used) { throw new TypeError('body has already been read'); }
+      used = true;
+      return body;
+    }
+    Object.defineProperty(this, 'bodyUsed', { get: function () { return used; } });
+    this.text = function () {
+      try { return Promise.resolve(takeBody()); } catch (e) { return Promise.reject(e); }
+    };
+    this.json = function () {
+      try { return Promise.resolve(JSON.parse(takeBody())); } catch (e) { return Promise.reject(e); }
+    };
+  }
+
+  // Accepts a Headers instance, an array of pairs, or a plain object, and hands
+  // the binding the one shape it reads.
+  function normalizeHeaders(input) {
+    if (!input) return undefined;
+    var out = {};
+    if (typeof input.forEach === 'function' && typeof input.get === 'function') {
+      input.forEach(function (value, name) { out[name] = value; });
+      return out;
+    }
+    if (Array.isArray(input)) {
+      input.forEach(function (pair) { out[String(pair[0])] = String(pair[1]); });
+      return out;
+    }
+    Object.keys(input).forEach(function (name) { out[name] = String(input[name]); });
+    return out;
+  }
+
+  g.Headers = Headers;
+  g.Response = Response;
+  g.fetch = function (input, init) {
+    var options = init || {};
+    var request = {
+      method: options.method,
+      body: options.body,
+      headers: normalizeHeaders(options.headers),
+      credentials: options.credentials
+    };
+    return g.__hb_nativeFetch(String(input), request).then(function (raw) {
+      return new Response(raw);
+    });
+  };
+})(globalThis);
+)JS";
+    JSValue result =
+        JS_Eval(context_, kPrelude, std::char_traits<char>::length(kPrelude), "<fetch>", JS_EVAL_TYPE_GLOBAL);
+    if (JS_IsException(result)) {
+        JSValue exc = JS_GetException(context_);
+        const char* message = JS_ToCString(context_, exc);
+        HB_LOG_WARN("[js] fetch prelude install failed: " << (message ? message : "unknown"));
+        if (message) JS_FreeCString(context_, message);
+        JS_FreeValue(context_, exc);
+    }
+    JS_FreeValue(context_, result);
 }
 
 void QuickJSScriptEngine::set_location(std::string_view url) {
@@ -1582,6 +2275,170 @@ bool QuickJSScriptEngine::navigate_fragment(std::string_view url) {
     bool changed = update_location(url);
     script_location_change_.reset();
     return changed;
+}
+
+// --- History API MVP (9.6.1) ------------------------------------------------
+//
+// pushState/replaceState are a *session history* operation, not a navigation:
+// the document must not be torn down, so the binding only records what the page
+// asked for and updates `location` in place. The Tab drains the request, because
+// it owns the history stack and the URL bar.
+//
+// `title` (argv[1]) is accepted and ignored, which is what browsers do — it was
+// never implemented by any of them.
+JSValue QuickJSScriptEngine::js_history_push_state(JSContext* ctx, JSValueConst /*this_val*/, int argc,
+                                                   JSValueConst* argv, int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine) {
+        return JS_UNDEFINED;
+    }
+
+    // Serialize the state now rather than holding a JSValue: it has to survive
+    // in the Tab's history stack, which outlives this document's JS context.
+    // JSON is the MVP's stated limit (structured clone is M12's).
+    std::string serialized;
+    if (argc >= 1 && !JS_IsUndefined(argv[0]) && !JS_IsNull(argv[0])) {
+        JSValue json = JS_JSONStringify(ctx, argv[0], JS_UNDEFINED, JS_UNDEFINED);
+        if (JS_IsException(json)) {
+            // A non-serializable state is a DataCloneError in the spec. Report it
+            // rather than storing something the page did not ask for.
+            JS_FreeValue(ctx, json);
+            return JS_ThrowTypeError(ctx, "history state could not be serialized");
+        }
+        if (const char* text = JS_ToCString(ctx, json)) {
+            serialized = text;
+            JS_FreeCString(ctx, text);
+        }
+        JS_FreeValue(ctx, json);
+    }
+
+    // An omitted or empty url means "the current one", per spec.
+    std::string url = engine->location_url_;
+    if (argc >= 3 && !JS_IsUndefined(argv[2]) && !JS_IsNull(argv[2])) {
+        if (const char* text = JS_ToCString(ctx, argv[2])) {
+            const std::string requested(text);
+            JS_FreeCString(ctx, text);
+            if (!requested.empty()) {
+                // Resolved against `location_url_`, not through the host resolver
+                // that fetch uses. Two reasons: pushState updates location_url_
+                // synchronously, so a second relative push inside the same script
+                // run chains off the first (the host's base only moves once the
+                // Tab drains); and it keeps the API working with no resolver
+                // wired, which a location operation should not depend on.
+                url = Core::resolve_url(engine->location_url_, requested);
+                const auto document_origin = Core::Origin::parse(engine->location_url_);
+                const auto target_origin = Core::Origin::parse(url);
+                if (!document_origin || !target_origin || *document_origin != *target_origin) {
+                    JSValue error = JS_NewError(ctx);
+                    JS_SetPropertyStr(ctx, error, "name", JS_NewString(ctx, "SecurityError"));
+                    JS_SetPropertyStr(
+                        ctx, error, "message",
+                        JS_NewString(ctx,
+                                     "Failed to execute 'pushState' on 'History': the URL has a different origin."));
+                    return JS_Throw(ctx, error);
+                }
+            }
+        }
+    }
+
+    const bool replace = magic != 0;
+    engine->history_state_ = serialized;
+    // location reflects the new URL immediately — a page that pushes and then
+    // reads location.href must see the pushed address, and no hashchange fires
+    // for a pushState even when the fragment differs.
+    engine->location_url_ = url;
+    engine->script_history_changes_.push_back(HistoryChange{url, serialized, replace});
+    return JS_UNDEFINED;
+}
+
+JSValue QuickJSScriptEngine::js_history_get_state(JSContext* ctx, JSValueConst /*this_val*/, int /*magic*/) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine || engine->history_state_.empty()) {
+        return JS_NULL;  // no state is null, which is distinct from the string "null"
+    }
+    return JS_ParseJSON(ctx, engine->history_state_.c_str(), engine->history_state_.size(), "<history.state>");
+}
+
+JSValue QuickJSScriptEngine::js_history_get_length(JSContext* ctx, JSValueConst /*this_val*/, int /*magic*/) {
+    auto* engine = engine_from_context(ctx);
+    return JS_NewInt64(ctx, engine ? static_cast<int64_t>(engine->history_length_) : 1);
+}
+
+// back()/forward()/go(n). magic is the fixed delta, or 0 for go(n) which reads
+// its own. Only the request is recorded: traversal needs the Tab, which owns the
+// stack and the graphics context a re-render requires.
+JSValue QuickJSScriptEngine::js_history_go(JSContext* ctx, JSValueConst /*this_val*/, int argc, JSValueConst* argv,
+                                           int magic) {
+    auto* engine = engine_from_context(ctx);
+    if (!engine) {
+        return JS_UNDEFINED;
+    }
+    int delta = magic;
+    if (magic == 0) {
+        int32_t requested = 0;
+        if (argc >= 1 && JS_ToInt32(ctx, &requested, argv[0]) == 0) {
+            delta = requested;
+        }
+        // go(0) reloads in a browser; the MVP treats it as a no-op rather than
+        // pretending to implement a reload from here.
+        if (delta == 0) {
+            return JS_UNDEFINED;
+        }
+    }
+    engine->script_history_delta_ = delta;
+    return JS_UNDEFINED;
+}
+
+std::optional<IScriptEngine::HistoryChange> QuickJSScriptEngine::consume_history_change() {
+    if (script_history_changes_.empty()) return std::nullopt;
+    HistoryChange out = std::move(script_history_changes_.front());
+    script_history_changes_.pop_front();
+    return out;
+}
+
+std::optional<int> QuickJSScriptEngine::consume_history_delta() {
+    std::optional<int> out = script_history_delta_;
+    script_history_delta_.reset();
+    return out;
+}
+
+void QuickJSScriptEngine::set_history_length(size_t length) {
+    history_length_ = length == 0 ? 1 : length;
+}
+
+bool QuickJSScriptEngine::apply_popstate(std::string_view url, std::string_view state) {
+    if (!context_) {
+        return false;
+    }
+    location_url_ = std::string(url);
+    history_state_ = std::string(state);
+    // A traversal the app drove: it must NOT report back as a script-initiated
+    // change, or the Tab would re-push the entry it just moved to.
+    script_history_changes_.clear();
+    script_location_change_.reset();
+
+    // Same shape as the hashchange dispatch above: a real event object on the
+    // window target, bracketed by a ScriptEntryScope, with a microtask
+    // checkpoint after the listeners (7.3.2).
+    JSValue event = make_event("popstate", window_target());
+    JSValue state_value = history_state_.empty()
+                              ? JS_NULL
+                              : JS_ParseJSON(context_, history_state_.c_str(), history_state_.size(), "<popstate>");
+    if (JS_IsException(state_value)) {
+        JS_FreeValue(context_, state_value);
+        state_value = JS_NULL;
+    }
+    JS_SetPropertyStr(context_, event, "state", state_value);
+    {
+        ScriptEntryScope entry(script_entry_depth_);
+        dispatch_event(window_target(), "popstate", event);
+    }
+    JS_FreeValue(context_, event);
+    drain_microtasks();
+    // Whether a listener mutated the DOM is the controller's to report — it owns
+    // the host's mutation epoch, exactly as it does for hashchange. Returning
+    // true here means only "the event was dispatched".
+    return true;
 }
 
 std::optional<std::string> QuickJSScriptEngine::consume_location_change() {
@@ -1825,6 +2682,33 @@ JSValue QuickJSScriptEngine::js_report_missing_api(JSContext* ctx, JSValueConst,
     return JS_UNDEFINED;
 }
 
+// Story 9.5.2 follow-up. The fail-soft stub list can only report gaps somebody
+// predicted; a live sweep showed the loudest real signal is the opposite —
+// scripts dying on `ReferenceError: X is not defined`, naming a global nobody
+// had thought to stub. Wikipedia's bundle died on `Element`, which was not on
+// the 14-name list and would never have appeared in the telemetry.
+//
+// Recorded with a `(ReferenceError)` suffix rather than as a plain name,
+// because the two are not the same finding and a triage must not merge them: a
+// stub hit means the page carried on without the feature, while this means the
+// script DIED at that point and everything after it never ran.
+void QuickJSScriptEngine::record_missing_api_from_error(std::string_view error) {
+    constexpr std::string_view kPrefix = "ReferenceError: ";
+    constexpr std::string_view kSuffix = " is not defined";
+    if (!error.starts_with(kPrefix) || !error.ends_with(kSuffix)) {
+        return;
+    }
+    std::string_view name = error.substr(kPrefix.size(), error.size() - kPrefix.size() - kSuffix.size());
+    // Minified bundles throw on their own mangled locals (`aa is not defined`),
+    // which say nothing about this engine. A real global is not one or two
+    // characters long, so that cheap filter removes the bulk of the noise
+    // without needing to know which names are real.
+    if (name.size() < 3 || name.find(' ') != std::string_view::npos) {
+        return;
+    }
+    record_missing_api(std::string(name) + " (ReferenceError)");
+}
+
 void QuickJSScriptEngine::record_missing_api(std::string name) {
     if (name.empty()) return;
     if (std::find(missing_apis_.begin(), missing_apis_.end(), name) != missing_apis_.end()) {
@@ -1860,9 +2744,12 @@ void QuickJSScriptEngine::install_failsoft_stubs() {
       length: 0
     };
   }
-  if (typeof g.fetch === 'undefined') {
-    g.fetch = function () { report('fetch'); return new Promise(function () {}); };
-  }
+  // NOTE: no fetch stub here any more (story 9.1.1). It used to be
+  //   g.fetch = function () { return new Promise(function () {}); };
+  // which never settled, so a page using fetch did not fail — it froze its own
+  // logic forever, silently. Real fetch is installed by install_window_bindings;
+  // if that did not happen there is no host, and the binding rejects rather than
+  // leaving a promise hanging.
   if (typeof g.XMLHttpRequest === 'undefined') {
     g.XMLHttpRequest = function () { report('XMLHttpRequest'); };
     g.XMLHttpRequest.prototype.open = function () {};
@@ -1882,6 +2769,141 @@ void QuickJSScriptEngine::install_failsoft_stubs() {
                addEventListener: function () {}, removeEventListener: function () {} };
     };
   }
+  // --- Story T-JS-MISSING-API-COVERAGE-1 -----------------------------------
+  // Before this the reporting surface was four names, two of which cover
+  // features implemented back in 8.2.2/8.2.3 and so never fire. Two observable
+  // APIs cannot carry the roadmap's plan of deriving M12's scope from this
+  // telemetry, and they quietly biased 9.1.2: XHR's "only if telemetry reports
+  // it" trigger could only ever fire for one of the two things visible.
+  //
+  // Each stub below is `typeof`-guarded (a real implementation later wins), is
+  // a no-op that CANNOT throw, and reports exactly once per document. None of
+  // them fakes a plausible value a page could branch on incorrectly — an empty
+  // answer is honest, a wrong answer is a bug the page then blames on itself.
+
+  // Constructor-shaped observers. The page does `new X(cb)` and then calls
+  // methods on the instance, so the prototype must exist or the report is
+  // immediately followed by a TypeError, which is the failure this avoids.
+  function observerStub(name, extras) {
+    var Ctor = function () { report(name); };
+    Ctor.prototype.observe = function () {};
+    Ctor.prototype.unobserve = function () {};
+    Ctor.prototype.disconnect = function () {};
+    if (extras) { Ctor.prototype.takeRecords = function () { return []; }; }
+    return Ctor;
+  }
+  if (typeof g.IntersectionObserver === 'undefined') {
+    g.IntersectionObserver = observerStub('IntersectionObserver', true);
+  }
+  if (typeof g.MutationObserver === 'undefined') {
+    g.MutationObserver = observerStub('MutationObserver', true);
+  }
+  if (typeof g.ResizeObserver === 'undefined') {
+    g.ResizeObserver = observerStub('ResizeObserver', false);
+  }
+  if (typeof g.PerformanceObserver === 'undefined') {
+    g.PerformanceObserver = observerStub('PerformanceObserver', true);
+  }
+
+  if (typeof g.customElements === 'undefined') {
+    g.customElements = {
+      // A defined element simply never upgrades. The page's markup still
+      // renders as unknown elements, which is what it does before upgrade
+      // anyway, so this degrades rather than breaks.
+      define: function () { report('customElements'); },
+      get: function () { report('customElements'); return undefined; },
+      upgrade: function () { report('customElements'); },
+      // Never resolves: whenDefined promises an upgrade that is not coming, and
+      // resolving it would run the page's post-upgrade code against an element
+      // that was never upgraded. A pending promise stalls that one continuation;
+      // a false resolve corrupts everything after it.
+      whenDefined: function () { report('customElements'); return new Promise(function () {}); }
+    };
+  }
+
+  if (typeof g.WebSocket === 'undefined') {
+    g.WebSocket = function () {
+      report('WebSocket');
+      this.readyState = 3;  // CLOSED — never pretend a connection is open
+      this.bufferedAmount = 0;
+    };
+    g.WebSocket.prototype.send = function () {};
+    g.WebSocket.prototype.close = function () {};
+    g.WebSocket.prototype.addEventListener = function () {};
+    g.WebSocket.prototype.removeEventListener = function () {};
+    g.WebSocket.CONNECTING = 0; g.WebSocket.OPEN = 1; g.WebSocket.CLOSING = 2; g.WebSocket.CLOSED = 3;
+  }
+
+  if (typeof g.requestIdleCallback === 'undefined') {
+    // Deliberately runs the callback (on a timer) rather than dropping it:
+    // pages defer real initialization into idle callbacks, and never calling
+    // them leaves the page half-built with no error to explain why.
+    g.requestIdleCallback = function (cb) {
+      report('requestIdleCallback');
+      return g.setTimeout(function () {
+        cb({ didTimeout: false, timeRemaining: function () { return 0; } });
+      }, 1);
+    };
+    g.cancelIdleCallback = function (id) { g.clearTimeout(id); };
+  }
+
+  if (typeof g.getComputedStyle === 'undefined') {
+    // Reports empty for every property. The engine HAS computed styles, but
+    // exposing them is a real feature (T-JS-GET-COMPUTED-STYLE-1), not a stub —
+    // and a stub returning made-up lengths would be worse than an empty one,
+    // because layout-reading code would act on the numbers.
+    g.getComputedStyle = function () {
+      report('getComputedStyle');
+      return { getPropertyValue: function () { return ''; }, getPropertyPriority: function () { return ''; },
+               length: 0, item: function () { return ''; } };
+    };
+  }
+
+  if (typeof g.navigator === 'undefined') {
+    // `navigator` did not exist at all, so `navigator.userAgent` — which a very
+    // large share of real pages read — was a ReferenceError that killed the
+    // whole script. userAgent is deliberately EMPTY rather than a plausible
+    // string: this engine has a considered per-origin identity policy (M8), and
+    // a JS surface that answers with something different from what the network
+    // layer sends would be lying in two directions at once. Filling it in from
+    // the identity store is T-JS-NAVIGATOR-IDENTITY-1.
+    g.navigator = {
+      get userAgent() { report('navigator.userAgent'); return ''; },
+      language: 'en-US',
+      languages: ['en-US'],
+      onLine: true,
+      cookieEnabled: true,
+      platform: '',
+      // Strings, not undefined. A live sweep caught Google Tag Manager doing
+      // `.indexOf` on one of these and dying on `undefined` — the stub existing
+      // is not enough if the shape is wrong.
+      appVersion: '',
+      appName: 'Netscape',
+      product: 'Gecko',
+      vendor: '',
+      doNotTrack: null,
+      hardwareConcurrency: 1,
+      maxTouchPoints: 0
+    };
+  }
+
+  if (typeof g.alert === 'undefined') {
+    // No dialog surface exists. Reporting beats a ReferenceError mid-script.
+    g.alert = function () { report('alert'); };
+    g.confirm = function () { report('confirm'); return false; };
+    g.prompt = function () { report('prompt'); return null; };
+  }
+
+  if (typeof g.structuredClone === 'undefined') {
+    g.structuredClone = function (value) {
+      report('structuredClone');
+      // A JSON round-trip is a correct deep copy for JSON-shaped data, which is
+      // what pages clone in practice, and returns the input unchanged when it
+      // is not — never throws, never aliases silently for the common case.
+      try { return JSON.parse(JSON.stringify(value)); } catch (e) { return value; }
+    };
+  }
+
   // Minimal, real (not fail-soft) URL + URLSearchParams. Enough for pages that
   // parse link hrefs — e.g. Hacker News' hn.js does `new URL(el.href, location)`
   // in its delegated click handler before deciding vote/hide/collapse. Never
@@ -1967,6 +2989,8 @@ void QuickJSScriptEngine::install_extension_bindings() {
     JSValue global = JS_GetGlobalObject(context_);
     JS_SetPropertyStr(context_, global, "__hb_nativeInsertCss",
                       JS_NewCFunction(context_, js_native_insert_css, "__hb_nativeInsertCss", 2));
+    JS_SetPropertyStr(context_, global, "__hb_nativeSetFilterRules",
+                      JS_NewCFunction(context_, js_native_set_filter_rules, "__hb_nativeSetFilterRules", 1));
     JS_FreeValue(context_, global);
     extension_ready_ = true;
 }
@@ -1978,7 +3002,17 @@ JSValue QuickJSScriptEngine::wrap_node(DOM::Node* node) {
     if (auto it = node_wrappers_.find(node); it != node_wrappers_.end()) {
         return JS_DupValue(context_, it->second);
     }
-    JSValue obj = JS_NewObjectClass(context_, node_class_id_);
+    // A text node is not an HTMLElement, so it must not inherit from one
+    // (T-JS-DOM-INTERFACES-1). Getting this wrong would make `instanceof`
+    // answer confidently and wrongly, which is worse than the ReferenceError
+    // these interfaces replaced: a page branching on it takes the wrong path
+    // silently.
+    JSValue obj;
+    if (host_ && host_->node_kind(node) != NodeKind::Element && !JS_IsUndefined(node_proto_)) {
+        obj = JS_NewObjectProtoClass(context_, node_proto_, node_class_id_);
+    } else {
+        obj = JS_NewObjectClass(context_, node_class_id_);
+    }
     if (JS_IsException(obj)) {
         return obj;
     }

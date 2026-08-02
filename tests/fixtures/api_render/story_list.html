@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Top stories</title>
+  </head>
+  <body>
+    <h1>Top stories</h1>
+    <ul id="stories"><li id="status">Loading stories...</li></ul>
+    <script>
+      // Story 9.5.1 fixture: the same-origin list flow, shaped like
+      // api.hnpwa.com/v0/news/1.json — which is what the live manual gate on
+      // example.dev/m9 fetches. One element is created per story rather than one
+      // blob of text, so the fetched data has to survive the whole
+      // DOM -> style -> layout -> paint path before the test can see it.
+      fetch("/api/news").then(function (response) {
+        if (!response.ok) { throw new Error("server said " + response.status); }
+        return response.json();
+      }).then(function (items) {
+        var list = document.getElementById("stories");
+        list.innerHTML = "";
+        items.forEach(function (item, index) {
+          var row = document.createElement("li");
+          row.textContent = (index + 1) + ". " + item.title
+            + " (" + item.points + " points, " + item.comments_count + " comments)";
+          list.appendChild(row);
+        });
+      }).catch(function (error) {
+        // A failure is reported, never swallowed — otherwise a broken fetch
+        // looks the same as an empty list.
+        document.getElementById("stories").textContent = "Could not load: " + error.name;
+      });
+    </script>
+  </body>
+</html>

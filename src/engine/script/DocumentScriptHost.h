@@ -1,13 +1,18 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "core/ArenaAllocator.h"
 #include "core/net/StorageArea.h"
 #include "core/platform_api/IScriptHost.h"
+#include "core/platform_api/ScriptFetch.h"
 
 namespace Hummingbird::DOM {
 class Element;
@@ -41,6 +46,22 @@ public:
     using FocusSink = std::function<void(DOM::Element*, bool /*focused*/)>;
     void set_focus_sink(FocusSink sink) { focus_sink_ = std::move(sink); }
 
+    // fetch (9.1.1). Supplied by the Tab, which is the only layer that knows both
+    // the resource loader and the current document URL. Returns the request id,
+    // or 0 if it could not be started. Persists across reset().
+    using FetchSink = std::function<std::uint64_t(const ScriptFetchRequest&)>;
+    void set_fetch_sink(FetchSink sink) { fetch_sink_ = std::move(sink); }
+    // Resolves a relative URL against the current document. Also from the Tab.
+    using UrlResolver = std::function<std::string(std::string_view)>;
+    void set_url_resolver(UrlResolver resolver) { url_resolver_ = std::move(resolver); }
+
+    std::uint64_t start_fetch(const ScriptFetchRequest& request) override {
+        return fetch_sink_ ? fetch_sink_(request) : 0;
+    }
+    std::string resolve_url(std::string_view relative) override {
+        return url_resolver_ ? url_resolver_(relative) : std::string(relative);
+    }
+
     // document.cookie (8.1.5). Supplied by the owner rather than held directly,
     // because the jar is shared per profile while the document URL changes per
     // navigation, and only the Tab knows both. Persists across reset().
@@ -63,6 +84,7 @@ public:
     void set_session_storage_accessor(StorageAccessor accessor) { session_storage_accessor_ = std::move(accessor); }
 
     DOM::Element* get_element_by_id(std::string_view id) override;
+    DOM::Element* document_part(DocumentPart part) override;
     std::string get_text_content(const DOM::Node* node) override;
     void set_text_content(DOM::Node* node, std::string_view text) override;
     void set_attribute(DOM::Node* node, std::string_view name, std::string_view value) override;
@@ -147,6 +169,8 @@ private:
     bool mutated_ = false;
     int dispatch_depth_ = 0;  // >1 while a dispatch is nested inside another
     FocusSink focus_sink_;
+    FetchSink fetch_sink_;
+    UrlResolver url_resolver_;
     // Resolves the live StorageArea for the requested Web Storage kind, or null.
     Core::StorageArea* storage_area_for(StorageKind kind);
 

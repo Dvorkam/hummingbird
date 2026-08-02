@@ -39,8 +39,29 @@ size_t header_callback(char* ptr, size_t size, size_t nmemb, void* userdata) {
     return bytes;
 }
 
+// Fallbacks used when the caller names no deadline. The engine normally does
+// (ResourceLoader owns the whole-request budget, story 9.1.3), so these are a
+// backstop for a direct INetwork user rather than the real policy.
+constexpr long kDefaultConnectTimeoutMs = 5000;
+constexpr long kDefaultTotalTimeoutMs = 15000;
+
+// Lets a transfer in progress be abandoned when the browser is closing.
+//
+// curl calls this periodically; returning non-zero aborts with
+// CURLE_ABORTED_BY_CALLBACK. Without it a transfer is uninterruptible once
+// started, and since `NetworkThreadPool::shutdown` JOINS its workers, closing
+// the browser blocked until the slowest request hit its own timeout — up to the
+// full 15s request budget. Observed on a page whose nine webfonts were pointed
+// at an unreachable host: the window hung, then every request reported at once
+// as the deadlines expired together, and only then did the process exit.
+int abort_when_stopping(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
+    const auto* stopping = static_cast<const std::atomic<bool>*>(clientp);
+    return (stopping && stopping->load(std::memory_order_relaxed)) ? 1 : 0;
+}
+
 void apply_common_curl_options(CURL* curl, const std::string& url, std::string& body_buffer,
-                               Core::HttpHeaders& header_buffer) {
+                               Core::HttpHeaders& header_buffer, const NetworkRequestOptions& options,
+                               const std::atomic<bool>* stopping) {
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     // The ENGINE follows redirects, not curl (story 8.3.1). Letting curl do it
     // hides intermediate hops, so their Set-Cookie headers never reach the jar
@@ -70,8 +91,52 @@ void apply_common_curl_options(CURL* curl, const std::string& url, std::string& 
     // Sec-CH-UA) per target origin at the ResourceLoader choke point, so it can
     // vary by the site's chosen IdentityMode. A "User-Agent:" header in the
     // request list overrides curl's built-in default.
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 5000L);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, 15000L);
+    // Deadlines come from the caller so the engine can spend ONE budget across a
+    // whole redirect chain (story 9.1.3). Before that these were hardcoded here,
+    // and since the engine drives the redirect loop each hop is a separate call,
+    // so a 20-hop chain could run 20x this limit before anything gave up.
+    const long connect_ms = options.connect_timeout_ms > 0 ? options.connect_timeout_ms : kDefaultConnectTimeoutMs;
+    const long total_ms = options.total_timeout_ms > 0 ? options.total_timeout_ms : kDefaultTotalTimeoutMs;
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, connect_ms);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, total_ms);
+
+    // A deadline bounds how long a request may take; this bounds how long a
+    // SHUTDOWN may take. They are different problems and both are needed: the
+    // deadline still has to be generous enough for a slow page to load.
+    if (stopping) {
+        curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, abort_when_stopping);
+        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, stopping);
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    }
+}
+
+// A deadline that expired is not the same failure as a host that will not
+// resolve, and the difference is visible: the error page says so, and from
+// 9.1.1 a fetch promise rejects with a timeout-shaped reason.
+NetworkError classify_curl_error(CURLcode res) {
+    if (is_tls_verification_error(res)) return NetworkError::TlsVerificationFailed;
+    if (res == CURLE_OPERATION_TIMEDOUT) return NetworkError::Timeout;
+    return NetworkError::CurlError;
+}
+
+// Reports a transfer that did not complete.
+//
+// Shared by the GET and POST paths, which previously carried the same log line
+// twice and would have needed the shutdown case added to each.
+//
+// A transfer abandoned because the browser is closing is NOT a failure and must
+// not read as one: every in-flight request aborts at once during shutdown, so
+// warning here turned an ordinary close into a wall of alarming output about
+// requests nobody was waiting for any more.
+void log_transfer_failure(std::string_view url, CURLcode res, const CurlResponseMeta& meta, size_t bytes) {
+    if (res == CURLE_ABORTED_BY_CALLBACK) {
+        HB_LOG_DEBUG("[network] request abandoned at shutdown: " << url);
+        return;
+    }
+    HB_LOG_WARN("[network] curl failed: url=" << url << " code=" << res << " err=" << curl_easy_strerror(res)
+                                              << " status=" << meta.status << " ssl_verify=" << meta.ssl_verify_result
+                                              << " effective=" << meta.effective_url
+                                              << " content_type=" << meta.content_type << " bytes=" << bytes);
 }
 
 // Appends the caller's request headers to `list`, which the caller owns and must
@@ -153,66 +218,16 @@ void CurlNetwork::shutdown() {
 
 void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback,
                       const NetworkRequestOptions& options) {
-    if (!ok()) {
-        if (callback) callback(Hummingbird::Platform::make_response(url));
-        return;
-    }
-    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
-
-    // Move callback once, and never touch the moved-from original again.
-    auto cb = std::move(callback);
-
-    const bool allow_insecure = options.allow_insecure;
-    Core::HttpHeaders request_headers = options.headers;
-    thread_pool_.submit(
-        [url, cb = std::move(cb), this, allow_insecure, request_headers = std::move(request_headers)]() mutable {
-            if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
-            std::string body;
-            NetworkResponse response = Hummingbird::Platform::make_response(url);
-            CURL* curl = curl_easy_init();
-            if (!curl) {
-                HB_LOG_WARN("[network] curl init failed: url=" << url);
-                if (cb) cb(std::move(response));
-                return;
-            }
-
-            apply_common_curl_options(curl, url, body, response.headers);
-            struct curl_slist* headers = append_request_headers(nullptr, request_headers);
-            if (headers) {
-                curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-            }
-            Hummingbird::Platform::apply_tls_options(curl, allow_insecure);
-
-            CURLcode res = curl_easy_perform(curl);
-            CurlResponseMeta meta = collect_response_meta(curl);
-            curl_slist_free_all(headers);
-            curl_easy_cleanup(curl);
-
-            if (res != CURLE_OK) {
-                response.error =
-                    is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
-                HB_LOG_WARN("[network] curl failed: url="
-                            << url << " code=" << res << " err=" << curl_easy_strerror(res) << " status=" << meta.status
-                            << " ssl_verify=" << meta.ssl_verify_result << " effective=" << meta.effective_url
-                            << " content_type=" << meta.content_type << " bytes=" << body.size());
-            } else if (meta.status >= 400) {
-                HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
-                                                         << meta.effective_url << " content_type=" << meta.content_type
-                                                         << " bytes=" << body.size());
-                log_http_error_details(url, response.headers, body);
-            }
-
-            if (res == CURLE_OK || !body.empty()) {
-                response.body = std::move(body);
-                response.status = meta.status;
-                response.effective_url = std::move(meta.effective_url);
-            }
-            if (cb) cb(std::move(response));
-        });
+    request(url, "GET", {}, std::move(callback), options);
 }
 
 void CurlNetwork::post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
                        const NetworkRequestOptions& options) {
+    request(url, "POST", body, std::move(callback), options);
+}
+
+void CurlNetwork::request(const std::string& url, std::string_view method, std::string_view body,
+                          std::function<void(NetworkResponse)> callback, const NetworkRequestOptions& options) {
     if (!ok()) {
         if (callback) callback(Hummingbird::Platform::make_response(url));
         return;
@@ -220,14 +235,15 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
     if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     auto cb = std::move(callback);
-    const std::string body_copy(body);
+    const std::string method_copy(method);
+    const std::string request_body(body);
     const bool allow_insecure = options.allow_insecure;
     const std::string content_type =
-        options.content_type.empty() ? "application/x-www-form-urlencoded" : options.content_type;
-
+        options.content_type.empty() && method == "POST" ? "application/x-www-form-urlencoded" : options.content_type;
     Core::HttpHeaders request_headers = options.headers;
-    thread_pool_.submit([url, body_copy, cb = std::move(cb), this, allow_insecure, content_type,
-                         request_headers = std::move(request_headers)]() mutable {
+    const NetworkRequestOptions call_options = options;
+    thread_pool_.submit([url, method_copy, request_body, cb = std::move(cb), this, allow_insecure, content_type,
+                         call_options, request_headers = std::move(request_headers)]() mutable {
         if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         std::string response_body;
         NetworkResponse response = Hummingbird::Platform::make_response(url);
@@ -238,16 +254,36 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
             return;
         }
 
-        apply_common_curl_options(curl, url, response_body, response.headers);
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_copy.c_str());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body_copy.size()));
+        apply_common_curl_options(curl, url, response_body, response.headers, call_options,
+                                  thread_pool_.stopping_flag());
+        if (method_copy == "HEAD") {
+            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+        } else if (method_copy == "POST") {
+            // CURLOPT_POST is required even for an empty body; otherwise curl
+            // silently issues GET, which is the bug this port exists to prevent.
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        }
+        if (!request_body.empty() || method_copy == "POST") {
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body.c_str());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(request_body.size()));
+        }
+        if (method_copy != "GET" && method_copy != "POST" && method_copy != "HEAD") {
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method_copy.c_str());
+        } else if (method_copy == "GET" && !request_body.empty()) {
+            // CURLOPT_POSTFIELDS changes curl's inferred verb to POST. Restore
+            // the caller's explicit method after installing the request body.
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
+        }
 
         struct curl_slist* headers = nullptr;
-        const std::string content_type_header = "Content-Type: " + content_type;
-        headers = curl_slist_append(headers, content_type_header.c_str());
+        if (!content_type.empty()) {
+            const std::string content_type_header = "Content-Type: " + content_type;
+            headers = curl_slist_append(headers, content_type_header.c_str());
+        }
         headers = append_request_headers(headers, request_headers);
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        if (headers) {
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        }
 
         Hummingbird::Platform::apply_tls_options(curl, allow_insecure);
 
@@ -257,12 +293,8 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
         curl_easy_cleanup(curl);
 
         if (res != CURLE_OK) {
-            response.error =
-                is_tls_verification_error(res) ? NetworkError::TlsVerificationFailed : NetworkError::CurlError;
-            HB_LOG_WARN("[network] curl failed: url="
-                        << url << " code=" << res << " err=" << curl_easy_strerror(res) << " status=" << meta.status
-                        << " ssl_verify=" << meta.ssl_verify_result << " effective=" << meta.effective_url
-                        << " content_type=" << meta.content_type << " bytes=" << response_body.size());
+            response.error = classify_curl_error(res);
+            log_transfer_failure(url, res, meta, response_body.size());
         } else if (meta.status >= 400) {
             HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
                                                      << meta.effective_url << " content_type=" << meta.content_type

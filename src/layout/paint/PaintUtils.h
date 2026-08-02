@@ -2,11 +2,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <optional>
 
 #include "core/platform_api/IGraphicsContext.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "layout/geometry/Geometry.h"
+#include "layout/replaced/ObjectFitUtils.h"
 #include "style/types/ComputedStyle.h"
 
 namespace Hummingbird::Layout::PaintUtils {
@@ -213,6 +215,44 @@ inline void draw_outline(IGraphicsContext& context, const Rect& rect, const Colo
     context.fill_rect(right, color);
 }
 
+// Paints a replaced element's bitmap into its content box with `object-fit`
+// applied (story 8.5.2), clipping when the fitted result overflows.
+//
+// Extracted because RenderImage and RenderSvg carried character-for-character
+// identical copies of this, which is the kind of duplication that diverges
+// silently — an object-fit fix in one is easy to miss in the other. What the two
+// genuinely differ in is how they OBTAIN the bitmap: RenderImage resolves a
+// store handle at paint time, RenderSvg owns the raster it made from its own
+// markup. That difference stays with them; the placement does not.
+inline void paint_replaced_bitmap(IGraphicsContext& context, const Rect& content, const ImageBitmap& image,
+                                  Css::ComputedStyle::ObjectFit fit) {
+    const auto placement =
+        ObjectFitUtils::compute_fit(fit, content, static_cast<float>(image.width), static_cast<float>(image.height));
+    if (placement.needs_clip) {
+        context.push_clip(content);
+        context.draw_image(image, placement.dest);
+        context.pop_clip();
+        return;
+    }
+    context.draw_image(image, placement.dest);
+}
+
+// Same placement, for a bitmap the caller names by reference rather than owns.
+// The overload exists so the ref never has to be resolved early just to compute
+// a size — the resolve happens once, here, and the pointer dies with the call.
+inline void paint_replaced_bitmap(IGraphicsContext& context, const Rect& content, ResourceRef image,
+                                  Css::ComputedStyle::ObjectFit fit, const ImageBitmap& resolved) {
+    const auto placement = ObjectFitUtils::compute_fit(fit, content, static_cast<float>(resolved.width),
+                                                       static_cast<float>(resolved.height));
+    if (placement.needs_clip) {
+        context.push_clip(content);
+        context.draw_image(image, placement.dest);
+        context.pop_clip();
+        return;
+    }
+    context.draw_image(image, placement.dest);
+}
+
 inline void draw_placeholder_box(IGraphicsContext& context, const Rect& rect, const Color& fill_color,
                                  const Color& stroke_color, bool fill_enabled = true, float stroke_thickness = 1.0f) {
     if (fill_enabled) {
@@ -305,8 +345,8 @@ inline Rect compute_background_image_rect(const Rect& area, const ImageBitmap& i
     return {area.x + offset_x, area.y + offset_y, dest_width, dest_height};
 }
 
-inline void draw_background_image(IGraphicsContext& context, const Rect& area, const ImageBitmap& image,
-                                  const Css::ComputedStyle& style) {
+inline void draw_background_image(IGraphicsContext& context, const Rect& area, ResourceRef image_ref,
+                                  const ImageBitmap& image, const Css::ComputedStyle& style) {
     Rect dest = compute_background_image_rect(area, image, style);
     if (dest.width <= 0.0f || dest.height <= 0.0f) {
         return;
@@ -318,7 +358,7 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
     context.push_clip(area);
 
     if (style.background_repeat == Css::ComputedStyle::BackgroundRepeat::NoRepeat) {
-        context.draw_image(image, dest);
+        context.draw_image(image_ref, dest);
         context.pop_clip();
         return;
     }
@@ -347,7 +387,7 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
         float x = start_x;
         do {
             Rect tile{x, y, dest.width, dest.height};
-            context.draw_image(image, tile);
+            context.draw_image(image_ref, tile);
             if (!repeat_x) break;
             x += dest.width;
         } while (x < area.x + area.width);
@@ -359,7 +399,7 @@ inline void draw_background_image(IGraphicsContext& context, const Rect& area, c
 }
 
 inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, const Css::ComputedStyle* style,
-                                const ImageBitmap* background_image) {
+                                ResourceRef background_image) {
     if (!style) {
         return;
     }
@@ -394,8 +434,14 @@ inline void draw_box_decoration(IGraphicsContext& context, const Rect& rect, con
             context.fill_rect(rect, *style->background);
         }
     }
-    if (background_image && style->background_image.has_value()) {
-        draw_background_image(context, rect, *background_image, *style);
+    if (background_image.valid() && style->background_image.has_value()) {
+        // Resolved only to learn the intrinsic size for tiling and positioning;
+        // the draw itself passes the handle, so nothing downstream retains a
+        // pointer into the store.
+        const IResourceResolver* resolver = context.resource_resolver();
+        if (const ImageBitmap* resolved = resolver ? resolver->resolve_image(background_image) : nullptr) {
+            draw_background_image(context, rect, background_image, *resolved, *style);
+        }
     }
     if (style->border_style != Css::ComputedStyle::BorderStyle::None) {
         const auto& bw = style->border_width;

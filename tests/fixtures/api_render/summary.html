@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Cross-origin summary</title>
+  </head>
+  <body>
+    <h1>Cross-origin summary</h1>
+    <p id="summary">Loading summary...</p>
+    <p id="headers"></p>
+    <script>
+      // Story 9.5.1 fixture: the cross-origin flow, shaped like
+      // en.wikipedia.org/api/rest_v1/page/summary/&lt;title&gt; — the second endpoint
+      // the live manual gate on example.dev/m9 fetches, and the one that actually
+      // exercises CORS.
+      var out = document.getElementById("summary");
+      fetch("https://wiki.test/api/rest_v1/page/summary/Hummingbird")
+        .then(function (response) {
+          if (!response.ok) { throw new Error("server said " + response.status); }
+          // Which headers this page may read is CORS's decision, not the
+          // server's alone (story 9.2.4), so report them rather than assume.
+          var readable = "etag=" + (response.headers.get("etag") || "hidden")
+                       + " age=" + (response.headers.get("age") || "hidden");
+          return response.json().then(function (page) {
+            return { page: page, readable: readable };
+          });
+        })
+        .then(function (result) {
+          out.textContent = result.page.title + ": " + result.page.extract;
+          document.getElementById("headers").textContent = result.readable;
+        })
+        .catch(function (error) {
+          // A blocked response must be indistinguishable from a network failure
+          // here: the page is told that it failed, never what the server said.
+          out.textContent = "Could not load: " + error.name;
+        });
+    </script>
+  </body>
+</html>

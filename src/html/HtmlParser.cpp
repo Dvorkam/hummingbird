@@ -113,15 +113,27 @@ void Parser::handle_start_tag(const StartTagToken& tag_data, ParseState& state) 
         track_unsupported_tag(lowered_name);
     }
     track_semantic_tag(lowered_name);
+    // Resource links are read back off the ELEMENT, not out of the raw token
+    // (T-HTML-ATTR-ENTITY-DECODE-1). `apply_attributes` decoded the character
+    // references on the way in, and these lists are what the loader actually
+    // fetches — reading the token instead left the DOM correct while every
+    // fetched URL kept its `&amp;`, so a link navigated fine and the identical
+    // URL as an <img> src 404'd. One decoded source of truth, no second decode.
+    const auto* appended_element = dynamic_cast<const DOM::Element*>(appended);
+    const auto attribute_of = [appended_element](std::string_view name) -> std::string_view {
+        if (!appended_element) return {};
+        const auto* value = appended_element->find_attribute(name);
+        return value ? std::string_view{*value} : std::string_view{};
+    };
     if (lowered_name == Hummingbird::Html::TagNames::Link) {
-        auto rel = Core::Utils::to_lower(Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Rel));
-        auto href = Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Href);
+        auto rel = Core::Utils::to_lower(attribute_of(Hummingbird::Html::AttributeNames::Rel));
+        auto href = attribute_of(Hummingbird::Html::AttributeNames::Href);
         if (rel == "stylesheet" && !href.empty()) {
             m_stylesheet_links.emplace_back(href);
         }
     }
     if (lowered_name == Hummingbird::Html::TagNames::Img) {
-        auto src = Utils::find_attribute(tag_data, Hummingbird::Html::AttributeNames::Src);
+        auto src = attribute_of(Hummingbird::Html::AttributeNames::Src);
         if (!src.empty()) {
             m_image_links.emplace_back(src);
         }
@@ -209,7 +221,18 @@ DOM::Node* Parser::select_parent(const ParseState& state, std::string_view tag_n
 
 void Parser::apply_attributes(DOM::Element& element, const StartTagToken& tag_data) {
     for (const auto& attr : tag_data.attributes) {
-        element.set_attribute(attr.name, attr.value);
+        // Character references are decoded in attribute values, not only in text
+        // (T-HTML-ATTR-ENTITY-DECODE-1). HTML *requires* a literal `&` to be
+        // written `&amp;` inside an attribute, so skipping this made every URL
+        // with an ampersand wrong: `href="/wiki/Sam_&amp;_Max"` requested the
+        // entity verbatim and 404'd on a real article.
+        //
+        // Safe to reuse the text decoder here because it only accepts a
+        // SEMICOLON-TERMINATED reference. That is what the spec's
+        // ambiguous-ampersand rule protects in attributes — a legacy query
+        // string like `?a=1&amp=2` must keep its literal `&amp`, and it does,
+        // because there is no `;` to terminate it.
+        element.set_attribute(attr.name, Utils::decode_named_entities(attr.value));
     }
 }
 

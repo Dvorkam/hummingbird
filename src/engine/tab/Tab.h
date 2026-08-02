@@ -1,7 +1,10 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -13,6 +16,7 @@
 #include "core/net/IdentityPolicyStore.h"
 #include "core/net/StorageArea.h"
 #include "core/net/StorageManager.h"
+#include "core/platform_api/ScriptFetch.h"
 #include "core/utils/Timing.h"
 #include "engine/forms/FormSubmission.h"
 #include "engine/resources/ResourceLoader.h"
@@ -23,6 +27,10 @@
 #include "engine/tab/TabAnimationTicker.h"
 #include "engine/tab/TabLayoutState.h"
 #include "layout/geometry/Geometry.h"
+
+namespace Hummingbird::Layout {
+class RenderObject;
+}
 
 namespace Hummingbird {
 class IGraphicsContext;
@@ -64,7 +72,9 @@ public:
         std::unique_ptr<IResourceProvider> resource_provider, std::unique_ptr<IImageDecoder> image_decoder,
         std::unique_ptr<IScriptEngine> script_engine, std::shared_ptr<Core::CookieJar> cookie_jar = nullptr,
         std::shared_ptr<Core::StorageManager> storage_manager = nullptr,
-        std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr);
+        std::shared_ptr<Core::IdentityPolicyStore> identity_store = nullptr,
+        std::shared_ptr<Core::HttpCache> http_cache = nullptr,
+        std::shared_ptr<Core::RequestFilter> request_filter = nullptr);
     ~Tab();
 
     Tab(const Tab&) = delete;
@@ -77,6 +87,13 @@ public:
     void navigate(std::string_view url, NavigationSource source = NavigationSource::User);
     // Form submits are always document-initiated.
     void navigate(const FormSubmission& submission);
+    // F5 / Ctrl+R. Distinct from re-navigating to the same URL because a reload
+    // forces the HTTP cache to revalidate the document rather than serve it
+    // (story 9.3.1) — without that, a page with `max-age` would be unrefreshable.
+    void reload();
+    // Ctrl+Shift+R. Ignores the cache for the document AND its subresources,
+    // which a normal reload deliberately does not.
+    void hard_reload();
 
     // Back/forward navigation over the per-tab history (7.6.1). Returns false when
     // there is nowhere to go. A same-document target navigates by fragment (no
@@ -132,6 +149,9 @@ public:
     // Completed style+layout passes (7.4.1 invalidation budget instrumentation).
     size_t style_layout_pass_count() const;
     std::string_view requested_url() const { return navigation_lifecycle_.requested_url(); }
+    // Root of the current render tree (read-only), for tests and inspection
+    // that need to locate a laid-out box — e.g. to synthesize a click on it.
+    const Layout::RenderObject* render_root() const;
     SecurityState security_state() const { return navigation_lifecycle_.security_state(); }
     std::optional<ResourceView> resource_view(std::string_view url, ResourceType type) const;
 
@@ -143,6 +163,11 @@ private:
     std::string initiator_host_for(NavigationSource source) const;
     std::string initiator_url_for(NavigationSource source) const;
     void consume_pending_resources(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    // Settles fetches whose responses arrived since the last tick (9.1.1). Runs
+    // on the main thread; the transport only ever enqueues. Takes the graphics
+    // context because a continuation that mutates the DOM must rebuild here —
+    // marking the tab dirty alone would repaint the pre-continuation tree.
+    void process_settled_fetches(IGraphicsContext& graphics, const Layout::Rect& viewport);
     void process_incremental_resource_updates(const ResourceLoader::BatchResult& batch, IGraphicsContext& graphics,
                                               const Layout::Rect& viewport);
     void sync_extension_styles_before_stylesheet_update();
@@ -161,11 +186,21 @@ private:
     // Picks up a script-initiated location.hash change (7.7.3): syncs the tab's
     // requested URL and queues a URL-bar update for the app.
     void process_script_url_change();
+    // History API MVP (9.6.1).
+    void process_script_history_change();
+    void process_script_history_traversal(IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void apply_history_state(const NavigationHistory::Entry& entry, IGraphicsContext& graphics,
+                             const Layout::Rect& viewport);
     bool rebuild_document_and_sync_layout(IGraphicsContext& graphics, const Layout::Rect& viewport,
                                           std::string_view reason);
     void begin_navigation_session(std::string_view url);
+    // The one navigation path; `navigate` and `reload` differ only in the cache
+    // policy they hand it.
+    void navigate_with_cache_policy(std::string_view url, NavigationSource source,
+                                    ResourceLoader::CachePolicy cache_policy);
     // Navigates to a history entry without pushing a new one (back/forward).
-    void navigate_history_entry(const std::string& url, IGraphicsContext& graphics, const Layout::Rect& viewport);
+    void navigate_history_entry(const NavigationHistory::Entry& entry, IGraphicsContext& graphics,
+                                const Layout::Rect& viewport);
     bool prepare_document_from_response(std::string_view html);
     void apply_load_mutations_after_document_ready(IGraphicsContext& graphics, const Layout::Rect& viewport);
     // External <script src> gating (7.0.1): scripts run once every external
@@ -188,6 +223,16 @@ private:
     // Per-tab sessionStorage (8.2.3): in-memory, keyed by Origin::key(), never
     // persisted, dropped when the tab is destroyed.
     std::unordered_map<std::string, Core::StorageArea> session_storage_;
+
+    // In-flight fetch bookkeeping (9.1.1). `settled_fetches_` is written from the
+    // transport's thread and drained on the main thread, hence the mutex.
+    // `fetch_generation_` is bumped on navigation: a response stamped with an
+    // older generation belongs to a document that no longer exists and is
+    // dropped rather than settled.
+    std::mutex fetch_mutex_;
+    std::vector<ScriptFetchResponse> settled_fetches_;
+    std::uint64_t next_fetch_id_ = 0;
+    std::uint64_t fetch_generation_ = 0;
     std::unique_ptr<DocumentPipeline> document_pipeline_;
     std::vector<std::string> extension_style_blocks_;
     std::unordered_set<std::string> extension_style_block_keys_;
@@ -200,6 +245,10 @@ private:
     // True while navigating via back/forward, so those navigations don't push a
     // new history entry (7.6.1).
     bool in_history_navigation_ = false;
+    // Which document is loaded, for deciding whether a history entry belongs
+    // to it (9.6.1). Bumped by begin_navigation_session; entries recorded
+    // while it holds a value are same-document with respect to that value.
+    uint64_t document_generation_ = 0;
     TabLayoutState layout_state_{};
     TabAnimationTicker animation_ticker_{};
 

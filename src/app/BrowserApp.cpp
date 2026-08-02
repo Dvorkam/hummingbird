@@ -112,6 +112,12 @@ void BrowserApp::initialize_extensions(Hummingbird::Engine::TabId first_tab_id) 
     extension_host_->set_insert_css_handler([this](Hummingbird::Engine::TabId tab_id, std::string_view css_text) {
         return insert_extension_css(tab_id, css_text);
     });
+    // Before set_extensions, which starts nothing yet but is where rules would
+    // be read from if it did. The filter belongs to the profile (TabManager
+    // owns it and every tab's loader consults it), so extensions write into it
+    // rather than owning it — which is what will let a non-extension block list
+    // share the same mechanism.
+    extension_host_->set_request_filter(tab_controller_.manager().request_filter());
     extension_host_->set_extensions(std::move(bootstrap.extensions));
     if (extension_host_->extension_count() > 0) {
         HB_LOG_INFO("[ext] loaded extensions: " << extension_host_->extension_count());
@@ -300,6 +306,20 @@ void BrowserApp::navigate_and_reflect_url(std::string_view url, Hummingbird::Eng
     render_coordinator_->set_chrome_dirty();
 }
 
+void BrowserApp::reload_and_reflect_url(bool hard) {
+    // The tab already knows which URL it is on, so unlike a navigation there is
+    // nothing to resolve — only the URL bar to put back in case the user had
+    // typed something they never submitted.
+    browser_chrome_.url_bar().set_text(active_tab().requested_url());
+    if (hard) {
+        active_tab().hard_reload();
+    } else {
+        active_tab().reload();
+    }
+    render_coordinator_->set_document_dirty();
+    render_coordinator_->set_chrome_dirty();
+}
+
 void BrowserApp::navigate_and_reflect_submission(const Hummingbird::Engine::FormSubmission& submission) {
     browser_chrome_.url_bar().set_text(submission.url);
     navigate_active_tab(submission);
@@ -357,9 +377,15 @@ void BrowserApp::toggle_active_site_compatibility() {
     HB_LOG_INFO("[identity] " << origin->serialize() << " -> "
                               << (compat ? "Compatibility (Chrome-shaped UA)" : "Transparent (honest UA)")
                               << "; reloading");
-    // Reload so the new identity takes effect on the very next request. User
-    // initiated, so it is a safe GET — never a silent POST replay.
-    navigate_and_reflect_url(active_tab().requested_url());
+    // A HARD reload, so the new identity takes effect on the very next request
+    // (story 9.3.2). A normal reload would serve the page and its subresources
+    // from cache — the entries fetched under the OTHER identity — so the toggle
+    // would appear to do nothing, which is the exact opposite of why the user
+    // pressed it. Keying `User-Agent` into the cache instead would halve the cache
+    // for every site, and only servers that say `Vary: User-Agent` actually need
+    // it; those are already handled by the secondary key. User initiated, so it is
+    // a safe GET — never a silent POST replay.
+    reload_and_reflect_url(/*hard*/ true);
 }
 
 void BrowserApp::notify_extension_tab_created(Hummingbird::Engine::TabId tab_id, std::string_view url) {

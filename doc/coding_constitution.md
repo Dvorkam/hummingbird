@@ -42,6 +42,29 @@ This document outlines the architectural principles, coding standards, and best 
 
 
 
+### 2.1.1. Externally-Lifetimed Resources
+
+An object whose lifetime is driven by an **external event** — a network response,
+a decode, a cache eviction, a navigation — rather than by a containing scope does
+not fit the observer rule above, because the owner does not reliably outlive the
+observer.
+
+* **Rule:** downstream layers refer to such a resource by **identity**, and the
+  payload is **resolved at the point of use** by the layer that owns it. A
+  resolved pointer lives for the duration of that call and is never stored.
+* **Why not shared ownership:** a `shared_ptr` to the payload keeps memory alive
+  that the owning cache is trying to reclaim, which silently breaks eviction
+  under memory pressure. Identity keeps the *reference* cheap and lets the owner
+  stay in control of the *bytes*.
+* **In practice:** `ResourceRef` + `IResourceResolver` (`core/ResourceRef.h`).
+  Fonts reach the same end by copying bytes out to a cache file and referring to
+  a family name; either is fine, holding a raw pointer into the owner's storage
+  is not.
+* **Cost of getting it wrong:** the render tree and the display list both cached
+  `const ImageBitmap*` into the resource store, which frees payloads at four
+  points. It crashed the browser on a real site, and the "image dimensions" in
+  the log decoded to the engine's own log strings — freed memory, reused.
+
 ### 2.2. String Hygiene
 
 * **Input Parameters:** Always use `std::string_view` for read-only string arguments.

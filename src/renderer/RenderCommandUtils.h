@@ -12,6 +12,7 @@ struct DisplayCommand;
 namespace RenderCommandUtils {
 
 DisplayCommand make_fill_rect(const Hummingbird::Layout::Rect& rect, const Color& color);
+DisplayCommand make_draw_image(ResourceRef image, const Hummingbird::Layout::Rect& dest);
 DisplayCommand make_draw_image(const ImageBitmap* image, const Hummingbird::Layout::Rect& dest);
 DisplayCommand make_draw_text(const std::string& text, float x, float y, const TextStyle& style);
 DisplayCommand make_draw_text_with_metrics(const std::string& text, float x, float y, const TextStyle& style,

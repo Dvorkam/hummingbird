@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -7,7 +8,9 @@
 #include <vector>
 
 #include "core/net/CookieJar.h"
+#include "core/net/HttpCache.h"
 #include "core/net/IdentityPolicyStore.h"
+#include "core/net/RequestFilter.h"
 #include "core/net/StorageManager.h"
 #include "core/platform_api/IImageDecoder.h"
 #include "core/platform_api/INetwork.h"
@@ -78,11 +81,24 @@ public:
     // Compatibility), shared so a mode chosen in one tab holds in every tab.
     const std::shared_ptr<Core::IdentityPolicyStore>& identity_store() const { return identity_store_; }
 
+    // The profile's HTTP cache (9.3.1), shared for the same reason as the jar:
+    // opening a page in a second tab should not refetch what the first one has.
+    const std::shared_ptr<Core::HttpCache>& http_cache() const { return http_cache_; }
+
+    // The profile's declarative request filter (9.4.1), shared so an extension
+    // registers its rules once and every tab obeys them. Owned here rather than
+    // by the extension host because filtering is a property of the profile, not
+    // of the extension system — a future user-level block list populates the
+    // same object.
+    const std::shared_ptr<Core::RequestFilter>& request_filter() const { return request_filter_; }
+
 private:
     TabFactory factory_;
     std::shared_ptr<Core::CookieJar> cookie_jar_ = std::make_shared<Core::CookieJar>();
     std::shared_ptr<Core::StorageManager> storage_manager_ = std::make_shared<Core::StorageManager>();
     std::shared_ptr<Core::IdentityPolicyStore> identity_store_ = std::make_shared<Core::IdentityPolicyStore>();
+    std::shared_ptr<Core::HttpCache> http_cache_ = std::make_shared<Core::HttpCache>();
+    std::shared_ptr<Core::RequestFilter> request_filter_ = std::make_shared<Core::RequestFilter>();
     std::vector<Entry> tabs_;
     std::optional<TabId> active_id_;
     TabId next_id_ = 1;

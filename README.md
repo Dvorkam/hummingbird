@@ -70,7 +70,7 @@ works; it does not imply broad compatibility with similar sites.
 | Built-in `example.dev` pages | Deterministic HTML/CSS/layout/JS demonstrations | Designed around the implemented feature set |
 | DuckDuckGo HTML | Real-page HTML/CSS, forms, navigation, and layout | Only the targeted flow and interactions are expected to work |
 | Pinned vanilla TodoMVC | DOM mutation, events, timers, and incremental invalidation | A fixed local fixture, not arbitrary framework compatibility |
-| Hacker News | Login, comment submission, persistent cookies, and restart-safe sessions | **Requires per-site compatibility mode; see below** |
+| Hacker News | Login, comment submission, persistent cookies, and restart-safe sessions | Works under Hummingbird's own identity as of 2026-08-02 |
 
 <p align="center">
   <a href="https://github.com/user-attachments/assets/688f3e14-b0dc-45f6-a766-80af1369cdaa">
@@ -79,7 +79,7 @@ works; it does not imply broad compatibility with similar sites.
 </p>
 
 <p align="center">
-  <sub>Hacker News rendering and session proof. Login and comment submission require the explicit per-origin compatibility mode shown in the capture.</sub>
+  <sub>Hacker News rendering and session proof. The capture predates 2026-08-02, when HN began allowing non-mainstream user agents &mdash; the compatibility-mode warning it shows is no longer needed for this site.</sub>
 </p>
 
 ### Capability overview
@@ -98,23 +98,39 @@ works; it does not imply broad compatibility with similar sites.
 - DOM queries and mutations, attributes, `classList`, and `dataset` subsets.
 - Capture/target/bubble events, timers, microtasks, and `requestAnimationFrame`.
 - Basic forms, text input, multiline `<textarea>`, focus, and GET/POST submission.
+- `fetch()` with real promises, `Response`/`Headers`, and JSON — a page can load
+  its own data instead of only receiving what the engine chose to request.
+- The History API (`pushState`/`replaceState`/`popstate`), so client-side routing
+  works and Back returns to the previous view without a reload.
+- DOM interface objects (`EventTarget`, `Node`, `Element`, `HTMLElement`) and
+  constructible `Event`/`CustomEvent`, so `instanceof` checks and custom events
+  behave as pages expect.
 
 **Browser behavior**
 
 - Multiple isolated tabs, back/forward navigation, reload, and bookmarks.
 - HTML, CSS, image, SVG, and font resource loading through libcurl.
 - Redirect handling, referrer/origin headers, and retryable network-error pages.
+- An HTTP cache with revalidation, plus reload and hard-reload semantics.
+- CORS enforcement for script-initiated requests, applied on every redirect hop.
+- Declarative request filtering, with a bundled `ad-block-lite` extension that
+  blocks a curated tracker list without running any extension code per request.
 - An engine-owned RFC 6265-shaped cookie jar with persistence and
   `document.cookie`.
 - Persistent per-origin `localStorage` and per-tab `sessionStorage`.
-- A small experimental extension host with tab events and CSS injection.
+- A small experimental extension host with tab events, CSS injection, enforced
+  manifest permissions, and declarative request-blocking rules.
 
 ### Major gaps
 
 - HTML, CSS, DOM, and JavaScript APIs cover only a small subset of the web platform.
 - Most production websites are visually broken or functionally unusable.
-- There is no `fetch`/XHR, full framework compatibility, media playback, canvas,
-  WebGL, service workers, or browser-grade accessibility.
+- No `XMLHttpRequest` (only `fetch`), full framework compatibility, media playback,
+  canvas, WebGL, service workers, or browser-grade accessibility.
+- Inline `<svg>` inside a document often fails to render, though standalone SVG
+  files work.
+- No font fallback chain: characters outside the bundled font — emoji, CJK, many
+  accented glyphs — render as replacement boxes.
 - Text editing, selection, shaping, bidirectional text, and form controls are partial.
 - There is no security boundary suitable for browsing hostile content.
 
@@ -162,9 +178,10 @@ shortcuts.
 | --- | --- |
 | `Ctrl+L`, then `Enter` | Focus the URL bar and navigate |
 | `Alt+Left` / `Alt+Right` | Back / forward |
-| `F5` / `Ctrl+R` | Reload |
 | `Ctrl+T` / `Ctrl+W` | Open / close a tab |
 | `Ctrl+Left` / `Ctrl+Right` | Switch tabs |
+| `F5` / `Ctrl+R` | Reload |
+| `Ctrl+Shift+R` / `Ctrl+F5` | Hard reload (ignore the cache) |
 | `Ctrl+D` | Bookmark the current page |
 | `Ctrl+Shift+O` | Open `about:bookmarks` |
 | `Ctrl+Shift+U` | Toggle compatibility mode for the current origin |
@@ -182,6 +199,13 @@ Hummingbird identifies itself honestly by default: its `User-Agent` and
 
 Some servers reject unknown browser identities before the engine gets a chance to
 render their response. Compatibility mode is an explicit, per-origin escape hatch:
+
+> **Hacker News no longer needs it (2026-08-02).** HN was the original reason
+> this mode exists — it rejected the honest `User-Agent` outright. The HN team
+> have since allowed non-mainstream user agents, so Hummingbird now reads,
+> logs into and comments on HN **under its own identity**. The escape hatch
+> stays for the next server that does this, but the flagship target no longer
+> requires it, which is the outcome asking for it was aiming at.
 
 - Press `Ctrl+Shift+U` to give the current origin a canonical Chrome-shaped
   `User-Agent`.
