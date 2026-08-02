@@ -26,6 +26,12 @@ size_t HttpCache::Entry::footprint() const {
     for (const auto& field : headers.fields()) {
         total += field.name.size() + field.value.size();
     }
+    for (const auto& name : vary_names) {
+        total += name.size();
+    }
+    for (const auto& value : vary_values) {
+        total += value.size();
+    }
     return total;
 }
 

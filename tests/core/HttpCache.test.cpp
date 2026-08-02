@@ -195,6 +195,37 @@ TEST(HttpCacheTest, RefusesAnEntryLargerThanThePerEntryCap) {
     EXPECT_EQ(cache.stats().entries, 0u);
 }
 
+TEST(HttpCacheTest, VarySelectingValuesCountTowardThePerEntryCap) {
+    HttpCache cache;
+    const std::string huge(HttpCache::kMaxEntryBytes, 'x');
+    const auto request = headers_of({{"X-Selector", huge.c_str()}});
+    const auto response = headers_of({{"Cache-Control", "max-age=60"}, {"Vary", "X-Selector"}});
+
+    EXPECT_EQ(cache.store("GET", "https://a.test/vary", 200, request, response, "BODY", epoch()),
+              Storability::TooLarge);
+    EXPECT_EQ(cache.stats().entries, 0u);
+    EXPECT_EQ(cache.stats().bytes, 0u);
+}
+
+TEST(HttpCacheTest, VarySelectingValuesParticipateInTotalCapEviction) {
+    HttpCache cache;
+    const auto response = headers_of({{"Cache-Control", "max-age=60"}, {"Vary", "X-Selector"}});
+    const std::string large_selector(1900u * 1024u, 'x');
+
+    for (size_t i = 0; i < 5; ++i) {
+        auto selected = large_selector;
+        selected.back() = static_cast<char>('a' + i);
+        const auto request = headers_of({{"X-Selector", selected.c_str()}});
+        EXPECT_EQ(cache.store("GET", "https://a.test/vary/" + std::to_string(i), 200, request, response, "BODY",
+                              plus(static_cast<long>(i))),
+                  Storability::Storable);
+    }
+
+    EXPECT_LE(cache.stats().bytes, HttpCache::kMaxBytes);
+    EXPECT_LT(cache.stats().entries, 5u);
+    EXPECT_GT(cache.stats().evictions, 0u);
+}
+
 // --- the secondary key: Vary and credentials (story 9.3.2) -------------------
 
 // The acceptance criterion, stated exactly: two requests differing only in a
