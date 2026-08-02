@@ -2,7 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [0.9.0] - unreleased
+
+Milestone 9, "The Fetcher": the page gets its own voice on the network.
 
 ### Changed
 
@@ -76,9 +78,67 @@ All notable changes to this project will be documented in this file.
   in the same tab.
 - **Correct microtask ordering**: promise continuations now run when the JavaScript
   stack empties rather than when a nested event dispatch returns.
+- **Ad blocking, built in.** A bundled `ad-block-lite` extension blocks a curated
+  list of third-party tracker domains. Rules are matched natively inside the
+  engine, so no extension code runs while a request is in flight — a blocker
+  cannot slow a page down or hang it, and the matching is re-applied on every
+  redirect hop, which is how a tracker would otherwise sidestep it with a single
+  redirect. Toggle it like Dark Mode in `assets/config/browser.ini`. The
+  extension itself is three files, one of which does nothing: the rules live in
+  a JSON list, because a correct blocker needs no code.
+- **Extensions must now declare what they use.** The `permissions` field in an
+  extension manifest is enforced rather than merely parsed, so an extension that
+  has not asked for a capability cannot use it. This closes a gap where the field
+  read like a boundary and was not one.
+- **Client-side routing works** (`history.pushState`, `replaceState`, `popstate`).
+  A single-page app can change the URL and the view without a reload, and Back
+  returns to the previous view instead of refetching the document.
+- **The DOM interfaces pages check against** — `EventTarget`, `Node`, `Element`,
+  `HTMLElement` — plus constructible `Event` and `CustomEvent`. Scripts using
+  `instanceof`, patching a prototype, or dispatching their own events used to die
+  outright on the missing name; a text node is correctly *not* an `HTMLElement`.
+- **`self`, `window.console` and the rest of `window`.** `window` is now the
+  global object itself rather than a hand-maintained copy of part of it, so every
+  global is reachable both ways and the list can no longer fall behind. `console`
+  gained the fifteen methods pages actually call.
+- **`document.body`, `document.head`, `document.documentElement`**, and the
+  `location` URL components (`pathname`, `search`, `host`, …).
+- **Inline `data:` URLs** are decoded directly instead of being handed to the
+  network stack, so inline SVG icons and embedded images load.
+- **Fail-soft stubs for 14 unimplemented APIs**, up from 2, each reporting itself
+  once per document to a `[missing-api]` log line. The rule they follow is never
+  to fabricate a value a page can branch on.
 
 ### Fixed
 
+- **Fixed a crash on image-heavy pages.** The browser could terminate with no
+  message while browsing sites with many images. The render tree and the retained
+  display list both cached pointers into image memory that the engine frees as
+  pages navigate and images are replaced, so painting in the wrong moment drew
+  freed memory. Resources are now referred to by identity and resolved at the
+  point of use, which makes the whole class of bug impossible rather than
+  unlikely. The same fix removed the flickering glyphs seen on animated images.
+- **SVG images render far more often.** Files opening with a doctype or a licence
+  comment — most of what real sites serve — were not recognised as SVG at all and
+  silently failed, which is a missing icon everywhere they are used.
+- **A page served in place of an image no longer renders as garbage.** When a
+  server answers an image request with an error page or a consent wall, that is
+  now treated as a failed image rather than decoded into a meaningless picture.
+- **Closing the browser is immediate.** Quitting while requests were in flight
+  would hang until each one timed out — up to fifteen seconds — and then print a
+  wall of warnings about requests nobody was waiting for.
+- **Cookie name prefixes are enforced** (`__Secure-`, `__Host-`). These are a
+  promise the cookie's name makes to the server about how it was set; accepting
+  one that does not meet the conditions turned that guarantee into a lie.
+- **Links and resource URLs containing `&amp;` now resolve correctly.** Character
+  references in attribute values were not decoded, so any URL with an escaped
+  ampersand — most query strings — was requested wrongly and 404ed.
+- **A hard reload now refreshes the data a page loads with**, not just its
+  document and stylesheets. On an API-driven page the data is the page, and it
+  was still being served from cache.
+- **Blocked and filtered requests are no longer reported as failures** in the log,
+  so turning the ad blocker on does not fill the log with warnings about the
+  requests it was installed to prevent.
 - **A slow site can no longer stall a tab for minutes.** A request's time budget
   now covers the whole request including every redirect it follows, instead of
   restarting on each hop — a page that redirected repeatedly could previously keep
