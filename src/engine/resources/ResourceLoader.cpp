@@ -198,6 +198,7 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
     chain.cors.document_url = std::string(document_url);
     chain.cors.origin = origin_header;
     chain.cors.credentials = request.credentials;
+    chain.method = request.method;
     chain.destination = Core::RequestDestination::Fetch;
     // Without this a script fetch always ran at Default, so a hard reload
     // refreshed the document and its subresources and then served the page's
@@ -297,6 +298,7 @@ void ResourceLoader::send_preflight(INetwork& network, const ScriptFetchRequest&
 
     RedirectChain preflight_chain;
     preflight_chain.referrer_source = chain.referrer_source;
+    preflight_chain.method = "OPTIONS";
     // Marked as a preflight so the redirect loop refuses to follow one, but the
     // per-hop CORS path stays OFF: a preflight's own response is judged by
     // check_preflight (which asks about the method and headers too), and running
@@ -359,7 +361,7 @@ bool ResourceLoader::apply_deadline(RedirectChain& chain, NetworkRequestOptions&
 
 void ResourceLoader::send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
                                   std::function<void(NetworkResponse)> callback,
-                                  const Core::CookieRequestContext& context, std::optional<std::string> post_body,
+                                  const Core::CookieRequestContext& context, std::optional<std::string> request_body,
                                   RedirectChain chain) {
     // Declarative request filtering (story 9.4.1). First thing in the function,
     // so a blocked request costs no cookie header, no cache lookup and no
@@ -442,7 +444,7 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
     // server's CSRF check reads to confirm the POST came from its own page — the
     // one header a browser adds to a same-origin form POST that a top-level GET
     // navigation lacks. Without it HN answers /comment with 429 "Sorry.".
-    if (post_body) {
+    if (chain.method != "GET" && chain.method != "HEAD") {
         if (auto origin = Core::compute_origin_header(chain.referrer_source)) {
             options.headers.set("Origin", *origin);
         } else {
@@ -465,10 +467,11 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
 
     // A form POST's outgoing identity/CSRF headers, at DEBUG — invaluable when a
     // write is rejected (e.g. HN's 429), but off in a normal release build.
-    if (post_body) {
-        HB_LOG_DEBUG("[network] POST " << url << " Referer=" << options.headers.get("Referer") << " Origin="
-                                       << options.headers.get("Origin") << " UA=" << options.headers.get("User-Agent")
-                                       << " Cookie=" << (options.headers.get("Cookie").empty() ? "no" : "yes"));
+    if (chain.method != "GET" && chain.method != "HEAD") {
+        HB_LOG_DEBUG("[network] " << chain.method << " " << url << " Referer=" << options.headers.get("Referer")
+                                  << " Origin=" << options.headers.get("Origin")
+                                  << " UA=" << options.headers.get("User-Agent")
+                                  << " Cookie=" << (options.headers.get("Cookie").empty() ? "no" : "yes"));
     }
 
     // --- HTTP cache lookup (story 9.3.1) -------------------------------------
@@ -483,7 +486,7 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
     // POST's meaning lives in a body the key does not carry.
     std::optional<Core::HttpCache::Lookup> serve_from_cache;
     bool revalidating = false;
-    if (http_cache_ && !post_body && chain.cache_policy != CachePolicy::Bypass) {
+    if (http_cache_ && chain.method == "GET" && !request_body && chain.cache_policy != CachePolicy::Bypass) {
         auto hit = http_cache_->lookup("GET", url, options.headers, Core::CacheClock::now());
         // A reload must confirm even a fresh entry. Without this, F5 on a page
         // with `max-age=3600` would show the same bytes for an hour and the user
@@ -507,7 +510,7 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         }
     }
 
-    auto handle_response = [this, &network, url, options, callback, context, post_body, revalidating, chain](
+    auto handle_response = [this, &network, url, options, callback, context, request_body, revalidating, chain](
                                NetworkResponse response, bool from_cache) mutable {
         // A cached response never re-plants cookies: replaying a `Set-Cookie`
         // from memory would resurrect one the user had deleted. (The cache
@@ -566,7 +569,7 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
                 // This hop is about to be recorded again; leaving it would make
                 // the loop detector call the retry a redirect cycle.
                 retry_chain.visited.pop_back();
-                send_request(network, url, std::move(retry), std::move(callback), context, std::move(post_body),
+                send_request(network, url, std::move(retry), std::move(callback), context, std::move(request_body),
                              std::move(retry_chain));
                 return;
             } else {
@@ -593,7 +596,8 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         // every later use. Storing the filtered copy would drop
         // Access-Control-Allow-Origin, and the re-check on a subsequent cache hit
         // would then block a response the server had plainly allowed.
-        if (http_cache_ && !post_body && !from_cache && response.error == NetworkError::None) {
+        if (http_cache_ && chain.method == "GET" && !request_body && !from_cache &&
+            response.error == NetworkError::None) {
             const auto verdict = http_cache_->store("GET", url, response.status, options.headers, response.headers,
                                                     response.body, Core::CacheClock::now());
             if (verdict != Core::Storability::Storable) {
@@ -601,8 +605,7 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
             }
         }
 
-        auto decision =
-            RedirectPolicy::decide(response.status, response.headers.get("Location"), url, post_body.has_value());
+        auto decision = RedirectPolicy::decide(response.status, response.headers.get("Location"), url, chain.method);
         if (decision && (chain.cors.preflighted || chain.cors.is_preflight)) {
             // A preflight asked about the request it was given, not about
             // wherever the server would like to send it next; and a preflight
@@ -661,8 +664,8 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         next.headers.remove("If-None-Match");
         next.headers.remove("If-Modified-Since");
         std::optional<std::string> next_body;
-        if (decision->keep_post) {
-            next_body = post_body;
+        if (decision->method == chain.method) {
+            next_body = request_body;
         } else {
             next.content_type.clear();
         }
@@ -678,7 +681,7 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         }
         // Safe-method status follows the rewrite: a 302 that turns POST into GET
         // makes the next hop safe; a 307 that preserves POST does not.
-        next_context.safe_method = !decision->keep_post;
+        next_context.safe_method = decision->method == "GET" || decision->method == "HEAD";
 
         // Crossing an origin boundary mid-chain taints the request: from here on
         // it presents `Origin: null`, so the next server must opt in to an
@@ -690,8 +693,10 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
         }
 
         ++chain.hops;
-        HB_LOG_DEBUG("[network] redirect " << response.status << " " << url << " -> " << decision->url
-                                           << (decision->keep_post ? " (POST preserved)" : " (as GET)"));
+        const std::string previous_method = chain.method;
+        chain.method = decision->method;
+        HB_LOG_DEBUG("[network] redirect " << response.status << " " << url << " -> " << decision->url << " ("
+                                           << previous_method << " -> " << chain.method << ")");
         send_request(network, decision->url, std::move(next), std::move(callback), next_context, std::move(next_body),
                      std::move(chain));
     };
@@ -721,11 +726,8 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
     auto on_response = [handle_response](NetworkResponse response) mutable {
         handle_response(std::move(response), /*from_cache*/ false);
     };
-    if (post_body) {
-        network.post(url, *post_body, std::move(on_response), options);
-    } else {
-        network.get(url, std::move(on_response), options);
-    }
+    network.request(url, chain.method, request_body ? std::string_view(*request_body) : std::string_view{},
+                    std::move(on_response), options);
 }
 
 void ResourceLoader::shutdown() {
@@ -811,6 +813,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
         options.content_type = request.content_type;
         const bool is_post = request.method == DocumentRequest::Method::Post;
         RedirectChain chain;
+        chain.method = is_post ? "POST" : "GET";
         chain.referrer_source = request.initiator_url;
         chain.cache_policy = request.cache_policy;
         send_request(*fallback_network_, url_copy, options, std::move(callback),
@@ -832,6 +835,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
             options.content_type = request.content_type;
             const bool is_post = request.method == DocumentRequest::Method::Post;
             RedirectChain chain;
+            chain.method = is_post ? "POST" : "GET";
             chain.referrer_source = request.initiator_url;
             chain.cache_policy = request.cache_policy;
             send_request(*fallback_network_, url_copy, options, std::move(callback),
@@ -887,6 +891,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
                 NetworkRequestOptions fallback_options{};
                 fallback_options.content_type = post_content_type;
                 RedirectChain fallback_chain;
+                fallback_chain.method = request_method == DocumentRequest::Method::Post ? "POST" : "GET";
                 fallback_chain.referrer_source = initiator_url;
                 fallback_chain.cache_policy = cache_policy;
                 send_request(
@@ -918,6 +923,7 @@ void ResourceLoader::navigate(std::string_view url, const DocumentRequest& reque
 
     const bool is_post = request.method == DocumentRequest::Method::Post;
     RedirectChain chain;
+    chain.method = is_post ? "POST" : "GET";
     chain.referrer_source = request.initiator_url;
     chain.cache_policy = request.cache_policy;
     send_request(*network_, url_copy, options, std::move(callback),

@@ -363,12 +363,12 @@ TEST(RedirectChainTest, ARedirectToAnyNonWebSchemeIsRefused) {
     for (const char* target : {"file://localhost/C:/x", "ftp://example.test/x", "javascript:alert(1)",
                                "data:text/html,<b>hi</b>"}) {
         EXPECT_FALSE(
-            Hummingbird::Engine::RedirectPolicy::decide(302, target, "https://example.test/", false).has_value())
+            Hummingbird::Engine::RedirectPolicy::decide(302, target, "https://example.test/", "GET").has_value())
             << target;
     }
     // ...while ordinary web redirects still work.
     EXPECT_TRUE(Hummingbird::Engine::RedirectPolicy::decide(302, "http://example.test/ok", "https://example.test/",
-                                                            false)
+                                                            "GET")
                     .has_value());
 }
 

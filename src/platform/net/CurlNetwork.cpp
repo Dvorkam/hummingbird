@@ -218,63 +218,16 @@ void CurlNetwork::shutdown() {
 
 void CurlNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback,
                       const NetworkRequestOptions& options) {
-    if (!ok()) {
-        if (callback) callback(Hummingbird::Platform::make_response(url));
-        return;
-    }
-    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
-
-    // Move callback once, and never touch the moved-from original again.
-    auto cb = std::move(callback);
-
-    const bool allow_insecure = options.allow_insecure;
-    Core::HttpHeaders request_headers = options.headers;
-    const NetworkRequestOptions call_options = options;
-    thread_pool_.submit([url, cb = std::move(cb), this, allow_insecure, call_options,
-                         request_headers = std::move(request_headers)]() mutable {
-        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
-        std::string body;
-        NetworkResponse response = Hummingbird::Platform::make_response(url);
-        CURL* curl = curl_easy_init();
-        if (!curl) {
-            HB_LOG_WARN("[network] curl init failed: url=" << url);
-            if (cb) cb(std::move(response));
-            return;
-        }
-
-        apply_common_curl_options(curl, url, body, response.headers, call_options, thread_pool_.stopping_flag());
-        struct curl_slist* headers = append_request_headers(nullptr, request_headers);
-        if (headers) {
-            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-        }
-        Hummingbird::Platform::apply_tls_options(curl, allow_insecure);
-
-        CURLcode res = curl_easy_perform(curl);
-        CurlResponseMeta meta = collect_response_meta(curl);
-        curl_slist_free_all(headers);
-        curl_easy_cleanup(curl);
-
-        if (res != CURLE_OK) {
-            response.error = classify_curl_error(res);
-            log_transfer_failure(url, res, meta, body.size());
-        } else if (meta.status >= 400) {
-            HB_LOG_WARN("[network] http error: url=" << url << " status=" << meta.status << " effective="
-                                                     << meta.effective_url << " content_type=" << meta.content_type
-                                                     << " bytes=" << body.size());
-            log_http_error_details(url, response.headers, body);
-        }
-
-        if (res == CURLE_OK || !body.empty()) {
-            response.body = std::move(body);
-            response.status = meta.status;
-            response.effective_url = std::move(meta.effective_url);
-        }
-        if (cb) cb(std::move(response));
-    });
+    request(url, "GET", {}, std::move(callback), options);
 }
 
 void CurlNetwork::post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
                        const NetworkRequestOptions& options) {
+    request(url, "POST", body, std::move(callback), options);
+}
+
+void CurlNetwork::request(const std::string& url, std::string_view method, std::string_view body,
+                          std::function<void(NetworkResponse)> callback, const NetworkRequestOptions& options) {
     if (!ok()) {
         if (callback) callback(Hummingbird::Platform::make_response(url));
         return;
@@ -282,15 +235,15 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
     if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     auto cb = std::move(callback);
-    const std::string body_copy(body);
+    const std::string method_copy(method);
+    const std::string request_body(body);
     const bool allow_insecure = options.allow_insecure;
     const std::string content_type =
-        options.content_type.empty() ? "application/x-www-form-urlencoded" : options.content_type;
-
+        options.content_type.empty() && method == "POST" ? "application/x-www-form-urlencoded" : options.content_type;
     Core::HttpHeaders request_headers = options.headers;
     const NetworkRequestOptions call_options = options;
-    thread_pool_.submit([url, body_copy, cb = std::move(cb), this, allow_insecure, content_type, call_options,
-                         request_headers = std::move(request_headers)]() mutable {
+    thread_pool_.submit([url, method_copy, request_body, cb = std::move(cb), this, allow_insecure, content_type,
+                         call_options, request_headers = std::move(request_headers)]() mutable {
         if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
         std::string response_body;
         NetworkResponse response = Hummingbird::Platform::make_response(url);
@@ -303,15 +256,34 @@ void CurlNetwork::post(const std::string& url, std::string_view body, std::funct
 
         apply_common_curl_options(curl, url, response_body, response.headers, call_options,
                                   thread_pool_.stopping_flag());
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body_copy.c_str());
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(body_copy.size()));
+        if (method_copy == "HEAD") {
+            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+        } else if (method_copy == "POST") {
+            // CURLOPT_POST is required even for an empty body; otherwise curl
+            // silently issues GET, which is the bug this port exists to prevent.
+            curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        }
+        if (!request_body.empty() || method_copy == "POST") {
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body.c_str());
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(request_body.size()));
+        }
+        if (method_copy != "GET" && method_copy != "POST" && method_copy != "HEAD") {
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, method_copy.c_str());
+        } else if (method_copy == "GET" && !request_body.empty()) {
+            // CURLOPT_POSTFIELDS changes curl's inferred verb to POST. Restore
+            // the caller's explicit method after installing the request body.
+            curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "GET");
+        }
 
         struct curl_slist* headers = nullptr;
-        const std::string content_type_header = "Content-Type: " + content_type;
-        headers = curl_slist_append(headers, content_type_header.c_str());
+        if (!content_type.empty()) {
+            const std::string content_type_header = "Content-Type: " + content_type;
+            headers = curl_slist_append(headers, content_type_header.c_str());
+        }
         headers = append_request_headers(headers, request_headers);
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        if (headers) {
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+        }
 
         Hummingbird::Platform::apply_tls_options(curl, allow_insecure);
 

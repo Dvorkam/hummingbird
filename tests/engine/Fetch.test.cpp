@@ -404,27 +404,24 @@ public:
 
     void get(const std::string& url, std::function<void(Hummingbird::NetworkResponse)> callback,
              const Hummingbird::NetworkRequestOptions& options = {}) override {
-        // A preflight is the only request the engine makes with
-        // Access-Control-Request-Method set.
-        const bool preflight = !options.headers.get("Access-Control-Request-Method").empty();
-        calls.push_back(Call{url, preflight ? "OPTIONS" : "GET", options.headers});
+        request(url, "GET", {}, std::move(callback), options);
+    }
+    void post(const std::string& url, std::string_view body,
+              std::function<void(Hummingbird::NetworkResponse)> callback,
+              const Hummingbird::NetworkRequestOptions& options = {}) override {
+        request(url, "POST", body, std::move(callback), options);
+    }
+    void request(const std::string& url, std::string_view method, std::string_view,
+                 std::function<void(Hummingbird::NetworkResponse)> callback,
+                 const Hummingbird::NetworkRequestOptions& options = {}) override {
+        calls.push_back(Call{url, std::string(method), options.headers});
+        const bool preflight = method == "OPTIONS";
         Hummingbird::NetworkResponse response;
         response.url = url;
         response.effective_url = url;
         response.status = 200;
         response.headers = preflight ? preflight_headers_ : response_headers_;
         response.body = preflight ? "" : "SECRET";
-        if (callback) callback(std::move(response));
-    }
-    void post(const std::string& url, std::string_view, std::function<void(Hummingbird::NetworkResponse)> callback,
-              const Hummingbird::NetworkRequestOptions& options = {}) override {
-        calls.push_back(Call{url, "POST", options.headers});
-        Hummingbird::NetworkResponse response;
-        response.url = url;
-        response.effective_url = url;
-        response.status = 200;
-        response.headers = response_headers_;
-        response.body = "SECRET";
         if (callback) callback(std::move(response));
     }
     void shutdown() override {}
@@ -595,9 +592,37 @@ TEST(FetchTest, AnApprovedPreflightIsFollowedByTheRealRequest) {
     EXPECT_EQ(got.failure, ScriptFetchFailure::None);
     ASSERT_EQ(fx.net->calls.size(), 2u);
     EXPECT_EQ(fx.net->calls[0].method, "OPTIONS");
+    EXPECT_EQ(fx.net->calls[1].method, "DELETE") << "the approved request must retain the page's method";
     // The preflight itself is never credentialed: "may I" must not depend on
     // who is logged in.
     EXPECT_TRUE(fx.net->calls[0].headers.get("Cookie").empty());
+}
+
+TEST(FetchTest, AnEmptyBodyPostIsStillSentAsPost) {
+    CorsFixture fx{{}};
+    ScriptFetchRequest request;
+    request.url = "https://page.test/submit";  // same origin: no preflight noise
+    request.method = "POST";
+
+    const auto got = fx.run(request);
+
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+    ASSERT_EQ(fx.net->calls.size(), 1u);
+    EXPECT_EQ(fx.net->calls[0].method, "POST");
+}
+
+TEST(FetchTest, AGetWithABodyIsStillSentAsGet) {
+    CorsFixture fx{{}};
+    ScriptFetchRequest request;
+    request.url = "https://page.test/search";  // same origin: no preflight noise
+    request.method = "GET";
+    request.body = "query=hummingbird";
+
+    const auto got = fx.run(request);
+
+    EXPECT_EQ(got.failure, ScriptFetchFailure::None);
+    ASSERT_EQ(fx.net->calls.size(), 1u);
+    EXPECT_EQ(fx.net->calls[0].method, "GET");
 }
 
 // A simple request goes straight out: preflighting a plain GET would double

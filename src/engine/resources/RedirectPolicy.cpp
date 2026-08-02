@@ -5,7 +5,18 @@
 
 namespace Hummingbird::Engine::RedirectPolicy {
 
-std::optional<Decision> decide(long status, std::string_view location, std::string_view current_url, bool was_post) {
+std::string redirect_method(long status, std::string_view current_method) {
+    if (status == 303 && current_method != "GET" && current_method != "HEAD") {
+        return "GET";
+    }
+    if ((status == 301 || status == 302) && current_method == "POST") {
+        return "GET";
+    }
+    return std::string(current_method);
+}
+
+std::optional<Decision> decide(long status, std::string_view location, std::string_view current_url,
+                               std::string_view current_method) {
     if (!is_redirect_status(status)) {
         return std::nullopt;
     }
@@ -32,7 +43,7 @@ std::optional<Decision> decide(long status, std::string_view location, std::stri
 
     Decision decision;
     decision.url = std::move(target);
-    decision.keep_post = was_post && preserves_method(status);
+    decision.method = redirect_method(status, current_method);
     return decision;
 }
 

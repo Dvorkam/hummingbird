@@ -543,19 +543,17 @@ void StubNetwork::shutdown() {
 
 void StubNetwork::get(const std::string& url, std::function<void(NetworkResponse)> callback,
                       const NetworkRequestOptions& options) {
-    if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
-
-    auto cb = std::move(callback);
-    Core::HttpHeaders request_headers = options.headers;
-
-    thread_pool_.submit([url, cb = std::move(cb), this, request_headers = std::move(request_headers)]() mutable {
-        if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), cb, url)) return;
-        run_stub_request(url, std::move(cb), request_headers);
-    });
+    request(url, "GET", {}, std::move(callback), options);
 }
 
 void StubNetwork::post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
                        const NetworkRequestOptions& options) {
+    request(url, "POST", body, std::move(callback), options);
+}
+
+void StubNetwork::request(const std::string& url, std::string_view method, std::string_view body,
+                          std::function<void(NetworkResponse)> callback, const NetworkRequestOptions& options) {
+    (void)method;
     if (Hummingbird::Platform::respond_if_stopping(thread_pool_.stopping(), callback, url)) return;
 
     auto cb = std::move(callback);

@@ -173,6 +173,10 @@ private:
     // State carried across the hops of one redirect chain (story 8.3.1).
     struct RedirectChain {
         int hops = 0;
+        // HTTP method for the current hop. Explicit state rather than inferred
+        // from body presence: OPTIONS and bodyless POST are both meaningful,
+        // and redirects may rewrite POST to GET while preserving PUT/DELETE.
+        std::string method = "GET";
         // When the whole chain must be done, set on the first hop and carried
         // unchanged through every later one (story 9.1.3). This is what makes
         // the budget belong to the REQUEST rather than to each hop: without it,
@@ -251,16 +255,16 @@ private:
     // through it, so no call site can silently skip any of that. `context` tells
     // the jar who is asking, which SameSite needs (8.1.2).
     //
-    // `post_body` is by value, not a pointer: a redirect re-issues the request
+    // `request_body` is by value, not a pointer: a redirect re-issues the request
     // from a network callback, long after the caller's body has gone out of
     // scope.
     // No default arguments here: `chain` is a nested aggregate with default member
     // initializers, and the standard forbids using those in a default argument of
     // the enclosing class's own member (GCC enforces this; MSVC does not). Every
-    // caller passes `post_body` (or std::nullopt) and a `RedirectChain` explicitly.
+    // caller passes `request_body` (or std::nullopt) and a `RedirectChain` explicitly.
     void send_request(INetwork& network, const std::string& url, NetworkRequestOptions options,
                       std::function<void(NetworkResponse)> callback, const Core::CookieRequestContext& context,
-                      std::optional<std::string> post_body, RedirectChain chain);
+                      std::optional<std::string> request_body, RedirectChain chain);
 
     // Starts `chain`'s deadline if this is its first hop, then writes what is
     // left of the budget into `options`. Returns false when the budget is

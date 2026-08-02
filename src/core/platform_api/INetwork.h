@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "core/net/HttpHeaders.h"
 
@@ -76,6 +77,27 @@ public:
                      const NetworkRequestOptions& options = {}) = 0;
     virtual void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
                       const NetworkRequestOptions& options = {}) = 0;
+    // General HTTP request entry point. ResourceLoader uses this path so the
+    // method is data crossing the port rather than something inferred from body
+    // presence. Legacy GET/POST-only test adapters inherit the safe default:
+    // known methods dispatch to their existing operations; every other method
+    // fails closed instead of silently becoming GET.
+    virtual void request(const std::string& url, std::string_view method, std::string_view body,
+                         std::function<void(NetworkResponse)> callback, const NetworkRequestOptions& options = {}) {
+        if (method == "GET") {
+            get(url, std::move(callback), options);
+            return;
+        }
+        if (method == "POST") {
+            post(url, body, std::move(callback), options);
+            return;
+        }
+        NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        response.error = NetworkError::CurlError;
+        if (callback) callback(std::move(response));
+    }
     // Release any background resources (threads, handles, etc).
     // Implementations must ensure no callbacks run after shutdown() returns.
     virtual void shutdown() = 0;
