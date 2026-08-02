@@ -28,6 +28,8 @@ namespace {
 using Hummingbird::NetworkError;
 using Hummingbird::NetworkRequestOptions;
 using Hummingbird::NetworkResponse;
+using Hummingbird::ScriptFetchFailure;
+using Hummingbird::ScriptFetchRequest;
 using Hummingbird::Engine::NetworkErrorPage;
 using Hummingbird::Engine::ResourceLoader;
 using Hummingbird::Engine::ResourceType;
@@ -85,6 +87,39 @@ public:
     long total_timeout_ms = 0;
     long connect_timeout_ms = 0;
     int calls = 0;
+};
+
+// Answers an OPTIONS preflight and then the approved DELETE, recording the
+// shrinking total budget presented to each transport call.
+class PreflightDeadlineNetwork final : public Hummingbird::INetwork {
+public:
+    void get(const std::string& url, std::function<void(NetworkResponse)> callback,
+             const NetworkRequestOptions& options = {}) override {
+        request(url, "GET", {}, std::move(callback), options);
+    }
+    void post(const std::string& url, std::string_view body, std::function<void(NetworkResponse)> callback,
+              const NetworkRequestOptions& options = {}) override {
+        request(url, "POST", body, std::move(callback), options);
+    }
+    void request(const std::string& url, std::string_view method, std::string_view,
+                 std::function<void(NetworkResponse)> callback,
+                 const NetworkRequestOptions& options = {}) override {
+        methods.emplace_back(method);
+        total_timeout_ms.push_back(options.total_timeout_ms);
+        NetworkResponse response;
+        response.url = url;
+        response.effective_url = url;
+        response.status = method == "OPTIONS" ? 204 : 200;
+        response.headers.set("Access-Control-Allow-Origin", "https://page.test");
+        if (method == "OPTIONS") {
+            response.headers.set("Access-Control-Allow-Methods", "DELETE");
+        }
+        if (callback) callback(std::move(response));
+    }
+    void shutdown() override {}
+
+    std::vector<std::string> methods;
+    std::vector<long> total_timeout_ms;
 };
 
 // A clock the test drives: every reading advances by `step`, so a chain burns
@@ -171,6 +206,28 @@ TEST(RequestDeadlineTest, ASingleHopGetsTheFullBudgetAndSucceeds) {
     auto view = loader.view("https://fast.test/page", ResourceType::Document);
     ASSERT_TRUE(view.has_value());
     EXPECT_EQ(view->body, "<html>ok</html>");
+}
+
+TEST(RequestDeadlineTest, PreflightAndApprovedRequestShareOneDeadline) {
+    auto network = std::make_unique<PreflightDeadlineNetwork>();
+    auto* net = network.get();
+    ResourceLoader loader(std::move(network), nullptr, nullptr, nullptr, nullptr);
+    loader.set_request_deadlines({/*connect_ms*/ 5000, /*total_ms*/ 15000});
+    loader.set_deadline_clock(SteppingClock(std::chrono::milliseconds(4000)));
+
+    ScriptFetchRequest request;
+    request.url = "https://api.other.test/item";
+    request.method = "DELETE";
+    ScriptFetchFailure failure = ScriptFetchFailure::NetworkError;
+    loader.fetch_for_script(request, "https://page.test/index.html",
+                            [&](auto response) { failure = response.failure; });
+
+    EXPECT_EQ(failure, ScriptFetchFailure::None);
+    ASSERT_EQ(net->methods, (std::vector<std::string>{"OPTIONS", "DELETE"}));
+    ASSERT_EQ(net->total_timeout_ms.size(), 2u);
+    EXPECT_EQ(net->total_timeout_ms[0], 11000);
+    EXPECT_EQ(net->total_timeout_ms[1], 7000)
+        << "the real request must inherit time spent obtaining preflight approval";
 }
 
 // The deadlines are configuration, not a constant buried in the transport: this

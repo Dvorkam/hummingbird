@@ -249,6 +249,9 @@ void ResourceLoader::fetch_for_script(const ScriptFetchRequest& request, std::st
     // preflight is that the server never SEES the real request until it has
     // agreed to it, which matters when that request would delete something.
     if (cross_origin && !Core::Cors::is_simple_request(request.method, options.headers)) {
+        // Start the one request-wide budget before branching. Both the OPTIONS
+        // probe and the approved request carry this same absolute deadline.
+        chain.deadline = now() + std::chrono::milliseconds(deadlines_.total_ms);
         send_preflight(*transport, request, options, origin_header, context, chain,
                        [this, transport, url = request.url, options, context, chain, body, deliver,
                         callback](bool approved) mutable {
@@ -363,6 +366,9 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
                                   std::function<void(NetworkResponse)> callback,
                                   const Core::CookieRequestContext& context, std::optional<std::string> request_body,
                                   RedirectChain chain) {
+    if (chain.visited.empty()) {
+        chain.filter_initiator_host = context.initiator_host;
+    }
     // Declarative request filtering (story 9.4.1). First thing in the function,
     // so a blocked request costs no cookie header, no cache lookup and no
     // transport — it is refused before anything is spent on it.
@@ -373,7 +379,7 @@ void ResourceLoader::send_request(INetwork& network, const std::string& url, Net
     // ordinary behaviour for ad and tracking networks. Filtering only the first
     // URL would be trivially evaded by a single 302.
     if (request_filter_) {
-        const auto verdict = request_filter_->match({url, chain.destination, context.initiator_host});
+        const auto verdict = request_filter_->match({url, chain.destination, chain.filter_initiator_host});
         if (verdict.blocked) {
             HB_LOG_INFO("[filter] blocked " << url << " (" << verdict.source << " rule " << verdict.rule_id << ")");
             NetworkResponse blocked;

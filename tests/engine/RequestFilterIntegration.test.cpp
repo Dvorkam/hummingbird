@@ -189,6 +189,21 @@ TEST(RequestFilterIntegrationTest, ThirdPartyRulesSeeTheInitiatingDocument) {
         << "the page's own beacon is first-party and must survive";
 }
 
+TEST(RequestFilterIntegrationTest, RedirectsCannotReplaceTheFilterInitiator) {
+    FilterRule rule;
+    rule.id = 1;
+    rule.url_filter = "/beacon";
+    rule.third_party = Hummingbird::Core::ThirdPartyScope::ThirdPartyOnly;
+    Harness harness({rule});
+    harness.network->redirect("https://tracker.net/go", "https://sub.tracker.net/beacon");
+
+    harness.loader->request_images({"https://tracker.net/go"}, kPage);
+
+    EXPECT_TRUE(harness.network->saw("https://tracker.net/go"));
+    EXPECT_FALSE(harness.network->saw("https://sub.tracker.net/beacon"))
+        << "a redirect must remain third-party relative to the document that initiated the chain";
+}
+
 TEST(RequestFilterIntegrationTest, RulesTakeEffectAndStopTakingEffectWhileTheLoaderLives) {
     Harness harness({block_domain("tracker.net")});
     harness.loader->request_scripts({"https://tracker.net/a.js"}, kPage);

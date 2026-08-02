@@ -243,6 +243,10 @@ private:
         // unblocked ad is a nuisance, a wrongly blocked resource is a broken
         // page with no explanation.
         Core::RequestDestination destination = Core::RequestDestination::Document;
+        // The document that initiated the request, immutable across redirects.
+        // Cookie SameSite context evolves per hop; third-party filtering must
+        // always remain relative to the original document.
+        std::string filter_initiator_host;
     };
 
     // The single choke point for network requests. `send_request`:
