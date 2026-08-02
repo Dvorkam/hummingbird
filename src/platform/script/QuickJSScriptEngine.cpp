@@ -1690,6 +1690,10 @@ void QuickJSScriptEngine::release_document_state() {
     free_animation_frames();
     missing_apis_.clear();            // telemetry is per-document (7.5.2)
     script_location_change_.reset();  // per-document location state (7.7.3)
+    script_history_changes_.clear();  // pending History API mutations belong to the old document
+    script_history_delta_.reset();    // as does a traversal it requested
+    history_state_.clear();           // the next document starts with history.state === null
+    history_length_ = 1;              // replaced with the Tab's real count before its scripts run
     if (context_) {
         for (auto& [node, value] : node_wrappers_) {
             (void)node;
@@ -2342,7 +2346,7 @@ JSValue QuickJSScriptEngine::js_history_push_state(JSContext* ctx, JSValueConst 
     // reads location.href must see the pushed address, and no hashchange fires
     // for a pushState even when the fragment differs.
     engine->location_url_ = url;
-    engine->script_history_change_ = HistoryChange{url, serialized, replace};
+    engine->script_history_changes_.push_back(HistoryChange{url, serialized, replace});
     return JS_UNDEFINED;
 }
 
@@ -2385,8 +2389,9 @@ JSValue QuickJSScriptEngine::js_history_go(JSContext* ctx, JSValueConst /*this_v
 }
 
 std::optional<IScriptEngine::HistoryChange> QuickJSScriptEngine::consume_history_change() {
-    std::optional<HistoryChange> out = std::move(script_history_change_);
-    script_history_change_.reset();
+    if (script_history_changes_.empty()) return std::nullopt;
+    HistoryChange out = std::move(script_history_changes_.front());
+    script_history_changes_.pop_front();
     return out;
 }
 
@@ -2408,7 +2413,7 @@ bool QuickJSScriptEngine::apply_popstate(std::string_view url, std::string_view 
     history_state_ = std::string(state);
     // A traversal the app drove: it must NOT report back as a script-initiated
     // change, or the Tab would re-push the entry it just moved to.
-    script_history_change_.reset();
+    script_history_changes_.clear();
     script_location_change_.reset();
 
     // Same shape as the hashchange dispatch above: a real event object on the

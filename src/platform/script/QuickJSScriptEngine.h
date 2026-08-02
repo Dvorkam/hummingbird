@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -334,7 +335,7 @@ private:
     // CURRENT entry — empty means null. It is per-document and dropped with the
     // context, like every other per-document value.
     std::string history_state_;
-    std::optional<HistoryChange> script_history_change_;
+    std::deque<HistoryChange> script_history_changes_;
     size_t history_length_ = 1;
     // A pending history.back()/forward()/go(n) delta the Tab has yet to apply.
     std::optional<int> script_history_delta_;

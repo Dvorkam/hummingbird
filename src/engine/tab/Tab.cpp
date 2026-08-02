@@ -397,7 +397,7 @@ size_t Tab::style_layout_pass_count() const {
 // because they are the same kind of event — a script changing the address of a
 // document that stays loaded.
 void Tab::process_script_history_change() {
-    if (auto change = document_pipeline_->consume_history_change()) {
+    while (auto change = document_pipeline_->consume_history_change()) {
         navigation_lifecycle_.update_same_document_url(change->url);
         if (change->replace) {
             history_.replace_current(change->url, change->state, document_generation_);

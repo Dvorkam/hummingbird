@@ -1463,6 +1463,31 @@ TEST(EngineTabTest, BackForwardWalksFragmentRoutes) {
     EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/#/active");
 }
 
+TEST(EngineTabTest, BackVisitsEverySynchronousPushStateEntry) {
+    const std::string html = R"HTML(
+<!doctype html>
+<html><body><script>
+history.pushState({ step: 1 }, "", "/one");
+history.pushState({ step: 2 }, "", "/two");
+</script><p>App</p></body></html>
+)HTML";
+
+    auto network = std::make_unique<RoutingNetwork>();
+    network->set_response("https://spa.test/app", html);
+    auto fallback = std::make_unique<RoutingNetwork>();
+    HeadlessTabHarness harness(std::move(network), std::move(fallback), Hummingbird::create_resource_provider(),
+                               nullptr);
+
+    harness.navigate("https://spa.test/app");
+    harness.tick();
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/two");
+
+    ASSERT_TRUE(harness.go_back());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/one");
+    ASSERT_TRUE(harness.go_back());
+    EXPECT_EQ(harness.tab().requested_url(), "https://spa.test/app");
+}
+
 TEST(EngineTabTest, ScriptLocationHashSyncsTabUrlAndQueuesUrlBarUpdate) {
     // 7.7.3: a script assigning location.hash must update the tab's requested URL
     // in place and queue a URL-bar update for the app (no reload).

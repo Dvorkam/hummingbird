@@ -1615,6 +1615,34 @@ TEST(ScriptEngineTest, PushStateRejectsACrossOriginUrlWithoutChangingState) {
     EXPECT_FALSE(engine->consume_history_change().has_value()) << "a rejected URL must not reach the Tab";
 }
 
+TEST(ScriptEngineTest, SynchronousPushStateCallsPreserveEveryEntryInOrder) {
+    Hummingbird::Core::ArenaAllocator arena(4096, 4);
+    auto root = Hummingbird::DOM::Element::create(arena, "div");
+    Hummingbird::Engine::DocumentScriptHost host;
+    host.reset(root.get(), &arena);
+    auto engine = Hummingbird::create_script_engine();
+    ASSERT_NE(engine, nullptr);
+    engine->bind_host(&host);
+    engine->set_location("https://example.dev/app/list");
+
+    ASSERT_TRUE(engine
+                    ->eval("history.pushState({ step: 1 }, '', 'one');"
+                           "history.pushState({ step: 2 }, '', 'two');",
+                           "inline")
+                    .ok);
+
+    const auto first = engine->consume_history_change();
+    ASSERT_TRUE(first.has_value());
+    EXPECT_EQ(first->url, "https://example.dev/app/one");
+    EXPECT_NE(first->state.find("\"step\":1"), std::string::npos);
+
+    const auto second = engine->consume_history_change();
+    ASSERT_TRUE(second.has_value());
+    EXPECT_EQ(second->url, "https://example.dev/app/two");
+    EXPECT_NE(second->state.find("\"step\":2"), std::string::npos);
+    EXPECT_FALSE(engine->consume_history_change().has_value());
+}
+
 // An omitted url means "keep the current one", and null/undefined state is null
 // rather than the string "null" — a page can legitimately store that string.
 TEST(ScriptEngineTest, PushStateDefaultsUrlAndDistinguishesNullState) {
