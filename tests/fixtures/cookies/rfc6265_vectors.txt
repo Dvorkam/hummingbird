@@ -140,6 +140,14 @@ case __Secure- is accepted with Secure
 set https://example.com/ | __Secure-a=1; Secure
 get https://example.com/ | __Secure-a=1
 
+case __Secure- cannot be planted over http
+set http://example.com/ | __Secure-a=1; Secure
+get https://example.com/ |
+
+case differently cased secure prefix is an ordinary cookie name
+set http://example.com/ | __secure-a=1
+get http://example.com/ | __secure-a=1
+
 case __Host- requires Secure, host-only and path slash
 set https://example.com/ | __Host-a=1; Secure; Path=/
 get https://example.com/ | __Host-a=1
@@ -151,6 +159,18 @@ get https://example.com/ |
 case __Host- rejects a non-root path
 set https://example.com/ | __Host-a=1; Secure; Path=/dir
 get https://example.com/dir |
+
+case __Host- cannot be planted over http
+set http://example.com/ | __Host-a=1; Secure; Path=/
+get https://example.com/ |
+
+case differently cased host prefix is an ordinary cookie name
+set http://example.com/ | __host-a=1
+get http://example.com/ | __host-a=1
+
+case an ordinary Secure cookie cannot be planted over http
+set http://example.com/ | a=1; Secure
+get https://example.com/ |
 
 case an unknown attribute is ignored
 set https://example.com/ | a=1; Fictional=yes

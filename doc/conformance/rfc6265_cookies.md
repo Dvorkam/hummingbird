@@ -2,10 +2,10 @@
 
 **Module:** `src/core/net/{Cookie,CookieJar}.{h,cpp}`, wired at
 `src/engine/resources/ResourceLoader.cpp`.
-**Status as of:** 2026-07-31 (M8 stories 8.1.0–8.1.2 + T-COOKIE-NAV-INITIATOR-1,
+**Status as of:** 2026-08-02 (M8 stories 8.1.0–8.1.2 + T-COOKIE-NAV-INITIATOR-1,
 plus cookie name prefixes).
 **Measured by:** `tests/fixtures/cookies/rfc6265_vectors.txt`, run by
-`CookieConformanceTest` — currently **36/36 vectors passing**. The count is
+`CookieConformanceTest` — currently **41/41 vectors passing**. The count is
 printed on every CI run as `[cookie-conformance] N/M vectors passing` and may
 only rise; a vector that fails must be marked `xfail` and name the ticket that
 would fix it, so no failure sits here unexplained.
@@ -16,8 +16,8 @@ its size suggests — the prefix is a promise the cookie's NAME makes to the
 server (`__Host-session` means "set over https, by this exact host, for the whole
 origin"), so accepting one that does not meet the conditions turns the guarantee
 into a lie. A site can defend itself against an engine known to ignore prefixes;
-it cannot defend against one that says yes and means no. Fixed in `CookieJar`,
-case-insensitively, at the same time.*
+it cannot defend against one that says yes and means no. Fixed in `CookieJar`
+with the specified case-sensitive name match and secure-origin requirement.*
 
 Read `README.md` in this folder first: this file owns the *adherence picture*,
 `doc/TODOs.md` owns the *work items*, and neither repeats the other.
@@ -53,7 +53,8 @@ header→header vector and stays on targeted engine tests
 | §5.2 parsing algorithm | Yes (subset) | Ignores a field with no `=` or an empty name. |
 | §5.3 storage model | Yes | Host-only when no Domain; Max-Age overrides Expires; a Domain the request host is not within is rejected; same `(name, domain, path)` replaces in place, preserving creation time; an already-expired update deletes. |
 | §5.4 retrieval + send order | Yes | Longer paths first, then earlier creation time. |
-| `Secure` | Yes | Withheld from non-HTTPS transports. |
+| `Secure` | Yes | Rejected when received from a non-HTTPS origin and withheld from non-HTTPS transports. |
+| `__Secure-` / `__Host-` prefixes | Yes | Exact-case prefix matching; secure-origin and Secure-attribute checks, plus host-only and root-path checks for `__Host-`. |
 | `HttpOnly` | Yes | Withheld from the script view (`script_visible_cookies`) while still riding HTTP requests. |
 | SameSite `Lax` / `Strict` / `None` | Yes | Enforced for both subresources and navigations. `SameSite=None` without `Secure` is rejected at parse rather than downgraded. Lax default when absent or unrecognized. |
 | 6265bis §5.4 None-requires-Secure | Yes | Rejected outright — a silent downgrade would look like it had worked. |
@@ -75,9 +76,6 @@ exists; the ones marked *(no ticket)* are recorded but not scheduled.
   `a.co.uk` and `b.co.uk` as same-site. libcurl gets this right by linking
   libpsl; an engine-owned jar must carry its own.
   → `T-COOKIE-PUBLIC-SUFFIX-1` [M8 P1]
-- **No `__Secure-` / `__Host-` prefix enforcement.** Parsed like any other name;
-  the prefixes' guarantees are not checked. Deliberate M8 non-goal — record here
-  if a target site starts relying on them. *(no ticket)*
 - **No size or count limits.** RFC 6265 §6.1 asks for at least 4096 bytes per
   cookie, 50 per domain, 3000 total. We enforce none, so a hostile server can
   grow the jar without bound.

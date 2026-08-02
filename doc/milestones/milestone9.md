@@ -1297,7 +1297,7 @@ P1: Re-triaged 2026-07-30 (every P0 landed, and early). Ordered.
       that had to be pinned explicitly. 990 green.
       Demo: an m9 card checking ten identities, because a mirrored copy would pass
       a `typeof` check and still be the wrong object.)*
-- [x] T-COOKIE-CONFORMANCE-VECTORS-1: cookie conformance number *(**36/36**,
+- [x] T-COOKIE-CONFORMANCE-VECTORS-1: cookie conformance number *(**41/41**,
       printed every CI run as `[cookie-conformance] N/M vectors passing`. Found a
       real gap on its first run: the `__Secure-`/`__Host-` name prefixes were not
       enforced at all, so a cookie could claim a guarantee it did not meet —
