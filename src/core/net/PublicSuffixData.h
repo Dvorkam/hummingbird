@@ -34,12 +34,12 @@ namespace Hummingbird::Core::PublicSuffixData {
 // The upstream commit these rules were generated from. Deliberately the only
 // provenance recorded: a timestamp would make regeneration non-reproducible and
 // break the CI check that this file matches its source.
-inline constexpr std::string_view kUpstreamCommit = "a179a48c465e818cfd8d626691cb317985da87fb";
+inline constexpr std::string_view kUpstreamCommit = "6cd82aff889e3d64e5e03bc5c1f43da1934a960a";
 
-// 6950 ICANN rules + 3384 PRIVATE rules, split by kind.
+// 6949 ICANN rules + 3384 PRIVATE rules, split by kind.
 
 // Plain rules: "com", "co.uk", "github.io".
-inline constexpr std::array<std::string_view, 10496> kExactRules{
+inline constexpr std::array<std::string_view, 10495> kExactRules{
     std::string_view{"0.bg"},
     std::string_view{"0am.jp"},
     std::string_view{"0g0.jp"},
@@ -4238,7 +4238,6 @@ inline constexpr std::array<std::string_view, 10496> kExactRules{
     std::string_view{"js.wpenginepowered.com"},
     std::string_view{"ju.mp"},
     std::string_view{"juegos"},
-    std::string_view{"juniper"},
     std::string_view{"jur.pro"},
     std::string_view{"jus.br"},
     std::string_view{"jx.cn"},
